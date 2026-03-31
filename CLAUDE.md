@@ -37,26 +37,28 @@ not just fast code.
 
 ## Tech Stack (Frontend)
 
-| Layer          | Technology                                    |
-|----------------|-----------------------------------------------|
-| Framework      | Next.js 14+ (App Router)                      |
-| Language       | TypeScript (strict mode)                      |
-| Styling        | Tailwind CSS + shadcn/ui                      |
-| Server State   | TanStack Query v5 (React Query)               |
-| UI State       | Zustand                                       |
-| Forms          | React Hook Form + Zod                         |
-| HTTP Client    | Axios (centralized, with interceptors)        |
-| Drag & Drop    | @dnd-kit/core + @dnd-kit/sortable             |
-| Calendar       | FullCalendar React                            |
-| Gantt          | react-gantt-task                              |
-| Charts         | Recharts                                      |
-| Dates          | date-fns                                      |
-| PDF Export     | jsPDF + jspdf-autotable                       |
-| Excel Export   | SheetJS (xlsx)                                |
-| Icons          | Lucide React                                  |
-| Toasts         | Sonner                                        |
-| Auth           | Laravel Sanctum — JWT in httpOnly cookies     |
-| Testing        | Vitest + React Testing Library                |
+This repo’s `AGENTS.md` notes that **Next.js behavior/conventions may differ** from typical docs.
+When unsure, check `node_modules/next/dist/docs/` in this project before implementing.
+
+### Installed (current)
+
+| Layer          | Technology                             |
+|----------------|----------------------------------------|
+| Framework      | Next.js 16.2.1 (App Router)            |
+| UI            | React 19.2.4                           |
+| Language       | TypeScript                             |
+| Styling        | Tailwind CSS 4                         |
+| UI kit         | shadcn/ui (generated components)       |
+| Icons          | lucide-react                           |
+
+### Planned / to be added as needed
+
+| Layer        | Technology                      |
+|--------------|----------------------------------|
+| Server State | TanStack Query (React Query)     |
+| UI State     | Zustand                          |
+| Forms        | React Hook Form + Zod            |
+| HTTP Client  | Axios (centralized instance)     |
 
 ---
 
@@ -74,9 +76,9 @@ src/
 │   │   ├── reports/
 │   │   ├── team/
 │   │   └── settings/
-│   └── api/auth/           # Next.js BFF routes (token cookie management)
+│   └── api/auth/           # Next.js BFF routes (session cookie management)
 ├── components/
-│   ├── ui/                 # shadcn/ui — do not edit directly
+│   ├── ui/                 # shadcn/ui — generated components; avoid manual edits
 │   ├── common/             # DataTable, PageHeader, EmptyState, etc.
 │   ├── features/           # Feature-scoped components
 │   └── layouts/            # AppLayout, Sidebar, TopBar, MobileNav
@@ -97,13 +99,13 @@ src/
 
 The backend developer builds and maintains the Laravel REST API. I consume it from Next.js.
 
-**API base URL:** `process.env.NEXT_PUBLIC_API_URL` (e.g. `http://localhost:8000/api/v1`)
+**API base URL:** `process.env.NEXT_PUBLIC_API_URL` (example: `http://localhost:8000/api/v1`)
 
-**Auth flow:**
-1. `POST /api/v1/auth/login` → Laravel returns a JWT token
-2. My Next.js API route (`/api/auth/login`) receives the token and sets it as an `httpOnly` cookie
-3. Every subsequent Axios request reads the token from the store and attaches `Authorization: Bearer <token>`
-4. On 401, Axios tries a silent refresh via `/api/auth/refresh`, then retries the original request
+**Auth flow (cookie-based):**
+1. User signs in via a Next.js route handler (BFF) or direct API call (depending on backend contract)
+2. Backend establishes session via **httpOnly cookies** (and CSRF protection if using Sanctum)
+3. Frontend requests authenticate via cookies (`withCredentials`); **no token is stored in local/session storage**
+4. On 401, show a re-auth flow (optionally attempt a refresh endpoint once if the backend supports it)
 
 **I need from the backend developer:**
 - Postman collection or OpenAPI spec before starting each phase
@@ -365,6 +367,6 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
-> Last updated: 2025
+> Last updated: 2026-03-30
 > Maintainer: Frontend Dev
 > Update this file whenever the project scope, stack, or patterns change.

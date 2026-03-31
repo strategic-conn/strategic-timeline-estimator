@@ -1,7 +1,7 @@
 # ============================================================
 # .cursorrules — Timeline Estimator & Project Management Tool
-# Stack: Next.js 14+ / TypeScript / Tailwind / Laravel REST API
-# Last updated: 2025 | Maintainer: Frontend Dev
+# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Laravel REST API
+# Last updated: 2026-03-30 | Maintainer: Frontend Dev
 # ============================================================
 
 
@@ -51,7 +51,7 @@
 # PROJECT CONTEXT
 # ===========================================================
 
-You are an expert Next.js 14 frontend developer working on a full-scale
+You are an expert Next.js frontend developer working on a full-scale
 Project Management & Timeline Estimator application. The backend is a
 Laravel REST API built by a separate developer. Your role is purely
 frontend — consuming API endpoints, building UI, and managing
@@ -85,26 +85,17 @@ Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 
 | Layer               | Technology                                      |
 |---------------------|-------------------------------------------------|
-| Framework           | Next.js 14+ (App Router)                        |
-| Language            | TypeScript (strict mode)                        |
-| Styling             | Tailwind CSS                                    |
-| UI Components       | shadcn/ui                                       |
-| Server State        | TanStack Query v5 (React Query)                 |
-| Global UI State     | Zustand                                         |
-| Forms               | React Hook Form + Zod                           |
-| HTTP Client         | Axios (centralized instance + interceptors)     |
-| Drag & Drop         | @dnd-kit/core + @dnd-kit/sortable               |
-| Calendar            | FullCalendar React (@fullcalendar/react)         |
-| Gantt Charts        | react-gantt-task                                |
-| Charts              | Recharts                                        |
-| Date Handling       | date-fns (never moment.js)                      |
-| PDF Export          | jsPDF + jspdf-autotable                         |
-| Excel Export        | SheetJS (xlsx)                                  |
-| Icons               | Lucide React                                    |
-| Toasts              | Sonner                                          |
-| Auth                | Laravel Sanctum JWT via httpOnly cookies        |
-| Linting             | ESLint + Prettier                               |
-| Testing             | Vitest + React Testing Library                  |
+| Framework           | Next.js 16.2.1 (App Router)                     |
+| UI                 | React 19.2.4                                    |
+| Language            | TypeScript                                      |
+| Styling             | Tailwind CSS 4                                  |
+| UI Components       | shadcn/ui (generated in `components/ui`)        |
+| Classnames          | clsx + tailwind-merge + class-variance-authority|
+| Icons               | lucide-react                                    |
+| Animations          | tw-animate-css                                  |
+
+Planned / optional (add when needed; keep this section honest):
+- TanStack Query (React Query), Zustand, React Hook Form, Zod, Axios, @dnd-kit/*, @fullcalendar/react, Recharts, date-fns, Sonner, Vitest, Testing Library
 
 
 # ===========================================================
@@ -144,7 +135,7 @@ src/
 │   ├── error.tsx
 │   └── layout.tsx
 ├── components/
-│   ├── ui/                    # shadcn/ui — DO NOT edit directly
+│   ├── ui/                    # shadcn/ui — generated components; avoid manual edits
 │   ├── common/
 │   │   ├── DataTable/
 │   │   ├── PageHeader/
@@ -244,16 +235,15 @@ src/
 # API contract. Keep in sync with Postman collection.
 
 ## Base Setup
-- Base URL from process.env.NEXT_PUBLIC_API_URL + /api/v1/
+- Base URL from process.env.NEXT_PUBLIC_API_URL (example: http://localhost:8000/api/v1)
 - Never hardcode URLs — always use constants from lib/constants/config.ts
-- Required headers on every request:
-  - Authorization: Bearer <token>
+- Required headers on every request (unless backend says otherwise):
   - Accept: application/json
   - X-Requested-With: XMLHttpRequest
 
 ## Axios Interceptors (src/lib/api/axios.ts)
-- Request: attach Bearer token from auth store
-- Response 401: silent refresh → retry once → redirect to /login
+- Request: send cookies (`withCredentials`) and CSRF header if required by backend
+- Response 401: optional refresh → retry once → redirect to /login
 - Response 403: toast "You don't have permission" — do NOT redirect
 - Response 422: parse validation errors → structured error object for RHF
 - Response 500: toast "Server error, try again" + log to monitoring
@@ -569,9 +559,10 @@ Use shadcn semantic tokens only — never raw hex in classNames
 # Never commit .env.local
 # UPDATE when new env vars are added
 
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
-NEXT_PUBLIC_APP_NAME=Timeline Estimator
-NEXT_PUBLIC_APP_ENV=development
+Example `.env.local` (illustrative only; never commit real values):
+- NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+- NEXT_PUBLIC_APP_NAME=Timeline Estimator
+- NEXT_PUBLIC_APP_ENV=development
 
 
 # ===========================================================
