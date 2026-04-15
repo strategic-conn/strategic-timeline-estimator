@@ -1,7 +1,7 @@
 # ============================================================
 # .cursorrules — Timeline Estimator & Project Management Tool
 # Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Laravel REST API
-# Last updated: 2026-03-30 | Maintainer: Frontend Dev
+# Last updated: 2026-04-04 | Maintainer: Frontend Dev
 # ============================================================
 
 
@@ -104,100 +104,110 @@ Planned / optional (add when needed; keep this section honest):
 # UPDATE whenever a new folder, route group, or major
 # component directory is added.
 
-src/
-├── app/
-│   ├── (auth)/
-│   │   ├── login/
-│   │   ├── register/
-│   │   └── forgot-password/
-│   ├── (dashboard)/
-│   │   ├── layout.tsx
-│   │   ├── page.tsx
-│   │   ├── projects/
-│   │   │   ├── page.tsx
-│   │   │   └── [projectId]/
-│   │   │       ├── page.tsx
-│   │   │       ├── tasks/
-│   │   │       ├── timeline/
-│   │   │       └── settings/
-│   │   ├── tasks/
-│   │   ├── calendar/
-│   │   ├── proposals/
-│   │   ├── reports/
-│   │   ├── team/
-│   │   └── settings/
-│   ├── api/
-│   │   └── auth/
-│   │       ├── login/route.ts
-│   │       ├── logout/route.ts
-│   │       └── refresh/route.ts
-│   ├── not-found.tsx
-│   ├── error.tsx
-│   └── layout.tsx
-├── components/
-│   ├── ui/                    # shadcn/ui — generated components; avoid manual edits
-│   ├── common/
-│   │   ├── DataTable/
-│   │   ├── PageHeader/
-│   │   ├── EmptyState/
-│   │   ├── ConfirmDialog/
-│   │   ├── StatusBadge/
-│   │   └── LoadingSkeleton/
-│   ├── features/
-│   │   ├── auth/
-│   │   ├── projects/
-│   │   ├── tasks/
-│   │   ├── kanban/
-│   │   ├── calendar/
-│   │   ├── gantt/
-│   │   ├── proposals/
-│   │   ├── team/
-│   │   └── notifications/
+app/
+├── (auth)/
+│   ├── login/
+│   ├── register/
+│   └── forgot-password/
+├── (dashboard)/
+│   ├── layout.tsx
+│   ├── dashboard/page.tsx
+│   ├── projects/
+│   │   ├── page.tsx                           # project list
+│   │   └── [projectId]/
+│   │       ├── page.tsx                       # project overview (sprint list + backlog)
+│   │       ├── sprints/[sprintId]/page.tsx    # sprint task board
+│   │       ├── backlog/page.tsx               # backlog tasks
+│   │       └── tasks/page.tsx                 # legacy redirect → project overview
+│   ├── calendar/
+│   ├── reports/
+│   ├── team/
+│   └── settings/
+├── api/
+│   └── auth/
+│       ├── login/route.ts
+│       ├── logout/route.ts
+│       └── refresh/route.ts
+├── not-found.tsx
+├── error.tsx
+└── layout.tsx
+components/
+├── ui/                    # shadcn/ui — generated components; avoid manual edits
+├── common/
+│   ├── DataTable/
+│   ├── PageHeader/
+│   ├── EmptyState/
+│   ├── ConfirmDialog/
+│   ├── StatusBadge/
+│   └── LoadingSkeleton/
+├── features/
+│   ├── auth/
+│   ├── projects/          # ProjectsPage, ProjectCard, Create/Edit/Delete modals
+│   ├── sprints/           # ProjectOverviewPage, SprintCard, Create/Edit/Delete modals
+│   ├── tasks/             # TasksPage, KanbanBoard, TaskCard, TaskDetailDrawer, modals
+│   ├── calendar/
+│   ├── gantt/
+│   ├── proposals/
+│   ├── team/
+│   └── notifications/
 │   └── layouts/
 │       ├── AppLayout.tsx
 │       ├── AuthLayout.tsx
 │       ├── Sidebar.tsx
 │       ├── TopBar.tsx
 │       └── MobileNav.tsx
-├── hooks/
-│   ├── useAuth.ts
-│   ├── useProjects.ts
-│   ├── useTasks.ts
-│   ├── usePermissions.ts
-│   ├── useDebounce.ts
-│   └── useMediaQuery.ts
-├── lib/
-│   ├── api/
-│   │   ├── axios.ts           # Axios instance + interceptors
-│   │   ├── auth.api.ts
-│   │   ├── projects.api.ts
-│   │   ├── tasks.api.ts
-│   │   ├── team.api.ts
-│   │   ├── proposals.api.ts
-│   │   └── integrations.api.ts
-│   ├── utils/
-│   │   ├── cn.ts
-│   │   ├── date.ts
-│   │   ├── format.ts
-│   │   └── error.ts
-│   ├── validations/
-│   │   ├── auth.schema.ts
-│   │   ├── project.schema.ts
-│   │   ├── task.schema.ts
-│   │   └── proposal.schema.ts
-│   └── constants/
-│       ├── routes.ts
-│       ├── query-keys.ts
-│       └── config.ts
-├── store/
-│   ├── auth.store.ts
-│   ├── ui.store.ts
-│   └── notification.store.ts
-├── types/
-│   ├── models.ts
-│   ├── api.types.ts
-│   └── ui.types.ts
-└── middleware.ts
+hooks/
+├── useAuth.ts
+├── useProjects.ts
+├── useSprints.ts
+├── useTasks.ts
+├── usePermissions.ts
+├── useDebounce.ts
+└── useMediaQuery.ts
+lib/
+├── api/
+│   ├── axios.ts           # Axios instance + interceptors
+│   ├── auth.api.ts
+│   ├── projects.api.ts
+│   ├── sprints.api.ts
+│   ├── tasks.api.ts
+│   ├── team.api.ts
+│   ├── proposals.api.ts
+│   └── integrations.api.ts
+├── utils/
+│   ├── cn.ts
+│   ├── date.ts
+│   ├── format.ts
+│   ├── work-hours.ts
+│   └── error.ts
+├── dummy/
+│   ├── projects.data.ts
+│   ├── sprints.data.ts
+│   └── tasks.data.ts
+├── validations/
+│   ├── auth.schema.ts
+│   ├── project.schema.ts
+│   ├── sprint.schema.ts
+│   ├── task.schema.ts
+│   └── proposal.schema.ts
+└── constants/
+    ├── projects.ts
+    ├── sprints.ts
+    ├── query-keys.ts
+    └── config.ts
+store/
+├── projects-store.ts
+├── sprints-store.ts
+├── auth.store.ts
+├── ui.store.ts
+└── notification.store.ts
+types/
+├── project.types.ts
+├── sprint.types.ts
+├── task.types.ts
+├── api.types.ts
+└── ui.types.ts
+middleware.ts
 
 
 # ===========================================================
@@ -306,6 +316,14 @@ Does NOT own: tokens (httpOnly cookie), permissions logic
 ### ui.store.ts
 Owns: sidebarOpen, activeModal, theme (light/dark)
 Does NOT own: any server data
+
+### projects-store.ts (demo — will become TanStack Query)
+Owns: projects array, CRUD actions
+Demo only: seeded from dummy data. Will be replaced by TanStack Query when API is ready.
+
+### sprints-store.ts (demo — will become TanStack Query)
+Owns: sprints array, CRUD actions, setSprintStatus
+Demo only: seeded from dummy data. Sprints are scoped by project_id.
 
 ### notification.store.ts
 Owns: unreadCount, isNotificationPanelOpen
@@ -597,11 +615,13 @@ Example `.env.local` (illustrative only; never commit real values):
 - [ ] Auth store (Zustand) + useAuth hook
 - [ ] Login / Register / Forgot Password pages
 - [ ] Route protection via middleware.ts
-- [ ] Projects CRUD (list, create, edit, delete)
-- [ ] Dashboard layout (sidebar + topbar + mobile nav)
-- [ ] Task CRUD (create, edit, delete, status change)
-- [ ] Task board (basic list/table view)
-- [ ] Basic filtering and search on tasks
+- [x] Projects CRUD (list, create, edit, delete)
+- [x] Dashboard layout (sidebar + topbar + mobile nav)
+- [x] Sprint management (create, edit, delete, status, per-project)
+- [x] Task CRUD (create, edit, delete, status change)
+- [x] Task board (kanban / list / table views)
+- [x] Basic filtering and search on tasks
+- [x] Sprint → Task hierarchy (backlog + sprint-scoped boards)
 
 ## Phase 2 — Collaboration & Scheduling
 - [ ] Comments on tasks and projects
@@ -615,7 +635,8 @@ Example `.env.local` (illustrative only; never commit real values):
 - [ ] Workload adjustment on PTO
 
 ## Phase 3 — Advanced Features
-- [ ] Proposal creation form + preview
+- [ ] **Proposal estimator (workflow coordinators):** line-item table, complexity presets (e.g. Easy → Very complex), single fixed hours per tier, roll-up totals, PDF **preview mock** (same permission gates as export proposals → `canExportProposals`)
+- [ ] Proposal creation form + preview (full server-backed flow when API ready)
 - [ ] PDF export (jsPDF) + Excel export (SheetJS)
 - [ ] Gantt chart with task dependencies
 - [ ] Gantt interactivity: zoom, drag, milestones

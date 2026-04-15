@@ -1,0 +1,151 @@
+"use client";
+
+import Link from "next/link";
+import * as React from "react";
+import { ArrowRight, Layers, MoreHorizontal } from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { cn } from "@/lib/utils";
+import { useSprintsStore } from "@/store/sprints-store";
+import type { Project, ProjectStatus } from "@/types/project.types";
+
+const STATUS_BADGE: Record<ProjectStatus, React.ComponentProps<typeof Badge>["variant"]> =
+  {
+    active: "default",
+    completed: "secondary",
+    archived: "outline",
+  };
+
+export interface ProjectCardProps {
+  project: Project;
+  onSetStatus: (id: string, status: ProjectStatus) => void;
+  onEdit: (project: Project) => void;
+  onDelete: (project: Project) => void;
+}
+
+function ownerName(ownerId: number) {
+  return TEAM_MEMBERS.find((m) => m.id === ownerId)?.name ?? `User ${ownerId}`;
+}
+
+export function ProjectCard({
+  project,
+  onSetStatus,
+  onEdit,
+  onDelete,
+}: ProjectCardProps) {
+  const sprintCount = useSprintsStore(
+    (s) => s.sprints.filter((sp) => sp.project_id === project.id).length
+  );
+  const activeSprint = useSprintsStore(
+    (s) => s.sprints.find((sp) => sp.project_id === project.id && sp.status === "active")
+  );
+
+  return (
+    <Card className="group relative overflow-hidden">
+      <CardHeader className="gap-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-base">
+              {project.name}
+            </CardTitle>
+            <CardDescription className="mt-1 line-clamp-2">
+              {project.description ?? "No description."}
+            </CardDescription>
+          </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="shrink-0 text-muted-foreground opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                aria-label="Project actions"
+              >
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit(project)}>
+                Edit project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => onDelete(project)}
+              >
+                Delete project
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => onSetStatus(project.id, "active")}>
+                Mark active
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onSetStatus(project.id, "completed")}
+              >
+                Mark completed
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => onSetStatus(project.id, "archived")}
+              >
+                Archive
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild>
+                <Link href={`/projects/${project.id}`}>Open sprints</Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge variant={STATUS_BADGE[project.status]} className={cn("capitalize")}>
+            {project.status.replace("_", " ")}
+          </Badge>
+          {sprintCount > 0 ? (
+            <Badge variant="outline" className="gap-1 font-normal">
+              <Layers className="size-3" aria-hidden />
+              {sprintCount} sprint{sprintCount !== 1 ? "s" : ""}
+            </Badge>
+          ) : null}
+          <span className="text-xs text-muted-foreground">
+            Owner: {ownerName(project.owner_id)}
+          </span>
+        </div>
+      </CardHeader>
+
+      <CardContent className="pt-0">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="space-y-0.5 text-xs text-muted-foreground">
+            <div>Updated {new Date(project.updated_at).toLocaleDateString()}</div>
+            {activeSprint ? (
+              <div className="font-medium text-foreground">
+                Active: {activeSprint.name}
+              </div>
+            ) : null}
+          </div>
+          <Button asChild size="sm" className="gap-1.5">
+            <Link href={`/projects/${project.id}`}>
+              View sprints <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+

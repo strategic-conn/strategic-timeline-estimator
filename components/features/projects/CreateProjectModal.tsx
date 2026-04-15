@@ -1,0 +1,186 @@
+"use client";
+
+import * as React from "react";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
+import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import type { CreateProjectInput } from "@/store/projects-store";
+import { CURRENT_USER_ID } from "@/types/task.types";
+
+const schema = z.object({
+  name: z
+    .string()
+    .min(2, "Name must be at least 2 characters")
+    .max(200, "Name must be 200 characters or fewer"),
+  description: z.string().max(2000).optional(),
+  status: z.enum(["active", "completed", "archived"]),
+  owner_id: z.number().int().positive(),
+});
+
+type FormValues = z.infer<typeof schema>;
+
+export interface CreateProjectModalProps {
+  open: boolean;
+  onClose: () => void;
+  onCreate: (payload: CreateProjectInput) => void;
+}
+
+export function CreateProjectModal({
+  open,
+  onClose,
+  onCreate,
+}: CreateProjectModalProps) {
+  const form = useForm<FormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: {
+      name: "",
+      description: "",
+      status: "active",
+      owner_id: CURRENT_USER_ID,
+    },
+    mode: "onBlur",
+  });
+
+  React.useEffect(() => {
+    if (!open) return;
+    form.reset({
+      name: "",
+      description: "",
+      status: "active",
+      owner_id: CURRENT_USER_ID,
+    });
+  }, [open, form.reset]);
+
+  const onSubmit = form.handleSubmit((values) => {
+    onCreate({
+      name: values.name.trim(),
+      description: values.description?.trim() || undefined,
+      status: values.status,
+      owner_id: values.owner_id,
+    });
+    onClose();
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create project</DialogTitle>
+          <DialogDescription>
+            Add a workspace for tasks. Stored locally until the API is wired.
+          </DialogDescription>
+        </DialogHeader>
+
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="project-name">Name</Label>
+            <Input
+              id="project-name"
+              placeholder="e.g. Mobile app launch"
+              {...form.register("name")}
+              aria-invalid={!!form.formState.errors.name}
+            />
+            {form.formState.errors.name ? (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.name.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="project-description">Description (optional)</Label>
+            <Textarea
+              id="project-description"
+              placeholder="What is this project about?"
+              rows={3}
+              {...form.register("description")}
+              aria-invalid={!!form.formState.errors.description}
+            />
+            {form.formState.errors.description ? (
+              <p className="text-sm text-destructive">
+                {form.formState.errors.description.message}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Controller
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Owner</Label>
+              <Controller
+                control={form.control}
+                name="owner_id"
+                render={({ field }) => (
+                  <Select
+                    value={String(field.value)}
+                    onValueChange={(v) => field.onChange(Number(v))}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TEAM_MEMBERS.map((m) => (
+                        <SelectItem key={m.id} value={String(m.id)}>
+                          {m.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={form.formState.isSubmitting}>
+              Create project
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
