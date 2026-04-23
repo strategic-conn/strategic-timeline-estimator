@@ -1,5 +1,8 @@
 import type { AppNotification } from "@/store/notifications-store";
 
+/** Fixed locale so SSR and browser produce identical strings (avoids hydration errors). */
+const ACTIVITY_DATE_LOCALE = "en-US";
+
 /** Derive project id from internal links like /projects/proj-1/... */
 export function deriveProjectIdFromHref(href: string | undefined): string | null {
   if (!href) return null;
@@ -57,7 +60,7 @@ export function groupActivityByDay(items: AppNotification[]): ActivityDayGroup[]
     else if (dayDate.getTime() === startOfYesterday.getTime())
       label = "Yesterday";
     else
-      label = dayDate.toLocaleDateString(undefined, {
+      label = dayDate.toLocaleDateString(ACTIVITY_DATE_LOCALE, {
         weekday: "long",
         month: "short",
         day: "numeric",
@@ -73,10 +76,11 @@ export function groupActivityByDay(items: AppNotification[]): ActivityDayGroup[]
 
 export function formatActivityTimestamp(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString(undefined, {
+  return d.toLocaleString(ACTIVITY_DATE_LOCALE, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 }

@@ -137,7 +137,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   return (
     <>
       <Toaster position="bottom-right" richColors closeButton />
-      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <div className="print:hidden">
         <Button variant="ghost" size="sm" className="w-fit gap-2 px-0" asChild>
           <Link href="/proposals">

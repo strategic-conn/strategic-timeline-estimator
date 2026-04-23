@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 
+import { MemberWeeklyHoursInput } from "@/components/features/workload/MemberWeeklyHoursInput";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -29,10 +30,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
-import { REFERENCE_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
+import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
+import {
+  getEffectiveWeeklyHours,
+  useWeeklyCapacityStore,
+} from "@/store/weekly-capacity-store";
 import { cn } from "@/lib/utils";
 import type { Task } from "@/types/task.types";
 
@@ -57,6 +62,7 @@ function taskHref(t: Task) {
 export function WorkloadClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const projects = useProjectsStore((s) => s.projects);
+  const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
 
   const [projectId, setProjectId] = React.useState<ProjectFilter>("all");
 
@@ -67,6 +73,7 @@ export function WorkloadClient() {
 
   const rows = React.useMemo(() => {
     return TEAM_MEMBERS.map((m) => {
+      const weeklyCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
       const open = openAssignedTasks(tasks, m.id, projectId);
       const openEst = open.reduce((s, t) => s + (t.estimated_hours ?? 0), 0);
       const openLogged = open.reduce((s, t) => s + (t.logged_hours ?? 0), 0);
@@ -90,13 +97,12 @@ export function WorkloadClient() {
         .join(" · ");
 
       const utilPct =
-        REFERENCE_WEEKLY_CAPACITY_HOURS > 0
-          ? Math.round((openEst / REFERENCE_WEEKLY_CAPACITY_HOURS) * 100)
-          : 0;
+        weeklyCap > 0 ? Math.round((openEst / weeklyCap) * 100) : 0;
       const barVisual = Math.min(utilPct, 100);
 
       return {
         member: m,
+        weeklyCap,
         openTasks: open,
         openCount: open.length,
         openEst: Math.round(openEst * 10) / 10,
@@ -105,10 +111,10 @@ export function WorkloadClient() {
         breakdown,
         utilPct,
         barVisual,
-        overCap: openEst > REFERENCE_WEEKLY_CAPACITY_HOURS,
+        overCap: openEst > weeklyCap,
       };
     }).sort((a, b) => b.openEst - a.openEst);
-  }, [tasks, projectId, projectNameMap]);
+  }, [tasks, projectId, projectNameMap, capacityOverrides]);
 
   const peopleWithOpen = rows.filter((r) => r.openCount > 0).length;
   const totalOpenEst = rows.reduce((s, r) => s + r.openEst, 0);
@@ -119,7 +125,7 @@ export function WorkloadClient() {
       <WorkspacePageHeader
         eyebrow="Capacity"
         title="Resource allocation"
-        description={`Open work by assignee — estimated hours vs a ${REFERENCE_WEEKLY_CAPACITY_HOURS}h/week reference until capacity comes from schedules.`}
+        description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below; values persist in this browser until schedules sync from the API.`}
         actions={
           <div className="flex w-full flex-col gap-1.5 sm:w-56">
             <span className="text-xs font-medium text-muted-foreground">Project</span>
@@ -149,8 +155,8 @@ export function WorkloadClient() {
           <p>
             <span className="font-medium">{overCapacityCount}</span>{" "}
             {overCapacityCount === 1 ? "person has" : "people have"} open
-            estimates above the weekly reference. Re-balance assignments or split
-            work across sprints.
+            estimates above their set weekly capacity. Re-balance assignments or
+            split work across sprints.
           </p>
         </div>
       )}
@@ -174,7 +180,7 @@ export function WorkloadClient() {
         </Card>
         <Card size="sm">
           <CardHeader className="gap-1">
-            <CardDescription>Over reference</CardDescription>
+            <CardDescription>Over weekly capacity</CardDescription>
             <CardTitle
               className={cn(
                 "text-2xl font-semibold tabular-nums",
@@ -194,12 +200,43 @@ export function WorkloadClient() {
             Load by person
           </CardTitle>
           <CardDescription>
-            Non-done tasks only. Utilization = open estimated hours ÷{" "}
-            {REFERENCE_WEEKLY_CAPACITY_HOURS}h. Links open the sprint or backlog
-            board for that task.
+            Non-done tasks only. Utilization = open estimated hours ÷ that
+            person’s weekly hours (see table below). Links open the sprint or
+            backlog board for that task.
           </CardDescription>
         </CardHeader>
-        <CardContent className="pt-0">
+        <CardContent className="space-y-6 pt-0">
+          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+            <p className="text-sm font-medium">Weekly capacity by person</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter or
+              click away to save (1–168).
+            </p>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {TEAM_MEMBERS.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    {m.name}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <MemberWeeklyHoursInput
+                      memberId={m.id}
+                      committedHours={getEffectiveWeeklyHours(
+                        capacityOverrides,
+                        m.id
+                      )}
+                      label={m.name}
+                    />
+                    <span className="text-xs text-muted-foreground">h/wk</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <div className="overflow-x-auto rounded-lg border">
             <Table>
               <TableHeader>
@@ -270,7 +307,7 @@ export function WorkloadClient() {
                           />
                         </div>
                         <span className="text-xs tabular-nums text-muted-foreground">
-                          {r.utilPct}% ref.
+                          {r.utilPct}% of {r.weeklyCap}h
                         </span>
                       </div>
                     </TableCell>

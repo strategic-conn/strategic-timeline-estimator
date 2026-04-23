@@ -20,11 +20,11 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <div className="relative flex min-h-screen w-full overflow-hidden bg-background text-foreground">
+    <div className="relative flex h-svh min-h-0 w-full overflow-hidden bg-background text-foreground print:h-auto print:min-h-0 print:overflow-visible">
       <AppAtmosphere variant="app" />
 
-      <aside className="relative z-10 hidden w-64 shrink-0 border-r border-border/60 bg-sidebar/90 p-4 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex md:flex-col">
-        <div className="flex items-start justify-between gap-2">
+      <aside className="relative z-10 hidden h-svh min-h-0 w-64 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-4 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex">
+        <div className="flex shrink-0 items-start justify-between gap-2">
           <Link
             href="/dashboard"
             className="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg outline-none transition-colors hover:bg-sidebar-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
@@ -46,20 +46,22 @@ export default function DashboardLayout({
           </Badge>
         </div>
 
-        <Separator className="my-4 bg-border/60" />
+        <Separator className="my-4 shrink-0 bg-border/60" />
 
-        <DashboardSidebarNav />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+          <DashboardSidebarNav />
+        </div>
 
-        <div className="mt-auto pt-4">
+        <div className="shrink-0 pt-4">
           <Separator className="mb-4 bg-border/60" />
           <SidebarUserCard />
         </div>
       </aside>
 
-      <div className="relative z-10 flex min-w-0 flex-1 flex-col">
+      <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader />
 
-        <main className="flex-1 px-4 py-6 pb-[calc(4.25rem+env(safe-area-inset-bottom))] print:pb-6 sm:px-5 md:px-6 md:pb-6">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 pb-[calc(4.25rem+env(safe-area-inset-bottom))] print:overflow-visible print:pb-6 sm:px-5 md:px-6 md:pb-6">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
 

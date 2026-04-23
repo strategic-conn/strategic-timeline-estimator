@@ -392,7 +392,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Skeleton className="h-8 w-48" />
           <div className="flex gap-2">
@@ -418,7 +418,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     <>
       <Toaster position="bottom-right" richColors closeButton />
 
-      <div className="flex flex-col gap-4">
+      <div className="flex w-full flex-col gap-6">
         <TaskBoardToolbar
           boardTitle={boardTitle}
           boardSubtitle={boardSubtitle}

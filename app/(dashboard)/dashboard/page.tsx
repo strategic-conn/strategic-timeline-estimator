@@ -205,7 +205,6 @@ export default function DashboardPage() {
           </>
         }
         description="Your deadlines, sprint pulse, and recent workspace motion — prioritized for what you own."
-        className="mb-2"
       />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

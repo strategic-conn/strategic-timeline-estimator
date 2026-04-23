@@ -38,6 +38,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   sprints: "Sprints",
   backlog: "Backlog",
   calendar: "Calendar",
+  gantt: "Timeline",
   team: "Team & access",
   settings: "Settings",
   reports: "Reports",
@@ -51,11 +52,12 @@ const ROUTE_DESCRIPTIONS: Record<string, string> = {
   "/team": "Invites, permissions, and workspace access",
   "/projects": "Projects and workspaces",
   "/calendar": "Schedule and availability",
+  "/gantt": "Read-only task timeline across projects",
   "/settings": "Workspace and account settings",
   "/reports": "Exports and stakeholder summaries",
   "/proposals": "Client quotes and hour estimates",
   "/activity": "Workspace updates and notifications",
-  "/workload": "Open estimates vs weekly capacity reference",
+  "/workload": "Open estimates vs each person’s weekly hours",
 };
 
 function labelForSegment(segment: string) {
@@ -192,7 +194,7 @@ export function DashboardHeader() {
   }, [sprints]);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur-xl print:hidden supports-backdrop-filter:bg-background/65 dark:shadow-black/30">
+    <header className="z-30 shrink-0 border-b border-border/60 bg-background/75 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur-xl print:hidden supports-backdrop-filter:bg-background/65 dark:shadow-black/30">
       <div className="flex w-full flex-row items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <DashboardMobileMenu />

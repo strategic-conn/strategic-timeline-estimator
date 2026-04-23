@@ -5,6 +5,7 @@ import {
   FileText,
   FolderKanban,
   LayoutDashboard,
+  Milestone,
   Scale,
   Settings,
   Users,
@@ -29,6 +30,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     requireCanExportProposals: true,
   },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/gantt", label: "Timeline", icon: Milestone },
   { href: "/activity", label: "Activity", icon: Activity },
   { href: "/team", label: "Team", icon: Users },
   { href: "/workload", label: "Workload", icon: Scale },
@@ -44,14 +46,27 @@ export function filterDashboardNavItems(
   );
 }
 
-/** Bottom bar: first four visible destinations (matches common PM app patterns). */
+/**
+ * Bottom bar destinations (mobile). Always includes Timeline so it matches the
+ * sidebar; when the user can export proposals, Proposals is included (5 tabs).
+ */
 export function getDashboardMobileTabItems(
   canExportProposals: boolean
 ): DashboardNavItem[] {
-  return filterDashboardNavItems(DASHBOARD_NAV_ITEMS, canExportProposals).slice(
-    0,
-    4
-  );
+  const allowed = filterDashboardNavItems(DASHBOARD_NAV_ITEMS, canExportProposals);
+  const byHref = new Map(allowed.map((item) => [item.href, item]));
+
+  const hrefSequence: string[] = [
+    "/dashboard",
+    "/projects",
+    ...(canExportProposals ? ["/proposals"] : []),
+    "/calendar",
+    "/gantt",
+  ];
+
+  return hrefSequence
+    .map((href) => byHref.get(href))
+    .filter((item): item is DashboardNavItem => item != null);
 }
 
 export function isDashboardNavActive(pathname: string, href: string) {

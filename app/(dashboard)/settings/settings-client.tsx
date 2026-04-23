@@ -4,6 +4,7 @@ import { Building2, CalendarOff, Lock, User } from "lucide-react";
 import { Toaster } from "sonner";
 
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
+import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
 import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
 import {
@@ -28,22 +29,34 @@ export function SettingsClient() {
       />
 
       <Tabs defaultValue="profile" className="w-full gap-6">
-        <TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border/60 bg-card/40 p-1 shadow-sm backdrop-blur-sm sm:max-w-2xl sm:grid-cols-4">
-          <TabsTrigger value="profile" className="gap-1.5">
-            <User className="size-3.5 sm:inline" aria-hidden />
-            Profile
+        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl border border-border/60 bg-muted/50 p-1 text-center shadow-sm backdrop-blur-sm dark:bg-muted/30 sm:grid-cols-4">
+          <TabsTrigger
+            value="profile"
+            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+          >
+            <User className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Profile</span>
           </TabsTrigger>
-          <TabsTrigger value="timeoff" className="gap-1.5">
-            <CalendarOff className="size-3.5 sm:inline" aria-hidden />
-            Time off
+          <TabsTrigger
+            value="timeoff"
+            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+          >
+            <CalendarOff className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Time off</span>
           </TabsTrigger>
-          <TabsTrigger value="workspace" className="gap-1.5">
-            <Building2 className="size-3.5 sm:inline" aria-hidden />
-            Workspace
+          <TabsTrigger
+            value="workspace"
+            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+          >
+            <Building2 className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Workspace</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="gap-1.5">
-            <Lock className="size-3.5 sm:inline" aria-hidden />
-            Security
+          <TabsTrigger
+            value="security"
+            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+          >
+            <Lock className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Security</span>
           </TabsTrigger>
         </TabsList>
 
@@ -53,8 +66,9 @@ export function SettingsClient() {
 
         <TabsContent value="timeoff" className="mt-0 outline-none">
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="space-y-0 pt-6">
               <TimeOffSettingsSection />
+              <AdminTeamTimeOffSection />
             </CardContent>
           </Card>
         </TabsContent>

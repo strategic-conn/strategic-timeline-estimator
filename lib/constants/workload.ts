@@ -1,5 +1,5 @@
 /**
- * Demo reference hours per person per week for utilization bars.
- * Replace with per-user capacity from the API when schedules land.
+ * Default hours per person per week when no override is stored.
+ * Per-user values live in `useWeeklyCapacityStore` until the API exists.
  */
-export const REFERENCE_WEEKLY_CAPACITY_HOURS = 40;
+export const DEFAULT_WEEKLY_CAPACITY_HOURS = 40;

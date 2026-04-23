@@ -12,6 +12,8 @@ interface Permissions {
   canEditTask: boolean;
   canDeleteTask: boolean;
   canManageTeam: boolean;
+  /** Log PTO / availability for people other than yourself (demo: admin + manager). */
+  canEditOthersAvailability: boolean;
   canExportProposals: boolean;
   isViewer: boolean;
 }
@@ -25,6 +27,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canEditTask: true,
     canDeleteTask: true,
     canManageTeam: true,
+    canEditOthersAvailability: true,
     canExportProposals: true,
   },
   manager: {
@@ -35,6 +38,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canEditTask: true,
     canDeleteTask: true,
     canManageTeam: false,
+    canEditOthersAvailability: true,
     canExportProposals: true,
   },
   member: {
@@ -45,6 +49,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canEditTask: true,
     canDeleteTask: false,
     canManageTeam: false,
+    canEditOthersAvailability: false,
     canExportProposals: false,
   },
   viewer: {
@@ -55,6 +60,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canEditTask: false,
     canDeleteTask: false,
     canManageTeam: false,
+    canEditOthersAvailability: false,
     canExportProposals: false,
   },
 };

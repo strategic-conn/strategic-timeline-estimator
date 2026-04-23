@@ -285,7 +285,7 @@ export function TeamClientPage() {
   }
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="People"
         title="Team & access"

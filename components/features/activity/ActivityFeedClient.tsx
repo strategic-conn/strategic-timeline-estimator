@@ -58,7 +58,7 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
     : "No activity yet. Notifications from your work will show up here.";
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       {projectId ? (
         <Button variant="ghost" size="sm" className="w-fit gap-2 px-0" asChild>
           <Link href={`/projects/${projectId}`}>
