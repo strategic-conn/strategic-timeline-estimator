@@ -18,6 +18,7 @@ import { TASK_STATUSES } from "@/types/task.types";
 export interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
+  highlightTaskId?: string | null;
   selectedTaskIds: Set<string>;
   onToggleSelect: (taskId: string) => void;
   onTaskClick: (taskId: string) => void;
@@ -37,6 +38,7 @@ function formatHours(total: number): string {
 export function KanbanColumn({
   status,
   tasks,
+  highlightTaskId,
   selectedTaskIds,
   onToggleSelect,
   onTaskClick,
@@ -58,7 +60,7 @@ export function KanbanColumn({
   );
 
   return (
-    <div className="flex h-full min-h-0 w-72 shrink-0 flex-none flex-col rounded-lg border bg-muted/30">
+    <div className="flex h-full min-h-0 w-72 shrink-0 flex-none flex-col rounded-xl border border-border/60 bg-muted/25 shadow-sm shadow-primary/[0.03]">
       <div
         className={cn(
           "flex shrink-0 flex-wrap items-center gap-2 rounded-t-[inherit] border-b px-3 py-2.5",
@@ -110,6 +112,7 @@ export function KanbanColumn({
                     <TaskCard
                       task={task}
                       isSelected={selectedTaskIds.has(task.id)}
+                      showLinkSpotlight={task.id === highlightTaskId}
                       onToggleSelect={onToggleSelect}
                       onClick={onTaskClick}
                       onDelete={onTaskDelete}

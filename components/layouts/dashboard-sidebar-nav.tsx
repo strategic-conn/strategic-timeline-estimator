@@ -29,19 +29,18 @@ export function DashboardSidebarNav() {
             key={item.href}
             variant="ghost"
             className={cn(
-              "justify-start gap-2 px-2",
-              active &&
-                "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90 hover:text-sidebar-accent-foreground"
+              "justify-start gap-2.5 rounded-lg px-2.5 transition-colors",
+              active
+                ? "border border-primary/20 bg-primary/10 font-medium text-foreground shadow-sm hover:bg-primary/12 hover:text-foreground"
+                : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
             )}
             asChild
           >
             <Link href={item.href} aria-current={active ? "page" : undefined}>
               <item.icon
                 className={cn(
-                  "size-4",
-                  active
-                    ? "text-sidebar-accent-foreground"
-                    : "text-muted-foreground"
+                  "size-4 shrink-0",
+                  active ? "text-primary" : "text-muted-foreground"
                 )}
                 aria-hidden="true"
               />

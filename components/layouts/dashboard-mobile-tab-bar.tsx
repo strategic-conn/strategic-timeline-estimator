@@ -17,7 +17,7 @@ export function DashboardMobileTabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.12)] backdrop-blur-md print:hidden md:hidden dark:shadow-[0_-4px_24px_-8px_rgba(0,0,0,0.4)]"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/90 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.1)] backdrop-blur-xl print:hidden md:hidden dark:bg-background/85 dark:shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.5)]"
       aria-label="Primary"
     >
       <ul className="mx-auto grid max-w-lg grid-cols-4 gap-0 px-1">
@@ -28,10 +28,10 @@ export function DashboardMobileTabBar() {
               <Link
                 href={item.href}
                 className={cn(
-                  "flex min-h-11 min-w-12 max-w-full flex-col items-center justify-center gap-0.5 rounded-lg px-2 py-1.5 text-[0.625rem] font-medium leading-none transition-colors",
+                  "flex min-h-11 min-w-12 max-w-full flex-col items-center justify-center gap-0.5 rounded-xl px-2 py-1.5 text-[0.625rem] font-medium leading-none transition-colors",
                   active
-                    ? "text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                    ? "bg-primary/12 text-primary"
+                    : "text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                 )}
                 aria-current={active ? "page" : undefined}
               >

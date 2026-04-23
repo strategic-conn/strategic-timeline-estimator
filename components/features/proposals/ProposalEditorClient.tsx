@@ -3,11 +3,28 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Printer, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  ChevronDown,
+  FileDown,
+  FileSpreadsheet,
+  Plus,
+  Printer,
+  Trash2,
+} from "lucide-react";
+import { Toaster, toast } from "sonner";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { ProposalPdfPreviewMock } from "@/components/features/proposals/ProposalPdfPreviewMock";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -29,6 +46,8 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import { COMPLEXITY_OPTIONS } from "@/lib/constants/proposal-estimator";
+import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
+import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { ProposalComplexity } from "@/types/proposal.types";
@@ -83,6 +102,26 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     window.print();
   };
 
+  const handlePdfDownload = async () => {
+    if (!quote) return;
+    try {
+      await downloadProposalPdf(quote, projectName);
+      toast.success("PDF downloaded");
+    } catch {
+      toast.error("Could not create PDF file");
+    }
+  };
+
+  const handleExcelExport = async () => {
+    if (!quote) return;
+    try {
+      await downloadProposalExcel(quote, projectName);
+      toast.success("Excel file downloaded");
+    } catch {
+      toast.error("Could not create Excel file");
+    }
+  };
+
   if (!canExportProposals) {
     return <ProposalAccessDenied />;
   }
@@ -96,25 +135,77 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
-      <div className="flex flex-col gap-3 print:hidden sm:flex-row sm:items-center sm:justify-between">
+    <>
+      <Toaster position="bottom-right" richColors closeButton />
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <div className="print:hidden">
         <Button variant="ghost" size="sm" className="w-fit gap-2 px-0" asChild>
           <Link href="/proposals">
             <ArrowLeft className="size-4" aria-hidden />
             All proposals
           </Link>
         </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="gap-2 self-start sm:self-auto"
-          onClick={handlePrint}
-        >
-          <Printer className="size-4" aria-hidden />
-          Print preview
-        </Button>
       </div>
+
+      <WorkspacePageHeader
+        eyebrow="Quote editor"
+        title={
+          <span className="wrap-break-word">{quote.title}</span>
+        }
+        description={
+          [
+            quote.client_name ? `Client: ${quote.client_name}` : null,
+            projectName ? `Project: ${projectName}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || "Line items, complexity tiers, and export preview."
+        }
+        actions={
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="w-full gap-2 border-border/60 bg-background/80 sm:w-auto"
+              >
+                Export
+                <ChevronDown className="size-4 opacity-70" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => {
+                  void handlePdfDownload();
+                }}
+              >
+                <FileDown className="size-4" aria-hidden />
+                Download PDF (.pdf)
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => {
+                  window.setTimeout(handlePrint, 0);
+                }}
+              >
+                <Printer className="size-4" aria-hidden />
+                Print…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="gap-2"
+                onSelect={() => {
+                  void handleExcelExport();
+                }}
+              >
+                <FileSpreadsheet className="size-4" aria-hidden />
+                Excel (.xlsx)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
+      />
 
       <div className="grid gap-8 lg:grid-cols-[1fr,min(24rem,40vw)] xl:grid-cols-[1fr,28rem]">
         <div className="space-y-6 print:hidden">
@@ -273,11 +364,12 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
         <div className="min-w-0 lg:sticky lg:top-24 lg:self-start">
           <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground print:hidden">
-            PDF preview (mock)
+            Client preview (print / PDF)
           </p>
           <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
         </div>
       </div>
     </div>
+    </>
   );
 }

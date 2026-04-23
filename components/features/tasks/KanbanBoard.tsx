@@ -28,6 +28,7 @@ import {
 
 export interface KanbanBoardProps {
   tasks: Task[];
+  highlightTaskId?: string | null;
   selectedTaskIds: Set<string>;
   onToggleSelect: (taskId: string) => void;
   onTaskClick: (taskId: string) => void;
@@ -96,6 +97,7 @@ function resolveOverLocation(
 
 export function KanbanBoard({
   tasks,
+  highlightTaskId,
   selectedTaskIds,
   onToggleSelect,
   onTaskClick,
@@ -231,6 +233,7 @@ export function KanbanBoard({
             key={col.value}
             status={col.value}
             tasks={grouped[col.value]}
+            highlightTaskId={highlightTaskId}
             selectedTaskIds={selectedTaskIds}
             onToggleSelect={onToggleSelect}
             onTaskClick={onTaskClick}

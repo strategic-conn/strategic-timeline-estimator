@@ -11,11 +11,13 @@ export interface AppNotification {
   read: boolean;
   /** Optional deep link */
   href?: string;
+  /** Workspace project scope (for activity feed filters). */
+  project_id?: string | null;
 }
 
 interface NotificationsState {
   items: AppNotification[];
-  push: (text: string, href?: string) => void;
+  push: (text: string, href?: string, project_id?: string | null) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
   clear: () => void;
@@ -32,6 +34,7 @@ const SEED_NOTIFICATIONS: AppNotification[] = [
     at: new Date(Date.now() - 86400000).toISOString(),
     read: true,
     href: "/projects/proj-2",
+    project_id: "proj-2",
   },
   {
     id: "seed-2",
@@ -39,12 +42,31 @@ const SEED_NOTIFICATIONS: AppNotification[] = [
     at: new Date(Date.now() - 3600000).toISOString(),
     read: false,
     href: "/projects/proj-1/sprints/sprint-2",
+    project_id: "proj-1",
   },
   {
     id: "seed-3",
     text: 'You moved "Define MVP scope" to In Progress.',
     at: new Date(Date.now() - 7200000).toISOString(),
     read: false,
+    href: "/projects/proj-1/sprints/sprint-2",
+    project_id: "proj-1",
+  },
+  {
+    id: "seed-4",
+    text: 'Sprint "Sprint 2 — Polish" was marked active.',
+    at: new Date(Date.now() - 5 * 3600000).toISOString(),
+    read: true,
+    href: "/projects/proj-1/sprints/sprint-2",
+    project_id: "proj-1",
+  },
+  {
+    id: "seed-5",
+    text: 'Task "Kanban board drag-and-drop" assigned to you.',
+    at: new Date(Date.now() - 48 * 3600000).toISOString(),
+    read: true,
+    href: "/projects/proj-1/sprints/sprint-2",
+    project_id: "proj-1",
   },
 ];
 
@@ -53,13 +75,14 @@ export const useNotificationsStore = create<NotificationsState>()(
     (set) => ({
       items: [...SEED_NOTIFICATIONS],
 
-      push: (text, href) => {
+      push: (text, href, project_id) => {
         const item: AppNotification = {
           id: uid(),
           text,
           at: new Date().toISOString(),
           read: false,
           href,
+          project_id: project_id ?? null,
         };
         set((s) => ({ items: [item, ...s.items].slice(0, 50) }));
       },

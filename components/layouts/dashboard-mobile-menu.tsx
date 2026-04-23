@@ -51,17 +51,17 @@ export function DashboardMobileMenu() {
       </SheetTrigger>
       <SheetContent
         side="left"
-        className="flex w-[min(100vw-1rem,20rem)] max-w-[20rem] flex-col gap-0 border-r bg-card/95 p-0 sm:max-w-sm"
+        className="flex w-[min(100vw-1rem,20rem)] max-w-[20rem] flex-col gap-0 border-r border-border/60 bg-sidebar/95 p-0 backdrop-blur-xl sm:max-w-sm"
       >
-        <SheetHeader className="border-b border-border text-left">
+        <SheetHeader className="border-b border-border/60 bg-card/20 px-4 py-4 text-left">
           <SheetTitle className="pr-10">Timeline Estimator</SheetTitle>
-          <SheetDescription>Project management</SheetDescription>
-          <Badge variant="outline" className="mt-2 w-fit">
+          <SheetDescription>Project workspace</SheetDescription>
+          <Badge variant="outline" className="mt-2 w-fit font-mono text-[0.65rem]">
             Demo
           </Badge>
         </SheetHeader>
 
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-4" aria-label="Main">
+        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Main">
           {navItems.map((item) => {
             const active = isDashboardNavActive(pathname, item.href);
             return (
@@ -69,9 +69,10 @@ export function DashboardMobileMenu() {
                 key={item.href}
                 variant="ghost"
                 className={cn(
-                  "h-11 min-h-11 justify-start gap-3 px-3",
-                  active &&
-                    "bg-sidebar-accent text-sidebar-accent-foreground hover:bg-sidebar-accent/90 hover:text-sidebar-accent-foreground"
+                  "h-11 min-h-11 justify-start gap-3 rounded-lg px-3",
+                  active
+                    ? "border border-primary/20 bg-primary/10 font-medium text-foreground hover:bg-primary/12"
+                    : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
                 )}
                 asChild
               >
@@ -83,9 +84,7 @@ export function DashboardMobileMenu() {
                   <item.icon
                     className={cn(
                       "size-5 shrink-0",
-                      active
-                        ? "text-sidebar-accent-foreground"
-                        : "text-muted-foreground"
+                      active ? "text-primary" : "text-muted-foreground"
                     )}
                     aria-hidden
                   />

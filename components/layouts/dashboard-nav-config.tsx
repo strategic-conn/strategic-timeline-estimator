@@ -1,9 +1,11 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Activity,
   CalendarDays,
   FileText,
   FolderKanban,
   LayoutDashboard,
+  Scale,
   Settings,
   Users,
 } from "lucide-react";
@@ -27,7 +29,9 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     requireCanExportProposals: true,
   },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
+  { href: "/activity", label: "Activity", icon: Activity },
   { href: "/team", label: "Team", icon: Users },
+  { href: "/workload", label: "Workload", icon: Scale },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

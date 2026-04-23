@@ -28,34 +28,44 @@ export function SidebarUserCard() {
   const onSettings = pathname === "/settings" || pathname.startsWith("/settings/");
 
   return (
-    <div className="space-y-2">
+    <div
+      className={cn(
+        "flex items-center gap-2 rounded-xl border border-border/60 bg-card/60 p-2",
+        "shadow-sm shadow-primary/[0.03] backdrop-blur-sm dark:bg-card/40"
+      )}
+    >
       <Link
         href="/settings"
         className={cn(
-          "-mx-1 flex items-center gap-3 rounded-md p-1 transition-colors",
-          "hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-          onSettings && "bg-muted/50"
+          "flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1 py-0.5 transition-colors",
+          "hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          onSettings && "bg-muted/60"
         )}
         aria-label={`Profile and settings — ${user.name}`}
       >
-        <Avatar size="sm">
+        <Avatar size="sm" className="shrink-0">
           {user.avatar_url ? <AvatarImage src={user.avatar_url} alt="" /> : null}
           <AvatarFallback>{user.initials}</AvatarFallback>
         </Avatar>
-        <div className="min-w-0 flex-1 text-left">
-          <div className="truncate text-xs font-medium leading-5">
+        <div className="min-w-0 text-left">
+          <div className="truncate text-sm font-medium leading-tight">
             {user.name}
           </div>
-          <div className="truncate text-xs capitalize text-muted-foreground">
-            {user.role}
+          <div className="truncate text-[0.65rem] text-muted-foreground leading-tight">
+            Account & settings
           </div>
         </div>
       </Link>
+
       <Select value={user.role} onValueChange={(v) => setRole(v as UserRole)}>
-        <SelectTrigger className="h-7 text-xs">
+        <SelectTrigger
+          size="sm"
+          className="h-8 w-[min(7.5rem,38%)] min-w-27 shrink-0 justify-between gap-1 px-2 text-xs capitalize"
+          aria-label="Demo role (permissions preview)"
+        >
           <SelectValue placeholder="Role" />
         </SelectTrigger>
-        <SelectContent>
+        <SelectContent align="end">
           {ROLES.map((r) => (
             <SelectItem key={r.value} value={r.value} className="text-xs">
               {r.label}

@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Loader2, MailPlus, ShieldAlert } from "lucide-react";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -285,13 +286,11 @@ export function TeamClientPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Team & access</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Invite-only signup. Choose exactly what this person can do—like Shopify
-          staff permissions—or start from a preset and adjust.
-        </p>
-      </div>
+      <WorkspacePageHeader
+        eyebrow="People"
+        title="Team & access"
+        description="Invite-only signup. Choose exactly what this person can do — like Shopify staff permissions — or start from a preset and adjust."
+      />
 
       <Alert>
         <ShieldAlert className="size-4" aria-hidden="true" />

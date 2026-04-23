@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { FileText, Plus, Trash2 } from "lucide-react";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -101,23 +102,21 @@ export function ProposalsListClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Proposals</h1>
-          <p className="text-sm text-muted-foreground">
-            Build client quotes with complexity tiers and hour roll-ups. Data
-            stays in this browser until the API is connected.
-          </p>
-        </div>
-        <Button
-          type="button"
-          className="shrink-0 gap-2 self-start sm:self-auto"
-          onClick={() => setCreateOpen(true)}
-        >
-          <Plus className="size-4" aria-hidden />
-          New quote
-        </Button>
-      </div>
+      <WorkspacePageHeader
+        eyebrow="Commercial"
+        title="Proposals"
+        description="Build client quotes with complexity tiers and hour roll-ups. Data stays in this browser until the API is connected."
+        actions={
+          <Button
+            type="button"
+            className="w-full gap-2 sm:w-auto"
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="size-4" aria-hidden />
+            New quote
+          </Button>
+        }
+      />
 
       {sorted.length === 0 ? (
         <Card className="border-dashed">

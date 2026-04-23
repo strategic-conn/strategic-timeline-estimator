@@ -109,9 +109,13 @@ export function ProposalPdfPreviewMock({
         </section>
       ) : null}
 
-      <footer className="mt-8 border-t border-slate-100 pt-4 text-xs text-slate-500 print:mt-6">
-        This is a preview only. Final PDF export will be available when the
-        backend export endpoint is connected.
+      <footer className="mt-8 border-t border-slate-100 pt-4 text-xs text-slate-500 print:mt-6 print:hidden">
+        <span className="font-medium text-slate-600">Export → Download PDF</span>{" "}
+        saves a file directly. Use{" "}
+        <span className="font-medium text-slate-600">Print…</span> only if you
+        need the system print dialog, or{" "}
+        <span className="font-medium text-slate-600">Excel</span> for a
+        spreadsheet.
       </footer>
     </div>
   );

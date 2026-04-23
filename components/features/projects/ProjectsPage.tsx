@@ -4,6 +4,7 @@ import * as React from "react";
 import { FolderKanban, Plus, Search } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { CreateProjectModal } from "@/components/features/projects/CreateProjectModal";
 import { DeleteProjectDialog } from "@/components/features/projects/DeleteProjectDialog";
 import { EditProjectModal } from "@/components/features/projects/EditProjectModal";
@@ -177,68 +178,66 @@ export function ProjectsPage() {
       />
 
       <div className="flex flex-col gap-6">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight">Projects</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Create and manage workspaces. Data is local until the API is
-              connected.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <WorkspacePageHeader
+          eyebrow="Workspaces"
+          title="Projects"
+          description="Create and manage workspaces. Data stays in this browser until the API is connected."
+          meta={
+            <div className="flex flex-wrap items-center gap-2">
               <Badge variant="default">Active {counts.active}</Badge>
               <Badge variant="secondary">Completed {counts.completed}</Badge>
               <Badge variant="outline">Archived {counts.archived}</Badge>
             </div>
-          </div>
-
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
-            <Button
-              type="button"
-              className="w-full gap-1.5 sm:w-auto"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="size-4" aria-hidden />
-              New project
-            </Button>
-
-            <div className="flex w-full flex-wrap items-center gap-2 sm:justify-end">
-              <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
-                <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  placeholder="Search projects…"
-                  className="h-9 pl-9"
-                  aria-label="Search projects"
-                />
-              </div>
-              <Select
-                value={status}
-                onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+          }
+          actions={
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[min(100%,20rem)] sm:items-end">
+              <Button
+                type="button"
+                className="w-full gap-1.5 sm:w-auto"
+                onClick={() => setCreateOpen(true)}
               >
-                <SelectTrigger className="h-9 w-42 shrink-0">
-                  <SelectValue placeholder="Status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All statuses</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                  <SelectItem value="archived">Archived</SelectItem>
-                </SelectContent>
-              </Select>
-              <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                <SelectTrigger className="h-9 w-46 shrink-0">
-                  <SelectValue placeholder="Sort" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="updated_desc">Recently updated</SelectItem>
-                  <SelectItem value="name_asc">Name A–Z</SelectItem>
-                  <SelectItem value="name_desc">Name Z–A</SelectItem>
-                </SelectContent>
-              </Select>
+                <Plus className="size-4" aria-hidden />
+                New project
+              </Button>
+              <div className="flex w-full flex-wrap items-center gap-2 sm:justify-end">
+                <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+                  <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search projects…"
+                    className="h-9 border-border/60 bg-background/80 pl-9 backdrop-blur-sm"
+                    aria-label="Search projects"
+                  />
+                </div>
+                <Select
+                  value={status}
+                  onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                >
+                  <SelectTrigger className="h-9 w-42 shrink-0 border-border/60 bg-background/80">
+                    <SelectValue placeholder="Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All statuses</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="archived">Archived</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                  <SelectTrigger className="h-9 w-46 shrink-0 border-border/60 bg-background/80">
+                    <SelectValue placeholder="Sort" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="updated_desc">Recently updated</SelectItem>
+                    <SelectItem value="name_asc">Name A–Z</SelectItem>
+                    <SelectItem value="name_desc">Name Z–A</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
-        </header>
+          }
+        />
 
         {projects.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center">

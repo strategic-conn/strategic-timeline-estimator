@@ -42,6 +42,8 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: "Settings",
   reports: "Reports",
   proposals: "Proposals",
+  activity: "Activity",
+  workload: "Workload",
 };
 
 const ROUTE_DESCRIPTIONS: Record<string, string> = {
@@ -52,6 +54,8 @@ const ROUTE_DESCRIPTIONS: Record<string, string> = {
   "/settings": "Workspace and account settings",
   "/reports": "Exports and stakeholder summaries",
   "/proposals": "Client quotes and hour estimates",
+  "/activity": "Workspace updates and notifications",
+  "/workload": "Open estimates vs weekly capacity reference",
 };
 
 function labelForSegment(segment: string) {
@@ -128,6 +132,9 @@ function descriptionForPath(pathname: string) {
   if (/^\/proposals\/[^/]+\/?$/.test(pathname)) {
     return "Edit line items, complexity tiers, and print preview";
   }
+  if (/^\/projects\/[^/]+\/activity\/?$/.test(pathname)) {
+    return "Updates and notifications for this project";
+  }
   const segments = pathname.split("/").filter(Boolean);
   const base = segments.length ? `/${segments[0]}` : pathname;
   return ROUTE_DESCRIPTIONS[base] ?? "Navigate your workspace";
@@ -185,7 +192,7 @@ export function DashboardHeader() {
   }, [sprints]);
 
   return (
-    <header className="sticky top-0 z-30 border-b bg-background/80 px-4 py-3 backdrop-blur print:hidden supports-backdrop-filter:bg-background/60">
+    <header className="sticky top-0 z-30 border-b border-border/60 bg-background/75 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur-xl print:hidden supports-backdrop-filter:bg-background/65 dark:shadow-black/30">
       <div className="flex w-full flex-row items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <DashboardMobileMenu />

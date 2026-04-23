@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ function validate(values: { email: string; password: string }): FieldErrors {
 }
 
 export default function LoginPage() {
+  const router = useRouter();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [remember, setRemember] = React.useState(true);
@@ -35,12 +37,9 @@ export default function LoginPage() {
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = React.useState<string | null>(null);
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
-    setSuccessMessage(null);
 
     const nextErrors = validate({ email, password });
     setErrors(nextErrors);
@@ -50,10 +49,7 @@ export default function LoginPage() {
     try {
       // Frontend-only for now: simulate a request so UI flows are real.
       await new Promise((r) => setTimeout(r, 700));
-
-      setSuccessMessage(
-        `Signed in (demo). Remember me is ${remember ? "on" : "off"}.`
-      );
+      router.push("/dashboard");
     } catch {
       setFormError("Sign in failed. Please try again.");
     } finally {
@@ -145,7 +141,7 @@ export default function LoginPage() {
             </label>
 
             <Link
-              href="#"
+              href="/register"
               className="text-xs text-muted-foreground underline-offset-4 hover:underline"
             >
               Create account
@@ -157,12 +153,6 @@ export default function LoginPage() {
               {formError}
             </p>
           ) : null}
-          {successMessage ? (
-            <p className="text-sm text-foreground" role="status">
-              {successMessage}
-            </p>
-          ) : null}
-
           <Button type="submit" className="w-full" disabled={isSubmitting}>
             {isSubmitting ? (
               <>

@@ -5,9 +5,10 @@ import {
   CalendarDays,
   ChevronLeft,
   ChevronRight,
-  Circle,
+  Palmtree,
 } from "lucide-react";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,10 +18,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { eachYmdInInclusiveRange } from "@/lib/utils/availability-dates";
+import { useAvailabilityStore } from "@/store/availability-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { cn } from "@/lib/utils";
+import type { AvailabilityEntry } from "@/types/availability.types";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import Link from "next/link";
 import type { TaskStatus } from "@/types/task.types";
@@ -56,10 +61,21 @@ type CalendarEvent = {
   href: string;
 };
 
+type DayAway = { entry: AvailabilityEntry; name: string };
+
+const AWAY_KIND_LABEL: Record<AvailabilityEntry["kind"], string> = {
+  pto: "PTO / vacation",
+  unavailable: "Away",
+  partial: "Partial day",
+};
+
+const MEMBER_BY_ID = new Map(TEAM_MEMBERS.map((m) => [m.id, m]));
+
 export function CalendarClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
+  const availabilityEntries = useAvailabilityStore((s) => s.entries);
 
   const [viewDate, setViewDate] = React.useState(() => new Date());
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
@@ -80,8 +96,8 @@ export function CalendarClient() {
       if (!t.due_date) continue;
       const key = parseYmd(t.due_date);
       const href = t.sprint_id
-        ? sprintTasksHref(t.project_id, t.sprint_id)
-        : backlogHref(t.project_id);
+        ? sprintTasksHref(t.project_id, t.sprint_id, t.id)
+        : backlogHref(t.project_id, t.id);
       push(key, {
         id: t.id,
         title: t.title,
@@ -111,6 +127,18 @@ export function CalendarClient() {
 
     return map;
   }, [tasks, sprints, projectNameMap]);
+
+  const availabilityByDate = React.useMemo(() => {
+    const map = new Map<string, DayAway[]>();
+    for (const e of availabilityEntries) {
+      const name = MEMBER_BY_ID.get(e.user_id)?.name ?? `User ${e.user_id}`;
+      for (const key of eachYmdInInclusiveRange(e.start_date, e.end_date)) {
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push({ entry: e, name });
+      }
+    }
+    return map;
+  }, [availabilityEntries]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();
@@ -154,31 +182,34 @@ export function CalendarClient() {
   };
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) ?? [] : [];
+  const selectedAway = selectedDate ? availabilityByDate.get(selectedDate) ?? [] : [];
+  const selectedTotal = selectedAway.length + selectedEvents.length;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold tracking-tight">Calendar</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Task due dates and sprint milestones across all projects.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={goToday}>
-            Today
-          </Button>
-          <Button variant="ghost" size="icon-sm" onClick={goPrev} aria-label="Previous month">
-            <ChevronLeft className="size-4" />
-          </Button>
-          <span className="min-w-40 text-center text-sm font-medium">
-            {monthLabel}
-          </span>
-          <Button variant="ghost" size="icon-sm" onClick={goNext} aria-label="Next month">
-            <ChevronRight className="size-4" />
-          </Button>
-        </div>
-      </div>
+      <WorkspacePageHeader
+        eyebrow="Schedule"
+        title="Calendar"
+        description="Task due dates, sprint milestones, and team PTO / availability in one view."
+        actions={
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+            <Button variant="outline" size="sm" className="border-border/60 bg-background/80" onClick={goToday}>
+              Today
+            </Button>
+            <div className="flex items-center gap-0.5 rounded-xl border border-border/60 bg-card/50 px-1 py-0.5 backdrop-blur-sm">
+              <Button variant="ghost" size="icon-sm" onClick={goPrev} aria-label="Previous month">
+                <ChevronLeft className="size-4" />
+              </Button>
+              <span className="min-w-36 text-center text-sm font-medium tabular-nums">
+                {monthLabel}
+              </span>
+              <Button variant="ghost" size="icon-sm" onClick={goNext} aria-label="Next month">
+                <ChevronRight className="size-4" />
+              </Button>
+            </div>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
         <Card>
@@ -196,6 +227,7 @@ export function CalendarClient() {
             <div className="grid grid-cols-7 border-t border-border">
               {calendarDays.map(({ date, key, isCurrentMonth }) => {
                 const events = eventsByDate.get(key) ?? [];
+                const away = availabilityByDate.get(key) ?? [];
                 const isToday = key === todayKey;
                 const isSelected = key === selectedDate;
                 const taskEvents = events.filter((e) => e.type === "task");
@@ -210,6 +242,7 @@ export function CalendarClient() {
                       "relative flex min-h-16 flex-col gap-0.5 border-b border-r border-border p-1.5 text-left transition-colors hover:bg-muted/50 sm:min-h-20 sm:p-2",
                       !isCurrentMonth && "bg-muted/20 text-muted-foreground/50",
                       isSelected && "ring-2 ring-inset ring-primary",
+                      away.length > 0 && "bg-rose-500/6 dark:bg-rose-500/10",
                     )}
                   >
                     <span
@@ -220,6 +253,26 @@ export function CalendarClient() {
                     >
                       {date.getDate()}
                     </span>
+                    {away.length > 0 && (
+                      <div
+                        className="mt-0.5 flex flex-wrap gap-0.5"
+                        title="Team time off / away"
+                      >
+                        {away.slice(0, 3).map(({ entry, name }) => (
+                          <span
+                            key={entry.id + key}
+                            className="max-w-13 truncate rounded bg-rose-500/20 px-1 text-[0.55rem] font-medium text-rose-800 dark:text-rose-200"
+                          >
+                            {name.split(" ")[0] ?? name}
+                          </span>
+                        ))}
+                        {away.length > 3 && (
+                          <span className="text-[0.55rem] text-rose-700 dark:text-rose-300">
+                            +{away.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
                     {events.length > 0 && (
                       <div className="mt-auto flex flex-wrap gap-0.5">
                         {taskEvents.slice(0, 3).map((ev) => (
@@ -260,14 +313,29 @@ export function CalendarClient() {
                   : "Select a day"}
               </CardTitle>
               <CardDescription className="text-xs">
-                {selectedEvents.length
-                  ? `${selectedEvents.length} event${selectedEvents.length > 1 ? "s" : ""}`
+                {selectedTotal > 0
+                  ? `${selectedTotal} item${selectedTotal > 1 ? "s" : ""}`
                   : selectedDate
-                    ? "No events"
+                    ? "Nothing scheduled"
                     : "Click a day on the calendar"}
               </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[60vh] space-y-2 overflow-y-auto pt-0">
+              {selectedAway.map(({ entry, name }) => (
+                <div
+                  key={entry.id}
+                  className="flex items-start gap-2 rounded-lg border border-rose-200/80 bg-rose-500/5 p-2.5 dark:border-rose-900/50 dark:bg-rose-500/10"
+                >
+                  <Palmtree className="mt-0.5 size-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium">{name}</p>
+                    <p className="text-xs text-rose-800/90 dark:text-rose-200/90">
+                      {AWAY_KIND_LABEL[entry.kind]}
+                      {entry.note ? ` · ${entry.note}` : ""}
+                    </p>
+                  </div>
+                </div>
+              ))}
               {selectedEvents.map((ev) => (
                 <Link
                   key={ev.id}
@@ -313,6 +381,10 @@ export function CalendarClient() {
               <div className="flex items-center gap-2">
                 <span className="size-2 rounded-sm bg-amber-500" />
                 <span className="text-muted-foreground">Sprint milestone</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="size-2 rounded-sm bg-rose-500/70" />
+                <span className="text-muted-foreground">PTO / away</span>
               </div>
             </CardContent>
           </Card>

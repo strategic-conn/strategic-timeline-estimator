@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 
 import { KanbanBoard } from "@/components/features/tasks/KanbanBoard";
 import { TaskListView } from "@/components/features/tasks/TaskListView";
@@ -13,6 +14,7 @@ import { EditTaskModal } from "@/components/features/tasks/EditTaskModal";
 import { DeleteTaskDialog } from "@/components/features/tasks/DeleteTaskDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTasks, useTasksStore } from "@/hooks/useTasks";
+import { TASK_FOCUS_QUERY_PARAM } from "@/lib/constants/task-focus";
 import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskStatus } from "@/types/task.types";
@@ -39,6 +41,9 @@ export interface TasksPageProps {
 }
 
 export function TasksPage({ projectId, sprintId }: TasksPageProps) {
+  const searchParams = useSearchParams();
+  const focusParam = searchParams.get(TASK_FOCUS_QUERY_PARAM);
+
   const {
     tasks,
     createTask,
@@ -225,6 +230,28 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
 
     return result;
   }, [tasks, filters, projectId, sprintId]);
+
+  const highlightTaskId = React.useMemo(() => {
+    if (!focusParam) return null;
+    return filteredTasks.some((t) => t.id === focusParam) ? focusParam : null;
+  }, [focusParam, filteredTasks]);
+
+  React.useEffect(() => {
+    if (!highlightTaskId || loading) return;
+    const elId = `task-focus-${highlightTaskId}`;
+    const scroll = () =>
+      document.getElementById(elId)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+    const t1 = window.setTimeout(scroll, 50);
+    const t2 = window.setTimeout(scroll, 280);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [highlightTaskId, loading, activeView, filteredTasks.length]);
 
   const activeFilterCount =
     filters.assigneeIds.length +
@@ -425,6 +452,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
         {activeView === "kanban" && (
           <KanbanBoard
             tasks={filteredTasks}
+            highlightTaskId={highlightTaskId}
             selectedTaskIds={selectedIds}
             onToggleSelect={toggleSelect}
             onTaskClick={handleTaskClick}
@@ -443,6 +471,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
         {activeView === "list" && (
           <TaskListView
             tasks={filteredTasks}
+            highlightTaskId={highlightTaskId}
             selectedTaskIds={selectedIds}
             onToggleSelect={toggleSelect}
             onTaskClick={handleTaskClick}
@@ -455,6 +484,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
         {activeView === "table" && (
           <TaskTableView
             tasks={filteredTasks}
+            highlightTaskId={highlightTaskId}
             selectedTaskIds={selectedIds}
             onToggleSelect={toggleSelect}
             onSelectAll={(checked) => {

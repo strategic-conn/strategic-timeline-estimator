@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   BarChart3,
   CheckCircle2,
@@ -11,6 +12,7 @@ import {
   Users,
 } from "lucide-react";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -158,12 +160,11 @@ export function ReportsClient() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight">Reports</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Workspace-wide stats computed from live project data.
-        </p>
-      </div>
+      <WorkspacePageHeader
+        eyebrow="Insights"
+        title="Reports"
+        description="Workspace-wide stats computed from live project data — ready to share when exports land."
+      />
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
@@ -355,8 +356,14 @@ export function ReportsClient() {
               <Users className="size-4" aria-hidden />
               Team workload
             </CardTitle>
-            <CardDescription>
-              Tasks assigned and hours logged per team member.
+            <CardDescription className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <span>Tasks assigned and hours logged per team member.</span>
+              <Link
+                href="/workload"
+                className="shrink-0 text-sm font-medium text-primary underline-offset-4 hover:underline"
+              >
+                Resource allocation →
+              </Link>
             </CardDescription>
           </CardHeader>
           <CardContent className="pt-0">

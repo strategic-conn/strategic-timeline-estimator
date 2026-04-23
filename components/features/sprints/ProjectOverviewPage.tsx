@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { ArrowRight, Inbox, Layers, Plus } from "lucide-react";
+import { Activity, ArrowRight, Inbox, Layers, Plus } from "lucide-react";
 import { Toaster, toast } from "sonner";
 
 import { SprintCard } from "@/components/features/sprints/SprintCard";
@@ -22,8 +22,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useSprints } from "@/hooks/useSprints";
 import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { useNotificationsStore } from "@/store/notifications-store";
-import { backlogHref } from "@/lib/constants/sprints";
+import { useProjectsStore } from "@/store/projects-store";
+import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import { cn } from "@/lib/utils";
 import type { Sprint, SprintStatus } from "@/types/sprint.types";
 
@@ -97,6 +99,10 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
 
   const { tasks } = useTasks();
   const { canEditProject } = usePermissions();
+  const projectRecord = useProjectsStore((s) =>
+    s.projects.find((p) => p.id === projectId)
+  );
+  const projectLabel = projectRecord?.name ?? "Project";
 
   const [loading, setLoading] = React.useState(true);
   const [createOpen, setCreateOpen] = React.useState(false);
@@ -192,9 +198,12 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             ? `"${label}" completed`
             : `"${label}" set to ${status}`;
       toast.success(msg);
-      pushNotification(msg);
+      const href = sprint
+        ? sprintTasksHref(projectId, sprint.id)
+        : `/projects/${projectId}`;
+      pushNotification(msg, href, projectId);
     },
-    [allSprints, setSprintStatus, pushNotification]
+    [allSprints, projectId, setSprintStatus, pushNotification]
   );
 
   if (loading) {
@@ -254,30 +263,38 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
       />
 
       <div className="flex flex-col gap-6">
-        <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <h1 className="text-xl font-semibold tracking-tight">Sprints</h1>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Manage iterations for this project. Tasks live inside sprints or
-              the backlog.
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="default">Active {counts.active}</Badge>
-              <Badge variant="outline">Planning {counts.planning}</Badge>
-              <Badge variant="secondary">Completed {counts.completed}</Badge>
+        <WorkspacePageHeader
+          eyebrow={projectLabel}
+          title="Sprints & backlog"
+          description="Manage iterations for this project. Tasks live inside sprints or the backlog."
+          meta={
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+              <Button variant="outline" size="sm" className="w-fit gap-1.5 border-border/60 bg-background/80" asChild>
+                <Link href={`/projects/${projectId}/activity`}>
+                  <Activity className="size-4" aria-hidden />
+                  Activity feed
+                </Link>
+              </Button>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge variant="default">Active {counts.active}</Badge>
+                <Badge variant="outline">Planning {counts.planning}</Badge>
+                <Badge variant="secondary">Completed {counts.completed}</Badge>
+              </div>
             </div>
-          </div>
-          {canEditProject && (
-            <Button
-              type="button"
-              className="w-full gap-1.5 sm:w-auto"
-              onClick={() => setCreateOpen(true)}
-            >
-              <Plus className="size-4" aria-hidden />
-              New sprint
-            </Button>
-          )}
-        </header>
+          }
+          actions={
+            canEditProject ? (
+              <Button
+                type="button"
+                className="w-full gap-1.5 sm:w-auto"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="size-4" aria-hidden />
+                New sprint
+              </Button>
+            ) : undefined
+          }
+        />
 
         {projectSprints.length === 0 ? (
           <div className="flex flex-col gap-6">

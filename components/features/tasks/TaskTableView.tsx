@@ -84,6 +84,7 @@ type TaskTableSortColumn =
 
 export interface TaskTableViewProps {
   tasks: Task[];
+  highlightTaskId?: string | null;
   selectedTaskIds: Set<string>;
   onToggleSelect: (taskId: string) => void;
   onSelectAll: (selected: boolean) => void;
@@ -204,6 +205,7 @@ function SortHeaderIcon({
 
 function TaskTableView({
   tasks,
+  highlightTaskId,
   selectedTaskIds,
   onToggleSelect,
   onSelectAll,
@@ -241,6 +243,14 @@ function TaskTableView({
   React.useEffect(() => {
     if (page > totalPages) setPage(totalPages);
   }, [page, totalPages]);
+
+  React.useEffect(() => {
+    if (!highlightTaskId) return;
+    const idx = sortedTasks.findIndex((t) => t.id === highlightTaskId);
+    if (idx < 0) return;
+    const targetPage = Math.floor(idx / pageSize) + 1;
+    setPage(targetPage);
+  }, [highlightTaskId, sortedTasks, pageSize]);
 
   const paginatedTasks = React.useMemo(
     () => sortedTasks.slice((safePage - 1) * pageSize, safePage * pageSize),
@@ -359,8 +369,12 @@ function TaskTableView({
               return (
                 <TableRow
                   key={task.id}
+                  id={`task-focus-${task.id}`}
                   data-state={selectedTaskIds.has(task.id) ? "selected" : undefined}
-                  className="text-xs"
+                  className={cn(
+                    "text-xs",
+                    task.id === highlightTaskId && "task-link-spotlight bg-amber-500/10"
+                  )}
                 >
                   <TableCell className="p-2">
                     <Checkbox

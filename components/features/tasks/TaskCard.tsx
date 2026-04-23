@@ -49,6 +49,8 @@ import {
 export interface TaskCardProps {
   task: Task;
   isSelected: boolean;
+  /** Subtle glow when user arrived via ?task= deep link */
+  showLinkSpotlight?: boolean;
   onToggleSelect: (taskId: string) => void;
   onClick: (taskId: string) => void;
   onDelete: (taskId: string) => void;
@@ -97,6 +99,7 @@ const STATUS_MENU_DOT: Record<TaskStatus, string> = {
 export function TaskCard({
   task,
   isSelected,
+  showLinkSpotlight = false,
   onToggleSelect,
   onClick,
   onDelete,
@@ -145,12 +148,14 @@ export function TaskCard({
   return (
     <TooltipProvider delayDuration={400}>
       <div
+        id={`task-focus-${task.id}`}
         ref={setNodeRef}
         style={style}
         className={cn(
           "group relative rounded-lg border bg-card shadow-sm border-l-4",
           priorityBorder,
-          isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background"
+          isSelected && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+          showLinkSpotlight && "task-link-spotlight"
         )}
         {...attributes}
       >

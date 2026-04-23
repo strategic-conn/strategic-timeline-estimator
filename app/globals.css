@@ -128,3 +128,23 @@
     @apply font-sans;
   }
 }
+
+/* Pulses when user lands from dashboard / workload / calendar with ?task= */
+@keyframes task-link-spotlight {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px oklch(0.82 0.14 92 / 0.55),
+      0 0 14px oklch(0.88 0.12 92 / 0.38);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px oklch(0.76 0.16 92 / 0.65),
+      0 0 26px oklch(0.84 0.14 92 / 0.48);
+  }
+}
+
+.task-link-spotlight {
+  animation: task-link-spotlight 1.75s ease-in-out 3;
+  z-index: 1;
+}

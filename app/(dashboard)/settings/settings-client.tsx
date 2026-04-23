@@ -1,9 +1,11 @@
 "use client";
 
-import { Building2, Lock, User } from "lucide-react";
+import { Building2, CalendarOff, Lock, User } from "lucide-react";
 import { Toaster } from "sonner";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
+import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
 import {
   Card,
   CardContent,
@@ -19,18 +21,21 @@ export function SettingsClient() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <Toaster position="bottom-right" richColors closeButton />
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Manage your profile and preview where workspace and security settings will live.
-        </p>
-      </header>
+      <WorkspacePageHeader
+        eyebrow="Account"
+        title="Settings"
+        description="Manage your profile and preview where workspace and security settings will live."
+      />
 
       <Tabs defaultValue="profile" className="w-full gap-6">
-        <TabsList className="grid w-full grid-cols-3 sm:w-auto sm:inline-flex">
+        <TabsList className="grid w-full grid-cols-2 gap-1 rounded-xl border border-border/60 bg-card/40 p-1 shadow-sm backdrop-blur-sm sm:max-w-2xl sm:grid-cols-4">
           <TabsTrigger value="profile" className="gap-1.5">
             <User className="size-3.5 sm:inline" aria-hidden />
             Profile
+          </TabsTrigger>
+          <TabsTrigger value="timeoff" className="gap-1.5">
+            <CalendarOff className="size-3.5 sm:inline" aria-hidden />
+            Time off
           </TabsTrigger>
           <TabsTrigger value="workspace" className="gap-1.5">
             <Building2 className="size-3.5 sm:inline" aria-hidden />
@@ -44,6 +49,14 @@ export function SettingsClient() {
 
         <TabsContent value="profile" className="mt-0 outline-none">
           <ProfileForm />
+        </TabsContent>
+
+        <TabsContent value="timeoff" className="mt-0 outline-none">
+          <Card>
+            <CardContent className="pt-6">
+              <TimeOffSettingsSection />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="workspace" className="mt-0 outline-none">

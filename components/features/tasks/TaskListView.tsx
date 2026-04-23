@@ -92,6 +92,7 @@ function formatDueCompact(iso?: string): string {
 
 export interface TaskListViewProps {
   tasks: Task[];
+  highlightTaskId?: string | null;
   selectedTaskIds: Set<string>;
   onToggleSelect: (taskId: string) => void;
   onTaskClick: (taskId: string) => void;
@@ -102,6 +103,7 @@ export interface TaskListViewProps {
 
 function TaskListView({
   tasks,
+  highlightTaskId,
   selectedTaskIds,
   onToggleSelect,
   onTaskClick,
@@ -112,6 +114,17 @@ function TaskListView({
   const [collapsedGroups, setCollapsedGroups] = React.useState<
     Set<TaskStatus>
   >(() => new Set());
+
+  React.useEffect(() => {
+    if (!highlightTaskId) return;
+    const task = tasks.find((t) => t.id === highlightTaskId);
+    if (!task) return;
+    setCollapsedGroups((prev) => {
+      const next = new Set(prev);
+      next.delete(task.status);
+      return next;
+    });
+  }, [highlightTaskId, tasks]);
 
   const grouped = React.useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
@@ -205,6 +218,7 @@ function TaskListView({
                       key={task.id}
                       task={task}
                       selected={selectedTaskIds.has(task.id)}
+                      showLinkSpotlight={task.id === highlightTaskId}
                       onToggleSelect={onToggleSelect}
                       onTaskClick={onTaskClick}
                       onTaskDelete={onTaskDelete}
@@ -226,6 +240,7 @@ function TaskListView({
 interface TaskRowProps {
   task: Task;
   selected: boolean;
+  showLinkSpotlight?: boolean;
   onToggleSelect: (taskId: string) => void;
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
@@ -236,6 +251,7 @@ interface TaskRowProps {
 function TaskRow({
   task,
   selected,
+  showLinkSpotlight = false,
   onToggleSelect,
   onTaskClick,
   onTaskDelete,
@@ -254,8 +270,10 @@ function TaskRow({
 
   return (
     <li
+      id={`task-focus-${task.id}`}
       className={cn(
-        "border-t border-border/80 transition-colors hover:bg-muted/50"
+        "border-t border-border/80 transition-colors hover:bg-muted/50",
+        showLinkSpotlight && "task-link-spotlight rounded-md bg-amber-500/10"
       )}
     >
       <div className="flex gap-3 px-3 py-2.5">

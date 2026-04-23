@@ -1,0 +1,831 @@
+{
+  "info": {
+    "_postman_id": "a2a3857c-012e-4b70-88c5-8589dd094c65",
+    "name": "API PM Tool",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "2901320"
+  },
+  "item": [
+    {
+      "name": "Development",
+      "item": [
+        {
+          "name": "Workspace",
+          "item": [
+            {
+              "name": "Update Workspace",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/workspaces/1",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X PUT http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Workspace",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 6|dE5xt5Oo3bSwoQTQ3xAwOFouPNpzLCBUHXrULAnHeac201f1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"IT Workspace\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/workspaces",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X POST http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"IT Workspace\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "List Workspace",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/workspaces",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Workspace",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/workspaces/1",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X DELETE http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\r\n  -H \"Accept: application/json\"\r\n"
+              },
+              "response": []
+            },
+            {
+              "name": "Show Workspace",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/workspaces/2",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "2"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Projects",
+          "item": [
+            {
+              "name": "Update Project",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Updated Project Name\",\n    \"description\": \"Updated description\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/projects/1",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X PUT http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Project",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 6|dE5xt5Oo3bSwoQTQ3xAwOFouPNpzLCBUHXrULAnHeac201f1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Mobile App Development\",\n    \"description\": \"Cross-platform app project\",\n    \"workspace_id\": 1,\n    \"owner_id\": 1\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/projects",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "projects"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X POST http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"IT Workspace\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "List Project",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/projects",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "projects"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Project",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/projects/1",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X DELETE http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\r\n  -H \"Accept: application/json\"\r\n"
+              },
+              "response": []
+            },
+            {
+              "name": "Show Project",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "http://api-pm-tool.test/api/projects/2",
+                  "protocol": "http",
+                  "host": [
+                    "api-pm-tool",
+                    "test"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "2"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"markjeffrey.ramos@gmail.com\",\"password\":\"admin1234\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "http://api-pm-tool.test/api/login",
+              "protocol": "http",
+              "host": [
+                "api-pm-tool",
+                "test"
+              ],
+              "path": [
+                "api",
+                "login"
+              ]
+            },
+            "description": "Generated from cURL: curl -X POST http://your-app.test/api/login \\\n    -H \"Content-Type: application/json\" \\\r\n    -d '{\"email\":\"test@example.com\",\"password\":\"password\"}'\r\n"
+          },
+          "response": []
+        },
+        {
+          "name": "User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer 1|WP94cei1qoAQwqKWKoQFywFJUxOrLG9fLdkVzcJI31555392"
+              }
+            ],
+            "url": {
+              "raw": "http://api-pm-tool.test/api/user",
+              "protocol": "http",
+              "host": [
+                "api-pm-tool",
+                "test"
+              ],
+              "path": [
+                "api",
+                "user"
+              ]
+            },
+            "description": "Generated from cURL: curl -X GET http://your-app.test/api/user \\\n    -H \"Authorization: Bearer YOUR_TOKEN_HERE\""
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "UAT",
+      "item": [
+        {
+          "name": "Workspace",
+          "item": [
+            {
+              "name": "Update Workspace",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 1|CYZ5WM8iAcsmvV1HfiMTkDQ8vxZoFDyIACMgx97a93682213"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/workspaces/1",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X PUT http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Workspace",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 1|CYZ5WM8iAcsmvV1HfiMTkDQ8vxZoFDyIACMgx97a93682213"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"IT Workspace 2\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/workspaces",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X POST http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"IT Workspace\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "List Workspace",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 1|CYZ5WM8iAcsmvV1HfiMTkDQ8vxZoFDyIACMgx97a93682213"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/workspaces",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Workspace",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 1|CYZ5WM8iAcsmvV1HfiMTkDQ8vxZoFDyIACMgx97a93682213"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/workspaces/1",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X DELETE http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\r\n  -H \"Accept: application/json\"\r\n"
+              },
+              "response": []
+            },
+            {
+              "name": "Show Workspace",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 1|CYZ5WM8iAcsmvV1HfiMTkDQ8vxZoFDyIACMgx97a93682213"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/workspaces/1",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "workspaces",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Projects",
+          "item": [
+            {
+              "name": "Update Project",
+              "request": {
+                "method": "PUT",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Updated Project Name\",\n    \"description\": \"Updated description\"\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/projects/1",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X PUT http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"Updated Workspace Name\",\n    \"description\": \"New description for this workspace\"\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "Create Project",
+              "request": {
+                "method": "POST",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 6|dE5xt5Oo3bSwoQTQ3xAwOFouPNpzLCBUHXrULAnHeac201f1"
+                  },
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n    \"name\": \"Mobile App Development\",\n    \"description\": \"Cross-platform app project\",\n    \"workspace_id\": 1,\n    \"owner_id\": 1\n  }",
+                  "options": {
+                    "raw": {
+                      "language": "json"
+                    }
+                  }
+                },
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/projects",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "projects"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X POST http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Content-Type: application/json\" \\\n  -d '{\n    \"name\": \"IT Workspace\",\n    \"description\": \"Workspace for IT projects\",\n    \"owner_id\": 1\n  }'"
+              },
+              "response": []
+            },
+            {
+              "name": "List Project",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/projects",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "projects"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            },
+            {
+              "name": "Delete Project",
+              "request": {
+                "method": "DELETE",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/projects/1",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "1"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X DELETE http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\r\n  -H \"Accept: application/json\"\r\n"
+              },
+              "response": []
+            },
+            {
+              "name": "Show Project",
+              "request": {
+                "method": "GET",
+                "header": [
+                  {
+                    "key": "Authorization",
+                    "value": "Bearer 7|1daweEiQL9AAIdg9FL7xlA61ksoVUchYw6dYoDPnff375284"
+                  },
+                  {
+                    "key": "Accept",
+                    "value": "application/json"
+                  }
+                ],
+                "url": {
+                  "raw": "https://api.stratvideo.com/api/projects/2",
+                  "protocol": "https",
+                  "host": [
+                    "api",
+                    "stratvideo",
+                    "com"
+                  ],
+                  "path": [
+                    "api",
+                    "projects",
+                    "2"
+                  ]
+                },
+                "description": "Generated from cURL: curl -X GET http://localhost:8000/api/workspaces/1 \\\n  -H \"Authorization: Bearer YOUR_TOKEN_HERE\" \\\n  -H \"Accept: application/json\""
+              },
+              "response": []
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\"email\":\"markjeffrey.ramos@gmail.com\",\"password\":\"admin1234\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://api.stratvideo.com/api/login",
+              "protocol": "https",
+              "host": [
+                "api",
+                "stratvideo",
+                "com"
+              ],
+              "path": [
+                "api",
+                "login"
+              ]
+            },
+            "description": "Generated from cURL: curl -X POST http://your-app.test/api/login \\\n    -H \"Content-Type: application/json\" \\\r\n    -d '{\"email\":\"test@example.com\",\"password\":\"password\"}'\r\n"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

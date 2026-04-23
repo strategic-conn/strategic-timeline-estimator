@@ -1,7 +1,7 @@
 "use client";
 
 import { create } from "zustand";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import { hoursForComplexity } from "@/lib/constants/proposal-estimator";
 import type {
@@ -22,6 +22,18 @@ function nextQuoteId(quotes: ClientQuote[]): string {
   }
   return `quote-${max + 1}`;
 }
+
+/** Avoids persist skipping `api.persist` when `localStorage` is unavailable during SSR. */
+const proposalEstimatorStorage = createJSONStorage(() => {
+  if (typeof window === "undefined") {
+    return {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+  }
+  return window.localStorage;
+});
 
 function emptyLineItem(): ProposalLineItem {
   const complexity: ProposalComplexity = "medium";
@@ -142,6 +154,10 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           }),
         })),
     }),
-    { name: "timeline-proposal-estimator", version: 1 }
+    {
+      name: "timeline-proposal-estimator",
+      version: 1,
+      storage: proposalEstimatorStorage,
+    }
   )
 );

@@ -80,12 +80,15 @@ export function TaskBoardToolbar({
   return (
     <>
       <div className="grid w-full grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] md:items-center md:gap-6">
-        <div className="min-w-0 space-y-0.5">
+        <div className="min-w-0 rounded-xl border border-border/60 bg-card/45 px-3 py-2.5 shadow-sm backdrop-blur-sm sm:px-3.5">
+          <p className="text-[0.65rem] font-medium uppercase tracking-wider text-muted-foreground">
+            Board
+          </p>
           <p className="text-sm font-semibold tracking-tight text-foreground">
             {boardTitle}
           </p>
           {boardSubtitle ? (
-            <p className="text-xs text-muted-foreground">{boardSubtitle}</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">{boardSubtitle}</p>
           ) : null}
         </div>
 

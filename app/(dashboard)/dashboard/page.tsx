@@ -11,6 +11,7 @@ import {
   Timer,
 } from "lucide-react";
 
+import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -109,7 +110,9 @@ function timeAgo(iso: string): string {
 }
 
 export default function DashboardPage() {
-  const userId = useAuthStore((s) => s.user.id);
+  const user = useAuthStore((s) => s.user);
+  const userId = user.id;
+  const firstName = user.name.trim().split(/\s+/)[0] || "there";
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
@@ -181,14 +184,30 @@ export default function DashboardPage() {
   ];
 
   const sprintHrefForTask = (task: (typeof tasks)[0]) => {
-    if (task.sprint_id) return sprintTasksHref(task.project_id, task.sprint_id);
-    return backlogHref(task.project_id);
+    if (task.sprint_id) {
+      return sprintTasksHref(task.project_id, task.sprint_id, task.id);
+    }
+    return backlogHref(task.project_id, task.id);
   };
 
   const recentActivity = notifications.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-6">
+      <WorkspacePageHeader
+        eyebrow="Overview"
+        title={
+          <>
+            Welcome back,{" "}
+            <span className="bg-gradient-to-r from-primary to-chart-2 bg-clip-text text-transparent">
+              {firstName}
+            </span>
+          </>
+        }
+        description="Your deadlines, sprint pulse, and recent workspace motion — prioritized for what you own."
+        className="mb-2"
+      />
+
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} size="sm">
@@ -352,6 +371,9 @@ export default function DashboardPage() {
                 </ul>
               )}
               <Separator className="my-4" />
+              <Button variant="ghost" className="w-full" asChild>
+                <Link href="/activity">View all activity</Link>
+              </Button>
               <Button variant="ghost" className="w-full" asChild>
                 <Link href="/reports">View reports</Link>
               </Button>
