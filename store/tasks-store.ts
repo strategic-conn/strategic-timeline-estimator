@@ -3,6 +3,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import {
+  notifyAssigneesUpdated,
+  notifyCommentAdded,
+  notifyCommentEdited,
+  notifyCommentRemoved,
+  notifyReplyAdded,
+} from "@/lib/collaboration/notify-task-activity";
 import { DUMMY_TASKS } from "@/lib/dummy/tasks.data";
 import { roundWorkHours } from "@/lib/utils/work-hours";
 import type { Comment, Task, TaskPriority, TaskStatus } from "@/types/task.types";
@@ -127,9 +134,11 @@ export const useTasksDataStore = create<TasksState>()(
             t.id === taskId ? { ...t, comments: [comment, ...t.comments] } : t
           ),
         }));
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) notifyCommentAdded(task);
       },
 
-      editComment: (taskId, commentId, body) =>
+      editComment: (taskId, commentId, body) => {
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
@@ -141,16 +150,22 @@ export const useTasksDataStore = create<TasksState>()(
                 }
               : t
           ),
-        })),
+        }));
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) notifyCommentEdited(task);
+      },
 
-      deleteComment: (taskId, commentId) =>
+      deleteComment: (taskId, commentId) => {
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
               ? { ...t, comments: t.comments.filter((c) => c.id !== commentId) }
               : t
           ),
-        })),
+        }));
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) notifyCommentRemoved(task);
+      },
 
       addReply: (taskId, commentId, body, mentionIds) => {
         const reply = {
@@ -172,6 +187,8 @@ export const useTasksDataStore = create<TasksState>()(
               : t
           ),
         }));
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) notifyReplyAdded(task, mentionIds.length);
       },
 
       addReaction: (taskId, commentId, emoji, userId) =>
@@ -213,7 +230,7 @@ export const useTasksDataStore = create<TasksState>()(
           ),
         })),
 
-      assignTask: (taskId, userId) =>
+      assignTask: (taskId, userId) => {
         set((s) => ({
           tasks: s.tasks.map((t) => {
             if (t.id !== taskId) return t;
@@ -229,7 +246,10 @@ export const useTasksDataStore = create<TasksState>()(
               updated_at: new Date().toISOString(),
             };
           }),
-        })),
+        }));
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) notifyAssigneesUpdated(task);
+      },
 
       appendLoggedHours: (taskId, hours) => {
         if (hours <= 0) return;

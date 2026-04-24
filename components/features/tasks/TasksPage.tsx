@@ -19,7 +19,7 @@ import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskStatus } from "@/types/task.types";
 import type { BacklogSprintMoveTarget } from "@/components/features/tasks/TaskBoardToolbar";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 
 const EMPTY_FILTERS: TaskFiltersProps["filters"] = {
   assigneeIds: [],
@@ -236,6 +236,32 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     return filteredTasks.some((t) => t.id === focusParam) ? focusParam : null;
   }, [focusParam, filteredTasks]);
 
+  const appliedFocusFromUrl = React.useRef<string | null>(null);
+
+  React.useEffect(() => {
+    appliedFocusFromUrl.current = null;
+  }, [projectId, sprintId]);
+
+  React.useEffect(() => {
+    if (!focusParam) {
+      appliedFocusFromUrl.current = null;
+      return;
+    }
+    if (loading) return;
+    const t = tasks.find(
+      (x) => x.id === focusParam && x.project_id === projectId
+    );
+    if (!t) return;
+    if (sprintId === null) {
+      if (t.sprint_id != null) return;
+    } else if (typeof sprintId === "string") {
+      if (t.sprint_id !== sprintId) return;
+    }
+    if (appliedFocusFromUrl.current === focusParam) return;
+    setSelectedTaskId(focusParam);
+    appliedFocusFromUrl.current = focusParam;
+  }, [loading, focusParam, tasks, projectId, sprintId, setSelectedTaskId]);
+
   React.useEffect(() => {
     if (!highlightTaskId || loading) return;
     const elId = `task-focus-${highlightTaskId}`;
@@ -416,8 +442,6 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
 
   return (
     <>
-      <Toaster position="bottom-right" richColors closeButton />
-
       <div className="flex w-full flex-col gap-6">
         <TaskBoardToolbar
           boardTitle={boardTitle}

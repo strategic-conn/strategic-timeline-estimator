@@ -4,6 +4,7 @@ import * as React from "react"
 import {
   CalendarDays,
   Clock,
+  Link2,
   MoreHorizontal,
   Pencil,
   Tag,
@@ -11,6 +12,7 @@ import {
   User,
   X,
 } from "lucide-react"
+import { toast } from "sonner"
 
 import {
   AlertDialog,
@@ -63,6 +65,7 @@ import { TaskCommentSection } from "@/components/features/tasks/TaskCommentSecti
 import { TaskTimeTracker } from "@/components/features/tasks/TaskTimeTracker"
 import { useTimeTrackingAccess } from "@/hooks/useTimeTrackingAccess"
 import { ALL_TAGS, TEAM_MEMBERS } from "@/lib/dummy/tasks.data"
+import { copyTextToClipboard, taskShareUrl } from "@/lib/utils/share-links"
 import { cn } from "@/lib/utils"
 import { formatWorkHours, roundWorkHours } from "@/lib/utils/work-hours"
 import type { Task, TaskPriority, TaskStatus } from "@/types/task.types"
@@ -324,10 +327,28 @@ export function TaskDetailDrawer({
                       </DropdownMenuItem>
                       <DropdownMenuItem
                         onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(task.id)
-                          } catch {
-                            /* ignore */
+                          const url = taskShareUrl(task)
+                          const ok = await copyTextToClipboard(url)
+                          if (ok) {
+                            toast.success("Task link copied", {
+                              description:
+                                "Recipients open the board with this task in view.",
+                            })
+                          } else {
+                            toast.error("Could not copy link")
+                          }
+                        }}
+                      >
+                        <Link2 className="size-4" />
+                        Copy link
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={async () => {
+                          const ok = await copyTextToClipboard(task.id)
+                          if (ok) {
+                            toast.success("Task ID copied")
+                          } else {
+                            toast.error("Could not copy ID")
                           }
                         }}
                       >

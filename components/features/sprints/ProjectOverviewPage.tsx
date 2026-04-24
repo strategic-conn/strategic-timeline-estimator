@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Activity, ArrowRight, Inbox, Layers, Plus } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { Activity, ArrowRight, Inbox, Layers, Link2, Plus } from "lucide-react";
+import { toast } from "sonner";
 
 import { SprintCard } from "@/components/features/sprints/SprintCard";
 import { CreateSprintModal } from "@/components/features/sprints/CreateSprintModal";
@@ -26,6 +26,11 @@ import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header"
 import { useNotificationsStore } from "@/store/notifications-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
+import {
+  backlogShareUrl,
+  copyTextToClipboard,
+  projectShareUrl,
+} from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
 import type { Sprint, SprintStatus } from "@/types/sprint.types";
 
@@ -72,12 +77,30 @@ function ProjectBacklogCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="mt-auto pt-0">
-        <Button asChild className="w-full gap-1.5">
+      <CardContent className="mt-auto flex flex-col gap-2 pt-0 sm:flex-row">
+        <Button asChild className="w-full flex-1 gap-1.5">
           <Link href={backlogHref(projectId)}>
             Open board
             <ArrowRight className="size-4" aria-hidden />
           </Link>
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          className="w-full shrink-0 gap-1.5 sm:w-auto"
+          onClick={async () => {
+            const ok = await copyTextToClipboard(backlogShareUrl(projectId));
+            if (ok) {
+              toast.success("Backlog link copied", {
+                description: "Opens the backlog board for this project.",
+              });
+            } else {
+              toast.error("Could not copy link");
+            }
+          }}
+        >
+          <Link2 className="size-4" aria-hidden />
+          Copy link
         </Button>
       </CardContent>
     </Card>
@@ -233,8 +256,6 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
 
   return (
     <>
-      <Toaster position="bottom-right" richColors closeButton />
-
       <CreateSprintModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
@@ -283,16 +304,38 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             </div>
           }
           actions={
-            canEditProject ? (
+            <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
               <Button
                 type="button"
-                className="w-full gap-1.5 sm:w-auto"
-                onClick={() => setCreateOpen(true)}
+                variant="outline"
+                className="w-full gap-1.5 border-border/60 bg-background/80 sm:w-auto"
+                onClick={async () => {
+                  const ok = await copyTextToClipboard(
+                    projectShareUrl(projectId)
+                  );
+                  if (ok) {
+                    toast.success("Project link copied", {
+                      description: "Opens sprints and backlog for this project.",
+                    });
+                  } else {
+                    toast.error("Could not copy link");
+                  }
+                }}
               >
-                <Plus className="size-4" aria-hidden />
-                New sprint
+                <Link2 className="size-4" aria-hidden />
+                Copy project link
               </Button>
-            ) : undefined
+              {canEditProject ? (
+                <Button
+                  type="button"
+                  className="w-full gap-1.5 sm:w-auto"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <Plus className="size-4" aria-hidden />
+                  New sprint
+                </Button>
+              ) : null}
+            </div>
           }
         />
 

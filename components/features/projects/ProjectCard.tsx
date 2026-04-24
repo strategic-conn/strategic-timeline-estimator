@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import * as React from "react";
-import { ArrowRight, Layers, MoreHorizontal } from "lucide-react";
+import { ArrowRight, Layers, Link2, MoreHorizontal } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { copyTextToClipboard, projectShareUrl } from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Project, ProjectStatus } from "@/types/project.types";
@@ -105,6 +107,23 @@ export function ProjectCard({
                 Archive
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={async () => {
+                  const ok = await copyTextToClipboard(
+                    projectShareUrl(project.id)
+                  );
+                  if (ok) {
+                    toast.success("Project link copied", {
+                      description: "Opens sprints and backlog for this project.",
+                    });
+                  } else {
+                    toast.error("Could not copy link");
+                  }
+                }}
+              >
+                <Link2 className="size-4" />
+                Copy project link
+              </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href={`/projects/${project.id}`}>Open sprints</Link>
               </DropdownMenuItem>

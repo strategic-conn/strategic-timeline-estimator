@@ -4,12 +4,14 @@ import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
+  Link2,
   MoreHorizontal,
   Play,
   CheckCircle2,
   Target,
   Zap,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,6 +36,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { sprintTasksHref } from "@/lib/constants/sprints";
+import { copyTextToClipboard, sprintShareUrl } from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
 import type { Sprint, SprintStatus } from "@/types/sprint.types";
 
@@ -85,8 +88,6 @@ export function SprintCard({
   const progressPct = taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0;
   const isPlanning = sprint.status === "planning";
   const isActive = sprint.status === "active";
-  const isTerminal = sprint.status === "completed" || sprint.status === "cancelled";
-
   return (
     <TooltipProvider delayDuration={400}>
       <Card className="group relative overflow-hidden">
@@ -196,43 +197,63 @@ export function SprintCard({
             </div>
           )}
 
-          <div className="flex gap-2">
-            {isPlanning && (
+          <div className="flex flex-col gap-2">
+            {(isPlanning || isActive) && (
+              <div className="flex gap-2">
+                {isPlanning && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    onClick={() => onSetStatus(sprint.id, "active")}
+                  >
+                    <Play className="size-3.5" aria-hidden />
+                    Start sprint
+                  </Button>
+                )}
+                {isActive && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="flex-1 gap-1.5"
+                    onClick={() => onSetStatus(sprint.id, "completed")}
+                  >
+                    <CheckCircle2 className="size-3.5" aria-hidden />
+                    Complete
+                  </Button>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button asChild className="w-full flex-1 gap-1.5">
+                <Link href={sprintTasksHref(projectId, sprint.id)}>
+                  Open board
+                  <ArrowRight className="size-4" aria-hidden />
+                </Link>
+              </Button>
               <Button
                 type="button"
-                size="sm"
                 variant="outline"
-                className="flex-1 gap-1.5"
-                onClick={() => onSetStatus(sprint.id, "active")}
+                className="w-full shrink-0 gap-1.5 sm:w-auto"
+                onClick={async () => {
+                  const ok = await copyTextToClipboard(
+                    sprintShareUrl(projectId, sprint.id)
+                  );
+                  if (ok) {
+                    toast.success("Sprint board link copied", {
+                      description: "Opens this sprint’s task board.",
+                    });
+                  } else {
+                    toast.error("Could not copy link");
+                  }
+                }}
               >
-                <Play className="size-3.5" aria-hidden />
-                Start sprint
+                <Link2 className="size-4" aria-hidden />
+                Copy link
               </Button>
-            )}
-            {isActive && (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                className="flex-1 gap-1.5"
-                onClick={() => onSetStatus(sprint.id, "completed")}
-              >
-                <CheckCircle2 className="size-3.5" aria-hidden />
-                Complete
-              </Button>
-            )}
-            <Button
-              asChild
-              size="sm"
-              className={cn(
-                "gap-1.5",
-                isTerminal ? "w-full" : "flex-1"
-              )}
-            >
-              <Link href={sprintTasksHref(projectId, sprint.id)}>
-                Open board <ArrowRight className="size-4" aria-hidden />
-              </Link>
-            </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

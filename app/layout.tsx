@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 
+import { AppProviders } from "@/components/layouts/app-providers";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -40,7 +41,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <TooltipProvider delayDuration={300}>
-            {children}
+            <AppProviders>{children}</AppProviders>
           </TooltipProvider>
         </ThemeProvider>
       </body>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { FolderKanban, Plus, Search } from "lucide-react";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { CreateProjectModal } from "@/components/features/projects/CreateProjectModal";
@@ -144,8 +144,6 @@ export function ProjectsPage() {
 
   return (
     <>
-      <Toaster position="bottom-right" richColors closeButton />
-
       <CreateProjectModal
         open={createOpen}
         onClose={() => setCreateOpen(false)}

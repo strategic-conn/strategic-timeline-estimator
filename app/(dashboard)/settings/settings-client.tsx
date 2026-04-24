@@ -1,8 +1,6 @@
 "use client";
 
 import { Building2, CalendarOff, Lock, User } from "lucide-react";
-import { Toaster } from "sonner";
-
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
@@ -21,7 +19,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 export function SettingsClient() {
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
-      <Toaster position="bottom-right" richColors closeButton />
       <WorkspacePageHeader
         eyebrow="Account"
         title="Settings"
