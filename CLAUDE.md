@@ -13,8 +13,8 @@ managers, team leads, and developers to create projects, manage tasks on Kanban 
 visualize schedules on Gantt charts, track team availability and PTO, generate client
 proposals, and export reports to PDF and Excel.
 
-**My role:** Frontend only (Next.js). The backend is a **Laravel REST API** built by a
-separate backend developer who exposes endpoints I consume.
+**My role:** Frontend (Next.js) **and** the Supabase backend (Postgres schema + RLS live in
+this repo under `supabase/`). No separate backend developer — the frontend talks to Supabase directly.
 
 **Development approach:** AI-assisted with Cursor. Aim for clean, production-grade code —
 not just fast code.
@@ -23,14 +23,20 @@ not just fast code.
 
 ## Current Status
 
-| Phase | Description                      | Status      |
-| ----- | -------------------------------- | ----------- |
-| 1     | Auth, Projects/Workspaces, Tasks | Not started |
-| 2     | Collaboration, Scheduling, PTO   | Not started |
-| 3     | Proposals, Gantt Charts, Pricing | Not started |
-| 4     | Integrations, Performance, WCAG  | Not started |
+> **Frontend is being built demo-first**: every feature works against local Zustand
+> stores persisted to `localStorage` (no live data yet). **Supabase** integration (SDK + client
+> seam scaffolded; queries, Auth, and RLS still to wire) is pending — see "Backend Relationship" below.
 
-> Update this table when a phase starts or completes.
+| Phase | Description                      | Status                                  |
+| ----- | -------------------------------- | --------------------------------------- |
+| 1     | Auth, Projects/Workspaces, Tasks | UI built (demo data) — login/register, projects, sprints, Kanban/list/table boards, backlog |
+| 2     | Collaboration, Scheduling, PTO   | UI built (demo data) — comments/reactions, notifications + activity feed, calendar, workload, PTO/availability, weekly capacity |
+| 3     | Proposals, Gantt Charts, Pricing | UI built (demo data) — proposal estimator (v2 catalog/tier/add-ons), Gantt/Timeline, PDF + Excel export |
+| 4     | Integrations, Performance, WCAG  | Not started — no real API wired; perf/WCAG passes pending |
+
+> Update this table when a phase starts or completes. "UI built (demo data)" means the
+> screens and interactions exist on local stores; swapping in Supabase is the
+> remaining work for each phase.
 
 **Total estimated FE hours (AI-assisted): ~232 hours**
 
@@ -43,23 +49,38 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 
 ### Installed (current)
 
-| Layer     | Technology                       |
-| --------- | -------------------------------- |
-| Framework | Next.js 16.2.1 (App Router)      |
-| UI        | React 19.2.4                     |
-| Language  | TypeScript                       |
-| Styling   | Tailwind CSS 4                   |
-| UI kit    | shadcn/ui (generated components) |
-| Icons     | lucide-react                     |
+| Layer        | Technology                                              |
+| ------------ | ------------------------------------------------------- |
+| Framework    | Next.js 16.2.1 (App Router)                             |
+| UI           | React 19.2.4                                            |
+| Language     | TypeScript                                              |
+| Styling      | Tailwind CSS 4 (+ `tw-animate-css`)                     |
+| UI kit       | shadcn/ui (generated) on `radix-ui`                     |
+| Icons        | lucide-react                                            |
+| UI State     | Zustand 5 (+ `persist` to localStorage — demo backend)  |
+| Forms        | React Hook Form 7 + Zod 4 (`@hookform/resolvers`)       |
+| Drag & drop  | @dnd-kit (core / sortable / utilities) — Kanban board   |
+| Toasts       | sonner                                                  |
+| Theming      | next-themes (light/dark)                                |
+| Command menu | cmdk                                                    |
+| Dates        | date-fns, react-day-picker                              |
+| Sanitization | DOMPurify (user-generated content)                      |
+| PDF export   | jsPDF + jspdf-autotable                                 |
+| Excel export | xlsx (SheetJS)                                          |
+| Patching     | patch-package (`postinstall`)                           |
+| Backend SDK  | `@supabase/supabase-js` + `@supabase/ssr` (scaffolded, not wired) |
 
-### Planned / to be added as needed
+### Planned / not yet added
 
-| Layer        | Technology                   |
-| ------------ | ---------------------------- |
-| Server State | TanStack Query (React Query) |
-| UI State     | Zustand                      |
-| Forms        | React Hook Form + Zod        |
-| HTTP Client  | Axios (centralized instance) |
+| Layer        | Technology                   | Notes                                            |
+| ------------ | ---------------------------- | ------------------------------------------------ |
+| Server State | TanStack Query (React Query) | **Not installed yet** — recommended cache layer over Supabase queries when integration starts |
+
+> **Reality check:** the backend is **Supabase** (see [docs/backend-supabase.md](docs/backend-supabase.md)).
+> The SDK and the client seam (`lib/supabase/`, root `middleware.ts`, `supabase/migrations/`)
+> are **scaffolded but not yet wired** — every feature still reads/writes Zustand stores
+> persisted to `localStorage`. The middleware no-ops until Supabase env vars are set, so the
+> demo runs unchanged. There is **no `lib/api/` folder and no axios** — Supabase replaces that layer.
 
 ---
 
@@ -67,81 +88,126 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 
 ```
 app/
-├── (auth)/                                    # login, register, forgot-password
+├── (auth)/                                    # login, register (own layout)
 ├── (dashboard)/                               # all protected pages
 │   ├── dashboard/page.tsx                     # KPI cards, due-soon, activity
 │   ├── projects/
 │   │   ├── page.tsx                           # project list
 │   │   └── [projectId]/
 │   │       ├── page.tsx                       # project overview — sprint list + backlog
+│   │       ├── sprints/page.tsx               # sprint list
 │   │       ├── sprints/[sprintId]/page.tsx    # sprint task board (kanban/list/table)
 │   │       ├── backlog/page.tsx               # tasks not in any sprint
+│   │       ├── activity/page.tsx              # per-project activity feed
 │   │       └── tasks/page.tsx                 # legacy redirect → project overview
-│   ├── calendar/
+│   ├── activity/                              # global activity feed
+│   ├── calendar/                              # team calendar + PTO
+│   ├── gantt/                                 # Gantt / Timeline view
+│   ├── workload/                              # capacity vs. assigned hours per member
 │   ├── reports/
-│   ├── proposals/                             # proposal estimator (coordinator quotes), PDF preview mock
+│   ├── proposals/                             # proposal estimator (coordinator quotes)
+│   │   └── [proposalId]/                      # editor: catalog, line items, add-ons, PDF/Excel export
 │   ├── team/
-│   └── settings/
-├── api/auth/                                  # Next.js BFF routes
-├── layout.tsx
-└── page.tsx
+│   ├── settings/                             # profile, time-off, admin team time-off
+│   ├── tasks/page.tsx                         # top-level tasks entry
+│   ├── error.tsx · loading.tsx               # route-level states
+│   └── layout.tsx
+├── error.tsx · not-found.tsx · page.tsx · layout.tsx
+middleware.ts                                  # Supabase session refresh (no-op until env set)
+# NOTE: auth is still a demo Zustand store; Supabase Auth replaces it at integration time.
 components/
 ├── ui/                 # shadcn/ui — generated components; avoid manual edits
-├── common/             # DataTable, PageHeader, EmptyState, HelpTip
+├── common/             # coming-soon, shared bits
 ├── features/
 │   ├── projects/       # ProjectsPage, ProjectCard, Create/Edit/Delete modals
-│   ├── proposals/      # Proposal estimator: line items, complexity → hours, PDF preview mock
+│   ├── proposals/      # Estimator: editor, CatalogBrowser, AddonsCard, PDF preview mock, access-denied
 │   ├── sprints/        # ProjectOverviewPage, SprintCard, Create/Edit/Delete modals
-│   └── tasks/          # TasksPage, KanbanBoard, TaskCard, TaskDetailDrawer, modals
-└── layouts/            # DashboardHeader, Sidebar, MobileNav, MobileTabBar
-hooks/                  # useProjects, useSprints, useTasks, useAuth, usePermissions
+│   ├── tasks/          # TasksPage, KanbanBoard/Column, TaskCard, TaskDetailDrawer, list/table views, comments, time tracker, modals
+│   ├── gantt/          # GanttClient
+│   ├── workload/       # WorkloadClient, MemberWeeklyHoursInput
+│   ├── activity/       # ActivityFeedClient/List
+│   ├── notifications/  # NotificationBell
+│   └── settings/       # ProfileForm, TimeOffSettingsSection, AdminTeamTimeOffSection
+└── layouts/            # dashboard-header, sidebar-nav, mobile-menu, mobile-tab-bar, nav-config, page-header, app-providers, app-atmosphere
+hooks/                  # usePermissions, useProjects, useSprints, useTasks, useTimeTrackingAccess
 lib/
-├── api/                # axios.ts + per-feature API call files
-├── utils/              # cn, date, format, work-hours helpers
-├── validations/        # Zod schemas per feature
-├── dummy/              # dummy data for projects, sprints, tasks, team
-└── constants/          # projects.ts, sprints.ts, query-keys, config
-store/                  # Zustand: projects-store, sprints-store, auth, ui, notification
-types/                  # project.types, sprint.types, task.types, api.types, ui.types
+├── utils/              # cn, dates, initials, activity-feed, gantt-layout, share-links, proposal-pdf/excel-export, availability-dates
+├── validations/        # Zod schemas (profile.schema.ts so far)
+├── dummy/              # demo data: projects, sprints, tasks (+ TEAM_MEMBERS)
+├── constants/          # projects, sprints, proposal-estimator, workload, task-focus
+├── proposal-catalog/   # catalog.json + index (platform → catalog rows)
+├── activity/           # workspace-push (append activity/notifications)
+├── collaboration/      # notify-task-activity
+├── undo/               # offer-undo-toast (one-shot Undo)
+└── supabase/           # client.ts (browser), server.ts (RSC/actions), middleware.ts (session) — seam, not wired
+store/                  # Zustand (all persisted to localStorage except UI/timers):
+                        #   projects, sprints, tasks, auth, availability,
+                        #   notifications, weekly-capacity, proposal-estimator
+types/                  # project, sprint, task, proposal, availability, database (generated placeholder)
+docs/                   # data-mapping.md (data shapes) + backend-supabase.md (backend plan)
+supabase/               # migrations/ (0001_init schema, 0002_rls policies) + README — push with `npm run db:push`
+project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 ```
+
+> **Drift note:** the data layer is mid-migration. Today every feature uses Zustand +
+> `localStorage`; `lib/supabase/` + `supabase/migrations/` are the scaffolded target. The
+> authoritative current data-model reference is [docs/data-mapping.md](docs/data-mapping.md);
+> the backend plan is [docs/backend-supabase.md](docs/backend-supabase.md).
 
 ---
 
 ## How the Backend Relationship Works
 
-The backend developer builds and maintains the Laravel REST API. I consume it from Next.js.
+> **Backend = Supabase.** Full architecture, schema, RLS, and frontend wiring patterns live in
+> [docs/backend-supabase.md](docs/backend-supabase.md) — read it before touching the data layer.
+> (The earlier Laravel plan is retired.)
 
-**API base URL:** `process.env.NEXT_PUBLIC_API_URL` (example: `http://localhost:8000/api/v1`)
+Unlike a separate-backend-dev setup, **we own the database.** Schema and Row-Level Security live
+in this repo under `supabase/migrations/` and are applied with `npm run db:push`. There is no
+REST contract to wait on — the frontend talks to Postgres through `supabase-js` (PostgREST),
+scoped by RLS.
 
-**Auth flow (cookie-based):**
+**Connection:** `@supabase/supabase-js` + `@supabase/ssr`, via the helpers in `lib/supabase/`:
+- `client.ts` — browser client for Client Components.
+- `server.ts` — server client for Server Components / Route Handlers / Server Actions.
+- `middleware.ts` (+ root `middleware.ts`) — refreshes the auth-session cookie each request.
 
-1. User signs in via a Next.js route handler (BFF) or direct API call (depending on backend contract)
-2. Backend establishes session via **httpOnly cookies** (and CSRF protection if using Sanctum)
-3. Frontend requests authenticate via cookies (`withCredentials`); **no token is stored in local/session storage**
-4. On 401, show a re-auth flow (optionally attempt a refresh endpoint once if the backend supports it)
+**Auth flow (Supabase Auth / cookie-based):**
 
-**I need from the backend developer:**
+1. User signs in with `supabase.auth.signInWithPassword(...)` (or OAuth / magic link).
+2. `@supabase/ssr` stores the JWT in **httpOnly cookies** — no token in local/session storage.
+3. Root `middleware.ts` refreshes the session cookie on every request.
+4. RLS uses `auth.uid()` to scope every query automatically; on missing session, gate in middleware/UI.
 
-- Postman collection or OpenAPI spec before starting each phase
-- CORS configured to allow my frontend domain
-- Consistent error format: `{ message: string, errors: { field: string[] } }`
-- Consistent pagination: `{ data: T[], meta: { total, per_page, current_page, last_page } }`
+**To go live:**
+
+- Create a Supabase project; put URL + keys in `.env.local` (see `.env.example`).
+- `npm run db:push` to apply `supabase/migrations/`, then `npm run db:types` to regenerate `types/database.types.ts`.
+- Swap each Zustand store for Supabase queries behind its existing `hooks/` (the seam that keeps this a contained change).
+- Keep `usePermissions()` in lockstep with the RLS policies in `0002_rls.sql`.
 
 ---
 
 ## Key Architectural Decisions
 
 **Why Next.js App Router (not plain React)?**
-Route-based layouts, middleware for auth guards, server components for lightweight rendering,
-API routes as BFF for secure cookie handling. This is the right call for a dashboard SaaS.
+Route-based layouts, middleware for the Supabase session refresh + auth guards, server
+components for lightweight rendering. This is the right call for a dashboard SaaS.
+
+**Why Supabase (not a separate REST backend)?**
+Postgres + Auth + RLS + Realtime + Storage in one, owned in-repo as SQL migrations. RLS pushes
+authorization into the database (the UI's `usePermissions()` becomes a mirror, not the only gate),
+and Realtime gives the collaborative surfaces (notifications, activity, board, comments) live
+updates with little extra code. See [docs/backend-supabase.md](docs/backend-supabase.md).
 
 **Why TanStack Query + Zustand (not Redux)?**
-TanStack Query handles all server state (fetching, caching, revalidation). Zustand handles
-only UI state (sidebar open, modal state, theme). Keeping them separate is cleaner and faster.
+TanStack Query is the recommended cache/dedupe layer over Supabase queries (server state); Zustand
+holds only UI state (modals, board view). Keeping them separate is cleaner and faster. (TanStack
+is not installed yet — it lands with backend integration.)
 
 **Why httpOnly cookies (not localStorage)?**
-localStorage is readable by any JS — vulnerable to XSS. httpOnly cookies are inaccessible
-to JavaScript, making token theft via XSS attacks impossible.
+localStorage is readable by any JS — vulnerable to XSS. Supabase Auth via `@supabase/ssr` keeps
+the session in httpOnly cookies, inaccessible to JavaScript, so the token can't be stolen via XSS.
 
 **Why Zod for validation?**
 Zod schemas serve dual purpose: TypeScript type inference AND runtime validation. One schema
@@ -149,36 +215,27 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 
 ---
 
-## API Endpoint Map
+## Data Access Map (Supabase tables → hooks)
 
-> Update this as endpoints are built and integrated.
-> Status: Pending | Ready | Integrated
+> Access is via `supabase-js` against these tables (defined in `supabase/migrations/0001_init.sql`),
+> scoped by RLS (`0002_rls.sql`). No REST endpoints. Update Status as each store is swapped.
+> Status: Demo (Zustand/local) | Wired (live Supabase) | —
 
-| Method | Endpoint                        | Status  | Hook             |
-| ------ | ------------------------------- | ------- | ---------------- |
-| POST   | /auth/login                     | Pending | useAuth          |
-| POST   | /auth/logout                    | Pending | useAuth          |
-| GET    | /auth/me                        | Pending | useAuth          |
-| GET    | /projects                       | Pending | useProjects      |
-| POST   | /projects                       | Pending | useProjects      |
-| GET    | /projects/:id                   | Pending | useProject       |
-| PUT    | /projects/:id                   | Pending | useProject       |
-| DELETE | /projects/:id                   | Pending | useProject       |
-| GET    | /projects/:id/sprints           | Pending | useSprints       |
-| POST   | /projects/:id/sprints           | Pending | useSprints       |
-| GET    | /sprints/:id                    | Pending | useSprint        |
-| PUT    | /sprints/:id                    | Pending | useSprint        |
-| DELETE | /sprints/:id                    | Pending | useSprint        |
-| GET    | /sprints/:id/tasks              | Pending | useTasks         |
-| GET    | /projects/:id/backlog           | Pending | useTasks         |
-| POST   | /tasks                          | Pending | useTasks         |
-| PUT    | /tasks/:id                      | Pending | useTask          |
-| DELETE | /tasks/:id                      | Pending | useTask          |
-| GET    | /users/team                     | Pending | useTeam          |
-| GET    | /notifications                  | Pending | useNotifications |
-| GET    | /calendar/events                | Pending | useCalendar      |
-| POST   | /proposals                      | Pending | useProposals     |
-| GET    | /proposals/:id/export           | Pending | useProposals     |
+| Table(s)                              | Reads / writes via         | Hook(s)              | Status |
+| ------------------------------------- | -------------------------- | -------------------- | ------ |
+| `auth.users` + `profiles`             | Supabase Auth + select     | useAuth (todo)       | Demo   |
+| `projects`                            | select / insert / update / delete | useProjects   | Demo   |
+| `sprints`                             | select / insert / update / delete | useSprints    | Demo   |
+| `tasks` (+ `task_assignees`)          | select / insert / update / delete | useTasks      | Demo   |
+| `task_comments` (+ `comment_reactions`)| select / insert / delete  | useTasks / comments  | Demo   |
+| `profiles` (team directory)           | select                     | useTeam (todo)       | Demo   |
+| `notifications`                       | select / update + Realtime | useNotifications (todo)| Demo  |
+| `availability_entries`                | select / insert / update / delete | calendar/workload | Demo |
+| `weekly_capacity`                     | select / upsert            | workload             | Demo   |
+| `proposals` (jsonb document)          | select / insert / update / delete | useProposals (todo)| Demo |
+
+**Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → optional Supabase
+**Edge Function** writing to a Storage bucket; the existing client-side jsPDF/xlsx export already works.
 
 ---
 
@@ -258,37 +315,53 @@ interface Proposal {
 
 **Purpose:** A **separate coordinator-facing tool** to build **client quotes** from a structured list of work—not the same UX as the day-to-day sprint board (line items estimate and sell work; linking rows to real `Task` records later is optional, not required for v1).
 
-**Flow**
+> **The estimator evolved past the original 4-tier model.** What's described below is the
+> current **v2** implementation (see `types/proposal.types.ts`, `lib/constants/proposal-estimator.ts`,
+> `lib/proposal-catalog/`). The old "Easy/Medium/Complex/Very complex = fixed hours" design is gone.
 
-1. Open or create a **proposal / quote** (title, client or project context, optional notes).
-2. Add **line items**: short description per row.
-3. Assign each line a **complexity** from a **fixed preset** set (product-default labels such as *Easy*, *Medium*, *Complex*, *Very complex* — labels are tunable; the tier set is small and global for the demo).
-4. Each tier maps to **single fixed default hours** via one **global lookup table** (e.g. Easy = 2h, Medium = 4h — constants in frontend until the API owns configuration).
-5. Show **rolled-up totals** (hours; optional rate × hours when **Pricing** lands in Phase 3).
-6. **Output:** **PDF preview mock** in the browser (print-styled layout + live form data). Real export uses **`GET /proposals/:id/export`** when integrated.
+**Flow (v2)**
 
-**Frontend-only (current):** Implement with **Zustand + persist** (or the same demo pattern as other stores). **Do not invent** Laravel payloads for line items until the backend publishes OpenAPI/Postman.
+1. Open or create a **quote** (`ClientQuote`: title, optional `project_id`, client name, notes).
+2. Pick a **platform** — WordPress, Shopify, Wix, Squarespace, Custom PHP/HTML/CSS, Custom React/Next, or "Other / blank slate". Each platform (except blank) has a baked **catalog** of work items.
+3. Add **line items**, either by importing **catalog rows** (`CatalogBrowser`, grouped by module) or as freehand lines. Each line carries `base_hours`, a **tier**, a **quantity**, and optional `depends_on` references.
+4. **Tier** is a multiplier on base hours, not a fixed lookup: **Basic = 1×, Advanced = 1.5×, Custom = 2×** (`TIER_MULTIPLIERS`). Line hours = `base_hours × tierMultiplier × quantity`.
+5. **Roll-up add-ons** apply globally on top of dev hours, compounding in order (`computeQuoteTotals`):
+   `responsive = dev × pct` → `design = (dev+responsive) × pct` → `qa = (…) × pct` → `pm = (…) × pct`.
+   Defaults: PM 10%, Responsive 25%, Design 35%, QA 20% (each toggleable — `DEFAULT_ADDONS`).
+6. Totals show dev / responsive / design / qa / pm / **grand total** hours.
+7. **Output:** in-browser **PDF preview mock** plus real **PDF export** (jsPDF) and **Excel export** (xlsx) — see `lib/utils/proposal-pdf-export.ts` and `proposal-excel-export.ts`. The `GET /proposals/:id/export` endpoint is still the eventual server-side path.
+
+**Catalog source:** `lib/proposal-catalog/catalog.json`, generated from `project-csv/tasks and integration.xlsx`. Frontend-only; replace with API when published.
+
+**Frontend-only (current):** `store/proposal-estimator-store.ts` is Zustand + persist (`timeline-proposal-estimator`). At integration, this maps to the `proposals` table (`line_items` + `addons` as JSONB — see `supabase/migrations/0001_init.sql`).
 
 **Permissions:** Same matrix as **Export proposals** — **Admin** and **Manager** only. **Member** and **Viewer** must not see primary entry points or mutating controls. Gate with **`canExportProposals`** from `usePermissions()` so UI stays aligned with the permissions table below.
 
-**Backend (later):** Requirements analysis, schema for proposals + line items, and server-side generation remain with the Laravel developer; extend the API map when contracts exist.
+**Backend (later):** the `proposals` table + RLS already exist in `supabase/migrations/`. Optional server-side export is a Supabase Edge Function → Storage bucket; the client-side jsPDF/xlsx export works today.
 
 ---
 
 ## State Management Map
 
-| State                     | Lives In                         | Reason                            |
-| ------------------------- | -------------------------------- | --------------------------------- |
-| User session + role       | auth.store (Zustand)             | Client-side, persisted via cookie |
-| Projects list             | projects-store (Zustand / demo)  | Demo: local. Prod: TanStack Query |
-| Sprints list              | sprints-store (Zustand / demo)   | Demo: local. Prod: TanStack Query |
-| Tasks for a sprint        | useTasks (useState / demo)       | Demo: local. Prod: TanStack Query |
-| Task timers               | useTaskTimerStore (Zustand)      | Ephemeral session state           |
-| Sidebar open/closed       | ui.store (Zustand)               | Pure UI state                     |
-| Active modal              | ui.store (Zustand)               | Pure UI state                     |
-| Notification unread count | notification.store               | Client-side counter               |
-| Notification list         | TanStack Query                   | Server data                       |
-| Theme (light/dark)        | ui.store (Zustand)               | Client preference                 |
+> All persisted stores use Zustand `persist` → `localStorage` (keys prefixed `timeline-`;
+> see [docs/data-mapping.md](docs/data-mapping.md) for the full key list). At integration these
+> stores are replaced by Supabase queries (TanStack Query as the cache layer) — Zustand keeps
+> only true UI state. Not wired yet.
+
+| State                          | Lives In                                  | Persist key / note                       |
+| ------------------------------ | ----------------------------------------- | ---------------------------------------- |
+| User session + role (demo)     | `store/auth-store.ts`                      | `timeline-auth` (demo user; no cookie yet) |
+| Projects list                  | `store/projects-store.ts`                  | `timeline-projects`                       |
+| Sprints list                   | `store/sprints-store.ts`                   | `timeline-sprints`                        |
+| Tasks (+ nested comments)      | `store/tasks-store.ts`                     | `timeline-tasks`                          |
+| Proposal quotes & line items   | `store/proposal-estimator-store.ts`        | `timeline-proposal-estimator`             |
+| PTO / availability             | `store/availability-store.ts`              | `timeline-availability`                   |
+| Weekly capacity overrides      | `store/weekly-capacity-store.ts`           | `timeline-weekly-capacity`                |
+| Notifications + activity feed  | `store/notifications-store.ts`             | `timeline-notifications`                  |
+| Task board pane / active view  | tasks store (ephemeral slice)              | not persisted (`selectedTaskId`, `activeView`) |
+| Task timers                    | `useTaskTimerStore`                        | ephemeral session state                  |
+| Theme (light/dark)             | next-themes                                | client preference                        |
+| Permissions (derived)          | `usePermissions()` over auth role          | not stored — computed from role          |
 
 ---
 
@@ -306,10 +379,12 @@ interface Proposal {
 | View all content | Yes   | Yes     | Yes    | Yes    |
 | Export proposals | Yes   | Yes     | No     | No     |
 | Proposal estimator (client quotes) | Yes | Yes | No | No |
+| Edit others' PTO/availability | Yes | Yes | No | No |
 
 > **Proposal estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
 >
-> Permissions are enforced by the backend. The UI uses `usePermissions()` to show/hide controls.
+> Permissions are enforced by **Supabase RLS** (`supabase/migrations/0002_rls.sql`). The UI uses
+> `usePermissions()` to show/hide controls — keep the two in lockstep.
 > VIEWER role: action buttons are hidden entirely, not just disabled.
 
 ---
@@ -317,8 +392,10 @@ interface Proposal {
 ## Environment Variables
 
 ```env
-# .env.local — never commit this file
-NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+# .env.local — never commit this file (see .env.example for the full template)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key   # public by design; RLS protects data
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key      # server-only — never NEXT_PUBLIC_
 NEXT_PUBLIC_APP_NAME=Timeline Estimator
 NEXT_PUBLIC_APP_ENV=development
 ```
@@ -327,29 +404,34 @@ NEXT_PUBLIC_APP_ENV=development
 
 ## Coding Patterns I Follow
 
-### API Call Pattern
+### Data Access Pattern (Supabase + TanStack Query)
+
+> Today the hooks read/write Zustand stores (demo). At integration, swap the hook body for a
+> Supabase query — the component layer never changes. See [docs/backend-supabase.md](docs/backend-supabase.md)
+> for the full version. The current demo runs without TanStack Query (it lands with this swap).
 
 ```ts
-// 1. Define types
+// 1. Types come from the generated schema (types/database.types.ts) after `npm run db:types`.
 interface CreateTaskPayload {
   title: string;
-  project_id: number;
+  project_id: string;
   due_date?: string;
 }
-interface TaskResponse {
-  data: Task;
-  message: string;
-}
 
-// 2. API function in lib/api/tasks.api.ts
-export const createTask = (payload: CreateTaskPayload): Promise<TaskResponse> =>
-  axios.post("/tasks", payload).then((res) => res.data);
-
-// 3. Custom hook in hooks/useTasks.ts
+// 2. Custom hook in hooks/useTasks.ts — Supabase via @supabase/ssr client
 export const useCreateTask = () => {
+  const supabase = createClient(); // lib/supabase/client.ts
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: createTask,
+    mutationFn: async (payload: CreateTaskPayload) => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert(payload)
+        .select()
+        .single();
+      if (error) throw error; // RLS denial / network → onError
+      return data;
+    },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: QUERY_KEYS.tasks.byProject(variables.project_id),
@@ -357,12 +439,12 @@ export const useCreateTask = () => {
       toast.success("Task created");
     },
     onError: (error) => {
-      toast.error(parseApiError(error));
+      toast.error(error.message); // Postgres/RLS error message
     },
   });
 };
 
-// 4. Component just calls the hook
+// 3. Component just calls the hook
 const { mutate: createTask, isPending } = useCreateTask();
 ```
 
@@ -410,17 +492,18 @@ if (!tasks.length) {
 
 ## Things To Always Remember
 
-1. **Complete the data layer first.** Define types → write API function → write hook → build UI.
-   Never scaffold a UI component before the hook exists.
+1. **Complete the data layer first.** Define the table/types → write the Supabase query in a hook
+   → build UI. Never scaffold a UI component before the hook exists.
 
 2. **Never skip three states.** Every data-fetching component needs: loading skeleton, error
    message, and empty state. If any of these are missing, the feature is not done.
 
-3. **Ask the backend dev before assuming.** If an endpoint isn't documented, ask.
-   Never guess the request/response shape — it causes bugs that are hard to trace.
+3. **Schema is in-repo — keep it the source of truth.** Tables and RLS live in
+   `supabase/migrations/`. Change a shape there, run `npm run db:types`, and keep
+   `usePermissions()` aligned with the RLS policies. Don't guess column shapes.
 
 4. **Optimistic updates on drag-drop and status changes.** These interactions feel broken
-   if they wait for a server round-trip. Update UI instantly, sync to server in background.
+   if they wait for a server round-trip. Update UI instantly, sync to Supabase in background.
 
 5. **Mobile is not an afterthought.** Check every page on 375px width before calling it done.
    Gantt/Calendar fallback to list view on mobile.
@@ -447,6 +530,6 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
-> Last updated: 2026-04-04
+> Last updated: 2026-06-22 — backend set to Supabase (SDK + seam + migrations scaffolded)
 > Maintainer: Frontend Dev
 > Update this file whenever the project scope, stack, or patterns change.

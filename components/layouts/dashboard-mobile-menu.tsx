@@ -20,6 +20,7 @@ import {
 import {
   DASHBOARD_NAV_ITEMS,
   filterDashboardNavItems,
+  groupDashboardNavItems,
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
 import { usePermissions } from "@/hooks/usePermissions";
@@ -35,6 +36,7 @@ export function DashboardMobileMenu() {
     DASHBOARD_NAV_ITEMS,
     canExportProposals
   );
+  const groups = groupDashboardNavItems(navItems);
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
@@ -61,38 +63,64 @@ export function DashboardMobileMenu() {
           </Badge>
         </SheetHeader>
 
-        <nav className="flex flex-1 flex-col gap-1 overflow-y-auto p-3" aria-label="Main">
-          {navItems.map((item) => {
-            const active = isDashboardNavActive(pathname, item.href);
-            return (
-              <Button
-                key={item.href}
-                variant="ghost"
-                className={cn(
-                  "h-11 min-h-11 justify-start gap-3 rounded-lg px-3",
-                  active
-                    ? "border border-primary/20 bg-primary/10 font-medium text-foreground hover:bg-primary/12"
-                    : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
-                )}
-                asChild
-              >
-                <Link
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  onClick={() => setOpen(false)}
-                >
-                  <item.icon
+        <nav
+          className="flex flex-1 flex-col gap-4 overflow-y-auto p-3"
+          aria-label="Main"
+        >
+          {groups.map((group) => (
+            <div key={group.group} className="flex flex-col gap-1">
+              <p className="px-3 pb-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+                {group.label}
+              </p>
+              {group.items.map((item) => {
+                if (item.comingSoon) {
+                  return (
+                    <div
+                      key={item.href}
+                      className="flex h-11 cursor-not-allowed items-center gap-3 rounded-xl px-3 opacity-50"
+                      title={`${item.label} — coming soon`}
+                    >
+                      <item.icon className="size-5 shrink-0 text-muted-foreground" aria-hidden />
+                      <span className="flex-1 text-sm text-muted-foreground">{item.label}</span>
+                      <Badge variant="secondary" className="h-4 px-1 text-[0.6rem] leading-none">
+                        Soon
+                      </Badge>
+                    </div>
+                  );
+                }
+
+                const active = isDashboardNavActive(pathname, item.href);
+                return (
+                  <Button
+                    key={item.href}
+                    variant="ghost"
                     className={cn(
-                      "size-5 shrink-0",
-                      active ? "text-primary" : "text-muted-foreground"
+                      "h-11 min-h-11 justify-start gap-3 rounded-xl px-3",
+                      active
+                        ? "border border-primary/20 bg-primary/10 font-medium text-foreground hover:bg-primary/12"
+                        : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
                     )}
-                    aria-hidden
-                  />
-                  {item.label}
-                </Link>
-              </Button>
-            );
-          })}
+                    asChild
+                  >
+                    <Link
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      onClick={() => setOpen(false)}
+                    >
+                      <item.icon
+                        className={cn(
+                          "size-5 shrink-0",
+                          active ? "text-primary" : "text-muted-foreground"
+                        )}
+                        aria-hidden
+                      />
+                      {item.label}
+                    </Link>
+                  </Button>
+                );
+              })}
+            </div>
+          ))}
         </nav>
 
         <div className="border-t border-border p-4">

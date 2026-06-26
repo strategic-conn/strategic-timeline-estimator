@@ -23,7 +23,6 @@ import { useSprints } from "@/hooks/useSprints";
 import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
-import { useNotificationsStore } from "@/store/notifications-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import {
@@ -157,8 +156,6 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     [projectTasks]
   );
 
-  const pushNotification = useNotificationsStore((s) => s.push);
-
   const sprintTaskCounts = React.useMemo(() => {
     const map: Record<string, { total: number; done: number; estH: number; logH: number }> = {};
     for (const s of projectSprints) {
@@ -204,29 +201,15 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
   const handleDeleteSprint = React.useCallback(
     (sprintId: string) => {
       deleteSprint(sprintId);
-      toast.success("Sprint deleted — tasks moved to backlog");
     },
     [deleteSprint]
   );
 
   const handleSetStatus = React.useCallback(
     (sprintId: string, status: SprintStatus) => {
-      const sprint = allSprints.find((s) => s.id === sprintId);
       setSprintStatus(sprintId, status);
-      const label = sprint?.name ?? "Sprint";
-      const msg =
-        status === "active"
-          ? `"${label}" started`
-          : status === "completed"
-            ? `"${label}" completed`
-            : `"${label}" set to ${status}`;
-      toast.success(msg);
-      const href = sprint
-        ? sprintTasksHref(projectId, sprint.id)
-        : `/projects/${projectId}`;
-      pushNotification(msg, href, projectId);
     },
-    [allSprints, projectId, setSprintStatus, pushNotification]
+    [setSprintStatus]
   );
 
   if (loading) {
@@ -262,7 +245,6 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
         projectId={projectId}
         onCreate={(payload) => {
           createSprint(payload);
-          toast.success("Sprint created", { description: payload.name });
         }}
       />
 
@@ -272,7 +254,6 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
         onClose={closeEdit}
         onSave={(id, partial) => {
           updateSprint(id, partial);
-          toast.success("Sprint updated");
         }}
       />
 
@@ -304,11 +285,11 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             </div>
           }
           actions={
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:items-end">
+            <div className="flex w-full flex-col gap-2 lg:flex-row lg:flex-wrap lg:justify-end lg:gap-2">
               <Button
                 type="button"
                 variant="outline"
-                className="w-full gap-1.5 border-border/60 bg-background/80 sm:w-auto"
+                className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
                 onClick={async () => {
                   const ok = await copyTextToClipboard(
                     projectShareUrl(projectId)
@@ -328,7 +309,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               {canEditProject ? (
                 <Button
                   type="button"
-                  className="w-full gap-1.5 sm:w-auto"
+                  className="h-9 w-full gap-1.5 lg:w-auto"
                   onClick={() => setCreateOpen(true)}
                 >
                   <Plus className="size-4" aria-hidden />
@@ -362,7 +343,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             </div>
           </div>
         ) : (
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <section className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
             <ProjectBacklogCard
               projectId={projectId}
               taskCount={backlogTasks.length}

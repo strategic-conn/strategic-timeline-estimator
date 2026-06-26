@@ -108,7 +108,7 @@ export function SprintCard({
                   type="button"
                   variant="ghost"
                   size="icon-sm"
-                  className="shrink-0 text-muted-foreground opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                  className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
                   aria-label="Sprint actions"
                 >
                   <MoreHorizontal className="size-4" />

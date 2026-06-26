@@ -172,8 +172,10 @@ function TaskListView({
 
   return (
     <TooltipProvider delayDuration={400}>
-      <div className="overflow-hidden rounded-xl border border-border bg-card">
-        {visibleStatuses.map((statusDef, index) => {
+      <div className="overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+        <div className="overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+          <div className="min-w-3xl sm:min-w-208">
+            {visibleStatuses.map((statusDef, index) => {
         const status = statusDef.value;
         const groupTasks = grouped.get(status) ?? [];
         const collapsed = collapsedGroups.has(status);
@@ -232,6 +234,8 @@ function TaskListView({
           </React.Fragment>
         );
       })}
+          </div>
+        </div>
       </div>
     </TooltipProvider>
   );
@@ -276,7 +280,7 @@ function TaskRow({
         showLinkSpotlight && "task-link-spotlight rounded-md bg-amber-500/10"
       )}
     >
-      <div className="flex gap-3 px-3 py-2.5">
+      <div className="flex min-w-0 gap-3 px-3 py-2.5">
         <div
           className="flex shrink-0 flex-col items-center gap-1.5 pt-0.5 sm:flex-row sm:items-center sm:gap-2 sm:pt-0"
           onClick={(e) => e.stopPropagation()}
@@ -300,16 +304,18 @@ function TaskRow({
           </Tooltip>
         </div>
 
-        <div className="min-w-0 flex-1 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <button
-            type="button"
-            className="w-full min-w-0 text-left text-[0.9375rem] leading-snug font-medium text-foreground underline-offset-4 hover:underline sm:flex-1 sm:text-sm sm:leading-normal"
-            onClick={() => onTaskClick(task.id)}
-          >
-            {task.title}
-          </button>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-nowrap sm:items-start sm:gap-3">
+            <button
+              type="button"
+              className="w-full min-w-0 max-w-full text-left text-[0.9375rem] leading-snug font-medium wrap-break-word text-foreground underline-offset-4 hover:underline sm:min-w-48 sm:max-w-md sm:shrink sm:flex-1 sm:text-sm sm:leading-normal"
+              title={task.title}
+              onClick={() => onTaskClick(task.id)}
+            >
+              {task.title}
+            </button>
 
-          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:shrink-0 sm:flex-nowrap sm:gap-2">
+            <div className="flex shrink-0 flex-nowrap items-center gap-x-2 gap-y-1 sm:gap-2">
           <DropdownMenu>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -488,6 +494,7 @@ function TaskRow({
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
+            </div>
           </div>
         </div>
       </div>

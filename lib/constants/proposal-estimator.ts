@@ -1,23 +1,169 @@
-import type { ProposalComplexity } from "@/types/proposal.types";
+import type {
+  ClientQuote,
+  ProposalAddons,
+  ProposalLineItem,
+  ProposalPmBasis,
+  ProposalTier,
+} from "@/types/proposal.types";
 
-/** Fixed hours per complexity tier (demo — replace with API config later). */
-export const COMPLEXITY_HOURS: Record<ProposalComplexity, number> = {
-  easy: 2,
-  medium: 4,
-  complex: 8,
-  very_complex: 16,
+/** Tier multipliers applied to `base_hours` for each line item. */
+export const TIER_MULTIPLIERS: Record<ProposalTier, number> = {
+  basic: 1,
+  advanced: 1.5,
+  custom: 2,
 };
 
-export const COMPLEXITY_OPTIONS: {
-  value: ProposalComplexity;
+export const TIER_OPTIONS: {
+  value: ProposalTier;
   label: string;
+  hint: string;
 }[] = [
-  { value: "easy", label: "Easy" },
-  { value: "medium", label: "Medium" },
-  { value: "complex", label: "Complex" },
-  { value: "very_complex", label: "Very complex" },
+  { value: "basic", label: "Basic", hint: "1x base hours" },
+  { value: "advanced", label: "Advanced", hint: "1.5x base hours" },
+  { value: "custom", label: "Custom", hint: "2x base hours" },
 ];
 
-export function hoursForComplexity(c: ProposalComplexity): number {
-  return COMPLEXITY_HOURS[c];
+export function tierMultiplier(tier: ProposalTier): number {
+  return TIER_MULTIPLIERS[tier];
+}
+
+export function tierLabel(tier: ProposalTier): string {
+  return TIER_OPTIONS.find((t) => t.value === tier)?.label ?? tier;
+}
+
+/**
+ * PM basis presets from the workbook: simple projects bill PM at 10% of total
+ * hours, complex projects at 15%. "custom" lets the coordinator type any value.
+ */
+export const PM_BASIS_PCT: Record<Exclude<ProposalPmBasis, "custom">, number> = {
+  simple: 10,
+  complex: 15,
+};
+
+export const PM_BASIS_OPTIONS: {
+  value: ProposalPmBasis;
+  label: string;
+  hint: string;
+}[] = [
+  { value: "simple", label: "Simple", hint: "10% of total" },
+  { value: "complex", label: "Complex", hint: "15% of total" },
+  { value: "custom", label: "Custom", hint: "set manually" },
+];
+
+/** PM percentage implied by a basis (custom keeps whatever the user typed). */
+export function pmPctForBasis(basis: ProposalPmBasis, currentPct: number): number {
+  if (basis === "custom") return currentPct;
+  return PM_BASIS_PCT[basis];
+}
+
+/** Defaults pulled from the workbook's "more logic" tab. */
+export const DEFAULT_ADDONS: ProposalAddons = {
+  pm_enabled: true,
+  pm_basis: "simple",
+  pm_pct: 10,
+  responsive_enabled: true,
+  responsive_pct: 25,
+  design_enabled: true,
+  design_pct: 35,
+  qa_enabled: true,
+  qa_pct: 20,
+};
+
+export function roundHours(n: number): number {
+  if (!Number.isFinite(n)) return 0;
+  return Math.round(n * 100) / 100;
+}
+
+/** Compute hours for a single line: base * tier multiplier * quantity. */
+export function computeLineHours(
+  baseHours: number,
+  tier: ProposalTier,
+  quantity: number,
+): number {
+  const q = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
+  return roundHours(baseHours * tierMultiplier(tier) * q);
+}
+
+export interface QuoteTotals {
+  devHours: number;
+  responsiveHours: number;
+  designHours: number;
+  qaHours: number;
+  pmHours: number;
+  grandHours: number;
+}
+
+/**
+ * Apply roll-up add-ons per the workbook's "more logic":
+ *   responsive  = dev * responsive_pct
+ *   design      = (dev + responsive) * design_pct
+ *   qa          = (dev + responsive + design) * qa_pct
+ *   pm          = (dev + responsive + design + qa) * pm_pct
+ */
+export function computeQuoteTotals(
+  devHours: number,
+  addons: ProposalAddons,
+): QuoteTotals {
+  const dev = roundHours(devHours);
+  const responsive = addons.responsive_enabled
+    ? roundHours(dev * (addons.responsive_pct / 100))
+    : 0;
+  const afterResp = dev + responsive;
+  const design = addons.design_enabled
+    ? roundHours(afterResp * (addons.design_pct / 100))
+    : 0;
+  const afterDesign = afterResp + design;
+  const qa = addons.qa_enabled
+    ? roundHours(afterDesign * (addons.qa_pct / 100))
+    : 0;
+  const beforePm = afterDesign + qa;
+  const pm = addons.pm_enabled
+    ? roundHours(beforePm * (addons.pm_pct / 100))
+    : 0;
+  return {
+    devHours: dev,
+    responsiveHours: responsive,
+    designHours: design,
+    qaHours: qa,
+    pmHours: pm,
+    grandHours: roundHours(beforePm + pm),
+  };
+}
+
+/**
+ * The tier a line is actually priced at. When the quote's requirements are
+ * unclear, everything is treated as Advanced (1.5×) regardless of its own tier.
+ */
+export function effectiveTier(
+  tier: ProposalTier,
+  requirementsUnclear: boolean,
+): ProposalTier {
+  return requirementsUnclear ? "advanced" : tier;
+}
+
+/** Hours for one line, honouring the quote-level "requirements unclear" override. */
+export function lineEffectiveHours(
+  line: ProposalLineItem,
+  requirementsUnclear: boolean,
+): number {
+  return computeLineHours(
+    line.base_hours,
+    effectiveTier(line.tier, requirementsUnclear),
+    line.quantity,
+  );
+}
+
+/** Sum of effective dev hours across every line on the quote. */
+export function quoteDevHours(quote: ClientQuote): number {
+  return roundHours(
+    quote.line_items.reduce(
+      (sum, li) => sum + lineEffectiveHours(li, quote.requirements_unclear),
+      0,
+    ),
+  );
+}
+
+/** Full roll-up for a quote — the single source of truth for editor/preview/exports. */
+export function quoteTotals(quote: ClientQuote): QuoteTotals {
+  return computeQuoteTotals(quoteDevHours(quote), quote.addons);
 }

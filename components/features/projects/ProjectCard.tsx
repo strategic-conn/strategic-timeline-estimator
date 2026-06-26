@@ -76,7 +76,7 @@ export function ProjectCard({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-muted-foreground opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+                className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
                 aria-label="Project actions"
               >
                 <MoreHorizontal className="size-4" />
@@ -147,17 +147,17 @@ export function ProjectCard({
         </div>
       </CardHeader>
 
-      <CardContent className="pt-0">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <div className="space-y-0.5 text-xs text-muted-foreground">
+      <CardContent className="border-t border-border/50 pt-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div className="min-w-0 space-y-0.5 text-xs text-muted-foreground">
             <div>Updated {new Date(project.updated_at).toLocaleDateString()}</div>
             {activeSprint ? (
-              <div className="font-medium text-foreground">
+              <div className="line-clamp-2 font-medium text-foreground">
                 Active: {activeSprint.name}
               </div>
             ) : null}
           </div>
-          <Button asChild size="sm" className="gap-1.5">
+          <Button asChild size="sm" className="w-full shrink-0 gap-1.5 sm:w-auto">
             <Link href={`/projects/${project.id}`}>
               View sprints <ArrowRight className="size-4" aria-hidden />
             </Link>

@@ -194,7 +194,7 @@ export function DashboardHeader() {
   }, [sprints]);
 
   return (
-    <header className="z-30 shrink-0 border-b border-border/60 bg-background/75 px-4 py-3 shadow-sm shadow-black/[0.03] backdrop-blur-xl print:hidden supports-backdrop-filter:bg-background/65 dark:shadow-black/30">
+    <header className="z-30 shrink-0 border-b border-border/60 bg-background/75 px-3 py-3 shadow-sm shadow-black/[0.03] backdrop-blur-xl sm:px-4 md:px-5 lg:px-6 print:hidden supports-backdrop-filter:bg-background/65 dark:shadow-black/30">
       <div className="flex w-full flex-row items-center justify-between gap-2 sm:gap-3">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <DashboardMobileMenu />

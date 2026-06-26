@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { FileText, Plus, Trash2 } from "lucide-react";
+import { FileText, Layers, Plus, Trash2 } from "lucide-react";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
@@ -43,9 +43,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
+import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import {
+  PROPOSAL_PLATFORM_OPTIONS,
+  platformLabel,
+} from "@/lib/proposal-catalog";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
-import type { ClientQuote } from "@/types/proposal.types";
+import type { ClientQuote, ProposalPlatform } from "@/types/proposal.types";
 
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
@@ -59,17 +64,19 @@ export function ProposalsListClient() {
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
   const [newProjectId, setNewProjectId] = React.useState<string>("__none__");
+  const [newPlatform, setNewPlatform] =
+    React.useState<ProposalPlatform>("react_next");
   const [deleteTarget, setDeleteTarget] = React.useState<ClientQuote | null>(
-    null
+    null,
   );
 
   const sorted = React.useMemo(
     () =>
       [...proposals].sort(
         (a, b) =>
-          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
       ),
-    [proposals]
+    [proposals],
   );
 
   const projectName = React.useCallback(
@@ -77,7 +84,7 @@ export function ProposalsListClient() {
       if (!id) return null;
       return projects.find((p) => p.id === id)?.name ?? null;
     },
-    [projects]
+    [projects],
   );
 
   const submitCreate = () => {
@@ -88,11 +95,13 @@ export function ProposalsListClient() {
       client_name: newClient.trim() || undefined,
       project_id:
         newProjectId && newProjectId !== "__none__" ? newProjectId : null,
+      platform: newPlatform,
     });
     setCreateOpen(false);
     setNewTitle("");
     setNewClient("");
     setNewProjectId("__none__");
+    setNewPlatform("react_next");
     router.push(`/proposals/${id}`);
   };
 
@@ -105,7 +114,7 @@ export function ProposalsListClient() {
       <WorkspacePageHeader
         eyebrow="Commercial"
         title="Proposals"
-        description="Build client quotes with complexity tiers and hour roll-ups. Data stays in this browser until the API is connected."
+        description="Catalog-driven client quotes with tier multipliers, dependencies, and roll-up add-ons. Data stays in this browser until the API is connected."
         actions={
           <Button
             type="button"
@@ -120,14 +129,13 @@ export function ProposalsListClient() {
 
       {sorted.length === 0 ? (
         <Card className="border-dashed">
-          <CardHeader className="text-center">
+          <CardHeader className="items-center text-center">
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
               <FileText className="size-6 text-muted-foreground" aria-hidden />
             </div>
             <CardTitle>No quotes yet</CardTitle>
             <CardDescription>
-              Create a quote to add line items, set complexity, and preview a
-              print layout.
+              Create a quote to browse the platform catalog and roll up hours.
             </CardDescription>
             <Button
               type="button"
@@ -143,7 +151,7 @@ export function ProposalsListClient() {
         <ul className="flex flex-col gap-3">
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
-            const hours = q.line_items.reduce((s, li) => s + li.hours, 0);
+            const totals = quoteTotals(q);
             return (
               <li key={q.id}>
                 <Card className="transition-colors hover:bg-muted/30">
@@ -158,8 +166,15 @@ export function ProposalsListClient() {
                             {q.title}
                           </Link>
                         </CardTitle>
+                        <Badge
+                          variant="outline"
+                          className="gap-1 font-normal"
+                        >
+                          <Layers className="size-3" aria-hidden />
+                          {platformLabel(q.platform)}
+                        </Badge>
                         <Badge variant="secondary" className="tabular-nums">
-                          {hours} h
+                          {totals.grandHours} h
                         </Badge>
                       </div>
                       <CardDescription className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
@@ -167,6 +182,10 @@ export function ProposalsListClient() {
                           <span>Client: {q.client_name}</span>
                         ) : null}
                         {pn ? <span>Project: {pn}</span> : null}
+                        <span className="tabular-nums">
+                          {q.line_items.length} line
+                          {q.line_items.length === 1 ? "" : "s"}
+                        </span>
                         <span>
                           Updated{" "}
                           {format(new Date(q.updated_at), "MMM d, yyyy")}
@@ -223,10 +242,7 @@ export function ProposalsListClient() {
             </div>
             <div className="grid gap-2">
               <Label>Internal project (optional)</Label>
-              <Select
-                value={newProjectId}
-                onValueChange={setNewProjectId}
-              >
+              <Select value={newProjectId} onValueChange={setNewProjectId}>
                 <SelectTrigger className="w-full">
                   <SelectValue placeholder="None" />
                 </SelectTrigger>
@@ -240,9 +256,31 @@ export function ProposalsListClient() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-2">
+              <Label>Platform</Label>
+              <Select
+                value={newPlatform}
+                onValueChange={(v) => setNewPlatform(v as ProposalPlatform)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROPOSAL_PLATFORM_OPTIONS.map((p) => (
+                    <SelectItem key={p.value} value={p.value}>
+                      {p.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCreateOpen(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+            >
               Cancel
             </Button>
             <Button

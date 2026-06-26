@@ -39,6 +39,10 @@ import type { TaskStatus } from "@/types/task.types";
 const ROW_PX = 52;
 const HEADER_ROW_PX = 44;
 
+/** Narrower task column on phones so the timeline stays usable; wider at sm+ breakpoints. */
+const TASK_PANE_CLASSES =
+  "w-[41%] max-w-[11.25rem] min-w-[9rem] shrink-0 sm:min-w-0 sm:max-w-none sm:w-44 md:w-52 lg:w-56 xl:w-64";
+
 const BAR_BG: Record<TaskStatus, string> = {
   todo: "bg-slate-500/90 dark:bg-slate-400/85",
   in_progress: "bg-blue-600/92 dark:bg-blue-500/88",
@@ -174,9 +178,9 @@ export function GanttClient() {
                 <TooltipTrigger asChild>
                   <button
                     type="button"
-                    className="inline-flex items-center gap-1.5 self-start rounded-lg border border-border/60 bg-background/60 px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+                    className="inline-flex max-w-fit shrink-0 items-center gap-1 self-start rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[0.7rem] leading-tight font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground lg:gap-1.5 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-xs lg:leading-normal"
                   >
-                    <Info className="size-3.5" aria-hidden />
+                    <Info className="size-3 shrink-0 lg:size-3.5" aria-hidden />
                     How to read this
                   </button>
                 </TooltipTrigger>
@@ -203,7 +207,7 @@ export function GanttClient() {
               </Tooltip>
             </div>
             <div
-              className="flex flex-wrap gap-2 border-t border-border/40 pt-3"
+              className="flex flex-wrap gap-x-1.5 gap-y-2 border-t border-border/40 pt-3 md:gap-2"
               role="list"
               aria-label="Task status colors"
             >
@@ -211,7 +215,7 @@ export function GanttClient() {
                 <span
                   key={status}
                   role="listitem"
-                  className="inline-flex items-center gap-1.5 rounded-full border border-border/50 bg-muted/30 px-2 py-0.5 text-[0.7rem] text-muted-foreground"
+                  className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-1.5 py-0.5 text-[0.62rem] text-muted-foreground sm:gap-1.5 sm:px-2 sm:text-[0.7rem]"
                 >
                   <span
                     className={cn(
@@ -239,26 +243,37 @@ export function GanttClient() {
                 </p>
               </div>
             ) : (
-              <div className="flex h-[min(72vh,840px)] min-h-[300px] flex-col overflow-hidden bg-linear-to-b from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10">
+              <div className="relative flex h-[min(72vh,840px)] min-h-[300px] flex-col overflow-hidden bg-linear-to-b from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10">
+                <p className="border-b border-border/50 bg-muted/20 px-3 py-2 text-[0.7rem] leading-snug text-muted-foreground md:hidden">
+                  <span className="font-medium text-foreground/85">Swipe</span> the
+                  timeline right for dates · scroll tasks up and down · headers stay in
+                  sync.
+                </p>
                 {/* Row 1: corner + date header (horizontal scroll only) */}
                 <div className="flex shrink-0 border-b border-border/60">
                   <div
-                    className="flex w-[min(100%,16rem)] shrink-0 items-end border-r border-border/60 bg-muted/25 px-3 pb-2 pt-2 sm:w-64"
+                    className={cn(
+                      "flex items-end border-r border-border/60 bg-muted/25 px-2 pb-2 pt-2 sm:px-3",
+                      TASK_PANE_CLASSES
+                    )}
                     style={{ height: HEADER_ROW_PX }}
                   >
                     <div className="min-w-0">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                         Tasks
                       </p>
-                      <p className="text-[0.65rem] leading-tight text-muted-foreground/90">
+                      <p className="hidden text-[0.62rem] leading-tight text-muted-foreground/90 sm:block lg:text-[0.65rem]">
                         One vertical scroll · pan dates below
+                      </p>
+                      <p className="text-[0.6rem] leading-tight text-muted-foreground/90 sm:hidden">
+                        Scroll tasks · swipe dates
                       </p>
                     </div>
                   </div>
                   <div
                     ref={headerHScrollRef}
                     onScroll={syncBodyHFromHeaderH}
-                    className="min-w-0 flex-1 overflow-x-auto overflow-y-hidden bg-muted/20 [scrollbar-width:thin]"
+                    className="min-w-0 flex-1 touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain bg-muted/20 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin]"
                   >
                     <div
                       className="relative"
@@ -310,26 +325,36 @@ export function GanttClient() {
                 {/* Row 2: task names + chart — single vertical scroll, chart scrolls horizontally */}
                 <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden [scrollbar-gutter:stable]">
                   <div className="flex items-stretch">
-                    <div className="flex w-[min(100%,16rem)] shrink-0 flex-col border-r border-border/60 bg-muted/25 sm:w-64">
+                    <div
+                      className={cn(
+                        "flex flex-col border-r border-border/60 bg-muted/25",
+                        TASK_PANE_CLASSES
+                      )}
+                    >
                       {rows.map((r) => (
                         <div
                           key={r.task.id}
-                          className="box-border flex gap-2 border-b border-border/35 px-3"
+                          className="box-border flex gap-1.5 border-b border-border/35 px-2 sm:gap-2 sm:px-3"
                           style={{ height: ROW_PX }}
                         >
                           <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center py-0.5">
-                            <p className="truncate text-xs font-medium leading-tight text-foreground">
+                            <p
+                              className="line-clamp-2 text-[0.6875rem] font-medium leading-tight text-foreground sm:text-xs sm:leading-snug lg:line-clamp-none lg:truncate"
+                              title={r.task.title}
+                            >
                               {r.task.title}
                             </p>
-                            <p className="truncate text-[0.65rem] leading-tight text-muted-foreground">
+                            <p className="line-clamp-1 text-[0.6rem] leading-tight text-muted-foreground sm:text-[0.65rem] lg:truncate">
                               {r.projectName}
                               {r.sprintName ? ` · ${r.sprintName}` : " · Backlog"}
                             </p>
                           </div>
                           <Badge
                             variant="secondary"
+                            title={r.task.status.replace("_", " ")}
                             className={cn(
-                              "self-center shrink-0 border border-border/50 px-1.5 py-0 text-[0.65rem] font-normal capitalize",
+                              "self-center shrink-0 border border-border/50 px-1 py-0 text-[0.55rem] font-normal capitalize sm:px-1.5 sm:text-[0.65rem]",
+                              "max-[480px]:max-w-19 max-[480px]:truncate",
                               r.task.status === "done" && "opacity-80"
                             )}
                           >
@@ -343,7 +368,7 @@ export function GanttClient() {
                       <div
                         ref={bodyHScrollRef}
                         onScroll={syncHeaderHFromBodyH}
-                        className="h-full overflow-x-auto overflow-y-hidden"
+                        className="h-full touch-pan-x overflow-x-auto overflow-y-hidden overscroll-x-contain [-webkit-overflow-scrolling:touch]"
                       >
                         <div
                           className="relative"
@@ -419,12 +444,17 @@ export function GanttClient() {
           </CardContent>
 
           {rows.length > 0 ? (
-            <CardFooter className="border-t border-border/50 bg-muted/25 py-3 text-xs text-muted-foreground">
-              <p>
+            <CardFooter className="border-t border-border/50 bg-muted/25 px-4 py-2.5 text-[0.72rem] text-muted-foreground sm:py-3 sm:text-xs">
+              <p className="hidden md:block">
                 <span className="font-medium text-foreground/80">Tip:</span> Use
                 one scrollbar on the right to move down the list; scroll the chart
                 (or the date row) horizontally — they stay in sync. The vertical
                 line marks today when it is in range.
+              </p>
+              <p className="md:hidden">
+                <span className="font-medium text-foreground/80">Tip:</span> Vertical
+                scroll for tasks; horizontal swipe for timeline (date row tracks with
+                it).
               </p>
             </CardFooter>
           ) : null}

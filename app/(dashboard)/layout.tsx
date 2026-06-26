@@ -23,7 +23,7 @@ export default function DashboardLayout({
     <div className="relative flex h-svh min-h-0 w-full overflow-hidden bg-background text-foreground print:h-auto print:min-h-0 print:overflow-visible">
       <AppAtmosphere variant="app" />
 
-      <aside className="relative z-10 hidden h-svh min-h-0 w-64 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-4 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex">
+      <aside className="relative z-10 hidden h-svh min-h-0 w-56 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-3 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:p-4 print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex xl:w-64">
         <div className="flex shrink-0 items-start justify-between gap-2">
           <Link
             href="/dashboard"
@@ -61,7 +61,7 @@ export default function DashboardLayout({
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader />
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-4 py-6 pb-[calc(4.25rem+env(safe-area-inset-bottom))] print:overflow-visible print:pb-6 sm:px-5 md:px-6 md:pb-6">
+        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] print:overflow-visible print:pb-6 sm:px-4 sm:py-6 md:px-5 md:py-6 md:pb-6 lg:px-6">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
 

@@ -1,4 +1,4 @@
-import { useNotificationsStore } from "@/store/notifications-store";
+import { pushWorkspaceActivity } from "@/lib/activity/workspace-push";
 import { taskBoardRelativePath } from "@/lib/utils/share-links";
 import type { Task } from "@/types/task.types";
 
@@ -16,7 +16,7 @@ type TaskNotifyFields = Pick<Task, "id" | "title" | "project_id" | "sprint_id">;
  */
 export function notifyTaskActivity(summary: string, task: TaskNotifyFields): void {
   const href = taskBoardRelativePath(task as Task);
-  useNotificationsStore.getState().push(summary, href, task.project_id);
+  pushWorkspaceActivity(summary, href, task.project_id);
 }
 
 export function notifyCommentAdded(task: TaskNotifyFields): void {

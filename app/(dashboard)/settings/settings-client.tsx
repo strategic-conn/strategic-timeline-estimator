@@ -94,7 +94,7 @@ export function SettingsClient() {
                 <Input id="ws-tz" disabled placeholder="e.g. America/New_York" />
               </div>
               <p className="text-xs text-muted-foreground">
-                These controls will wire to Laravel once endpoints exist. Profile changes
+                These controls will wire to Supabase once the backend is connected. Profile changes
                 above already persist locally for the signed-in demo user.
               </p>
             </CardContent>

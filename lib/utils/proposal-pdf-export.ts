@@ -1,11 +1,13 @@
 import { format } from "date-fns";
 
-import { COMPLEXITY_OPTIONS } from "@/lib/constants/proposal-estimator";
+import {
+  effectiveTier,
+  lineEffectiveHours,
+  quoteTotals,
+  tierLabel,
+} from "@/lib/constants/proposal-estimator";
+import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
-
-function complexityLabel(value: string): string {
-  return COMPLEXITY_OPTIONS.find((o) => o.value === value)?.label ?? value;
-}
 
 function safeFilenamePart(s: string): string {
   const t = s.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
@@ -22,7 +24,7 @@ type DocWithAutoTable = {
  */
 export async function downloadProposalPdf(
   quote: ClientQuote,
-  projectName: string | null | undefined
+  projectName: string | null | undefined,
 ): Promise<void> {
   const [{ default: jsPDF }, autoTableMod] = await Promise.all([
     import("jspdf"),
@@ -59,6 +61,7 @@ export async function downloadProposalPdf(
   if (projectName?.trim()) {
     meta.push(`Project: ${projectName}`);
   }
+  meta.push(`Platform: ${platformLabel(quote.platform)}`);
   meta.push(`Date: ${format(new Date(quote.updated_at), "MMMM d, yyyy")}`);
 
   for (const line of meta) {
@@ -68,43 +71,112 @@ export async function downloadProposalPdf(
 
   y += 4;
 
+  const totals = quoteTotals(quote);
+  const idIndex = new Map(quote.line_items.map((li, i) => [li.id, i + 1]));
+
   const body = quote.line_items.map((li, i) => [
     String(i + 1),
-    li.title.trim() || "—",
-    complexityLabel(li.complexity),
-    String(li.hours),
+    li.title.trim() || "(untitled)",
+    li.module ?? "",
+    categoryName(li.category_id) ?? "",
+    tierLabel(effectiveTier(li.tier, quote.requirements_unclear)),
+    String(li.quantity),
+    String(lineEffectiveHours(li, quote.requirements_unclear)),
   ]);
-
-  const totalHours = quote.line_items.reduce((s, li) => s + li.hours, 0);
 
   autoTable(doc, {
     startY: y,
-    head: [["#", "Description", "Complexity", "Hours"]],
+    head: [["#", "Description", "Module", "Category", "Tier", "Qty", "Hours"]],
     body,
-    foot: [["", "", "Total estimated hours", String(totalHours)]],
     theme: "striped",
     headStyles: {
       fillColor: [51, 65, 85],
       textColor: 255,
       fontStyle: "bold",
     },
-    footStyles: {
-      fillColor: [241, 245, 249],
-      textColor: [15, 23, 42],
-      fontStyle: "bold",
-    },
     styles: { fontSize: 9, cellPadding: 2 },
     columnStyles: {
-      0: { cellWidth: 12 },
+      0: { cellWidth: 9 },
       1: { cellWidth: "auto" },
-      2: { cellWidth: 32 },
-      3: { cellWidth: 22, halign: "right" },
+      2: { cellWidth: 30 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 18 },
+      5: { cellWidth: 10, halign: "right" },
+      6: { cellWidth: 16, halign: "right" },
     },
     margin: { left: margin, right: margin },
   });
 
   y = (doc as DocWithAutoTable).lastAutoTable?.finalY ?? y;
-  y += 10;
+  y += 8;
+
+  const summaryRows: string[][] = [["Dev hours", String(totals.devHours)]];
+  if (quote.addons.responsive_enabled)
+    summaryRows.push([
+      `Responsive (${quote.addons.responsive_pct}%)`,
+      String(totals.responsiveHours),
+    ]);
+  if (quote.addons.design_enabled)
+    summaryRows.push([
+      `Design (${quote.addons.design_pct}%)`,
+      String(totals.designHours),
+    ]);
+  if (quote.addons.qa_enabled)
+    summaryRows.push([
+      `QA (${quote.addons.qa_pct}%)`,
+      String(totals.qaHours),
+    ]);
+  if (quote.addons.pm_enabled)
+    summaryRows.push([
+      `PM (${quote.addons.pm_pct}%)`,
+      String(totals.pmHours),
+    ]);
+  summaryRows.push(["Total estimated hours", String(totals.grandHours)]);
+
+  autoTable(doc, {
+    startY: y,
+    head: [["Roll-up", "Hours"]],
+    body: summaryRows,
+    theme: "plain",
+    headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
+    styles: { fontSize: 9, cellPadding: 2 },
+    columnStyles: {
+      0: { cellWidth: "auto" },
+      1: { cellWidth: 30, halign: "right", fontStyle: "bold" },
+    },
+    margin: { left: margin, right: margin },
+  });
+
+  y = (doc as DocWithAutoTable).lastAutoTable?.finalY ?? y;
+  y += 8;
+
+  // Dependencies appendix (only if anything has deps)
+  const withDeps = quote.line_items.filter((li) => li.depends_on.length);
+  if (withDeps.length) {
+    if (y > doc.internal.pageSize.getHeight() - 40) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Dependencies", margin, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    for (const li of withDeps) {
+      const refs = li.depends_on
+        .map((d) => `#${idIndex.get(d) ?? "?"}`)
+        .join(", ");
+      const idx = idIndex.get(li.id);
+      const line = `#${idx} ${li.title.trim() || "(untitled)"} -> ${refs}`;
+      const wrapped = doc.splitTextToSize(line, pageW - margin * 2);
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 4.5;
+    }
+    y += 4;
+  }
 
   if (quote.notes?.trim()) {
     if (y > doc.internal.pageSize.getHeight() - 40) {

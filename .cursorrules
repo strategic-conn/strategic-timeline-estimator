@@ -1,7 +1,8 @@
 # ============================================================
 # .cursorrules — Timeline Estimator & Project Management Tool
-# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Laravel REST API
-# Last updated: 2026-04-04 | Maintainer: Frontend Dev
+# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Supabase (Postgres + Auth + RLS)
+# Last updated: 2026-06-22 | Maintainer: Frontend Dev
+# Backend: Supabase. Full plan in docs/backend-supabase.md; CLAUDE.md is the canonical onboarding doc.
 # ============================================================
 
 
@@ -51,11 +52,11 @@
 # PROJECT CONTEXT
 # ===========================================================
 
-You are an expert Next.js frontend developer working on a full-scale
-Project Management & Timeline Estimator application. The backend is a
-Laravel REST API built by a separate developer. Your role is purely
-frontend — consuming API endpoints, building UI, and managing
-client-side state.
+You are an expert Next.js developer working on a full-scale
+Project Management & Timeline Estimator application. The backend is
+Supabase (Postgres + Auth + Row-Level Security), owned in this repo as
+SQL migrations under supabase/. You build the UI, manage client-side
+state, and talk to Supabase via @supabase/supabase-js (no separate REST API).
 
 This is a production-grade multi-tenant SaaS dashboard used by project
 managers, team leads, and developers to track tasks, manage timelines,
@@ -86,7 +87,7 @@ Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 | Layer               | Technology                                      |
 |---------------------|-------------------------------------------------|
 | Framework           | Next.js 16.2.1 (App Router)                     |
-| UI                 | React 19.2.4                                    |
+| UI                  | React 19.2.4                                    |
 | Language            | TypeScript                                      |
 | Styling             | Tailwind CSS 4                                  |
 | UI Components       | shadcn/ui (generated in `components/ui`)        |
@@ -94,8 +95,11 @@ Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 | Icons               | lucide-react                                    |
 | Animations          | tw-animate-css                                  |
 
+Backend SDK (installed, not yet wired): @supabase/supabase-js + @supabase/ssr
 Planned / optional (add when needed; keep this section honest):
-- TanStack Query (React Query), Zustand, React Hook Form, Zod, Axios, @dnd-kit/*, @fullcalendar/react, Recharts, date-fns, Sonner, Vitest, Testing Library
+- TanStack Query (React Query) — cache layer over Supabase queries at integration
+- Zustand, React Hook Form, Zod, @dnd-kit/* (all installed); date-fns, Sonner (installed)
+- NOT using: Axios (Supabase replaces it). FullCalendar/Recharts/Vitest are not installed.
 
 
 # ===========================================================
@@ -123,14 +127,11 @@ app/
 │   ├── reports/
 │   ├── team/
 │   └── settings/
-├── api/
-│   └── auth/
-│       ├── login/route.ts
-│       ├── logout/route.ts
-│       └── refresh/route.ts
 ├── not-found.tsx
 ├── error.tsx
 └── layout.tsx
+middleware.ts             # Supabase session refresh (no-op until env vars set)
+# Auth uses Supabase Auth directly — no app/api/auth BFF routes needed.
 components/
 ├── ui/                    # shadcn/ui — generated components; avoid manual edits
 ├── common/
@@ -165,15 +166,10 @@ hooks/
 ├── useDebounce.ts
 └── useMediaQuery.ts
 lib/
-├── api/
-│   ├── axios.ts           # Axios instance + interceptors
-│   ├── auth.api.ts
-│   ├── projects.api.ts
-│   ├── sprints.api.ts
-│   ├── tasks.api.ts
-│   ├── team.api.ts
-│   ├── proposals.api.ts
-│   └── integrations.api.ts
+├── supabase/
+│   ├── client.ts         # browser client (Client Components)
+│   ├── server.ts         # server client (RSC / Route Handlers / Server Actions)
+│   └── middleware.ts     # session-refresh helper used by root middleware.ts
 ├── utils/
 │   ├── cn.ts
 │   ├── date.ts
@@ -239,54 +235,44 @@ middleware.ts
 
 
 # ===========================================================
-# API LAYER — LARAVEL BACKEND
+# DATA LAYER — SUPABASE
 # ===========================================================
-# UPDATE whenever the backend adds endpoints or changes the
-# API contract. Keep in sync with Postman collection.
+# Backend = Supabase. Schema + RLS are in supabase/migrations/ (we own them).
+# Full reference: docs/backend-supabase.md. Keep both in sync with the schema.
 
 ## Base Setup
-- Base URL from process.env.NEXT_PUBLIC_API_URL (example: http://localhost:8000/api/v1)
-- Never hardcode URLs — always use constants from lib/constants/config.ts
-- Required headers on every request (unless backend says otherwise):
-  - Accept: application/json
-  - X-Requested-With: XMLHttpRequest
+- Clients come from lib/supabase/ — never construct ad-hoc clients:
+  - createClient() from lib/supabase/client.ts  → Client Components
+  - createClient() from lib/supabase/server.ts  → RSC / Route Handlers / Server Actions
+- Config from env (see .env.example): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - The anon key is public by design — RLS protects data. Never ship SUPABASE_SERVICE_ROLE_KEY to the browser.
+- Dates: ISO 8601 (timestamptz) / YYYY-MM-DD (date) — always parse with date-fns.
 
-## Axios Interceptors (src/lib/api/axios.ts)
-- Request: send cookies (`withCredentials`) and CSRF header if required by backend
-- Response 401: optional refresh → retry once → redirect to /login
-- Response 403: toast "You don't have permission" — do NOT redirect
-- Response 422: parse validation errors → structured error object for RHF
-- Response 500: toast "Server error, try again" + log to monitoring
+## Query & Error Handling (replaces axios interceptors)
+- Read/write via supabase.from("table") (PostgREST), scoped automatically by RLS.
+- Every call: destructure { data, error }; if (error) throw error — surface in TanStack onError.
+- RLS denial returns a Postgres error (no row / permission) → toast a friendly message; do NOT redirect.
+- Auth: supabase.auth.signInWithPassword / signOut; session lives in httpOnly cookies via @supabase/ssr.
+- 401 / expired session: handled by root middleware refresh; gate protected routes there.
 
-## API Contract Expectations
-- Pagination: { data: T[], meta: { total, per_page, current_page, last_page } }
-- Errors:     { message: string, errors: { [field]: string[] } }
-- Success:    { data: T, message?: string }
-- Dates:      ISO 8601 strings — always parse with date-fns
+## Authorization
+- Enforced by RLS in supabase/migrations/0002_rls.sql (the real wall).
+- usePermissions() mirrors the matrix for UX only — keep the two in lockstep.
 
-## Current Endpoint Map
-# UPDATE this table as the backend dev ships endpoints
-# Status: Pending | Ready | Integrated
+## Tables → hooks (Status: Demo = Zustand/local | Wired = live Supabase)
+# UPDATE as each store is swapped to Supabase.
 
-| Method | Endpoint                      | Status   | Hook             |
-|--------|-------------------------------|----------|------------------|
-| POST   | /auth/login                   | Pending  | useAuth          |
-| POST   | /auth/logout                  | Pending  | useAuth          |
-| GET    | /auth/me                      | Pending  | useAuth          |
-| GET    | /projects                     | Pending  | useProjects      |
-| POST   | /projects                     | Pending  | useProjects      |
-| GET    | /projects/:id                 | Pending  | useProject       |
-| PUT    | /projects/:id                 | Pending  | useProject       |
-| DELETE | /projects/:id                 | Pending  | useProject       |
-| GET    | /projects/:id/tasks           | Pending  | useTasks         |
-| POST   | /tasks                        | Pending  | useTasks         |
-| PUT    | /tasks/:id                    | Pending  | useTask          |
-| DELETE | /tasks/:id                    | Pending  | useTask          |
-| GET    | /users/team                   | Pending  | useTeam          |
-| GET    | /notifications                | Pending  | useNotifications |
-| GET    | /calendar/events              | Pending  | useCalendar      |
-| POST   | /proposals                    | Pending  | useProposals     |
-| GET    | /proposals/:id/export         | Pending  | useProposals     |
+| Table(s)                                  | Hook(s)                  | Status  |
+|-------------------------------------------|--------------------------|---------|
+| auth.users + profiles                     | useAuth (todo)           | Demo    |
+| projects                                  | useProjects              | Demo    |
+| sprints                                   | useSprints               | Demo    |
+| tasks (+ task_assignees)                  | useTasks                 | Demo    |
+| task_comments (+ comment_reactions)       | useTasks / comments      | Demo    |
+| profiles (team directory)                 | useTeam (todo)           | Demo    |
+| notifications (+ Realtime)                | useNotifications (todo)  | Demo    |
+| availability_entries / weekly_capacity    | calendar / workload      | Demo    |
+| proposals (jsonb)                         | useProposals (todo)      | Demo    |
 
 ## TanStack Query Rules
 - All query keys in src/lib/constants/query-keys.ts (factory pattern)
@@ -317,11 +303,11 @@ Does NOT own: tokens (httpOnly cookie), permissions logic
 Owns: sidebarOpen, activeModal, theme (light/dark)
 Does NOT own: any server data
 
-### projects-store.ts (demo — will become TanStack Query)
+### projects-store.ts (demo — will become Supabase + TanStack Query)
 Owns: projects array, CRUD actions
-Demo only: seeded from dummy data. Will be replaced by TanStack Query when API is ready.
+Demo only: seeded from dummy data. Becomes Supabase queries (TanStack cache) when wired.
 
-### sprints-store.ts (demo — will become TanStack Query)
+### sprints-store.ts (demo — will become Supabase + TanStack Query)
 Owns: sprints array, CRUD actions, setSprintStatus
 Demo only: seeded from dummy data. Sprints are scoped by project_id.
 
@@ -340,7 +326,7 @@ Does NOT own: notification list data (that is React Query)
 - Always show field-level error messages below each input
 - Mark required fields with * in label
 - Disable submit button while isPending — show spinner inside button
-- Map Laravel 422 errors to RHF field errors via response interceptor
+- Validate with Zod before writing; map Supabase/Postgres errors to RHF field errors where possible
 - Multi-step forms: show "Step N of N" progress bar
 
 
@@ -351,29 +337,29 @@ Does NOT own: notification list data (that is React Query)
 # UPDATE immediately when auth strategy or policies change.
 
 ## Authentication
-- Tokens: httpOnly + Secure + SameSite=Strict cookies ONLY
-  Set via Next.js API route /api/auth/login
-  NEVER localStorage, NEVER sessionStorage
-- Token refresh: silent refresh on 401 → retry → redirect on failure
-- Logout: POST /api/auth/logout → clear cookie → clear Zustand state
+- Supabase Auth via @supabase/ssr → session in httpOnly cookies ONLY
+  NEVER localStorage, NEVER sessionStorage for tokens
+- Sign in: supabase.auth.signInWithPassword (or OAuth / magic link)
+- Token refresh: handled by root middleware.ts on each request (lib/supabase/middleware.ts)
+- Logout: supabase.auth.signOut() → clears cookies → clear Zustand UI state
 - Session expiry: modal warning at 5 min remaining
 
 ## RBAC
-- Roles: admin | manager | member | viewer
-- usePermissions() hook: canCreate, canEdit, canDelete, canManageTeam
+- Roles: admin | manager | member | viewer (profiles.role)
+- usePermissions() hook: canCreate, canEdit, canDelete, canManageTeam, canExportProposals
 - VIEWER role: HIDE action buttons entirely (not just disabled)
-- Admin routes: protected in middleware.ts by role check
-- UI RBAC is for UX only — backend always enforces real access
+- Protected routes: gated in middleware.ts; data scoped by RLS
+- UI RBAC is for UX only — RLS (supabase/migrations/0002_rls.sql) enforces real access
 
 ## Input Sanitization
 - DOMPurify on ALL user-generated content rendered as HTML
 - Never dangerouslySetInnerHTML without DOMPurify
-- All inputs validated with Zod before API submission
+- All inputs validated with Zod before writing to Supabase
 
 ## Request Security
-- CSRF token header on all mutating requests (Sanctum)
-- axios.defaults.withCredentials = true
-- Rate-limit login: disable button 30s after 5 failures
+- RLS on every table is the authorization wall — never disable it
+- Service-role key is server-only — never expose it to the browser (no NEXT_PUBLIC_ prefix)
+- Rate-limit login: disable button 30s after 5 failures (Supabase also rate-limits auth)
 
 ## Security Headers (next.config.js)
 - X-Frame-Options: SAMEORIGIN
@@ -561,14 +547,14 @@ Use shadcn semantic tokens only — never raw hex in classNames
 | Components         | PascalCase               | TaskCard.tsx             |
 | Page files         | lowercase                | page.tsx, layout.tsx     |
 | Hooks              | camelCase + use prefix   | useProjects.ts           |
-| API files          | camelCase + .api.ts      | tasks.api.ts             |
+| Supabase helpers   | lib/supabase/*.ts        | client.ts, server.ts     |
 | Zustand stores     | camelCase + .store.ts    | auth.store.ts            |
 | Zod schemas        | camelCase + .schema.ts   | task.schema.ts           |
 | Query key consts   | SCREAMING_SNAKE_CASE     | QUERY_KEYS.TASKS         |
 | Route paths        | kebab-case               | /projects/[projectId]    |
 | Utility functions  | camelCase                | formatDate.ts            |
 | Types/Interfaces   | PascalCase               | interface TaskResponse   |
-| Env variables      | SCREAMING_SNAKE_CASE     | NEXT_PUBLIC_API_URL      |
+| Env variables      | SCREAMING_SNAKE_CASE     | NEXT_PUBLIC_SUPABASE_URL  |
 
 
 # ===========================================================
@@ -577,8 +563,10 @@ Use shadcn semantic tokens only — never raw hex in classNames
 # Never commit .env.local
 # UPDATE when new env vars are added
 
-Example `.env.local` (illustrative only; never commit real values):
-- NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+Example `.env.local` (see .env.example; never commit real values):
+- NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+- NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key      # public; RLS protects data
+- SUPABASE_SERVICE_ROLE_KEY=your-service-role-key         # server-only; never NEXT_PUBLIC_
 - NEXT_PUBLIC_APP_NAME=Timeline Estimator
 - NEXT_PUBLIC_APP_ENV=development
 
@@ -611,8 +599,8 @@ Example `.env.local` (illustrative only; never commit real values):
 # Always complete the data layer (hook + types) before UI.
 
 ## Phase 1 — Core Foundations
-- [ ] Axios instance + interceptors
-- [ ] Auth store (Zustand) + useAuth hook
+- [ ] Supabase clients wired (lib/supabase/* — scaffolded) + env configured
+- [ ] Supabase Auth + useAuth hook (replace demo auth store)
 - [ ] Login / Register / Forgot Password pages
 - [ ] Route protection via middleware.ts
 - [x] Projects CRUD (list, create, edit, delete)

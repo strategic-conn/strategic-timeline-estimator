@@ -1,0 +1,5481 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Frontend",
+      "description": "UI components and client-side features"
+    },
+    {
+      "id": 2,
+      "name": "Backend",
+      "description": "Server-side logic and database tasks"
+    },
+    {
+      "id": 3,
+      "name": "Design",
+      "description": "Visual and UX design tasks"
+    },
+    {
+      "id": 4,
+      "name": "Integration",
+      "description": "Third-party services and APIs"
+    },
+    {
+      "id": 5,
+      "name": "E-Commerce",
+      "description": "Online store features and product catalog"
+    },
+    {
+      "id": 6,
+      "name": "Custom Tools",
+      "description": "Configurators"
+    },
+    {
+      "id": 7,
+      "name": "Performance & Security",
+      "description": "Optimization"
+    },
+    {
+      "id": 8,
+      "name": "SEO & Content",
+      "description": "Blog setup"
+    },
+    {
+      "id": 9,
+      "name": "Local SEO",
+      "description": "This category is for the  company that would want local Visibility for their website."
+    },
+    {
+      "id": 10,
+      "name": "SEO on-page",
+      "description": "On-page SEO is how you optimize a webpage so"
+    },
+    {
+      "id": 11,
+      "name": "SEO off-page",
+      "description": "Off-page SEO is everything done outside your website t"
+    },
+    {
+      "id": 12,
+      "name": "Conversion Tracking",
+      "description": "Conversion tracking is the process of measuring"
+    },
+    {
+      "id": 13,
+      "name": "Environment Setup",
+      "description": "Setting up Environment for Stagin and Deployment of Content and files"
+    },
+    {
+      "id": 14,
+      "name": "Deployment",
+      "description": ""
+    },
+    {
+      "id": 15,
+      "name": "CMS & Content Prep",
+      "description": ""
+    },
+    {
+      "id": 16,
+      "name": "Pre-Lanuch",
+      "description": ""
+    },
+    {
+      "id": 17,
+      "name": "Post-Launch",
+      "description": ""
+    },
+    {
+      "id": 18,
+      "name": "Database",
+      "description": ""
+    }
+  ],
+  "platforms": {
+    "wordpress": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services or Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Grid layout for displaying services, products, programs, or offerings (including nonprofit initiatives or services).",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials Slider-Dynamic",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Dynamic testimonials integration via external API (e.g., review platforms), not embed-based",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Testimonials Slider- embed",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Embedded testimonials using iframe or widget from external platforms.",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Section highlighting team members, staff, or key representatives",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Structured footer with navigation and contact info",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Strong hero offer with CTA",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Benefits/Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Highlight product/service benefits",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Section showcasing logos, trust badges, or affiliations to build credibility, reinforce trust, and support conversion.",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Frequently asked questions block",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - Standard",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Structured plans with features and comparison layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - Standard",
+        "name": "Galleries",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Image gallery layout for showcasing media (grid, slider, or lightbox)",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - Standard",
+        "name": "Video embeds",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Embedded videos from platforms like YouTube or Vimeo",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - Standard",
+        "name": "Payment / Contribution Module",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Payment or contribution functionality using plugin-based integration (e.g., Stripe/PayPal), no custom gateway.",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - Standard",
+        "name": "Use Cases",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Real-world scenarios or examples demonstrating how offerings are used",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - Multi-Industry",
+        "name": "Industry Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Selector for multiple industries",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Multi-Industry",
+        "name": "Location Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Selector for multiple branches/locations",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Multi-Industry",
+        "name": "Dynamic Content Sections",
+        "category_id": 1,
+        "base_hours": 10.0,
+        "description": "Conditional content per audience",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Multi-Industry",
+        "name": "Interactive Location Finder",
+        "category_id": 1,
+        "base_hours": 12.0,
+        "description": "Map or location-based finder for offices, stores, or service areas",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Multi-Industry",
+        "name": "Multi-Audience Messaging",
+        "category_id": 1,
+        "base_hours": 12.0,
+        "description": "Content tailored to different audience segments or user types",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Standard Content Page (About, Services, etc.)",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Core Page - Landing Page",
+        "name": "Conversion Page",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Conversion-focused landing page designed to drive specific user actions (e.g., lead generation or sales), including structured sections such as hero, benefits, social proof, and strong CTAs using a reusable layout.",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Core Page - Contact Page",
+        "name": "Form or contact details page",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Contact page including form setup and/or business contact details, with clear layout, validation, and user-friendly structure for inquiries or lead capture.",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Core Page - Detail Pages",
+        "name": "Detail Template",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Template-based detail page for individual content (e.g., blog posts or service pages), structured for readability, SEO, and consistent layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Homepage - Standard",
+        "name": "Forms Spam Protection (reCAPTCHA)",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Implement and configure reCAPTCHA (v2/v3) on all forms to prevent spam submissions.",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Custom-Coded Blocks",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "Custom reusable blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Search Bar with Filters",
+        "category_id": 2,
+        "base_hours": 18.0,
+        "description": "Advanced search and filter functionality",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "API-Driven Content",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "Dynamic content via API",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Interactive Dashboard",
+        "category_id": 2,
+        "base_hours": 18.0,
+        "description": "Custom dashboard with charts",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 6.0,
+        "description": "Image-heavy hero visuals",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Scrolling parallax animations",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 4.0,
+        "description": "Interactive hover effects",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Homepage - Creative",
+        "name": "Creative Grid Layouts",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Custom creative grids",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "Homepage - Creative",
+        "name": "Portfolio Gallery Preview",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Portfolio showcase gallery",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Form placement within page for lead capture using standard form setup (no CRM unless specified)",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "Homepage - E-Commerce",
+        "name": "Live Chat Widget",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Integration of live chat support",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Multi-Step Wizard Form",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "Interactive multi-step form wizard. Custom or plugin-based depending on scope.",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "Forms - Standard",
+        "name": "Standard form setup including layout, validation, and email notifications for submissions",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Setup of 1 standard form with layout, validation, and email notifications.",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "Forms - Multi-Step",
+        "name": "Multi-Step Layout",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Multi-step form with branching logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "Forms - Multi-Step",
+        "name": "Branch Logic Implementation",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Conditional branching between steps",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "Forms - Multi-Step",
+        "name": "Submission Handling",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Store and process multi-step submissions",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "Forms - CRM Integration",
+        "name": "CRM API Setup",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Connect form submissions to CRM",
+        "dependencies_note": "37-40: Form Setup"
+      },
+      {
+        "id": 43,
+        "module": "Forms - CRM Integration",
+        "name": "Data Mapping",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Map form fields to CRM fields",
+        "dependencies_note": "37-40: Form Setup"
+      },
+      {
+        "id": 44,
+        "module": "Forms - CRM Integration",
+        "name": "Error Handling & Logging",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Handle API errors and log submissions",
+        "dependencies_note": "37-40: Form Setup"
+      },
+      {
+        "id": 45,
+        "module": "Integrations",
+        "name": "Appointment System",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Booking and scheduling system. Plugin-based booking system (no custom development)",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Embed live chat widget",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Integrations",
+        "name": "API Integration Basic",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Simple API Integration",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Integrations",
+        "name": "API Integration Complex",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Complex API Integration",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Automate workflows with Zapier",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Basic",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Essential fixes for usability (alt text, contrast, basic keyboard support)",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Strict Compliance",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Full WCAG compliance with complete support and thorough testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "Member Login",
+        "name": "Basic Login System",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "User login and registration",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "Member Login",
+        "name": "Profile Management",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "Basic profile editing and updates",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "Member Login",
+        "name": "Role-Based Content",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Restrict content based on user roles",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "Member Login",
+        "name": "Document Portal Setup",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "Portal for uploading and accessing documents. Plugin-based solution (no custom-built portal)",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "E-Commerce",
+        "name": "Product Template",
+        "category_id": 5,
+        "base_hours": 7.0,
+        "description": "Product page template",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "E-Commerce",
+        "name": "Featured Products",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Homepage products",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "E-Commerce",
+        "name": "Sales Banners",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Promo banners",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "E-Commerce",
+        "name": "Dynamic Product Feeds",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Product listings",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "E-Commerce",
+        "name": "Category Highlights",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Product categories",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "E-Commerce",
+        "name": "Customer Reviews",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Reviews",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "E-Commerce",
+        "name": "Personalization Blocks",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Recommendations",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "E-Commerce",
+        "name": "Cart Functionality",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Add to cart",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "E-Commerce",
+        "name": "Checkout Flow",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Checkout page",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "E-Commerce",
+        "name": "Shipping Rules",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Shipping setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "E-Commerce",
+        "name": "Payment Gateway Integration",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Stripe/PayPal",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "E-Commerce",
+        "name": "Tax Calculator",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Tax logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 68,
+        "module": "E-Commerce",
+        "name": "Product Variations Bsic Set-up",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Configure product variations (size, color, attributes) using WooCommerce native options",
+        "dependencies_note": null
+      },
+      {
+        "id": 69,
+        "module": "E-Commerce",
+        "name": "Per product w/ variations",
+        "category_id": 5,
+        "base_hours": 0.5,
+        "description": "Per product w/ variations, need to multiply how many products with variations",
+        "dependencies_note": null
+      },
+      {
+        "id": 70,
+        "module": "E-Commerce",
+        "name": "Advanced Product Options (Plugin)",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Add custom product fields/options using plugin (no custom build)",
+        "dependencies_note": null
+      },
+      {
+        "id": 71,
+        "module": "E-Commerce",
+        "name": "Product Add-Ons (Conditional Logic)",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Product add-ons with conditional logic using plugin (e.g., extras, upgrades)",
+        "dependencies_note": null
+      },
+      {
+        "id": 72,
+        "module": "E-Commerce",
+        "name": "Subscriptions Setup",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Setup recurring payments using WooCommerce Subscriptions plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 73,
+        "module": "E-Commerce",
+        "name": "Discount Rules / Coupons Setup",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Configure coupons, discounts, and basic promotional rules using WooCommerce",
+        "dependencies_note": null
+      },
+      {
+        "id": 74,
+        "module": "E-Commerce",
+        "name": "Advanced Pricing Rules (Plugin)",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Role-based pricing, bulk discounts, or dynamic pricing via plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 75,
+        "module": "E-Commerce",
+        "name": "Product Bundles / Packages",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Create bundled or grouped products using plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 76,
+        "module": "E-Commerce",
+        "name": "Wishlist Functionality",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Add wishlist feature via plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 77,
+        "module": "E-Commerce",
+        "name": "Product Filtering (Advanced)",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Advanced filters (price, attributes, categories) using plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 78,
+        "module": "Configurator - Basic 2D",
+        "name": "Color Change Feature",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Allow users to change product colors",
+        "dependencies_note": null
+      },
+      {
+        "id": 79,
+        "module": "Configurator - Basic 2D",
+        "name": "Shape Options",
+        "category_id": 6,
+        "base_hours": 20.0,
+        "description": "Simple shape selection and preview",
+        "dependencies_note": null
+      },
+      {
+        "id": 80,
+        "module": "Configurator - Basic 2D",
+        "name": "Static Preview Rendering",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Generate static preview images",
+        "dependencies_note": null
+      },
+      {
+        "id": 81,
+        "module": "Configurator - Advanced 2D",
+        "name": "Pattern Library",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Apply patterns to product surfaces",
+        "dependencies_note": null
+      },
+      {
+        "id": 82,
+        "module": "Configurator - Advanced 2D",
+        "name": "Upload & Download Assets",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Allow users to upload images and download previews",
+        "dependencies_note": null
+      },
+      {
+        "id": 83,
+        "module": "Configurator - Advanced 2D",
+        "name": "Screenshot Capture",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Enable screenshot capture of designs",
+        "dependencies_note": null
+      },
+      {
+        "id": 84,
+        "module": "Configurator - 3D WebGL",
+        "name": "Camera Controls",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Interactive camera movement and zoom",
+        "dependencies_note": null
+      },
+      {
+        "id": 85,
+        "module": "Configurator - 3D WebGL",
+        "name": "3D Asset Integration",
+        "category_id": 6,
+        "base_hours": 50.0,
+        "description": "Import and render 3D models",
+        "dependencies_note": null
+      },
+      {
+        "id": 86,
+        "module": "Configurator - 3D WebGL",
+        "name": "Real-Time Rendering",
+        "category_id": 6,
+        "base_hours": 55.0,
+        "description": "Real-time rendering of product visuals",
+        "dependencies_note": null
+      },
+      {
+        "id": 87,
+        "module": "Configurator - Full Builder",
+        "name": "Court/Template Setup",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Custom templates for courts or products",
+        "dependencies_note": null
+      },
+      {
+        "id": 88,
+        "module": "Configurator - Full Builder",
+        "name": "Measurement Tools",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Tools for measuring dimensions",
+        "dependencies_note": null
+      },
+      {
+        "id": 89,
+        "module": "Configurator - Full Builder",
+        "name": "Quote Generation",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Auto-generate quotes based on design",
+        "dependencies_note": null
+      },
+      {
+        "id": 90,
+        "module": "Configurator - Full Builder",
+        "name": "User Accounts & Saved Designs",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Allow users to save and manage designs",
+        "dependencies_note": null
+      },
+      {
+        "id": 91,
+        "module": "Configurator - Features",
+        "name": "Logo Upload & Placement",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Upload logos and place them on designs",
+        "dependencies_note": null
+      },
+      {
+        "id": 92,
+        "module": "Configurator - Features",
+        "name": "Size Calculator",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Calculate product sizes dynamically",
+        "dependencies_note": null
+      },
+      {
+        "id": 93,
+        "module": "Configurator - Features",
+        "name": "Shareable Link",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Generate shareable links for designs",
+        "dependencies_note": null
+      },
+      {
+        "id": 94,
+        "module": "Configurator - Features",
+        "name": "Admin Dashboard",
+        "category_id": 6,
+        "base_hours": 44.0,
+        "description": "Admin dashboard for managing designs and users",
+        "dependencies_note": null
+      },
+      {
+        "id": 95,
+        "module": "Performance & Security",
+        "name": "SSL Configuration",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "Setup SSL certificate",
+        "dependencies_note": null
+      },
+      {
+        "id": 96,
+        "module": "Performance & Security",
+        "name": "Caching & Speed Optimization",
+        "category_id": 7,
+        "base_hours": 8.0,
+        "description": "Basic performance optimization using caching, image compression, and plugin configuration (no advanced code-level optimization)",
+        "dependencies_note": null
+      },
+      {
+        "id": 97,
+        "module": "Performance & Security",
+        "name": "Backup & Versioning",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Setup backups and version control",
+        "dependencies_note": null
+      },
+      {
+        "id": 98,
+        "module": "Analytics & Tracking",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Configure Google Analytics 4 tracking",
+        "dependencies_note": null
+      },
+      {
+        "id": 99,
+        "module": "Analytics & Tracking",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Install and configure Google Tag Manager",
+        "dependencies_note": null
+      },
+      {
+        "id": 100,
+        "module": "Analytics & Tracking",
+        "name": "Heatmaps",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "Integrate heatmap tool for user behavior analysis",
+        "dependencies_note": null
+      },
+      {
+        "id": 101,
+        "module": "Blog Setup",
+        "name": "Blog Listing Page",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Main blog page with article previews",
+        "dependencies_note": null
+      },
+      {
+        "id": 102,
+        "module": "Blog Setup",
+        "name": "Single Article Template",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Template for individual blog posts",
+        "dependencies_note": null
+      },
+      {
+        "id": 103,
+        "module": "Blog Setup",
+        "name": "Lead Capture Integration",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Form for newsletter or lead capture",
+        "dependencies_note": null
+      },
+      {
+        "id": 104,
+        "module": "SEO & Content",
+        "name": "SEO Tools Setup",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Install and configure SEO plugins/tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 105,
+        "module": "SEO & Content",
+        "name": "Schema Markup",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Add structured data/schema for SEO",
+        "dependencies_note": null
+      },
+      {
+        "id": 106,
+        "module": "SEO & Content",
+        "name": "Sitemap Generation",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Generate XML sitemap",
+        "dependencies_note": null
+      },
+      {
+        "id": 107,
+        "module": "SEO & Content",
+        "name": "Robots.txt Setup",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Configure robots.txt for crawling rules",
+        "dependencies_note": null
+      },
+      {
+        "id": 108,
+        "module": "SEO & Content",
+        "name": "Copywriting - Improve Existing Content",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Edit and optimize current content",
+        "dependencies_note": null
+      },
+      {
+        "id": 109,
+        "module": "SEO & Content",
+        "name": "Copywriting - New Content (per 800 words)",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "Write new copy for a page (800 words)",
+        "dependencies_note": null
+      },
+      {
+        "id": 110,
+        "module": "SEO & Content",
+        "name": "Setup of URL redirects (301)",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Setup of URL redirects (301) to maintain SEO and handle URL changes",
+        "dependencies_note": null
+      },
+      {
+        "id": 111,
+        "module": "SEO & Content",
+        "name": "Performance Core Web Vitals Optimization",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "Optimize site for LCP, CLS, and INP by improving loading speed, reducing layout shifts, optimizing assets, and ensuring smooth interactivity.",
+        "dependencies_note": null
+      },
+      {
+        "id": 112,
+        "module": "Analytics & Tracking",
+        "name": "Moderate Conversion tracking",
+        "category_id": 12,
+        "base_hours": 8.0,
+        "description": "Moderate (multiple events + testing + GA4 setup) Limit up to 8 events to configure and test.",
+        "dependencies_note": null
+      },
+      {
+        "id": 113,
+        "module": "Analytics & Tracking",
+        "name": "Basic conversion",
+        "category_id": 12,
+        "base_hours": 6.0,
+        "description": "Basic conversion tracking for forms (submission events only, no advanced tracking)",
+        "dependencies_note": null
+      },
+      {
+        "id": 114,
+        "module": "Environment Setup",
+        "name": "Hosting Setup & Configuration",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Provision and configure a WordPress-ready hosting environment, including server setup, PHP and MySQL configuration, and domain connection. Configure performance settings (caching, memory limits), implement security best practices (firewall, SSL readiness, access controls), and ensure the environment is optimized for reliability, speed, and scalability.",
+        "dependencies_note": null
+      },
+      {
+        "id": 115,
+        "module": "Environment Setup",
+        "name": "WordPress Installation & Base Config",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Install WordPress, configure core settings (permalinks, timezone, security basics), and prepare a clean foundation.",
+        "dependencies_note": null
+      },
+      {
+        "id": 116,
+        "module": "Environment Setup",
+        "name": "Theme Setup (base theme / builder setup)",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Install and configure theme or page builder, including global styles, layout settings, and reusable components.",
+        "dependencies_note": "108: WordPress Installation"
+      },
+      {
+        "id": 117,
+        "module": "General",
+        "name": "Plugin Installation & Baseline Config",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Install and configure core plugins (SEO, cache, security, forms). Includes existing plugins only; new plugin setup not included",
+        "dependencies_note": "108: WordPress Installation"
+      },
+      {
+        "id": 118,
+        "module": "Environment Setup",
+        "name": "User Roles & Permissions Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Define user roles (admin, editor, etc.), configure permissions, and enforce proper access control.",
+        "dependencies_note": null
+      },
+      {
+        "id": 119,
+        "module": "Environment Setup",
+        "name": "Local / Dev Environment Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Set up local development environment for safe development, including database, files, and tooling.",
+        "dependencies_note": null
+      },
+      {
+        "id": 120,
+        "module": "Environment Setup",
+        "name": "Environment Sync (Dev ↔ Staging)",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Sync database between environments with URL replacement to maintain consistency across environments.",
+        "dependencies_note": null
+      },
+      {
+        "id": 121,
+        "module": "Environment Setup",
+        "name": "Staging Environment Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "Create a staging site for QA/testing with production-like configuration and restricted access.",
+        "dependencies_note": null
+      },
+      {
+        "id": 122,
+        "module": "Environment Setup",
+        "name": "Domain Set-up",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Point domain to hosting, configure DNS records, and ensure proper domain resolution.",
+        "dependencies_note": null
+      },
+      {
+        "id": 123,
+        "module": "Deployment",
+        "name": "Data migration / content import",
+        "category_id": 14,
+        "base_hours": 6.0,
+        "description": "Migrate existing content, database, and media into the new environment, ensuring structure and integrity are preserved.",
+        "dependencies_note": null
+      },
+      {
+        "id": 124,
+        "module": "Pre-Launch QA",
+        "name": "Final QA before go-live",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Test functionality, responsiveness, forms, links, and cross-browser compatibility before launch.",
+        "dependencies_note": null
+      },
+      {
+        "id": 125,
+        "module": "Backup Before Deploy",
+        "name": "Full backup before deployment",
+        "category_id": 14,
+        "base_hours": 1.0,
+        "description": "Create full backup of database and files before deployment for rollback safety",
+        "dependencies_note": null
+      },
+      {
+        "id": 126,
+        "module": "Production Deployment",
+        "name": "Deploy site to production",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Deploy site from staging to production including database migration, file transfer, and validation",
+        "dependencies_note": "122: Backup + 121: Final QA"
+      },
+      {
+        "id": 127,
+        "module": "URL/DB Sync",
+        "name": "Update URLs and sync database",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "Replace staging URLs with production URLs and ensure database consistency.",
+        "dependencies_note": null
+      },
+      {
+        "id": 128,
+        "module": "Cache/CDN Setup",
+        "name": "Configure caching and CDN",
+        "category_id": 14,
+        "base_hours": 3.0,
+        "description": "Set up caching layers and CDN for faster global delivery and improved performance. Basic CDN setup (e.g., Cloudflare, no advanced edge rules)",
+        "dependencies_note": null
+      },
+      {
+        "id": 129,
+        "module": "SSL & Mixed Content Fix",
+        "name": "Fix SSL and mixed content issues",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "Ensure HTTPS is enforced and resolve any insecure resource loading issues.",
+        "dependencies_note": "123: Production Deployment"
+      },
+      {
+        "id": 130,
+        "module": "CMS Structure Setup",
+        "name": "Setup CPTs, fields, content structure",
+        "category_id": 15,
+        "base_hours": 10.0,
+        "description": "Create custom post types, taxonomies, and fields to support structured, scalable content.",
+        "dependencies_note": null
+      },
+      {
+        "id": 131,
+        "module": "Dynamic Templates",
+        "name": "Build dynamic templates (ACF/builder)",
+        "category_id": 15,
+        "base_hours": 14.0,
+        "description": "Develop reusable templates that dynamically pull content from fields for consistency and efficiency.",
+        "dependencies_note": "117: CMS Structure Setup"
+      },
+      {
+        "id": 132,
+        "module": "Content Entry",
+        "name": "Add content to pages",
+        "category_id": 15,
+        "base_hours": 2.0,
+        "description": "Populate pages with provided content, ensuring formatting, layout, and consistency with design.",
+        "dependencies_note": "118: Dynamic Templates"
+      },
+      {
+        "id": 133,
+        "module": "Media Optimization",
+        "name": "Optimize images and media",
+        "category_id": 15,
+        "base_hours": 3.0,
+        "description": "Compress, resize, and serve media in modern formats (e.g., WebP), implement lazy loading.",
+        "dependencies_note": "119: Content Entry"
+      },
+      {
+        "id": 134,
+        "module": "Post-Launch QA",
+        "name": "QA and bug fixes after launch",
+        "category_id": 17,
+        "base_hours": 6.0,
+        "description": "Post-launch validation and quick resolution of any issues found in production.",
+        "dependencies_note": "123-126: All deployment tasks"
+      },
+      {
+        "id": 135,
+        "module": "Performance Check",
+        "name": "Verify speed and performance",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Run performance tests and confirm site meets expected speed benchmarks.",
+        "dependencies_note": null
+      },
+      {
+        "id": 136,
+        "module": "Tracking Verification",
+        "name": "Test GA4 and tracking setup",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Validate analytics tracking, events, and conversions to ensure accurate data collection.",
+        "dependencies_note": null
+      }
+    ],
+    "squarespace": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services or Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Grid layout using Squarespace sections or summary blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials (Embed)",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Testimonials via embed block or native content",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Team member section using image + text blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Footer navigation, contact, social links",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Hero with CTA using Squarespace buttons",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Benefits/Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Feature sections using layout blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Logos or badges using image blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Collapsible FAQ blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Standard",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Pricing using columns/layout blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - Standard",
+        "name": "Galleries",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Gallery block (grid/slider/lightbox)",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - Standard",
+        "name": "Video Embeds",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Video block (YouTube/Vimeo)",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - Standard",
+        "name": "Donations / Payments",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Squarespace Payments or Stripe integration",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - Standard",
+        "name": "Use Cases",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Content sections for use cases",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - Standard",
+        "name": "Forms Spam Protection",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Basic spam protection (Squarespace built-in)",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 6.0,
+        "description": "Full-width image sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 3.0,
+        "description": "Built-in scroll effects (limited vs WP)",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 2.0,
+        "description": "Basic hover effects (native styles)",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Creative",
+        "name": "Creative Layouts",
+        "category_id": 3,
+        "base_hours": 4.0,
+        "description": "Custom section layouts using fluid engine",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Creative",
+        "name": "Portfolio Preview",
+        "category_id": 3,
+        "base_hours": 4.0,
+        "description": "Portfolio/gallery collection preview",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Squarespace form block",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Embed third-party chat (Intercom, etc.)",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Integrations",
+        "name": "Appointment Scheduling",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Squarespace Scheduling or embed tool",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Zapier connection via form/email triggers",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Integrations",
+        "name": "Basic API / Embed Integration",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Embed external tools via code block",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Basic pages using sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Core Page - Landing Page",
+        "name": "Conversion Landing Page",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Structured conversion layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Core Page - Contact Page",
+        "name": "Contact Page",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Form + contact info layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Core Page - Detail Page",
+        "name": "Blog/Service Detail",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Blog or collection item template",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Forms - Standard",
+        "name": "Standard Form Setup",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Form with fields + email notifications",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Forms - Advanced",
+        "name": "Storage & Notifications",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Form submissions stored + email",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Members Area",
+        "name": "Members Area Setup",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Squarespace Member Areas setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Members Area",
+        "name": "Basic Access Control",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Restrict pages/content",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "E-Commerce",
+        "name": "Product Listings",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Product collection setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "E-Commerce",
+        "name": "Product Detail Page",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Product page layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "E-Commerce",
+        "name": "Cart Functionality",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Built-in cart",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "E-Commerce",
+        "name": "Checkout Flow",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Native checkout",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "E-Commerce",
+        "name": "Payments Setup",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Stripe/PayPal via Squarespace",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "E-Commerce",
+        "name": "Shipping Setup",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Shipping rules config",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "E-Commerce",
+        "name": "Tax Setup",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Tax configuration",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "E-Commerce",
+        "name": "Featured Products Section",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Product blocks on homepage",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "E-Commerce",
+        "name": "Promotional Banners",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Sales banners using sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 43,
+        "module": "E-Commerce",
+        "name": "Category Navigation",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Product category organization",
+        "dependencies_note": null
+      },
+      {
+        "id": 44,
+        "module": "E-Commerce",
+        "name": "Customer Reviews (Basic)",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Manual or embed-based reviews",
+        "dependencies_note": null
+      },
+      {
+        "id": 45,
+        "module": "Analytics & Tracking",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Google Analytics integration",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Analytics & Tracking",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Tag Manager install",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Analytics & Tracking",
+        "name": "Basic Conversion Tracking",
+        "category_id": 12,
+        "base_hours": 4.0,
+        "description": "Form + button tracking",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Analytics & Tracking",
+        "name": "Heatmaps",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "Hotjar or similar via embed",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Blog Setup",
+        "name": "Blog Page Setup",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Blog index page",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Blog Setup",
+        "name": "Blog Post Template",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Default post layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Blog Setup",
+        "name": "Blog Lead Capture",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Newsletter form",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "SEO & Content",
+        "name": "On-Page SEO Setup",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Titles, meta, descriptions",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "SEO & Content",
+        "name": "Sitemap (Auto)",
+        "category_id": 8,
+        "base_hours": 0.0,
+        "description": "Auto-generated by Squarespace",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "SEO & Content",
+        "name": "Robots.txt (Basic)",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Limited configuration",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "SEO & Content",
+        "name": "URL Redirects",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Built-in redirect manager",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "SEO & Content",
+        "name": "Copywriting - Improve",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Content optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "SEO & Content",
+        "name": "Copywriting - New (800 words)",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "New content creation",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "Performance",
+        "name": "Basic Optimization",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Image compression, layout cleanup",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "Accessibility",
+        "name": "ADA Basic",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Alt text, contrast, structure",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "Environment Setup",
+        "name": "Squarespace Site Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Create site, basic config",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "Environment Setup",
+        "name": "Template & Styles Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Fonts, colors, global styles",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "Environment Setup",
+        "name": "Domain Connection",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Connect domain",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "Deployment",
+        "name": "Content Migration (Manual)",
+        "category_id": 14,
+        "base_hours": 5.0,
+        "description": "Copy content into Squarespace",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "Deployment",
+        "name": "Pre-Launch QA",
+        "category_id": 14,
+        "base_hours": 3.0,
+        "description": "Responsive + functionality checks",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "Deployment",
+        "name": "Launch Site",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "Go live + domain switch",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "Deployment",
+        "name": "Post-Launch QA",
+        "category_id": 17,
+        "base_hours": 3.0,
+        "description": "Fix issues after launch",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "Deployment",
+        "name": "Tracking Verification",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Confirm analytics + events",
+        "dependencies_note": null
+      }
+    ],
+    "shopify": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services or Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Product/collection grid using Shopify sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Testimonials via theme section or app",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Team section using content blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Footer with navigation, contact, socials",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Hero with CTA",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Benefits/Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Features/benefits sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Logos, reviews, trust badges",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Accordion FAQ",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Conversion",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Subscription or pricing layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - E-Commerce",
+        "name": "Featured Products",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Featured products section",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - E-Commerce",
+        "name": "Sales Banners",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Promo banners",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - E-Commerce",
+        "name": "Dynamic Product Feeds",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Collections + filters",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - E-Commerce",
+        "name": "Category Highlights",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Collection highlights",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - E-Commerce",
+        "name": "Customer Reviews",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Product reviews via app",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - E-Commerce",
+        "name": "Personalization Blocks",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Recommended products (apps)",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Image-heavy layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 3.0,
+        "description": "Theme-based effects",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 3.0,
+        "description": "Theme/custom CSS",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Creative",
+        "name": "Creative Layouts",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Custom sections or Liquid edits",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Form or email signup",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Homepage - Conversion",
+        "name": "Forms Spam Protection",
+        "category_id": 4,
+        "base_hours": 1.0,
+        "description": "Basic spam protection",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Content pages",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Core Page - Landing Page",
+        "name": "Landing Page",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Conversion-focused layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Core Page - Contact Page",
+        "name": "Contact Page",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Contact form + info",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Core Page - Blog Detail",
+        "name": "Blog Post Template",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Shopify blog template",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Forms - Standard",
+        "name": "Form Setup",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Basic forms + notifications",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Forms - Multi-Step",
+        "name": "Multi-Step Form",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Using apps (limited logic)",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Integrations",
+        "name": "Appointment System",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Calendly or booking app",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Chat widget/app",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Integrations",
+        "name": "API Integration Basic",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "App or webhook-based",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Integrations",
+        "name": "API Integration Complex",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "Custom app or middleware",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 5.0,
+        "description": "Automation workflows",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "Integrations",
+        "name": "Accessibility (Basic)",
+        "category_id": 4,
+        "base_hours": 5.0,
+        "description": "Theme adjustments",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "Members / Accounts",
+        "name": "Customer Accounts",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Shopify customer accounts",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "Members / Accounts",
+        "name": "Profile Management",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Account editing",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "Members / Accounts",
+        "name": "Restricted Content",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Apps or Liquid logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "E-Commerce Core",
+        "name": "Product Template",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Product page template",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "E-Commerce Core",
+        "name": "Cart Functionality",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Built-in cart",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "E-Commerce Core",
+        "name": "Checkout Flow",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Shopify checkout (limited customization)",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "E-Commerce Core",
+        "name": "Shipping Rules",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Shipping setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "E-Commerce Core",
+        "name": "Payment Gateway Integration",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Shopify Payments / PayPal",
+        "dependencies_note": null
+      },
+      {
+        "id": 43,
+        "module": "E-Commerce Core",
+        "name": "Tax Calculator",
+        "category_id": 5,
+        "base_hours": 2.0,
+        "description": "Built-in taxes",
+        "dependencies_note": null
+      },
+      {
+        "id": 44,
+        "module": "Advanced E-Commerce",
+        "name": "Product Options / Variants",
+        "category_id": 6,
+        "base_hours": 6.0,
+        "description": "Variants or apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 45,
+        "module": "Advanced E-Commerce",
+        "name": "Product Customizer (Basic)",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Product customization apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Advanced E-Commerce",
+        "name": "Product Customizer (Advanced)",
+        "category_id": 6,
+        "base_hours": 25.0,
+        "description": "Advanced configurator apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Advanced E-Commerce",
+        "name": "Subscriptions",
+        "category_id": 6,
+        "base_hours": 6.0,
+        "description": "Subscription apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Advanced E-Commerce",
+        "name": "Discount Logic",
+        "category_id": 6,
+        "base_hours": 4.0,
+        "description": "Discount rules",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Performance",
+        "name": "Basic Optimization",
+        "category_id": 7,
+        "base_hours": 4.0,
+        "description": "Image + theme optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Analytics",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Add GA4",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Analytics",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Add GTM",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "Analytics",
+        "name": "Conversion Tracking",
+        "category_id": 7,
+        "base_hours": 5.0,
+        "description": "Events + testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "Blog",
+        "name": "Blog Setup",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Blog listing",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "Blog",
+        "name": "Single Post Template",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Default template",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "Blog",
+        "name": "Lead Capture Integration",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Email signup",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "SEO",
+        "name": "Basic SEO Setup",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Titles + meta",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "SEO",
+        "name": "Schema (Basic)",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Theme/app-based schema",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "SEO",
+        "name": "Sitemap (Auto)",
+        "category_id": 8,
+        "base_hours": 0.0,
+        "description": "Auto-generated",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "SEO",
+        "name": "URL Redirects",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Redirects setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "SEO",
+        "name": "Content Optimization",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "On-page SEO",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "Environment Setup",
+        "name": "Shopify Store Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Create store",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "Environment Setup",
+        "name": "Theme Setup & Customization",
+        "category_id": 13,
+        "base_hours": 5.0,
+        "description": "Theme + sections + styling",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "Environment Setup",
+        "name": "Domain Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Connect domain",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "Content Entry",
+        "name": "Content Upload",
+        "category_id": 15,
+        "base_hours": 3.0,
+        "description": "Add content/products",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "Content Entry",
+        "name": "Media Optimization",
+        "category_id": 15,
+        "base_hours": 2.0,
+        "description": "Image optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "Pre-Launch QA",
+        "name": "QA Review",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Test store, checkout, responsiveness",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "Deployment",
+        "name": "Go Live",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "Launch store",
+        "dependencies_note": null
+      },
+      {
+        "id": 68,
+        "module": "Post-Launch",
+        "name": "QA Fixes",
+        "category_id": 17,
+        "base_hours": 4.0,
+        "description": "Bug fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 69,
+        "module": "Post-Launch",
+        "name": "Tracking Verification",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Verify analytics",
+        "dependencies_note": null
+      }
+    ],
+    "wix": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services or Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Grid using Wix repeater/layout tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Testimonials via sections or apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Team section using repeaters",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Footer with nav, contact, socials",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Hero with CTA",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Benefits/Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Content sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Logos/reviews",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Collapsible FAQ",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Standard",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Pricing layout sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - Standard",
+        "name": "Galleries",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Wix gallery",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - Standard",
+        "name": "Video Embeds",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Video blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - Standard",
+        "name": "Payments / Donations",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Wix Payments / Stripe / PayPal",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - Standard",
+        "name": "Use Cases",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Content sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - Standard",
+        "name": "Map / Location Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Wix map embed",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Image-heavy sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 3.0,
+        "description": "Built-in scroll effects",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 3.0,
+        "description": "Basic interactions",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Creative",
+        "name": "Creative Layouts",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Flexible editor layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Wix Forms",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Homepage - Conversion",
+        "name": "Forms Spam Protection",
+        "category_id": 4,
+        "base_hours": 1.0,
+        "description": "Built-in spam protection",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Content pages",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Core Page - Landing Page",
+        "name": "Landing Page",
+        "category_id": 1,
+        "base_hours": 7.0,
+        "description": "Conversion-focused layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Core Page - Contact Page",
+        "name": "Contact Page",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Form + contact info",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Core Page - Blog Detail",
+        "name": "Blog Post Template",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Wix blog",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Forms - Standard",
+        "name": "Form Setup",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Wix form setup + notifications",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Forms - Multi-Step",
+        "name": "Multi-Step Form",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Wix forms or apps (limited logic)",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Integrations",
+        "name": "Appointment System",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Wix Bookings or embed",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Wix Chat or app",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Integrations",
+        "name": "API Integration Basic",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "Velo or webhook",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Integrations",
+        "name": "API Integration Complex",
+        "category_id": 4,
+        "base_hours": 18.0,
+        "description": "Velo custom logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 5.0,
+        "description": "Automation via Zapier",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Integrations",
+        "name": "Accessibility (Basic)",
+        "category_id": 4,
+        "base_hours": 5.0,
+        "description": "Wix accessibility tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "Members Area",
+        "name": "Member Login",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Wix Members Area",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "Members Area",
+        "name": "Profile Management",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "User profiles",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "Members Area",
+        "name": "Restricted Content",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Gated pages/content",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "E-Commerce",
+        "name": "Featured Products",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Product showcase",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "E-Commerce",
+        "name": "Sales Banners",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Promo banners",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "E-Commerce",
+        "name": "Product Listings",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Wix Stores pages",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "E-Commerce",
+        "name": "Category Pages",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Collections/categories",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "E-Commerce",
+        "name": "Product Detail Page",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Product page",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "E-Commerce",
+        "name": "Cart & Checkout",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Built-in checkout",
+        "dependencies_note": null
+      },
+      {
+        "id": 43,
+        "module": "E-Commerce",
+        "name": "Payments Setup",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Wix Payments / Stripe",
+        "dependencies_note": null
+      },
+      {
+        "id": 44,
+        "module": "E-Commerce",
+        "name": "Shipping Setup",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Shipping rules",
+        "dependencies_note": null
+      },
+      {
+        "id": 45,
+        "module": "E-Commerce",
+        "name": "Taxes Setup",
+        "category_id": 5,
+        "base_hours": 2.0,
+        "description": "Tax config",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Advanced",
+        "name": "Wix Dynamic Content (CMS)",
+        "category_id": 6,
+        "base_hours": 8.0,
+        "description": "Wix CMS collections + repeaters",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Advanced",
+        "name": "Custom Logic (Velo)",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Custom interactions using Velo",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Advanced",
+        "name": "Filters & Search",
+        "category_id": 6,
+        "base_hours": 8.0,
+        "description": "Dataset filtering/search",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Advanced",
+        "name": "Basic Product Customization",
+        "category_id": 6,
+        "base_hours": 10.0,
+        "description": "Product options or apps",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Performance",
+        "name": "Basic Optimization",
+        "category_id": 7,
+        "base_hours": 4.0,
+        "description": "Image + layout optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Analytics",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Add GA4",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "Analytics",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Add GTM",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "Analytics",
+        "name": "Conversion Tracking",
+        "category_id": 7,
+        "base_hours": 5.0,
+        "description": "Events + testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "Blog",
+        "name": "Blog Setup",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Blog listing",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "Blog",
+        "name": "Single Post Template",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Default template",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "Blog",
+        "name": "Lead Capture Integration",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Newsletter form",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "SEO",
+        "name": "Basic SEO Setup",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Titles + meta",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "SEO",
+        "name": "Schema (Basic)",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Wix SEO tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "SEO",
+        "name": "Sitemap (Auto)",
+        "category_id": 8,
+        "base_hours": 0.0,
+        "description": "Auto-generated",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "SEO",
+        "name": "URL Redirects",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Redirect manager",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "SEO",
+        "name": "Content Optimization",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "On-page SEO",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "Environment Setup",
+        "name": "Wix Site Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Create site",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "Environment Setup",
+        "name": "Template & Design Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "Editor + styles",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "Environment Setup",
+        "name": "Domain Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Connect domain",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "Content Entry",
+        "name": "Content Upload",
+        "category_id": 15,
+        "base_hours": 3.0,
+        "description": "Add content/products",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "Content Entry",
+        "name": "Media Optimization",
+        "category_id": 15,
+        "base_hours": 2.0,
+        "description": "Image optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "Pre-Launch QA",
+        "name": "QA Review",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Test responsiveness + features",
+        "dependencies_note": null
+      },
+      {
+        "id": 68,
+        "module": "Deployment",
+        "name": "Go Live",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "Publish site",
+        "dependencies_note": null
+      },
+      {
+        "id": 69,
+        "module": "Post-Launch",
+        "name": "QA Fixes",
+        "category_id": 17,
+        "base_hours": 4.0,
+        "description": "Bug fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 70,
+        "module": "Post-Launch",
+        "name": "Tracking Verification",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Verify analytics",
+        "dependencies_note": null
+      }
+    ],
+    "php": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services or Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Custom grid layout for services/products",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials Slider (Dynamic)",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Dynamic testimonials via DB/API",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Testimonials (Embed)",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Embedded testimonials",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Team members section",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Footer with navigation and contact info",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Hero with CTA",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Benefits/Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Feature sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Logos and credibility indicators",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "FAQ block",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - Standard",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Pricing layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - Standard",
+        "name": "Galleries",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Custom gallery",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - Standard",
+        "name": "Video Embeds",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Video embeds",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - Standard",
+        "name": "Payment / Contribution Module",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Stripe/PayPal integration",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - Standard",
+        "name": "Use Cases",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Use case sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - Multi-Industry",
+        "name": "Industry Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Dynamic selector",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Multi-Industry",
+        "name": "Location Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Location-based content",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Multi-Industry",
+        "name": "Dynamic Content Sections",
+        "category_id": 1,
+        "base_hours": 10.0,
+        "description": "Conditional rendering",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Multi-Industry",
+        "name": "Interactive Location Finder",
+        "category_id": 1,
+        "base_hours": 12.0,
+        "description": "Map-based finder",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Multi-Industry",
+        "name": "Multi-Audience Messaging",
+        "category_id": 1,
+        "base_hours": 10.0,
+        "description": "Personalized content",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Custom-Coded Blocks",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "Reusable components",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Search Bar with Filters",
+        "category_id": 2,
+        "base_hours": 18.0,
+        "description": "Advanced filtering/search",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "API-Driven Content",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "External API integrations",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Interactive Dashboard",
+        "category_id": 2,
+        "base_hours": 20.0,
+        "description": "Charts and data dashboards",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 6.0,
+        "description": "Image-heavy layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Scroll animations",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 4.0,
+        "description": "Custom interactions",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Homepage - Creative",
+        "name": "Creative Grid Layouts",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Advanced layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Homepage - Creative",
+        "name": "Portfolio Gallery Preview",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Portfolio display",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Custom form (frontend + backend)",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Homepage - Conversion",
+        "name": "Forms Spam Protection",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "reCAPTCHA / validation",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Multi-Step Wizard Form",
+        "category_id": 4,
+        "base_hours": 18.0,
+        "description": "Custom multi-step form",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Content page",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "Core Page - Landing Page",
+        "name": "Landing Page",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Conversion-focused page",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "Core Page - Contact Page",
+        "name": "Contact Page",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Form + contact details",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "Core Page - Detail Pages",
+        "name": "Detail Page Template",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Dynamic template",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "Forms - Standard",
+        "name": "Form Layout",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Frontend form UI",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "Forms - Standard",
+        "name": "Validation & Error Handling",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Client + server validation",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "Forms - Standard",
+        "name": "Email Notification",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Send submission emails",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "Forms - Multi-Step",
+        "name": "Multi-Step Layout",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Multi-step UI",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "Forms - Multi-Step",
+        "name": "Branch Logic Implementation",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Conditional logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "Forms - Multi-Step",
+        "name": "Submission Handling",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Process/store submissions",
+        "dependencies_note": null
+      },
+      {
+        "id": 43,
+        "module": "Forms - CRM Integration",
+        "name": "CRM API Setup",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Connect to CRM",
+        "dependencies_note": null
+      },
+      {
+        "id": 44,
+        "module": "Forms - CRM Integration",
+        "name": "Data Mapping",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Map fields",
+        "dependencies_note": null
+      },
+      {
+        "id": 45,
+        "module": "Forms - CRM Integration",
+        "name": "Error Handling & Logging",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Logging + fail handling",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Integrations",
+        "name": "Appointment System",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Booking system",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Chat widget",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Integrations",
+        "name": "API Integration Basic",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Simple API",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Integrations",
+        "name": "API Integration Complex",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Advanced API",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Automation",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Basic",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Basic compliance",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Strict",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Full WCAG",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "Member Login",
+        "name": "Login System",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "Auth system",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "Member Login",
+        "name": "Profile Management",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "User profiles",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "Member Login",
+        "name": "Role-Based Content",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Permissions system",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "Member Login",
+        "name": "Document Portal",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "File portal",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "E-Commerce",
+        "name": "Product Template",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Product page template",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "E-Commerce",
+        "name": "Product Listings",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Category/shop pages",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "E-Commerce",
+        "name": "Cart Functionality",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Session/cart system",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "E-Commerce",
+        "name": "Checkout Flow",
+        "category_id": 5,
+        "base_hours": 10.0,
+        "description": "Custom checkout",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "E-Commerce",
+        "name": "Shipping Rules",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Shipping logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "E-Commerce",
+        "name": "Payment Gateway Integration",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Stripe/PayPal",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "E-Commerce",
+        "name": "Tax Calculator",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Dynamic tax logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "E-Commerce",
+        "name": "Customer Reviews",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Review system",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "E-Commerce",
+        "name": "Personalization",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Recommended products",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "Configurator - Basic 2D",
+        "name": "Color Change Feature",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Dynamic UI updates",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "Configurator - Basic 2D",
+        "name": "Shape Options",
+        "category_id": 6,
+        "base_hours": 20.0,
+        "description": "Option selection",
+        "dependencies_note": null
+      },
+      {
+        "id": 68,
+        "module": "Configurator - Basic 2D",
+        "name": "Static Preview Rendering",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Image generation",
+        "dependencies_note": null
+      },
+      {
+        "id": 69,
+        "module": "Configurator - Advanced 2D",
+        "name": "Pattern Library",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Pattern system",
+        "dependencies_note": null
+      },
+      {
+        "id": 70,
+        "module": "Configurator - Advanced 2D",
+        "name": "Upload & Download Assets",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "File handling",
+        "dependencies_note": null
+      },
+      {
+        "id": 71,
+        "module": "Configurator - Advanced 2D",
+        "name": "Screenshot Capture",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Capture previews",
+        "dependencies_note": null
+      },
+      {
+        "id": 72,
+        "module": "Configurator - 3D",
+        "name": "WebGL Viewer",
+        "category_id": 6,
+        "base_hours": 50.0,
+        "description": "3D rendering",
+        "dependencies_note": null
+      },
+      {
+        "id": 73,
+        "module": "Configurator - Full Builder",
+        "name": "Quote Generation",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Dynamic pricing",
+        "dependencies_note": null
+      },
+      {
+        "id": 74,
+        "module": "Configurator - Full Builder",
+        "name": "Saved Designs",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "User saved states",
+        "dependencies_note": null
+      },
+      {
+        "id": 75,
+        "module": "Configurator - Features",
+        "name": "Logo Upload",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "File upload",
+        "dependencies_note": null
+      },
+      {
+        "id": 76,
+        "module": "Configurator - Features",
+        "name": "Size Calculator",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Calculation logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 77,
+        "module": "Configurator - Features",
+        "name": "Shareable Link",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Share state via URL",
+        "dependencies_note": null
+      },
+      {
+        "id": 78,
+        "module": "Configurator - Features",
+        "name": "Admin Dashboard",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Admin panel",
+        "dependencies_note": null
+      },
+      {
+        "id": 79,
+        "module": "Performance & Security",
+        "name": "SSL Setup",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "SSL configuration",
+        "dependencies_note": null
+      },
+      {
+        "id": 80,
+        "module": "Performance & Security",
+        "name": "Caching & Optimization",
+        "category_id": 7,
+        "base_hours": 10.0,
+        "description": "Server + frontend optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 81,
+        "module": "Performance & Security",
+        "name": "Backup & Versioning",
+        "category_id": 7,
+        "base_hours": 4.0,
+        "description": "Backup systems",
+        "dependencies_note": null
+      },
+      {
+        "id": 82,
+        "module": "Analytics & Tracking",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Analytics setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 83,
+        "module": "Analytics & Tracking",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Tag manager",
+        "dependencies_note": null
+      },
+      {
+        "id": 84,
+        "module": "Analytics & Tracking",
+        "name": "Heatmaps",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "User tracking",
+        "dependencies_note": null
+      },
+      {
+        "id": 85,
+        "module": "Blog Setup",
+        "name": "Blog Listing",
+        "category_id": 8,
+        "base_hours": 4.0,
+        "description": "Blog index",
+        "dependencies_note": null
+      },
+      {
+        "id": 86,
+        "module": "Blog Setup",
+        "name": "Single Article Template",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Blog post template",
+        "dependencies_note": null
+      },
+      {
+        "id": 87,
+        "module": "Blog Setup",
+        "name": "Lead Capture",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Newsletter form",
+        "dependencies_note": null
+      },
+      {
+        "id": 88,
+        "module": "SEO & Content",
+        "name": "SEO Setup",
+        "category_id": 8,
+        "base_hours": 4.0,
+        "description": "On-page SEO",
+        "dependencies_note": null
+      },
+      {
+        "id": 89,
+        "module": "SEO & Content",
+        "name": "Schema Markup",
+        "category_id": 8,
+        "base_hours": 4.0,
+        "description": "Structured data",
+        "dependencies_note": null
+      },
+      {
+        "id": 90,
+        "module": "SEO & Content",
+        "name": "Sitemap Generation",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "XML sitemap",
+        "dependencies_note": null
+      },
+      {
+        "id": 91,
+        "module": "SEO & Content",
+        "name": "Robots.txt Setup",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Crawl rules",
+        "dependencies_note": null
+      },
+      {
+        "id": 92,
+        "module": "SEO & Content",
+        "name": "Copy Optimization",
+        "category_id": 8,
+        "base_hours": 4.0,
+        "description": "Improve content",
+        "dependencies_note": null
+      },
+      {
+        "id": 93,
+        "module": "SEO & Content",
+        "name": "New Copy (800 words)",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "Content writing",
+        "dependencies_note": null
+      },
+      {
+        "id": 94,
+        "module": "SEO & Content",
+        "name": "URL Redirects",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "301 redirects",
+        "dependencies_note": null
+      },
+      {
+        "id": 95,
+        "module": "Environment Setup",
+        "name": "Hosting Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "Server setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 96,
+        "module": "Environment Setup",
+        "name": "Base Project Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "PHP structure",
+        "dependencies_note": null
+      },
+      {
+        "id": 97,
+        "module": "Environment Setup",
+        "name": "Routing Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "URL routing",
+        "dependencies_note": null
+      },
+      {
+        "id": 98,
+        "module": "Environment Setup",
+        "name": "Database Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "DB schema",
+        "dependencies_note": null
+      },
+      {
+        "id": 99,
+        "module": "Environment Setup",
+        "name": "Auth System Setup",
+        "category_id": 13,
+        "base_hours": 6.0,
+        "description": "User auth system",
+        "dependencies_note": null
+      },
+      {
+        "id": 100,
+        "module": "Environment Setup",
+        "name": "Dev Environment",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Local setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 101,
+        "module": "Deployment",
+        "name": "Data Migration",
+        "category_id": 14,
+        "base_hours": 6.0,
+        "description": "Content migration",
+        "dependencies_note": null
+      },
+      {
+        "id": 102,
+        "module": "Deployment",
+        "name": "Staging Setup",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Staging environment",
+        "dependencies_note": null
+      },
+      {
+        "id": 103,
+        "module": "Deployment",
+        "name": "Domain Setup",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "DNS config",
+        "dependencies_note": null
+      },
+      {
+        "id": 104,
+        "module": "Deployment",
+        "name": "Production Deployment",
+        "category_id": 14,
+        "base_hours": 5.0,
+        "description": "Launch",
+        "dependencies_note": null
+      },
+      {
+        "id": 105,
+        "module": "Deployment",
+        "name": "URL Sync",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "URL updates",
+        "dependencies_note": null
+      },
+      {
+        "id": 106,
+        "module": "Deployment",
+        "name": "CDN Setup",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Cloudflare/CDN",
+        "dependencies_note": null
+      },
+      {
+        "id": 107,
+        "module": "Deployment",
+        "name": "SSL Fixes",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "HTTPS fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 108,
+        "module": "Pre-Launch QA",
+        "name": "Final QA",
+        "category_id": 14,
+        "base_hours": 5.0,
+        "description": "Full testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 109,
+        "module": "Post-Launch",
+        "name": "QA Fixes",
+        "category_id": 17,
+        "base_hours": 6.0,
+        "description": "Bug fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 110,
+        "module": "Post-Launch",
+        "name": "Performance Check",
+        "category_id": 17,
+        "base_hours": 3.0,
+        "description": "Speed testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 111,
+        "module": "Post-Launch",
+        "name": "Tracking Verification",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Verify analytics",
+        "dependencies_note": null
+      },
+      {
+        "id": 112,
+        "module": "Backend",
+        "name": "Database Setup & Configuration",
+        "category_id": 18,
+        "base_hours": 6.0,
+        "description": "Create database, users, permissions, connection setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 113,
+        "module": "Backend",
+        "name": "Database Schema Design",
+        "category_id": 18,
+        "base_hours": 10.0,
+        "description": "Design tables, relationships, normalization",
+        "dependencies_note": null
+      },
+      {
+        "id": 114,
+        "module": "Backend",
+        "name": "Data Modeling (Entities & Relationships)",
+        "category_id": 18,
+        "base_hours": 12.0,
+        "description": "Define structure for features (users, products, etc.)",
+        "dependencies_note": null
+      },
+      {
+        "id": 115,
+        "module": "Backend",
+        "name": "Migrations / Versioning",
+        "category_id": 18,
+        "base_hours": 6.0,
+        "description": "Setup schema version control and migrations",
+        "dependencies_note": null
+      },
+      {
+        "id": 116,
+        "module": "Backend",
+        "name": "ORM / Query Layer Setup",
+        "category_id": 18,
+        "base_hours": 8.0,
+        "description": "Setup database abstraction or query handling",
+        "dependencies_note": null
+      },
+      {
+        "id": 117,
+        "module": "Backend",
+        "name": "Seed Data / Initial Data Setup",
+        "category_id": 18,
+        "base_hours": 4.0,
+        "description": "Populate initial data for testing/dev",
+        "dependencies_note": null
+      },
+      {
+        "id": 118,
+        "module": "Backend",
+        "name": "Database Optimization",
+        "category_id": 18,
+        "base_hours": 8.0,
+        "description": "Indexes, query optimization, performance tuning",
+        "dependencies_note": null
+      }
+    ],
+    "react_next": [
+      {
+        "id": 1,
+        "module": "Homepage - Standard",
+        "name": "Hero Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Hero section and headline",
+        "dependencies_note": null
+      },
+      {
+        "id": 2,
+        "module": "Homepage - Standard",
+        "name": "Services / Product Grid",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Grid for services/products",
+        "dependencies_note": null
+      },
+      {
+        "id": 3,
+        "module": "Homepage - Standard",
+        "name": "Testimonials Slider (Dynamic)",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "API-driven testimonials",
+        "dependencies_note": null
+      },
+      {
+        "id": 4,
+        "module": "Homepage - Standard",
+        "name": "Testimonials (Embed)",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Embedded testimonials",
+        "dependencies_note": null
+      },
+      {
+        "id": 5,
+        "module": "Homepage - Standard",
+        "name": "Team Preview",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Team section",
+        "dependencies_note": null
+      },
+      {
+        "id": 6,
+        "module": "Homepage - Standard",
+        "name": "Footer Layout",
+        "category_id": 1,
+        "base_hours": 1.5,
+        "description": "Footer with nav/contact",
+        "dependencies_note": null
+      },
+      {
+        "id": 7,
+        "module": "Homepage - Conversion",
+        "name": "Strong Hero Offer",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Hero with CTA",
+        "dependencies_note": null
+      },
+      {
+        "id": 8,
+        "module": "Homepage - Conversion",
+        "name": "Benefits / Features",
+        "category_id": 1,
+        "base_hours": 3.0,
+        "description": "Feature sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 9,
+        "module": "Homepage - Conversion",
+        "name": "Social Proof / Trust Badges",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Logos and trust elements",
+        "dependencies_note": null
+      },
+      {
+        "id": 10,
+        "module": "Homepage - Conversion",
+        "name": "FAQ Section",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "FAQ block",
+        "dependencies_note": null
+      },
+      {
+        "id": 11,
+        "module": "Homepage - Standard",
+        "name": "Pricing Tables",
+        "category_id": 1,
+        "base_hours": 4.0,
+        "description": "Pricing layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 12,
+        "module": "Homepage - Standard",
+        "name": "Galleries",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Image galleries",
+        "dependencies_note": null
+      },
+      {
+        "id": 13,
+        "module": "Homepage - Standard",
+        "name": "Video Embeds",
+        "category_id": 1,
+        "base_hours": 1.0,
+        "description": "Video embeds",
+        "dependencies_note": null
+      },
+      {
+        "id": 14,
+        "module": "Homepage - Standard",
+        "name": "Payment / Contribution Module",
+        "category_id": 1,
+        "base_hours": 5.0,
+        "description": "Stripe/PayPal plugin-based",
+        "dependencies_note": null
+      },
+      {
+        "id": 15,
+        "module": "Homepage - Standard",
+        "name": "Use Cases",
+        "category_id": 1,
+        "base_hours": 2.0,
+        "description": "Use case sections",
+        "dependencies_note": null
+      },
+      {
+        "id": 16,
+        "module": "Homepage - Multi-Industry",
+        "name": "Industry Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Multi-industry selector",
+        "dependencies_note": null
+      },
+      {
+        "id": 17,
+        "module": "Homepage - Multi-Industry",
+        "name": "Location Selector",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Location selector",
+        "dependencies_note": null
+      },
+      {
+        "id": 18,
+        "module": "Homepage - Multi-Industry",
+        "name": "Dynamic Content Sections",
+        "category_id": 1,
+        "base_hours": 10.0,
+        "description": "Conditional content",
+        "dependencies_note": null
+      },
+      {
+        "id": 19,
+        "module": "Homepage - Multi-Industry",
+        "name": "Interactive Location Finder",
+        "category_id": 1,
+        "base_hours": 12.0,
+        "description": "Map-based finder",
+        "dependencies_note": null
+      },
+      {
+        "id": 20,
+        "module": "Homepage - Multi-Industry",
+        "name": "Multi-Audience Messaging",
+        "category_id": 1,
+        "base_hours": 12.0,
+        "description": "Audience targeting",
+        "dependencies_note": null
+      },
+      {
+        "id": 21,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Custom-Coded Blocks",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "Reusable custom blocks",
+        "dependencies_note": null
+      },
+      {
+        "id": 22,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Search Bar with Filters",
+        "category_id": 2,
+        "base_hours": 18.0,
+        "description": "Advanced filtering",
+        "dependencies_note": null
+      },
+      {
+        "id": 23,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "API-Driven Content",
+        "category_id": 2,
+        "base_hours": 15.0,
+        "description": "External API data",
+        "dependencies_note": null
+      },
+      {
+        "id": 24,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Interactive Dashboard",
+        "category_id": 2,
+        "base_hours": 18.0,
+        "description": "Data dashboards",
+        "dependencies_note": null
+      },
+      {
+        "id": 25,
+        "module": "Homepage - Creative",
+        "name": "Full-Screen Visuals",
+        "category_id": 3,
+        "base_hours": 6.0,
+        "description": "Image-heavy design",
+        "dependencies_note": null
+      },
+      {
+        "id": 26,
+        "module": "Homepage - Creative",
+        "name": "Parallax Effects",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Scroll animations",
+        "dependencies_note": null
+      },
+      {
+        "id": 27,
+        "module": "Homepage - Creative",
+        "name": "Hover Animations",
+        "category_id": 3,
+        "base_hours": 4.0,
+        "description": "Interactive hover states",
+        "dependencies_note": null
+      },
+      {
+        "id": 28,
+        "module": "Homepage - Creative",
+        "name": "Creative Grid Layouts",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Custom layouts",
+        "dependencies_note": null
+      },
+      {
+        "id": 29,
+        "module": "Homepage - Creative",
+        "name": "Portfolio Gallery Preview",
+        "category_id": 3,
+        "base_hours": 5.0,
+        "description": "Portfolio section",
+        "dependencies_note": null
+      },
+      {
+        "id": 30,
+        "module": "Homepage - Conversion",
+        "name": "Lead Capture Form",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Standard form (no CRM)",
+        "dependencies_note": null
+      },
+      {
+        "id": 31,
+        "module": "Homepage - Conversion",
+        "name": "Forms Spam Protection (reCAPTCHA)",
+        "category_id": 4,
+        "base_hours": 1.0,
+        "description": "Spam prevention",
+        "dependencies_note": null
+      },
+      {
+        "id": 32,
+        "module": "Homepage - Advanced Dynamic",
+        "name": "Multi-Step Wizard Form",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "Advanced multi-step form",
+        "dependencies_note": null
+      },
+      {
+        "id": 33,
+        "module": "Core Page - Standard",
+        "name": "Standard Page (About, Services)",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Content page",
+        "dependencies_note": null
+      },
+      {
+        "id": 34,
+        "module": "Core Page - Landing Page",
+        "name": "Conversion Page",
+        "category_id": 1,
+        "base_hours": 8.0,
+        "description": "Landing page layout",
+        "dependencies_note": null
+      },
+      {
+        "id": 35,
+        "module": "Core Page - Contact Page",
+        "name": "Contact Page",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Contact form + details",
+        "dependencies_note": null
+      },
+      {
+        "id": 36,
+        "module": "Core Page - Detail Pages",
+        "name": "Detail Template (Blog/Service)",
+        "category_id": 1,
+        "base_hours": 6.0,
+        "description": "Dynamic template",
+        "dependencies_note": null
+      },
+      {
+        "id": 37,
+        "module": "Forms - Standard",
+        "name": "Form Setup",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Layout, validation, email",
+        "dependencies_note": null
+      },
+      {
+        "id": 38,
+        "module": "Forms - Multi-Step",
+        "name": "Multi-Step Layout",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Multi-step UI",
+        "dependencies_note": null
+      },
+      {
+        "id": 39,
+        "module": "Forms - Multi-Step",
+        "name": "Branch Logic Implementation",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "Conditional logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 40,
+        "module": "Forms - Multi-Step",
+        "name": "Submission Handling",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Store/process submissions",
+        "dependencies_note": null
+      },
+      {
+        "id": 41,
+        "module": "Forms - CRM Integration",
+        "name": "CRM API Setup",
+        "category_id": 4,
+        "base_hours": 4.0,
+        "description": "CRM connection",
+        "dependencies_note": null
+      },
+      {
+        "id": 42,
+        "module": "Forms - CRM Integration",
+        "name": "Data Mapping",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Field mapping",
+        "dependencies_note": null
+      },
+      {
+        "id": 43,
+        "module": "Forms - CRM Integration",
+        "name": "Error Handling & Logging",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Error handling",
+        "dependencies_note": null
+      },
+      {
+        "id": 44,
+        "module": "Integrations",
+        "name": "Appointment System",
+        "category_id": 4,
+        "base_hours": 3.0,
+        "description": "Booking plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 45,
+        "module": "Integrations",
+        "name": "Live Chat Integration",
+        "category_id": 4,
+        "base_hours": 2.0,
+        "description": "Chat widget",
+        "dependencies_note": null
+      },
+      {
+        "id": 46,
+        "module": "Integrations",
+        "name": "API Integration Basic",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Simple API",
+        "dependencies_note": null
+      },
+      {
+        "id": 47,
+        "module": "Integrations",
+        "name": "API Integration Complex",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Advanced API",
+        "dependencies_note": null
+      },
+      {
+        "id": 48,
+        "module": "Integrations",
+        "name": "Zapier Workflows",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Automation",
+        "dependencies_note": null
+      },
+      {
+        "id": 49,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Basic",
+        "category_id": 4,
+        "base_hours": 6.0,
+        "description": "Basic compliance",
+        "dependencies_note": null
+      },
+      {
+        "id": 50,
+        "module": "Integrations",
+        "name": "Accessibility (ADA) Strict Compliance",
+        "category_id": 4,
+        "base_hours": 25.0,
+        "description": "Full WCAG",
+        "dependencies_note": null
+      },
+      {
+        "id": 51,
+        "module": "Member Login",
+        "name": "Basic Login System",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "Login/register",
+        "dependencies_note": null
+      },
+      {
+        "id": 52,
+        "module": "Member Login",
+        "name": "Profile Management",
+        "category_id": 4,
+        "base_hours": 10.0,
+        "description": "User profiles",
+        "dependencies_note": null
+      },
+      {
+        "id": 53,
+        "module": "Member Login",
+        "name": "Role-Based Content",
+        "category_id": 4,
+        "base_hours": 12.0,
+        "description": "Access control",
+        "dependencies_note": null
+      },
+      {
+        "id": 54,
+        "module": "Member Login",
+        "name": "Document Portal Setup",
+        "category_id": 4,
+        "base_hours": 20.0,
+        "description": "Document portal",
+        "dependencies_note": null
+      },
+      {
+        "id": 55,
+        "module": "E-Commerce",
+        "name": "Product Template",
+        "category_id": 5,
+        "base_hours": 7.0,
+        "description": "Product page template",
+        "dependencies_note": null
+      },
+      {
+        "id": 56,
+        "module": "E-Commerce",
+        "name": "Featured Products",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Homepage products",
+        "dependencies_note": null
+      },
+      {
+        "id": 57,
+        "module": "E-Commerce",
+        "name": "Sales Banners",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Promo banners",
+        "dependencies_note": null
+      },
+      {
+        "id": 58,
+        "module": "E-Commerce",
+        "name": "Dynamic Product Feeds",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Product listings",
+        "dependencies_note": null
+      },
+      {
+        "id": 59,
+        "module": "E-Commerce",
+        "name": "Category Highlights",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Product categories",
+        "dependencies_note": null
+      },
+      {
+        "id": 60,
+        "module": "E-Commerce",
+        "name": "Customer Reviews",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Reviews",
+        "dependencies_note": null
+      },
+      {
+        "id": 61,
+        "module": "E-Commerce",
+        "name": "Personalization Blocks",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Recommendations",
+        "dependencies_note": null
+      },
+      {
+        "id": 62,
+        "module": "E-Commerce",
+        "name": "Cart Functionality",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Add to cart",
+        "dependencies_note": null
+      },
+      {
+        "id": 63,
+        "module": "E-Commerce",
+        "name": "Checkout Flow",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Checkout page",
+        "dependencies_note": null
+      },
+      {
+        "id": 64,
+        "module": "E-Commerce",
+        "name": "Shipping Rules",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Shipping setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 65,
+        "module": "E-Commerce",
+        "name": "Payment Gateway Integration",
+        "category_id": 5,
+        "base_hours": 5.0,
+        "description": "Stripe/PayPal",
+        "dependencies_note": null
+      },
+      {
+        "id": 66,
+        "module": "E-Commerce",
+        "name": "Tax Calculator",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Tax logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 67,
+        "module": "E-Commerce",
+        "name": "Product Variations Setup",
+        "category_id": 5,
+        "base_hours": 3.0,
+        "description": "Configure product variations (size, color, attributes)",
+        "dependencies_note": null
+      },
+      {
+        "id": 68,
+        "module": "68: Variations",
+        "name": "Advanced Product Options (Plugin)",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Custom fields/options via plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 69,
+        "module": "68: Options",
+        "name": "Product Add-Ons (Conditional Logic)",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Add-ons with logic via plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 70,
+        "module": "62-66 Required",
+        "name": "Subscriptions Setup",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Recurring payments (plugin)",
+        "dependencies_note": null
+      },
+      {
+        "id": 71,
+        "module": "62-66 Required",
+        "name": "Discount Rules / Coupons Setup",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Coupons and promos",
+        "dependencies_note": null
+      },
+      {
+        "id": 72,
+        "module": "71: Discounts",
+        "name": "Advanced Pricing Rules (Plugin)",
+        "category_id": 5,
+        "base_hours": 8.0,
+        "description": "Dynamic/role pricing",
+        "dependencies_note": null
+      },
+      {
+        "id": 73,
+        "module": "55-66 Required",
+        "name": "Product Bundles / Packages",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Bundled products",
+        "dependencies_note": null
+      },
+      {
+        "id": 74,
+        "module": "E-Commerce",
+        "name": "Wishlist Functionality",
+        "category_id": 5,
+        "base_hours": 4.0,
+        "description": "Wishlist plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 75,
+        "module": "E-Commerce",
+        "name": "Product Filtering (Advanced)",
+        "category_id": 5,
+        "base_hours": 6.0,
+        "description": "Advanced filters plugin",
+        "dependencies_note": null
+      },
+      {
+        "id": 76,
+        "module": "Configurator - Basic",
+        "name": "Color Change Feature",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Color switching",
+        "dependencies_note": null
+      },
+      {
+        "id": 77,
+        "module": "Configurator - Basic",
+        "name": "Shape Options",
+        "category_id": 6,
+        "base_hours": 20.0,
+        "description": "Shape selection",
+        "dependencies_note": null
+      },
+      {
+        "id": 78,
+        "module": "Configurator - Basic",
+        "name": "Static Preview Rendering",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Preview images",
+        "dependencies_note": null
+      },
+      {
+        "id": 79,
+        "module": "Configurator - Advanced",
+        "name": "Pattern Library",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "Pattern system",
+        "dependencies_note": null
+      },
+      {
+        "id": 80,
+        "module": "Configurator - Advanced",
+        "name": "Upload & Download Assets",
+        "category_id": 6,
+        "base_hours": 30.0,
+        "description": "File handling",
+        "dependencies_note": null
+      },
+      {
+        "id": 81,
+        "module": "Configurator - Advanced",
+        "name": "Screenshot Capture",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "Capture designs",
+        "dependencies_note": null
+      },
+      {
+        "id": 82,
+        "module": "Configurator - 3D",
+        "name": "Camera Controls",
+        "category_id": 6,
+        "base_hours": 40.0,
+        "description": "3D camera",
+        "dependencies_note": null
+      },
+      {
+        "id": 83,
+        "module": "Configurator - 3D",
+        "name": "3D Asset Integration",
+        "category_id": 6,
+        "base_hours": 50.0,
+        "description": "3D models",
+        "dependencies_note": null
+      },
+      {
+        "id": 84,
+        "module": "Configurator - 3D",
+        "name": "Real-Time Rendering",
+        "category_id": 6,
+        "base_hours": 55.0,
+        "description": "Real-time visuals",
+        "dependencies_note": null
+      },
+      {
+        "id": 85,
+        "module": "Configurator - Full Builder",
+        "name": "Template Setup",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Custom builder",
+        "dependencies_note": null
+      },
+      {
+        "id": 86,
+        "module": "Configurator - Full Builder",
+        "name": "Measurement Tools",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Dimension tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 87,
+        "module": "Configurator - Full Builder",
+        "name": "Quote Generation",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "Dynamic pricing",
+        "dependencies_note": null
+      },
+      {
+        "id": 88,
+        "module": "Configurator - Full Builder",
+        "name": "Saved Designs",
+        "category_id": 6,
+        "base_hours": 80.0,
+        "description": "User saves",
+        "dependencies_note": null
+      },
+      {
+        "id": 89,
+        "module": "Configurator - Features",
+        "name": "Logo Upload",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Upload logos",
+        "dependencies_note": null
+      },
+      {
+        "id": 90,
+        "module": "Configurator - Features",
+        "name": "Size Calculator",
+        "category_id": 6,
+        "base_hours": 15.0,
+        "description": "Size logic",
+        "dependencies_note": null
+      },
+      {
+        "id": 91,
+        "module": "Configurator - Features",
+        "name": "Shareable Link",
+        "category_id": 6,
+        "base_hours": 12.0,
+        "description": "Share links",
+        "dependencies_note": null
+      },
+      {
+        "id": 92,
+        "module": "Configurator - Features",
+        "name": "Admin Dashboard",
+        "category_id": 6,
+        "base_hours": 44.0,
+        "description": "Admin tools",
+        "dependencies_note": null
+      },
+      {
+        "id": 93,
+        "module": "Performance & Security",
+        "name": "SSL Configuration",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "SSL setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 94,
+        "module": "Performance & Security",
+        "name": "Caching & Optimization",
+        "category_id": 7,
+        "base_hours": 8.0,
+        "description": "Caching + speed",
+        "dependencies_note": null
+      },
+      {
+        "id": 95,
+        "module": "Performance & Security",
+        "name": "Backup & Versioning",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Backups",
+        "dependencies_note": null
+      },
+      {
+        "id": 96,
+        "module": "Analytics & Tracking",
+        "name": "GA4 Setup",
+        "category_id": 7,
+        "base_hours": 2.0,
+        "description": "Analytics",
+        "dependencies_note": null
+      },
+      {
+        "id": 97,
+        "module": "Analytics & Tracking",
+        "name": "GTM Setup",
+        "category_id": 7,
+        "base_hours": 3.0,
+        "description": "Tag manager",
+        "dependencies_note": null
+      },
+      {
+        "id": 98,
+        "module": "Analytics & Tracking",
+        "name": "Heatmaps",
+        "category_id": 7,
+        "base_hours": 1.0,
+        "description": "Heatmaps",
+        "dependencies_note": null
+      },
+      {
+        "id": 99,
+        "module": "Analytics & Tracking",
+        "name": "Conversion Tracking (Basic)",
+        "category_id": 12,
+        "base_hours": 6.0,
+        "description": "Form tracking",
+        "dependencies_note": null
+      },
+      {
+        "id": 100,
+        "module": "Analytics & Tracking",
+        "name": "Conversion Tracking (Moderate)",
+        "category_id": 12,
+        "base_hours": 8.0,
+        "description": "Events + testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 101,
+        "module": "Blog Setup",
+        "name": "Blog Listing Page",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Blog index",
+        "dependencies_note": null
+      },
+      {
+        "id": 102,
+        "module": "Blog Setup",
+        "name": "Single Article Template",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Post template",
+        "dependencies_note": null
+      },
+      {
+        "id": 103,
+        "module": "Blog Setup",
+        "name": "Lead Capture Integration",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Newsletter form",
+        "dependencies_note": null
+      },
+      {
+        "id": 104,
+        "module": "SEO & Content",
+        "name": "SEO Tools Setup",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "SEO plugin config",
+        "dependencies_note": null
+      },
+      {
+        "id": 105,
+        "module": "SEO & Content",
+        "name": "Schema Markup",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Structured data",
+        "dependencies_note": null
+      },
+      {
+        "id": 106,
+        "module": "SEO & Content",
+        "name": "Sitemap Generation",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "XML sitemap",
+        "dependencies_note": null
+      },
+      {
+        "id": 107,
+        "module": "SEO & Content",
+        "name": "Robots.txt Setup",
+        "category_id": 8,
+        "base_hours": 1.0,
+        "description": "Crawl rules",
+        "dependencies_note": null
+      },
+      {
+        "id": 108,
+        "module": "SEO & Content",
+        "name": "Content Optimization",
+        "category_id": 8,
+        "base_hours": 3.0,
+        "description": "Improve content",
+        "dependencies_note": null
+      },
+      {
+        "id": 109,
+        "module": "SEO & Content",
+        "name": "New Content (800 words)",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "Copywriting",
+        "dependencies_note": null
+      },
+      {
+        "id": 110,
+        "module": "SEO & Content",
+        "name": "URL Redirects (301)",
+        "category_id": 8,
+        "base_hours": 2.0,
+        "description": "Redirects",
+        "dependencies_note": null
+      },
+      {
+        "id": 111,
+        "module": "SEO & Content",
+        "name": "Core Web Vitals Optimization",
+        "category_id": 8,
+        "base_hours": 6.0,
+        "description": "Performance SEO",
+        "dependencies_note": null
+      },
+      {
+        "id": 112,
+        "module": "Environment Setup",
+        "name": "Hosting Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Server setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 113,
+        "module": "Environment Setup",
+        "name": "WordPress Installation",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "WP install",
+        "dependencies_note": null
+      },
+      {
+        "id": 114,
+        "module": "Environment Setup",
+        "name": "Theme / Builder Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Theme config",
+        "dependencies_note": null
+      },
+      {
+        "id": 115,
+        "module": "Environment Setup",
+        "name": "Plugin Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Core plugins",
+        "dependencies_note": null
+      },
+      {
+        "id": 116,
+        "module": "Environment Setup",
+        "name": "User Roles & Permissions",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Access setup",
+        "dependencies_note": null
+      },
+      {
+        "id": 117,
+        "module": "Environment Setup",
+        "name": "Local / Dev Setup",
+        "category_id": 13,
+        "base_hours": 3.0,
+        "description": "Local env",
+        "dependencies_note": null
+      },
+      {
+        "id": 118,
+        "module": "Environment Setup",
+        "name": "Environment Sync",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "Dev ↔ staging",
+        "dependencies_note": null
+      },
+      {
+        "id": 119,
+        "module": "Environment Setup",
+        "name": "Staging Setup",
+        "category_id": 13,
+        "base_hours": 4.0,
+        "description": "Staging site",
+        "dependencies_note": null
+      },
+      {
+        "id": 120,
+        "module": "Environment Setup",
+        "name": "Domain Setup",
+        "category_id": 13,
+        "base_hours": 2.0,
+        "description": "DNS config",
+        "dependencies_note": null
+      },
+      {
+        "id": 121,
+        "module": "CMS Structure Setup",
+        "name": "CPT & Fields Setup",
+        "category_id": 15,
+        "base_hours": 10.0,
+        "description": "Custom post types",
+        "dependencies_note": null
+      },
+      {
+        "id": 122,
+        "module": "Dynamic Templates",
+        "name": "Dynamic Template Build",
+        "category_id": 15,
+        "base_hours": 14.0,
+        "description": "ACF/templates",
+        "dependencies_note": null
+      },
+      {
+        "id": 123,
+        "module": "Content Entry",
+        "name": "Content Upload",
+        "category_id": 15,
+        "base_hours": 2.0,
+        "description": "Add content",
+        "dependencies_note": null
+      },
+      {
+        "id": 124,
+        "module": "Content Entry",
+        "name": "Media Optimization",
+        "category_id": 15,
+        "base_hours": 3.0,
+        "description": "Image optimization",
+        "dependencies_note": null
+      },
+      {
+        "id": 125,
+        "module": "Deployment",
+        "name": "Data Migration",
+        "category_id": 14,
+        "base_hours": 6.0,
+        "description": "Migration",
+        "dependencies_note": null
+      },
+      {
+        "id": 126,
+        "module": "Deployment",
+        "name": "Pre-Launch QA",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Testing",
+        "dependencies_note": null
+      },
+      {
+        "id": 127,
+        "module": "Deployment",
+        "name": "Backup Before Deploy",
+        "category_id": 14,
+        "base_hours": 1.0,
+        "description": "Backup",
+        "dependencies_note": null
+      },
+      {
+        "id": 128,
+        "module": "Deployment",
+        "name": "Production Deployment",
+        "category_id": 14,
+        "base_hours": 4.0,
+        "description": "Launch",
+        "dependencies_note": null
+      },
+      {
+        "id": 129,
+        "module": "Deployment",
+        "name": "URL Sync",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "URL updates",
+        "dependencies_note": null
+      },
+      {
+        "id": 130,
+        "module": "Deployment",
+        "name": "CDN Setup",
+        "category_id": 14,
+        "base_hours": 3.0,
+        "description": "CDN",
+        "dependencies_note": null
+      },
+      {
+        "id": 131,
+        "module": "Deployment",
+        "name": "SSL Fixes",
+        "category_id": 14,
+        "base_hours": 2.0,
+        "description": "HTTPS fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 132,
+        "module": "Post-Launch",
+        "name": "QA & Bug Fixes",
+        "category_id": 17,
+        "base_hours": 6.0,
+        "description": "Fixes",
+        "dependencies_note": null
+      },
+      {
+        "id": 133,
+        "module": "Post-Launch",
+        "name": "Performance Check",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Speed check",
+        "dependencies_note": null
+      },
+      {
+        "id": 134,
+        "module": "Post-Launch",
+        "name": "Tracking Verification",
+        "category_id": 17,
+        "base_hours": 2.0,
+        "description": "Verify analytics",
+        "dependencies_note": null
+      },
+      {
+        "id": 121,
+        "module": "Backend",
+        "name": "Database Setup & Configuration",
+        "category_id": 18,
+        "base_hours": 4.0,
+        "description": "Set up database, configure tables, users, and connections",
+        "dependencies_note": null
+      },
+      {
+        "id": 122,
+        "module": "Backend",
+        "name": "Custom Database Schema (if needed)",
+        "category_id": 18,
+        "base_hours": 8.0,
+        "description": "Create custom tables or extend schema for advanced features",
+        "dependencies_note": null
+      },
+      {
+        "id": 123,
+        "module": "Backend",
+        "name": "Data Modeling (CPT / ACF Structure)",
+        "category_id": 18,
+        "base_hours": 10.0,
+        "description": "Structure content using custom post types and fields",
+        "dependencies_note": null
+      }
+    ]
+  }
+}

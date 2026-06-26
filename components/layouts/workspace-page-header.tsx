@@ -37,8 +37,8 @@ export function WorkspacePageHeader({
         aria-hidden
       />
 
-      <div className="relative flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0 space-y-1">
+      <div className="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8">
+        <div className="w-full min-w-0 space-y-1 xl:flex-1 xl:min-w-0">
           {eyebrow ? (
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
               {eyebrow}
@@ -53,7 +53,7 @@ export function WorkspacePageHeader({
           {meta ? <div className="pt-2">{meta}</div> : null}
         </div>
         {actions ? (
-          <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center lg:pt-0.5">
+          <div className="flex w-full min-w-0 flex-col gap-2 pt-0.5 xl:w-auto xl:max-w-md xl:shrink-0 2xl:max-w-xl *:min-w-0">
             {actions}
           </div>
         ) : null}

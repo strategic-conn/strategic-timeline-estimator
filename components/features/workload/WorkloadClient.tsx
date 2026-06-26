@@ -127,7 +127,7 @@ export function WorkloadClient() {
         title="Resource allocation"
         description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below; values persist in this browser until schedules sync from the API.`}
         actions={
-          <div className="flex w-full flex-col gap-1.5 sm:w-56">
+          <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
             <span className="text-xs font-medium text-muted-foreground">Project</span>
             <Select
               value={projectId}

@@ -19,11 +19,11 @@ function daysFromNow(days: number): string {
 
 export const DUMMY_TASKS: Task[] = [
   {
-    id: "T-001", title: "Set up auth flow with Sanctum", description: "Integrate Laravel Sanctum cookie-based auth with the Next.js BFF route. Handle login, logout, and session refresh.", status: "done", priority: "high",
+    id: "T-001", title: "Set up auth flow with Supabase", description: "Wire Supabase Auth (@supabase/ssr) for cookie-based sessions. Handle login, logout, and middleware session refresh.", status: "done", priority: "high",
     assignee_ids: [6], reporter_id: 2, project_id: "proj-1", sprint_id: "sprint-1", due_date: daysFromNow(-3), estimated_hours: 8, logged_hours: 9, tags: ["frontend", "security"], position: 0, created_at: daysFromNow(-14), updated_at: daysFromNow(-2),
     comments: [
-      { id: "c1", author_id: 2, body: "Make sure CSRF token is forwarded correctly. @Felix Gomez can you double-check?", created_at: daysFromNow(-5), reactions: [{ emoji: "👍", userIds: [6] }], replies: [
-        { id: "r1", author_id: 6, body: "Confirmed — works with withCredentials. PR is up.", created_at: daysFromNow(-4), mentions: [] },
+      { id: "c1", author_id: 2, body: "Make sure the session cookie refreshes in middleware. @Felix Gomez can you double-check?", created_at: daysFromNow(-5), reactions: [{ emoji: "👍", userIds: [6] }], replies: [
+        { id: "r1", author_id: 6, body: "Confirmed — getUser() in middleware rotates it. PR is up.", created_at: daysFromNow(-4), mentions: [] },
       ] },
     ],
   },
@@ -48,7 +48,7 @@ export const DUMMY_TASKS: Task[] = [
     ],
   },
   {
-    id: "T-005", title: "API error handler utility", description: "Create parseApiError() that maps Laravel 422 validation errors to React Hook Form field errors.", status: "todo", priority: "medium",
+    id: "T-005", title: "Supabase error handler utility", description: "Create parseSupabaseError() that maps Postgres/RLS errors to React Hook Form field errors.", status: "todo", priority: "medium",
     assignee_ids: [6], reporter_id: 2, project_id: "proj-1", sprint_id: "sprint-2", due_date: daysFromNow(5), estimated_hours: 4, logged_hours: 0, tags: ["frontend", "backend"], position: 0, created_at: daysFromNow(-3), updated_at: daysFromNow(-3),
     comments: [], },
   {
@@ -56,7 +56,7 @@ export const DUMMY_TASKS: Task[] = [
     assignee_ids: [3], reporter_id: 1, project_id: "proj-1", sprint_id: null, due_date: daysFromNow(10), estimated_hours: 6, logged_hours: 0, tags: ["design"], position: 1, created_at: daysFromNow(-6), updated_at: daysFromNow(-6),
     comments: [], },
   {
-    id: "T-007", title: "Implement project CRUD hooks", description: "useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject — all TanStack Query.", status: "in_progress", priority: "high",
+    id: "T-007", title: "Implement project CRUD hooks", description: "useProjects, useProject, useCreateProject, useUpdateProject, useDeleteProject — Supabase queries via TanStack Query.", status: "in_progress", priority: "high",
     assignee_ids: [6], reporter_id: 2, project_id: "proj-1", sprint_id: "sprint-2", due_date: daysFromNow(2), estimated_hours: 6, logged_hours: 3, tags: ["frontend"], position: 1, created_at: daysFromNow(-4), updated_at: daysFromNow(0),
     comments: [
       { id: "c4", author_id: 6, body: "Draft PR ready — needs optimistic delete review.", created_at: daysFromNow(0), reactions: [], replies: [] },

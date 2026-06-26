@@ -7,7 +7,10 @@ import { KanbanBoard } from "@/components/features/tasks/KanbanBoard";
 import { TaskListView } from "@/components/features/tasks/TaskListView";
 import { TaskTableView } from "@/components/features/tasks/TaskTableView";
 import { TaskBoardToolbar } from "@/components/features/tasks/TaskBoardToolbar";
-import { TaskFilters, type TaskFiltersProps } from "@/components/features/tasks/TaskFilters";
+import {
+  TaskFilters,
+  type TaskFiltersProps,
+} from "@/components/features/tasks/TaskFilters";
 import { TaskDetailDrawer } from "@/components/features/tasks/TaskDetailDrawer";
 import { CreateTaskModal } from "@/components/features/tasks/CreateTaskModal";
 import { EditTaskModal } from "@/components/features/tasks/EditTaskModal";
@@ -19,7 +22,6 @@ import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskStatus } from "@/types/task.types";
 import type { BacklogSprintMoveTarget } from "@/components/features/tasks/TaskBoardToolbar";
-import { toast } from "sonner";
 
 const EMPTY_FILTERS: TaskFiltersProps["filters"] = {
   assigneeIds: [],
@@ -60,6 +62,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     appendLoggedHours,
     bulkUpdateStatus,
     bulkDelete,
+    bulkMoveToSprint,
   } = useTasks();
 
   const allSprints = useSprintsStore((s) => s.sprints);
@@ -94,15 +97,15 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
         .filter(
           (sp) =>
             sp.project_id === projectId &&
-            (sp.status === "active" || sp.status === "planning")
+            (sp.status === "active" || sp.status === "planning"),
         )
         .sort((a, b) => a.position - b.position),
-    [allSprints, projectId]
+    [allSprints, projectId],
   );
 
   const activeSprintMeta = React.useMemo(
     () => openProjectSprints.find((s) => s.status === "active"),
-    [openProjectSprints]
+    [openProjectSprints],
   );
 
   const nextPlanningSprint = React.useMemo(() => {
@@ -110,42 +113,43 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     if (!planning.length) return undefined;
     return [...planning].sort(
       (a, b) =>
-        new Date(a.start_date).getTime() - new Date(b.start_date).getTime()
+        new Date(a.start_date).getTime() - new Date(b.start_date).getTime(),
     )[0];
   }, [openProjectSprints]);
 
-  const backlogSprintMoveTargets = React.useMemo((): BacklogSprintMoveTarget[] => {
-    if (sprintId !== null) return [];
-    const items: BacklogSprintMoveTarget[] = [];
-    const seen = new Set<string>();
-    if (activeSprintMeta) {
-      items.push({
-        id: activeSprintMeta.id,
-        label: `Active sprint · ${activeSprintMeta.name}`,
-        group: "quick",
-      });
-      seen.add(activeSprintMeta.id);
-    }
-    if (nextPlanningSprint && !seen.has(nextPlanningSprint.id)) {
-      items.push({
-        id: nextPlanningSprint.id,
-        label: `Next sprint · ${nextPlanningSprint.name}`,
-        group: "quick",
-      });
-      seen.add(nextPlanningSprint.id);
-    }
-    for (const sp of openProjectSprints) {
-      if (!seen.has(sp.id)) {
+  const backlogSprintMoveTargets =
+    React.useMemo((): BacklogSprintMoveTarget[] => {
+      if (sprintId !== null) return [];
+      const items: BacklogSprintMoveTarget[] = [];
+      const seen = new Set<string>();
+      if (activeSprintMeta) {
         items.push({
-          id: sp.id,
-          label: `${sp.name} (${sp.status})`,
-          group: "more",
+          id: activeSprintMeta.id,
+          label: `Active sprint · ${activeSprintMeta.name}`,
+          group: "quick",
         });
-        seen.add(sp.id);
+        seen.add(activeSprintMeta.id);
       }
-    }
-    return items;
-  }, [sprintId, activeSprintMeta, nextPlanningSprint, openProjectSprints]);
+      if (nextPlanningSprint && !seen.has(nextPlanningSprint.id)) {
+        items.push({
+          id: nextPlanningSprint.id,
+          label: `Next sprint · ${nextPlanningSprint.name}`,
+          group: "quick",
+        });
+        seen.add(nextPlanningSprint.id);
+      }
+      for (const sp of openProjectSprints) {
+        if (!seen.has(sp.id)) {
+          items.push({
+            id: sp.id,
+            label: `${sp.name} (${sp.status})`,
+            group: "more",
+          });
+          seen.add(sp.id);
+        }
+      }
+      return items;
+    }, [sprintId, activeSprintMeta, nextPlanningSprint, openProjectSprints]);
 
   const drawerBacklogSprintOptions = React.useMemo(() => {
     if (sprintId !== null) return [];
@@ -157,7 +161,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
       typeof sprintId === "string"
         ? allSprints.find((s) => s.id === sprintId)
         : undefined,
-    [allSprints, sprintId]
+    [allSprints, sprintId],
   );
 
   const boardTitle = React.useMemo(() => {
@@ -174,11 +178,11 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     if (currentSprintMeta) {
       const a = new Date(currentSprintMeta.start_date).toLocaleDateString(
         undefined,
-        { month: "short", day: "numeric" }
+        { month: "short", day: "numeric" },
       );
       const b = new Date(currentSprintMeta.end_date).toLocaleDateString(
         undefined,
-        { month: "short", day: "numeric", year: "numeric" }
+        { month: "short", day: "numeric", year: "numeric" },
       );
       return `${a} – ${b}`;
     }
@@ -203,14 +207,16 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
           t.title.toLowerCase().includes(q) ||
           t.tags.some((tag) => tag.toLowerCase().includes(q)) ||
           t.assignee_ids.some((id) =>
-            TEAM_MEMBERS.find((m) => m.id === id)?.name.toLowerCase().includes(q)
-          )
+            TEAM_MEMBERS.find((m) => m.id === id)
+              ?.name.toLowerCase()
+              .includes(q),
+          ),
       );
     }
 
     if (filters.assigneeIds.length > 0) {
       result = result.filter((t) =>
-        filters.assigneeIds.some((fid) => t.assignee_ids.includes(fid))
+        filters.assigneeIds.some((fid) => t.assignee_ids.includes(fid)),
       );
     }
 
@@ -224,7 +230,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
 
     if (filters.tags.length > 0) {
       result = result.filter((t) =>
-        filters.tags.some((ft) => t.tags.includes(ft))
+        filters.tags.some((ft) => t.tags.includes(ft)),
       );
     }
 
@@ -249,7 +255,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     }
     if (loading) return;
     const t = tasks.find(
-      (x) => x.id === focusParam && x.project_id === projectId
+      (x) => x.id === focusParam && x.project_id === projectId,
     );
     if (!t) return;
     if (sprintId === null) {
@@ -302,7 +308,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     (taskId: string) => {
       setSelectedTaskId(taskId);
     },
-    [setSelectedTaskId]
+    [setSelectedTaskId],
   );
 
   const handleTaskDelete = React.useCallback(
@@ -310,85 +316,72 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
       const t = tasks.find((x) => x.id === taskId);
       if (t) setDeleteTarget(t);
     },
-    [tasks]
+    [tasks],
   );
 
   const handleBulkStatusChange = React.useCallback(
     (status: TaskStatus) => {
       bulkUpdateStatus([...selectedIds], status);
-      toast.success(`${selectedIds.size} tasks moved to ${status.replace("_", " ")}`);
       clearSelection();
     },
-    [selectedIds, bulkUpdateStatus, clearSelection]
+    [selectedIds, bulkUpdateStatus, clearSelection],
   );
 
   const handleBulkDelete = React.useCallback(() => {
     bulkDelete([...selectedIds]);
-    toast.success(`${selectedIds.size} tasks deleted`);
     clearSelection();
   }, [selectedIds, bulkDelete, clearSelection]);
 
   const handleBulkMoveToSprint = React.useCallback(
     (toSprintId: string) => {
       const ids = [...selectedIds];
-      for (const id of ids) {
-        updateTask(id, { sprint_id: toSprintId });
-      }
-      toast.success(
-        ids.length === 1
-          ? "Task moved to sprint"
-          : `${ids.length} tasks moved to sprint`
-      );
+      bulkMoveToSprint(ids, toSprintId);
       clearSelection();
     },
-    [selectedIds, updateTask, clearSelection]
+    [selectedIds, bulkMoveToSprint, clearSelection],
   );
 
   const handleMoveTaskToSprint = React.useCallback(
     (taskId: string, toSprintId: string) => {
       updateTask(taskId, { sprint_id: toSprintId });
-      toast.success("Task moved to sprint");
       setSelectedTaskId(null);
     },
-    [updateTask, setSelectedTaskId]
+    [updateTask, setSelectedTaskId],
   );
 
   const handleCreate = React.useCallback(
     (payload: Parameters<typeof createTask>[0]) => {
       createTask(payload);
-      toast.success("Task created");
     },
-    [createTask]
+    [createTask],
   );
 
   const handleUpdate = React.useCallback(
     (id: string, partial: Partial<Task>) => {
       updateTask(id, partial);
-      toast.success("Task updated");
     },
-    [updateTask]
+    [updateTask],
   );
 
   const handleConfirmDelete = React.useCallback(
     (taskId: string) => {
       deleteTask(taskId);
-      toast.success("Task deleted");
       if (selectedTaskId === taskId) setSelectedTaskId(null);
     },
-    [deleteTask, selectedTaskId, setSelectedTaskId]
+    [deleteTask, selectedTaskId, setSelectedTaskId],
   );
 
   const handleStatusChange = React.useCallback(
     (taskId: string, status: TaskStatus) => {
       updateTask(taskId, { status });
     },
-    [updateTask]
+    [updateTask],
   );
 
   const selectedTask = selectedTaskId
-    ? tasks.find(
-        (t) => t.id === selectedTaskId && t.project_id === projectId
-      ) ?? null
+    ? (tasks.find(
+        (t) => t.id === selectedTaskId && t.project_id === projectId,
+      ) ?? null)
     : null;
 
   React.useEffect(() => {
@@ -429,7 +422,10 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
         </div>
         <div className="flex gap-4 overflow-hidden">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="w-72 shrink-0 space-y-3 rounded-lg border p-3">
+            <div
+              key={i}
+              className="w-72 shrink-0 space-y-3 rounded-lg border p-3"
+            >
               <Skeleton className="h-6 w-24" />
               <Skeleton className="h-28 w-full rounded-lg" />
               <Skeleton className="h-28 w-full rounded-lg" />

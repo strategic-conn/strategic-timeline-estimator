@@ -67,7 +67,7 @@ export default function LoginPage() {
           Sign in
         </CardTitle>
         <CardDescription>
-          Use your work email. We’ll connect this to the Laravel API next.
+          Use your work email. We’ll connect this to Supabase Auth next.
         </CardDescription>
       </CardHeader>
 

@@ -1,5 +1,5 @@
 /**
- * PTO and availability blocks (local demo until Laravel endpoints exist).
+ * PTO and availability blocks (local demo until wired to Supabase — availability_entries table).
  * Dates are calendar dates in YYYY-MM-DD (workspace-local day boundaries).
  */
 

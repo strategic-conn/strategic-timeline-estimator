@@ -98,7 +98,7 @@ export default function RegisterPage() {
           Create account
         </CardTitle>
         <CardDescription>
-          Same fields we&apos;ll post to Laravel when registration is wired up.
+          Same fields we&apos;ll send to Supabase Auth when registration is wired up.
         </CardDescription>
       </CardHeader>
 

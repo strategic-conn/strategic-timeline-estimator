@@ -2,8 +2,6 @@
 
 import * as React from "react";
 import { FolderKanban, Plus, Search } from "lucide-react";
-import { toast } from "sonner";
-
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { CreateProjectModal } from "@/components/features/projects/CreateProjectModal";
 import { DeleteProjectDialog } from "@/components/features/projects/DeleteProjectDialog";
@@ -125,7 +123,7 @@ export function ProjectsPage() {
             <Skeleton className="h-9 w-36" />
           </div>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-xl border p-4">
               <Skeleton className="h-5 w-44" />
@@ -149,9 +147,6 @@ export function ProjectsPage() {
         onClose={() => setCreateOpen(false)}
         onCreate={(payload) => {
           createProject(payload);
-          toast.success("Project created", {
-            description: payload.name,
-          });
         }}
       />
 
@@ -161,7 +156,6 @@ export function ProjectsPage() {
         onClose={closeEdit}
         onSave={(id, partial) => {
           updateProject(id, partial);
-          toast.success("Project updated");
         }}
       />
 
@@ -171,7 +165,6 @@ export function ProjectsPage() {
         onClose={closeDelete}
         onConfirm={(id) => {
           deleteProject(id);
-          toast.success("Project removed from list");
         }}
       />
 
@@ -188,51 +181,53 @@ export function ProjectsPage() {
             </div>
           }
           actions={
-            <div className="flex w-full flex-col gap-2 sm:w-auto sm:min-w-[min(100%,20rem)] sm:items-end">
-              <Button
-                type="button"
-                className="w-full gap-1.5 sm:w-auto"
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus className="size-4" aria-hidden />
-                New project
-              </Button>
-              <div className="flex w-full flex-wrap items-center gap-2 sm:justify-end">
-                <div className="relative min-w-0 flex-1 sm:w-72 sm:flex-none">
+            <div className="flex w-full min-w-0 flex-col gap-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+                <div className="relative min-w-0 w-full flex-1 sm:min-w-[min(100%,14rem)]">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     value={query}
                     onChange={(e) => setQuery(e.target.value)}
                     placeholder="Search projects…"
-                    className="h-9 border-border/60 bg-background/80 pl-9 backdrop-blur-sm"
+                    className="h-9 w-full border-border/60 bg-background/80 pl-9 backdrop-blur-sm"
                     aria-label="Search projects"
                   />
                 </div>
-                <Select
-                  value={status}
-                  onValueChange={(v) => setStatusFilter(v as StatusFilter)}
-                >
-                  <SelectTrigger className="h-9 w-42 shrink-0 border-border/60 bg-background/80">
-                    <SelectValue placeholder="Status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All statuses</SelectItem>
-                    <SelectItem value="active">Active</SelectItem>
-                    <SelectItem value="completed">Completed</SelectItem>
-                    <SelectItem value="archived">Archived</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                  <SelectTrigger className="h-9 w-46 shrink-0 border-border/60 bg-background/80">
-                    <SelectValue placeholder="Sort" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="updated_desc">Recently updated</SelectItem>
-                    <SelectItem value="name_asc">Name A–Z</SelectItem>
-                    <SelectItem value="name_desc">Name Z–A</SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="flex min-w-0 w-full flex-wrap items-stretch gap-2 sm:w-auto sm:flex-nowrap">
+                  <Select
+                    value={status}
+                    onValueChange={(v) => setStatusFilter(v as StatusFilter)}
+                  >
+                    <SelectTrigger className="h-9 min-w-38 flex-1 border-border/60 bg-background/80 sm:min-w-42 sm:flex-initial">
+                      <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All statuses</SelectItem>
+                      <SelectItem value="active">Active</SelectItem>
+                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value="archived">Archived</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
+                    <SelectTrigger className="h-9 min-w-42 flex-1 border-border/60 bg-background/80 sm:flex-initial">
+                      <SelectValue placeholder="Sort" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="updated_desc">Recently updated</SelectItem>
+                      <SelectItem value="name_asc">Name A–Z</SelectItem>
+                      <SelectItem value="name_desc">Name Z–A</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+              <Button
+                type="button"
+                className="h-9 w-full shrink-0 gap-1.5 sm:w-auto sm:self-start"
+                onClick={() => setCreateOpen(true)}
+              >
+                <Plus className="size-4" aria-hidden />
+                New project
+              </Button>
             </div>
           }
         />
@@ -272,7 +267,7 @@ export function ProjectsPage() {
             </Button>
           </div>
         ) : (
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <section className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
             {sorted.map((p) => (
               <ProjectCard
                 key={p.id}

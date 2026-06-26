@@ -1,0 +1,112 @@
+/**
+ * Timeline engine — converts phase hours to business days and sequences phases per
+ * the SC Estimator spec §3.2 (with content concurrency and SEO overlap).
+ */
+import { addBusinessDays, format, isValid, parseISO } from "date-fns";
+
+import { BUSINESS_HOURS_PER_DAY, MILESTONES, PHASE_META } from "@/lib/discovery/constants";
+import type {
+  DiscoveryProject,
+  DiscoveryTimeline,
+  Estimate,
+  Milestone,
+  PhaseId,
+  TimelinePhase,
+} from "@/types/discovery.types";
+
+const DNS_BUFFER_DAYS = 2;
+const BLACKOUT_BUFFER_DAYS = 10;
+
+function durationDays(hours: number): number {
+  if (hours <= 0) return 0;
+  return Math.max(1, Math.ceil(hours / BUSINESS_HOURS_PER_DAY));
+}
+
+function resolveStart(value: string): Date {
+  if (value) {
+    const parsed = parseISO(value);
+    if (isValid(parsed)) return parsed;
+  }
+  return new Date();
+}
+
+export function computeTimeline(
+  p: DiscoveryProject,
+  estimate: Estimate,
+): DiscoveryTimeline {
+  const start = resolveStart(p.project_start_date);
+  const buffer = Math.max(0, p.client_review_turnaround ?? 0);
+
+  const hoursById = Object.fromEntries(
+    estimate.phases.map((ph) => [ph.id, ph.mid]),
+  ) as Record<PhaseId, number>;
+
+  const dur = (id: PhaseId) => durationDays(hoursById[id] ?? 0);
+
+  // Offsets are business-day counts from the project start.
+  const discoveryStart = 0;
+  const discoveryEnd = discoveryStart + dur("discovery");
+
+  const contentStart = 0; // concurrent with discovery
+  const contentEnd = contentStart + dur("content");
+
+  const designStart = discoveryEnd + buffer;
+  const designEnd = designStart + dur("design");
+
+  const developmentStart = Math.max(designEnd, contentEnd) + buffer;
+  const developmentEnd = developmentStart + dur("development");
+
+  const qaStart = developmentEnd; // immediately after dev
+  const qaEnd = qaStart + dur("qa") + buffer; // includes one review buffer
+
+  const seoStart = developmentStart + Math.floor(dur("development") * 0.6);
+  const seoEnd = seoStart + dur("seo");
+
+  const launchStart = qaEnd;
+  let launchEnd = launchStart + dur("launch") + DNS_BUFFER_DAYS;
+  if (p.has_blackout_periods) launchEnd += BLACKOUT_BUFFER_DAYS;
+
+  const offsets: Record<PhaseId, { start: number; end: number }> = {
+    discovery: { start: discoveryStart, end: discoveryEnd },
+    content: { start: contentStart, end: contentEnd },
+    design: { start: designStart, end: designEnd },
+    development: { start: developmentStart, end: developmentEnd },
+    qa: { start: qaStart, end: qaEnd },
+    seo: { start: seoStart, end: seoEnd },
+    launch: { start: launchStart, end: launchEnd },
+  };
+
+  const fmt = (offset: number) =>
+    format(addBusinessDays(start, offset), "MMM d, yyyy");
+
+  const phases: TimelinePhase[] = estimate.phases.map((ph) => {
+    const o = offsets[ph.id];
+    return {
+      id: ph.id,
+      label: PHASE_META[ph.id].label,
+      startOffset: o.start,
+      endOffset: o.end,
+      durationDays: Math.max(0, o.end - o.start),
+      startDate: fmt(o.start),
+      endDate: fmt(o.end),
+    };
+  });
+
+  const milestones: Milestone[] = MILESTONES.map((m) => {
+    const offset = offsets[m.phaseId].end;
+    return { id: m.id, label: m.label, phaseId: m.phaseId, offset, date: fmt(offset) };
+  });
+
+  const totalBusinessDays = Math.max(
+    ...Object.values(offsets).map((o) => o.end),
+    0,
+  );
+
+  return {
+    phases,
+    milestones,
+    totalBusinessDays,
+    totalWeeks: Math.max(1, Math.ceil(totalBusinessDays / 5)),
+    launchDate: fmt(launchEnd),
+  };
+}

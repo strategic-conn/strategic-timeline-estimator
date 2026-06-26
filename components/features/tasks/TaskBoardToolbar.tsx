@@ -79,7 +79,7 @@ export function TaskBoardToolbar({
 
   return (
     <>
-      <div className="grid w-full grid-cols-1 items-start gap-4 md:grid-cols-[minmax(0,auto)_minmax(0,1fr)_minmax(0,auto)] md:items-center md:gap-6">
+      <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-[auto_minmax(14rem,1fr)_auto] lg:items-center lg:gap-6">
         <div className="min-w-0 rounded-2xl border border-border/60 bg-card/35 px-4 py-3 shadow-sm backdrop-blur-md dark:bg-card/25 sm:px-4">
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Board
@@ -94,9 +94,9 @@ export function TaskBoardToolbar({
           ) : null}
         </div>
 
-        <div className="relative w-full md:max-w-md md:justify-self-center">
+        <div className="relative w-full min-w-0 max-w-none justify-self-stretch lg:min-w-56">
           <Search
-            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
           />
           <Input
@@ -105,7 +105,7 @@ export function TaskBoardToolbar({
             value={search}
             onChange={(e) => onSearchChange(e.target.value)}
             placeholder="Search tasks..."
-            className="h-9 pl-9"
+            className="h-10 w-full min-w-0 border-border/70 pl-9 sm:h-9"
             autoComplete="off"
             spellCheck={false}
             aria-label="Search tasks"
@@ -113,7 +113,7 @@ export function TaskBoardToolbar({
         </div>
 
         <TooltipProvider delayDuration={400}>
-          <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+          <div className="flex flex-wrap items-center justify-start gap-2 sm:gap-3 lg:justify-end">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
