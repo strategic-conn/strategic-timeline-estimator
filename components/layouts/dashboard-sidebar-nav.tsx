@@ -7,20 +7,17 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DASHBOARD_NAV_ITEMS,
-  filterDashboardNavItems,
+  filterNavByAccess,
   groupDashboardNavItems,
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
-import { usePermissions } from "@/hooks/usePermissions";
+import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { cn } from "@/lib/utils";
 
 export function DashboardSidebarNav() {
   const pathname = usePathname();
-  const { canExportProposals } = usePermissions();
-  const navItems = filterDashboardNavItems(
-    DASHBOARD_NAV_ITEMS,
-    canExportProposals
-  );
+  const accessible = useAccessibleHrefs();
+  const navItems = filterNavByAccess(DASHBOARD_NAV_ITEMS, accessible);
   const groups = groupDashboardNavItems(navItems);
 
   return (

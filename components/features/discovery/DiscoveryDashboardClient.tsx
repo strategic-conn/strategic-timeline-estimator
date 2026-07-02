@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/usePermissions";
 import { analyzeDiscovery, formatHours } from "@/lib/discovery";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useDiscoveryStore } from "@/store/discovery-store";
 import type { DiscoveryProject } from "@/types/discovery.types";
 
@@ -38,19 +39,23 @@ export function DiscoveryDashboardClient() {
   const createProject = useDiscoveryStore((s) => s.createProject);
   const deleteProject = useDiscoveryStore((s) => s.deleteProject);
 
-  const [hydrated, setHydrated] = React.useState(() =>
+  // Live mode: gate on the Supabase fetch (WorkspaceSync hydrates the store).
+  // Demo mode: gate on localStorage rehydration completing.
+  const liveLoaded = useDiscoveryStore((s) => s.loaded);
+  const [persistHydrated, setPersistHydrated] = React.useState(() =>
     useDiscoveryStore.persist.hasHydrated(),
   );
+  const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [deleteTarget, setDeleteTarget] =
     React.useState<DiscoveryProject | null>(null);
 
   React.useEffect(() => {
     if (useDiscoveryStore.persist.hasHydrated()) {
-      setHydrated(true);
+      setPersistHydrated(true);
       return;
     }
     const unsub = useDiscoveryStore.persist.onFinishHydration(() =>
-      setHydrated(true),
+      setPersistHydrated(true),
     );
     return unsub;
   }, []);

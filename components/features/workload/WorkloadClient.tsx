@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/table";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import {
@@ -43,7 +43,7 @@ import type { Task } from "@/types/task.types";
 
 type ProjectFilter = "all" | string;
 
-function openAssignedTasks(tasks: Task[], memberId: number, projectId: ProjectFilter) {
+function openAssignedTasks(tasks: Task[], memberId: string, projectId: ProjectFilter) {
   return tasks.filter((t) => {
     if (t.status === "done") return false;
     if (!t.assignee_ids.includes(memberId)) return false;
@@ -63,6 +63,7 @@ export function WorkloadClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
+  const members = useTeamMembers();
 
   const [projectId, setProjectId] = React.useState<ProjectFilter>("all");
 
@@ -72,7 +73,7 @@ export function WorkloadClient() {
   );
 
   const rows = React.useMemo(() => {
-    return TEAM_MEMBERS.map((m) => {
+    return members.map((m) => {
       const weeklyCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
       const open = openAssignedTasks(tasks, m.id, projectId);
       const openEst = open.reduce((s, t) => s + (t.estimated_hours ?? 0), 0);
@@ -114,7 +115,7 @@ export function WorkloadClient() {
         overCap: openEst > weeklyCap,
       };
     }).sort((a, b) => b.openEst - a.openEst);
-  }, [tasks, projectId, projectNameMap, capacityOverrides]);
+  }, [members, tasks, projectId, projectNameMap, capacityOverrides]);
 
   const peopleWithOpen = rows.filter((r) => r.openCount > 0).length;
   const totalOpenEst = rows.reduce((s, r) => s + r.openEst, 0);
@@ -125,7 +126,7 @@ export function WorkloadClient() {
       <WorkspacePageHeader
         eyebrow="Capacity"
         title="Resource allocation"
-        description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below; values persist in this browser until schedules sync from the API.`}
+        description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below to save per person.`}
         actions={
           <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
             <span className="text-xs font-medium text-muted-foreground">Project</span>
@@ -213,7 +214,7 @@ export function WorkloadClient() {
               click away to save (1–168).
             </p>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {TEAM_MEMBERS.map((m) => (
+              {members.map((m) => (
                 <li
                   key={m.id}
                   className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2"

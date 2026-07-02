@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
@@ -57,6 +58,7 @@ export function ProposalsListClient() {
   const router = useRouter();
   const projects = useProjectsStore((s) => s.projects);
   const proposals = useProposalEstimatorStore((s) => s.proposals);
+  const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
 
@@ -114,7 +116,11 @@ export function ProposalsListClient() {
       <WorkspacePageHeader
         eyebrow="Commercial"
         title="Proposals"
-        description="Catalog-driven client quotes with tier multipliers, dependencies, and roll-up add-ons. Data stays in this browser until the API is connected."
+        description={`Catalog-driven client quotes with tier multipliers, dependencies, and roll-up add-ons.${
+          isSupabaseConfigured
+            ? ""
+            : " Data stays in this browser until the API is connected."
+        }`}
         actions={
           <Button
             type="button"
@@ -127,7 +133,11 @@ export function ProposalsListClient() {
         }
       />
 
-      {sorted.length === 0 ? (
+      {!proposalsLoaded ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">
+          Loading quotes…
+        </p>
+      ) : sorted.length === 0 ? (
         <Card className="border-dashed">
           <CardHeader className="items-center text-center">
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">

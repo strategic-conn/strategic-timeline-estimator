@@ -34,7 +34,7 @@ export interface KanbanBoardProps {
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
-  onTaskAssign: (taskId: string, userId: number | null) => void;
+  onTaskAssign: (taskId: string, userId: string | null) => void;
   onMoveTask: (
     taskId: string,
     toStatus: TaskStatus,
@@ -46,6 +46,12 @@ export interface KanbanBoardProps {
     toIndex: number,
     status: TaskStatus
   ) => void;
+  /** Snapshot board state when a drag begins (for commit/cancel). */
+  onBeginDrag: () => void;
+  /** Persist + notify once when a drag drops with a real change. */
+  onCommitMove: (taskId: string) => void;
+  /** Restore the pre-drag board when a drag is cancelled or a no-op. */
+  onCancelDrag: () => void;
   onRequestCreateTask: (status: TaskStatus) => void;
 }
 
@@ -106,6 +112,9 @@ export function KanbanBoard({
   onTaskAssign,
   onMoveTask,
   onReorderTask,
+  onBeginDrag,
+  onCommitMove,
+  onCancelDrag,
   onRequestCreateTask,
 }: KanbanBoardProps) {
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -129,6 +138,7 @@ export function KanbanBoard({
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id);
     setActiveId(id);
+    onBeginDrag();
     const task = findTask(tasks, id);
     if (!task) {
       dragStartRef.current = null;
@@ -168,26 +178,39 @@ export function KanbanBoard({
     const start = dragStartRef.current;
     dragStartRef.current = null;
 
-    if (!over || !start) return;
+    // Dropped outside any target — revert the optimistic drag-over moves.
+    if (!over || !start) {
+      onCancelDrag();
+      return;
+    }
 
     const activeIdStr = String(active.id);
     const overIdStr = String(over.id);
 
     const g = groupByStatusSorted(tasks);
     const dest = resolveOverLocation(tasks, g, overIdStr, activeIdStr);
-    if (!dest) return;
+    if (!dest) {
+      onCancelDrag();
+      return;
+    }
 
     if (start.status === dest.status) {
       const column = g[dest.status];
       const fromIndex = column.findIndex((t) => t.id === activeIdStr);
-      if (fromIndex < 0) return;
+      if (fromIndex < 0) {
+        onCancelDrag();
+        return;
+      }
 
       let toIndex: number;
       if (parseColumnDroppableId(overIdStr)) {
         toIndex = Math.max(0, column.length - 1);
       } else {
         const overIndex = column.findIndex((t) => t.id === overIdStr);
-        if (overIndex < 0) return;
+        if (overIndex < 0) {
+          onCancelDrag();
+          return;
+        }
         const curIndex = column.findIndex((t) => t.id === activeIdStr);
         if (curIndex < overIndex) {
           toIndex = overIndex - 1;
@@ -201,16 +224,22 @@ export function KanbanBoard({
       const finalTo = reordered.indexOf(activeIdStr);
       if (start.index !== finalTo) {
         onReorderTask(activeIdStr, start.index, finalTo, dest.status);
+        onCommitMove(activeIdStr);
+      } else {
+        // No net change — drop the snapshot without persisting.
+        onCancelDrag();
       }
       return;
     }
 
     onMoveTask(activeIdStr, dest.status, dest.index);
+    onCommitMove(activeIdStr);
   }
 
   function handleDragCancel() {
     setActiveId(null);
     dragStartRef.current = null;
+    onCancelDrag();
   }
 
   return (

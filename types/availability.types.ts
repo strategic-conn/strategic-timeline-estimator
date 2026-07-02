@@ -7,7 +7,7 @@ export type AvailabilityEntryKind = "pto" | "unavailable" | "partial";
 
 export interface AvailabilityEntry {
   id: string;
-  user_id: number;
+  user_id: string;
   /** Inclusive start (YYYY-MM-DD) */
   start_date: string;
   /** Inclusive end (YYYY-MM-DD) */

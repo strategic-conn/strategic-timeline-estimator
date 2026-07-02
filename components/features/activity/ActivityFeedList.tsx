@@ -2,24 +2,18 @@
 
 import Link from "next/link";
 
-import type { AppNotification } from "@/store/notifications-store";
+import type { ActivityItem } from "@/store/activity-store";
 import {
   formatActivityTimestamp,
   groupActivityByDay,
 } from "@/lib/utils/activity-feed";
-import { cn } from "@/lib/utils";
 
 type ActivityFeedListProps = {
-  items: AppNotification[];
-  onMarkRead: (id: string) => void;
+  items: ActivityItem[];
   emptyMessage: string;
 };
 
-export function ActivityFeedList({
-  items,
-  onMarkRead,
-  emptyMessage,
-}: ActivityFeedListProps) {
+export function ActivityFeedList({ items, emptyMessage }: ActivityFeedListProps) {
   const groups = groupActivityByDay(items);
 
   if (groups.length === 0) {
@@ -43,28 +37,13 @@ export function ActivityFeedList({
           <ul className="divide-y divide-border rounded-lg border bg-card">
             {group.items.map((n) => {
               const row = (
-                <div
-                  className={cn(
-                    "flex gap-3 px-4 py-3 text-sm transition-colors",
-                    n.read ? "bg-transparent" : "bg-primary/[0.04]"
-                  )}
-                >
+                <div className="flex gap-3 px-4 py-3 text-sm transition-colors">
                   <span
-                    className={cn(
-                      "mt-1.5 size-2 shrink-0 rounded-full",
-                      n.read ? "bg-transparent" : "bg-primary"
-                    )}
+                    className="mt-1.5 size-2 shrink-0 rounded-full bg-muted-foreground/40"
                     aria-hidden
                   />
                   <div className="min-w-0 flex-1">
-                    <p
-                      className={cn(
-                        "leading-snug text-foreground",
-                        !n.read && "font-medium"
-                      )}
-                    >
-                      {n.text}
-                    </p>
+                    <p className="leading-snug text-foreground">{n.text}</p>
                     <p className="mt-1 text-xs text-muted-foreground tabular-nums">
                       {formatActivityTimestamp(n.at)}
                     </p>
@@ -78,18 +57,11 @@ export function ActivityFeedList({
                     <Link
                       href={n.href}
                       className="block outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      onClick={() => onMarkRead(n.id)}
                     >
                       {row}
                     </Link>
                   ) : (
-                    <button
-                      type="button"
-                      className="block w-full text-left outline-none hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                      onClick={() => onMarkRead(n.id)}
-                    >
-                      {row}
-                    </button>
+                    row
                   )}
                 </li>
               );

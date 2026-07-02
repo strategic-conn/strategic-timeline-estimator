@@ -18,7 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { eachYmdInInclusiveRange } from "@/lib/utils/availability-dates";
 import { useAvailabilityStore } from "@/store/availability-store";
 import { useProjectsStore } from "@/store/projects-store";
@@ -69,13 +69,17 @@ const AWAY_KIND_LABEL: Record<AvailabilityEntry["kind"], string> = {
   partial: "Partial day",
 };
 
-const MEMBER_BY_ID = new Map(TEAM_MEMBERS.map((m) => [m.id, m]));
-
 export function CalendarClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
   const availabilityEntries = useAvailabilityStore((s) => s.entries);
+  const members = useTeamMembers();
+
+  const memberById = React.useMemo(
+    () => new Map(members.map((m) => [m.id, m])),
+    [members]
+  );
 
   const [viewDate, setViewDate] = React.useState(() => new Date());
   const [selectedDate, setSelectedDate] = React.useState<string | null>(null);
@@ -131,14 +135,14 @@ export function CalendarClient() {
   const availabilityByDate = React.useMemo(() => {
     const map = new Map<string, DayAway[]>();
     for (const e of availabilityEntries) {
-      const name = MEMBER_BY_ID.get(e.user_id)?.name ?? `User ${e.user_id}`;
+      const name = memberById.get(e.user_id)?.name ?? `User ${e.user_id}`;
       for (const key of eachYmdInInclusiveRange(e.start_date, e.end_date)) {
         if (!map.has(key)) map.set(key, []);
         map.get(key)!.push({ entry: e, name });
       }
     }
     return map;
-  }, [availabilityEntries]);
+  }, [availabilityEntries, memberById]);
 
   const year = viewDate.getFullYear();
   const month = viewDate.getMonth();

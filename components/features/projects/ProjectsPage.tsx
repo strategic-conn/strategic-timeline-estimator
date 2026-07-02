@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/hooks/useProjects";
+import { usePermissions } from "@/hooks/usePermissions";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Project, ProjectStatus } from "@/types/project.types";
 
 type StatusFilter = ProjectStatus | "all";
@@ -31,9 +33,16 @@ export function ProjectsPage() {
     updateProject,
     deleteProject,
     setStatus,
+    loaded,
+    error,
+    hydrateFromSupabase,
   } = useProjects();
 
-  const [loading, setLoading] = React.useState(true);
+  const { canCreateProject } = usePermissions();
+
+  // Demo mode shows a brief skeleton; live mode keys off the store's load state.
+  const [demoSettling, setDemoSettling] = React.useState(!isSupabaseConfigured);
+  const loading = isSupabaseConfigured ? !loaded : demoSettling;
   const [query, setQuery] = React.useState("");
   const [status, setStatusFilter] = React.useState<StatusFilter>("all");
   const [sort, setSort] = React.useState<SortKey>("updated_desc");
@@ -44,7 +53,8 @@ export function ProjectsPage() {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 300);
+    if (isSupabaseConfigured) return;
+    const t = setTimeout(() => setDemoSettling(false), 300);
     return () => clearTimeout(t);
   }, []);
 
@@ -140,6 +150,21 @@ export function ProjectsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <FolderKanban className="size-6" aria-hidden />
+        </div>
+        <p className="text-sm font-medium">Couldn&apos;t load projects</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{error}</p>
+        <Button type="button" variant="outline" onClick={() => void hydrateFromSupabase()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <CreateProjectModal
@@ -172,7 +197,11 @@ export function ProjectsPage() {
         <WorkspacePageHeader
           eyebrow="Workspaces"
           title="Projects"
-          description="Create and manage workspaces. Data stays in this browser until the API is connected."
+          description={
+            isSupabaseConfigured
+              ? "Create and manage workspaces. Changes sync to Supabase."
+              : "Create and manage workspaces. Data stays in this browser until the API is connected."
+          }
           meta={
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="default">Active {counts.active}</Badge>
@@ -220,14 +249,16 @@ export function ProjectsPage() {
                   </Select>
                 </div>
               </div>
-              <Button
-                type="button"
-                className="h-9 w-full shrink-0 gap-1.5 sm:w-auto sm:self-start"
-                onClick={() => setCreateOpen(true)}
-              >
-                <Plus className="size-4" aria-hidden />
-                New project
-              </Button>
+              {canCreateProject ? (
+                <Button
+                  type="button"
+                  className="h-9 w-full shrink-0 gap-1.5 sm:w-auto sm:self-start"
+                  onClick={() => setCreateOpen(true)}
+                >
+                  <Plus className="size-4" aria-hidden />
+                  New project
+                </Button>
+              ) : null}
             </div>
           }
         />
@@ -239,12 +270,16 @@ export function ProjectsPage() {
             </div>
             <p className="text-sm font-medium">No projects yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              Create your first project to organize tasks and timelines.
+              {canCreateProject
+                ? "Create your first project to organize tasks and timelines."
+                : "No projects yet. An admin or manager can create the first one."}
             </p>
-            <Button type="button" onClick={() => setCreateOpen(true)}>
-              <Plus className="size-4" aria-hidden />
-              Create project
-            </Button>
+            {canCreateProject ? (
+              <Button type="button" onClick={() => setCreateOpen(true)}>
+                <Plus className="size-4" aria-hidden />
+                Create project
+              </Button>
+            ) : null}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center">

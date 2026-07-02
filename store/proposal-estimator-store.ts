@@ -2,12 +2,18 @@
 
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { toast } from "sonner";
 
 import type { CatalogItem } from "@/lib/proposal-catalog";
 import {
   DEFAULT_ADDONS,
   computeLineHours,
 } from "@/lib/constants/proposal-estimator";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import { useAuthStore } from "@/store/auth-store";
+import type { Database, Json } from "@/types/database.types";
 import type {
   ClientQuote,
   ProposalAddons,
@@ -15,6 +21,64 @@ import type {
   ProposalPlatform,
   ProposalTier,
 } from "@/types/proposal.types";
+
+type ProposalRow = Database["public"]["Tables"]["proposals"]["Row"];
+
+function rowToQuote(r: ProposalRow): ClientQuote {
+  return {
+    id: r.id,
+    title: r.title,
+    project_id: r.project_id,
+    client_name: r.client_name ?? undefined,
+    notes: r.notes ?? undefined,
+    platform: r.platform as ProposalPlatform,
+    line_items: (r.line_items as unknown as ProposalLineItem[]) ?? [],
+    addons: { ...DEFAULT_ADDONS, ...(r.addons as unknown as ProposalAddons) },
+    requirements_unclear: r.requirements_unclear,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+  };
+}
+
+/** Editable columns for a quote document (line_items + addons stored as JSONB). */
+function quoteUpdatePayload(
+  q: ClientQuote,
+): Database["public"]["Tables"]["proposals"]["Update"] {
+  return {
+    title: q.title,
+    project_id: q.project_id ?? null,
+    client_name: q.client_name ?? null,
+    notes: q.notes ?? null,
+    platform: q.platform,
+    line_items: q.line_items as unknown as Json,
+    addons: q.addons as unknown as Json,
+    requirements_unclear: q.requirements_unclear,
+    updated_at: q.updated_at,
+  };
+}
+
+/**
+ * Best-effort persist of a full quote document after an optimistic edit (live
+ * mode only). Line-item / add-on edits fire frequently, so we don't roll back
+ * per keystroke — a failed save surfaces as a toast and editing continues.
+ */
+function persistQuoteDoc(id: string, get: () => ProposalEstimatorState): void {
+  if (!isSupabaseConfigured) return;
+  const q = get().proposals.find((p) => p.id === id);
+  if (!q) return;
+  void (async () => {
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("proposals")
+      .update(quoteUpdatePayload(q))
+      .eq("id", id);
+    if (error) {
+      toast.error("Couldn't save changes", {
+        description: parseSupabaseError(error),
+      });
+    }
+  })();
+}
 
 function uid(): string {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
@@ -114,6 +178,11 @@ export type LineItemPatch = Partial<
 
 interface ProposalEstimatorState {
   proposals: ClientQuote[];
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  /** Pull the user's proposals from Supabase (live mode). */
+  hydrateFromSupabase: () => Promise<void>;
   createProposal: (input: CreateQuoteInput) => string;
   createProposalFromDraft: (input: ProposalDraftInput) => string;
   updateProposal: (
@@ -153,10 +222,36 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
   persist(
     (set, get) => ({
       proposals: [],
+      loading: isSupabaseConfigured,
+      loaded: !isSupabaseConfigured,
+      error: null,
+
+      hydrateFromSupabase: async () => {
+        if (!isSupabaseConfigured) return;
+        set({ loading: true, error: null });
+        const supabase = createClient();
+        // RLS scopes proposals to admin/manager; others get an empty set.
+        const { data, error } = await supabase
+          .from("proposals")
+          .select("*")
+          .order("updated_at", { ascending: false });
+        if (error) {
+          set({ loading: false, loaded: true, error: parseSupabaseError(error) });
+          return;
+        }
+        set({
+          proposals: (data ?? []).map(rowToQuote),
+          loading: false,
+          loaded: true,
+          error: null,
+        });
+      },
 
       createProposal: (input) => {
-        const id = nextQuoteId(get().proposals);
         const now = new Date().toISOString();
+        const id = isSupabaseConfigured
+          ? crypto.randomUUID()
+          : nextQuoteId(get().proposals);
         const quote: ClientQuote = {
           id,
           title: input.title.trim() || "Untitled quote",
@@ -171,12 +266,47 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           updated_at: now,
         };
         set((s) => ({ proposals: [quote, ...s.proposals] }));
+
+        if (isSupabaseConfigured) {
+          const ownerId = useAuthStore.getState().user.authId;
+          if (!ownerId) {
+            set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+            toast.error("Couldn't create quote", {
+              description: "You need to be signed in.",
+            });
+            return id;
+          }
+          void (async () => {
+            const supabase = createClient();
+            const { error } = await supabase.from("proposals").insert({
+              id,
+              owner_id: ownerId,
+              title: quote.title,
+              project_id: quote.project_id ?? null,
+              client_name: quote.client_name ?? null,
+              notes: quote.notes ?? null,
+              platform: quote.platform,
+              line_items: quote.line_items as unknown as Json,
+              addons: quote.addons as unknown as Json,
+              requirements_unclear: quote.requirements_unclear,
+            });
+            if (error) {
+              set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+              toast.error("Couldn't create quote", {
+                description: parseSupabaseError(error),
+              });
+            }
+          })();
+        }
+
         return id;
       },
 
       createProposalFromDraft: (input) => {
-        const id = nextQuoteId(get().proposals);
         const now = new Date().toISOString();
+        const id = isSupabaseConfigured
+          ? crypto.randomUUID()
+          : nextQuoteId(get().proposals);
         const line_items: ProposalLineItem[] = (
           input.line_items.length ? input.line_items : [{
             title: "",
@@ -210,10 +340,43 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           updated_at: now,
         };
         set((s) => ({ proposals: [quote, ...s.proposals] }));
+
+        if (isSupabaseConfigured) {
+          const ownerId = useAuthStore.getState().user.authId;
+          if (!ownerId) {
+            set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+            toast.error("Couldn't create quote", {
+              description: "You need to be signed in.",
+            });
+            return id;
+          }
+          void (async () => {
+            const supabase = createClient();
+            const { error } = await supabase.from("proposals").insert({
+              id,
+              owner_id: ownerId,
+              title: quote.title,
+              project_id: quote.project_id ?? null,
+              client_name: quote.client_name ?? null,
+              notes: quote.notes ?? null,
+              platform: quote.platform,
+              line_items: quote.line_items as unknown as Json,
+              addons: quote.addons as unknown as Json,
+              requirements_unclear: quote.requirements_unclear,
+            });
+            if (error) {
+              set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+              toast.error("Couldn't create quote", {
+                description: parseSupabaseError(error),
+              });
+            }
+          })();
+        }
+
         return id;
       },
 
-      updateProposal: (id, partial) =>
+      updateProposal: (id, partial) => {
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id
@@ -224,9 +387,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                 }
               : p,
           ),
-        })),
+        }));
+        persistQuoteDoc(id, get);
+      },
 
-      updateAddons: (id, partial) =>
+      updateAddons: (id, partial) => {
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id
@@ -237,12 +402,32 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                 }
               : p,
           ),
-        })),
+        }));
+        persistQuoteDoc(id, get);
+      },
 
-      deleteProposal: (id) =>
-        set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) })),
+      deleteProposal: (id) => {
+        const before = structuredClone(get().proposals);
+        set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
 
-      addLineItem: (proposalId) =>
+        if (isSupabaseConfigured) {
+          void (async () => {
+            const supabase = createClient();
+            const { error } = await supabase
+              .from("proposals")
+              .delete()
+              .eq("id", id);
+            if (error) {
+              set({ proposals: before });
+              toast.error("Couldn't delete quote", {
+                description: parseSupabaseError(error),
+              });
+            }
+          })();
+        }
+      },
+
+      addLineItem: (proposalId) => {
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === proposalId
@@ -253,7 +438,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                 }
               : p,
           ),
-        })),
+        }));
+        persistQuoteDoc(proposalId, get);
+      },
 
       addLineItemsFromCatalog: (proposalId, items) => {
         if (!items.length) return;
@@ -271,9 +458,10 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
+        persistQuoteDoc(proposalId, get);
       },
 
-      updateLineItem: (proposalId, lineId, partial) =>
+      updateLineItem: (proposalId, lineId, partial) => {
         set((s) => ({
           proposals: s.proposals.map((p) => {
             if (p.id !== proposalId) return p;
@@ -294,9 +482,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               updated_at: new Date().toISOString(),
             };
           }),
-        })),
+        }));
+        persistQuoteDoc(proposalId, get);
+      },
 
-      removeLineItem: (proposalId, lineId) =>
+      removeLineItem: (proposalId, lineId) => {
         set((s) => ({
           proposals: s.proposals.map((p) => {
             if (p.id !== proposalId) return p;
@@ -313,13 +503,24 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               updated_at: new Date().toISOString(),
             };
           }),
-        })),
+        }));
+        persistQuoteDoc(proposalId, get);
+      },
     }),
     {
       name: "timeline-proposal-estimator",
       version: 3,
       storage: proposalEstimatorStorage,
+      // Live data is the source of truth in Supabase; don't persist it locally.
+      partialize: (s) =>
+        isSupabaseConfigured ? { proposals: [] } : { proposals: s.proposals },
       migrate: (state, fromVersion) => {
+        if (isSupabaseConfigured) {
+          return {
+            ...(state as object),
+            proposals: [],
+          } as unknown as ProposalEstimatorState;
+        }
         if (!state || typeof state !== "object") return state;
         // v2 -> v3: add pm_basis to add-ons and requirements_unclear to quotes.
         if (fromVersion >= 2) {

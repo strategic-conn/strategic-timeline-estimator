@@ -24,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { usePermissions } from "@/hooks/usePermissions";
 import { analyzeDiscovery, formatHours } from "@/lib/discovery";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useDiscoveryStore } from "@/store/discovery-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { DiscoveryFieldId } from "@/lib/discovery/questions";
@@ -41,19 +42,21 @@ export function DiscoveryProjectClient({ projectId }: { projectId: string }) {
     (s) => s.createProposalFromDraft,
   );
 
-  const [hydrated, setHydrated] = React.useState(() =>
+  const liveLoaded = useDiscoveryStore((s) => s.loaded);
+  const [persistHydrated, setPersistHydrated] = React.useState(() =>
     useDiscoveryStore.persist.hasHydrated(),
   );
+  const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [tab, setTab] = React.useState("discovery");
   const [creating, setCreating] = React.useState(false);
 
   React.useEffect(() => {
     if (useDiscoveryStore.persist.hasHydrated()) {
-      setHydrated(true);
+      setPersistHydrated(true);
       return;
     }
     const unsub = useDiscoveryStore.persist.onFinishHydration(() =>
-      setHydrated(true),
+      setPersistHydrated(true),
     );
     return unsub;
   }, []);

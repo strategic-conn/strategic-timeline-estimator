@@ -35,6 +35,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { usePermissions } from "@/hooks/usePermissions";
 import { sprintTasksHref } from "@/lib/constants/sprints";
 import { copyTextToClipboard, sprintShareUrl } from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
@@ -85,6 +86,7 @@ export function SprintCard({
   onDelete,
   onSetStatus,
 }: SprintCardProps) {
+  const { canEditProject } = usePermissions();
   const progressPct = taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0;
   const isPlanning = sprint.status === "planning";
   const isActive = sprint.status === "active";
@@ -102,43 +104,45 @@ export function SprintCard({
                 </CardDescription>
               ) : null}
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-sm"
-                  className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
-                  aria-label="Sprint actions"
-                >
-                  <MoreHorizontal className="size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => onEdit(sprint)}>
-                  Edit sprint
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onClick={() => onDelete(sprint)}
-                >
-                  Delete sprint
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "planning")}>
-                  Set to Planning
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "active")}>
-                  Start sprint
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "completed")}>
-                  Complete sprint
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "cancelled")}>
-                  Cancel sprint
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {canEditProject ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
+                    aria-label="Sprint actions"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => onEdit(sprint)}>
+                    Edit sprint
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => onDelete(sprint)}
+                  >
+                    Delete sprint
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "planning")}>
+                    Set to Planning
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "active")}>
+                    Start sprint
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "completed")}>
+                    Complete sprint
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => onSetStatus(sprint.id, "cancelled")}>
+                    Cancel sprint
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : null}
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -198,7 +202,7 @@ export function SprintCard({
           )}
 
           <div className="flex flex-col gap-2">
-            {(isPlanning || isActive) && (
+            {canEditProject && (isPlanning || isActive) && (
               <div className="flex gap-2">
                 {isPlanning && (
                   <Button

@@ -23,20 +23,23 @@ not just fast code.
 
 ## Current Status
 
-> **Frontend is being built demo-first**: every feature works against local Zustand
-> stores persisted to `localStorage` (no live data yet). **Supabase** integration (SDK + client
-> seam scaffolded; queries, Auth, and RLS still to wire) is pending — see "Backend Relationship" below.
+> **Wired to Supabase, with a demo fallback.** When `NEXT_PUBLIC_SUPABASE_*` env vars are set,
+> every feature reads/writes live Supabase (Auth, Postgres, RLS, Realtime, Storage). With **no**
+> env vars the app falls back to the original demo (Zustand + `localStorage` + `DUMMY_*` seeds) so
+> it still runs with no backend. The switch is the `isSupabaseConfigured` flag
+> (`lib/supabase/config.ts`), checked in every store/hook. Integration used a **synced-store
+> bridge** — each store hydrates from Supabase and does optimistic write-through + rollback —
+> **not** TanStack Query. See "Backend Relationship" below and `docs/supabase-integration-plan.md`.
 
 | Phase | Description                      | Status                                  |
 | ----- | -------------------------------- | --------------------------------------- |
-| 1     | Auth, Projects/Workspaces, Tasks | UI built (demo data) — login/register, projects, sprints, Kanban/list/table boards, backlog |
-| 2     | Collaboration, Scheduling, PTO   | UI built (demo data) — comments/reactions, notifications + activity feed, calendar, workload, PTO/availability, weekly capacity |
-| 3     | Proposals, Gantt Charts, Pricing | UI built (demo data) — proposal estimator (v2 catalog/tier/add-ons), Gantt/Timeline, PDF + Excel export |
-| 4     | Integrations, Performance, WCAG  | Not started — no real API wired; perf/WCAG passes pending |
+| 1     | Auth, Projects/Workspaces, Tasks | **Wired** (live Supabase; demo fallback) — real Auth, projects, sprints, tasks/assignees, Kanban/list/table, backlog |
+| 2     | Collaboration, Scheduling, PTO   | **Wired** — comments/reactions, notifications + activity feed (Realtime), calendar, workload, PTO/availability, weekly capacity |
+| 3     | Proposals, Gantt Charts, Pricing | **Wired** — proposal estimator (v2 catalog/tier/add-ons) live; Gantt/Timeline + PDF/Excel export (client-side, unchanged) |
+| 4     | Integrations, Performance, WCAG  | Realtime + Storage (avatars) done; RLS/security audit done. **Perf + WCAG passes still pending** |
 
-> Update this table when a phase starts or completes. "UI built (demo data)" means the
-> screens and interactions exist on local stores; swapping in Supabase is the
-> remaining work for each phase.
+> Update this table when a phase starts or completes. "Wired" means the store hydrates from and
+> writes to Supabase behind the `isSupabaseConfigured` flag, with the demo path kept as a fallback.
 
 **Total estimated FE hours (AI-assisted): ~232 hours**
 
@@ -68,19 +71,19 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 | PDF export   | jsPDF + jspdf-autotable                                 |
 | Excel export | xlsx (SheetJS)                                          |
 | Patching     | patch-package (`postinstall`)                           |
-| Backend SDK  | `@supabase/supabase-js` + `@supabase/ssr` (scaffolded, not wired) |
+| Backend SDK  | `@supabase/supabase-js` + `@supabase/ssr` (wired — Auth, data, Realtime, Storage) |
 
 ### Planned / not yet added
 
 | Layer        | Technology                   | Notes                                            |
 | ------------ | ---------------------------- | ------------------------------------------------ |
-| Server State | TanStack Query (React Query) | **Not installed yet** — recommended cache layer over Supabase queries when integration starts |
+| Server State | TanStack Query (React Query) | **Installed but not wired** (no `QueryClientProvider`) — the synced-store bridge covers caching; revisit if a feature needs true server-state caching |
 
-> **Reality check:** the backend is **Supabase** (see [docs/backend-supabase.md](docs/backend-supabase.md)).
-> The SDK and the client seam (`lib/supabase/`, root `middleware.ts`, `supabase/migrations/`)
-> are **scaffolded but not yet wired** — every feature still reads/writes Zustand stores
-> persisted to `localStorage`. The middleware no-ops until Supabase env vars are set, so the
-> demo runs unchanged. There is **no `lib/api/` folder and no axios** — Supabase replaces that layer.
+> **Reality check:** the backend is **Supabase** (see [docs/backend-supabase.md](docs/backend-supabase.md)),
+> and it is **wired**. When env vars are set, `lib/supabase/` + `supabase/migrations/` back every
+> feature via the synced-store bridge (Auth, data, Realtime, Storage). `proxy.ts` (Next 16's
+> renamed root middleware) refreshes the session and no-ops without env vars, so the **demo
+> fallback runs unchanged**. There is **no `lib/api/` folder and no axios** — Supabase replaces that layer.
 
 ---
 
@@ -113,8 +116,8 @@ app/
 │   ├── error.tsx · loading.tsx               # route-level states
 │   └── layout.tsx
 ├── error.tsx · not-found.tsx · page.tsx · layout.tsx
-middleware.ts                                  # Supabase session refresh (no-op until env set)
-# NOTE: auth is still a demo Zustand store; Supabase Auth replaces it at integration time.
+proxy.ts                                       # Next 16 root middleware — Supabase session refresh (no-op without env)
+# NOTE: auth is wired to Supabase Auth via a bridge; auth-store mirrors the session for demo compatibility.
 components/
 ├── ui/                 # shadcn/ui — generated components; avoid manual edits
 ├── common/             # coming-soon, shared bits
@@ -139,20 +142,20 @@ lib/
 ├── activity/           # workspace-push (append activity/notifications)
 ├── collaboration/      # notify-task-activity
 ├── undo/               # offer-undo-toast (one-shot Undo)
-└── supabase/           # client.ts (browser), server.ts (RSC/actions), middleware.ts (session) — seam, not wired
-store/                  # Zustand (all persisted to localStorage except UI/timers):
-                        #   projects, sprints, tasks, auth, availability,
+└── supabase/           # client.ts (browser), server.ts (RSC seam), middleware.ts + config.ts + parse-error.ts — wired
+store/                  # Zustand (live via WorkspaceSync + optimistic write-through; demo persists to localStorage):
+                        #   projects, sprints, tasks, auth, team, availability, activity,
                         #   notifications, weekly-capacity, proposal-estimator
-types/                  # project, sprint, task, proposal, availability, database (generated placeholder)
-docs/                   # data-mapping.md (data shapes) + backend-supabase.md (backend plan)
-supabase/               # migrations/ (0001_init schema, 0002_rls policies) + README — push with `npm run db:push`
+types/                  # project, sprint, task, proposal, availability, database (generated — `npm run db:types`)
+docs/                   # data-mapping.md (data shapes) + backend-supabase.md + supabase-integration-plan.md
+supabase/               # migrations/ (0001 schema, 0002 rls, 0003–0009 mentions/realtime/activity/storage/role-guard) + README — `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 ```
 
-> **Drift note:** the data layer is mid-migration. Today every feature uses Zustand +
-> `localStorage`; `lib/supabase/` + `supabase/migrations/` are the scaffolded target. The
-> authoritative current data-model reference is [docs/data-mapping.md](docs/data-mapping.md);
-> the backend plan is [docs/backend-supabase.md](docs/backend-supabase.md).
+> **Data layer:** live Supabase (`lib/supabase/` + `supabase/migrations/`) via the synced-store
+> bridge when env vars are set; Zustand + `localStorage` + `DUMMY_*` is the demo fallback. Stores
+> stay the single read seam for components either way. Backend plan:
+> [docs/backend-supabase.md](docs/backend-supabase.md); shapes: [docs/data-mapping.md](docs/data-mapping.md).
 
 ---
 
@@ -169,14 +172,14 @@ scoped by RLS.
 
 **Connection:** `@supabase/supabase-js` + `@supabase/ssr`, via the helpers in `lib/supabase/`:
 - `client.ts` — browser client for Client Components.
-- `server.ts` — server client for Server Components / Route Handlers / Server Actions.
-- `middleware.ts` (+ root `middleware.ts`) — refreshes the auth-session cookie each request.
+- `server.ts` — server client for Server Components / Route Handlers / Server Actions (seam; not yet imported).
+- `lib/supabase/middleware.ts` (+ root `proxy.ts`) — refreshes the auth-session cookie each request.
 
 **Auth flow (Supabase Auth / cookie-based):**
 
 1. User signs in with `supabase.auth.signInWithPassword(...)` (or OAuth / magic link).
 2. `@supabase/ssr` stores the JWT in **httpOnly cookies** — no token in local/session storage.
-3. Root `middleware.ts` refreshes the session cookie on every request.
+3. Root `proxy.ts` refreshes the session cookie on every request.
 4. RLS uses `auth.uid()` to scope every query automatically; on missing session, gate in middleware/UI.
 
 **To go live:**
@@ -218,24 +221,28 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 ## Data Access Map (Supabase tables → hooks)
 
 > Access is via `supabase-js` against these tables (defined in `supabase/migrations/0001_init.sql`),
-> scoped by RLS (`0002_rls.sql`). No REST endpoints. Update Status as each store is swapped.
-> Status: Demo (Zustand/local) | Wired (live Supabase) | —
+> scoped by RLS (`0002_rls.sql`+). No REST endpoints. Stores hydrate live via `WorkspaceSync` and
+> write through optimistically (the synced-store bridge). **Wired** = live when
+> `isSupabaseConfigured`, with the demo (Zustand/local) path kept as fallback.
+> Status: Demo (Zustand/local) | Wired (live Supabase; demo fallback) | —
 
-| Table(s)                              | Reads / writes via         | Hook(s)              | Status |
-| ------------------------------------- | -------------------------- | -------------------- | ------ |
-| `auth.users` + `profiles`             | Supabase Auth + select     | useAuth (todo)       | Demo   |
-| `projects`                            | select / insert / update / delete | useProjects   | Demo   |
-| `sprints`                             | select / insert / update / delete | useSprints    | Demo   |
-| `tasks` (+ `task_assignees`)          | select / insert / update / delete | useTasks      | Demo   |
-| `task_comments` (+ `comment_reactions`)| select / insert / delete  | useTasks / comments  | Demo   |
-| `profiles` (team directory)           | select                     | useTeam (todo)       | Demo   |
-| `notifications`                       | select / update + Realtime | useNotifications (todo)| Demo  |
-| `availability_entries`                | select / insert / update / delete | calendar/workload | Demo |
-| `weekly_capacity`                     | select / upsert            | workload             | Demo   |
-| `proposals` (jsonb document)          | select / insert / update / delete | useProposals (todo)| Demo |
+| Table(s)                              | Reads / writes via         | Store / hook                | Status |
+| ------------------------------------- | -------------------------- | --------------------------- | ------ |
+| `auth.users` + `profiles`             | Supabase Auth + select     | `useAuth` + `auth-store` (bridge) | Wired |
+| `projects`                            | select / insert / update / delete | `projects-store` / `useProjects` | Wired |
+| `sprints`                             | select / insert / update / delete | `sprints-store` / `useSprints` | Wired |
+| `tasks` (+ `task_assignees`)          | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
+| `task_comments` (+ `comment_reactions`)| select / insert / update / delete + Realtime | `tasks-store` / `TaskCommentSection` | Wired |
+| `profiles` (team directory)           | select                     | `team-store` / `useTeamMembers` | Wired |
+| `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
+| `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
+| `availability_entries`                | select / insert / update / delete | `availability-store` (calendar/workload) | Wired |
+| `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
+| `proposals` (jsonb document)          | select / insert / update / delete | `proposal-estimator-store` | Wired |
+| Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 
-**Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → optional Supabase
-**Edge Function** writing to a Storage bucket; the existing client-side jsPDF/xlsx export already works.
+**Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
+Supabase **Edge Function** → Storage bucket. The client-side jsPDF/xlsx export works today and is unchanged.
 
 ---
 
@@ -249,7 +256,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 // Core entities — abbreviated for context
 
 interface User {
-  id: number;
+  id: string; // UUID (auth.users / profiles.id). Demo mode uses "1".."6".
   name: string;
   email: string;
   role: "admin" | "manager" | "member" | "viewer";
@@ -261,7 +268,7 @@ interface Project {
   name: string;
   description?: string;
   status: "active" | "completed" | "archived";
-  owner_id: number;
+  owner_id: string; // UUID → profiles.id
   created_at: string;
   updated_at: string;
 }
@@ -285,8 +292,8 @@ interface Task {
   description?: string;
   status: "todo" | "in_progress" | "in_review" | "done" | "blocked";
   priority: "low" | "medium" | "high" | "critical";
-  assignee_ids: number[];
-  reporter_id: number;
+  assignee_ids: string[]; // UUID[] → profiles.id (task_assignees join)
+  reporter_id: string;    // UUID → profiles.id
   project_id: string;
   sprint_id?: string | null;  // null = backlog
   due_date?: string;
@@ -299,13 +306,19 @@ interface Task {
   comments: Comment[];
 }
 
-interface Proposal {
-  id: number;
-  project_id: number;
+// Proposal estimator uses `ClientQuote` (see types/proposal.types.ts), not this
+// old placeholder. Abbreviated:
+interface ClientQuote {
+  id: string;                 // UUID (demo: quote-N)
   title: string;
-  content: object;
-  status: "draft" | "sent" | "approved";
+  project_id?: string | null; // optional → projects.id
+  client_name?: string;
+  platform: ProposalPlatform;
+  line_items: ProposalLineItem[]; // JSONB in the proposals table
+  addons: ProposalAddons;         // JSONB roll-up (PM/responsive/design/QA)
+  requirements_unclear: boolean;
   created_at: string;
+  updated_at: string;
 }
 ```
 
@@ -530,6 +543,7 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
-> Last updated: 2026-06-22 — backend set to Supabase (SDK + seam + migrations scaffolded)
+> Last updated: 2026-07-01 — Supabase integration wired (Auth, data, Realtime, Storage, RLS) via the
+> synced-store bridge, with the Zustand/localStorage demo kept as a fallback behind `isSupabaseConfigured`.
 > Maintainer: Frontend Dev
 > Update this file whenever the project scope, stack, or patterns change.

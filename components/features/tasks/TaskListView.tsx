@@ -30,7 +30,8 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
+import type { TeamMember } from "@/types/task.types";
 import { cn } from "@/lib/utils";
 import { formatWorkHours } from "@/lib/utils/work-hours";
 import type { Task, TaskStatus } from "@/types/task.types";
@@ -46,8 +47,6 @@ const PRIORITY_DOT_BG: Record<Task["priority"], string> = {
 const STATUS_META = Object.fromEntries(
   TASK_STATUSES.map((s) => [s.value, s])
 ) as Record<TaskStatus, (typeof TASK_STATUSES)[number]>;
-
-const MEMBER_BY_ID = new Map(TEAM_MEMBERS.map((m) => [m.id, m]));
 
 function calendarYmd(d: Date): number {
   return (
@@ -98,7 +97,7 @@ export interface TaskListViewProps {
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
-  onTaskAssign: (taskId: string, userId: number | null) => void;
+  onTaskAssign: (taskId: string, userId: string | null) => void;
 }
 
 function TaskListView({
@@ -249,7 +248,7 @@ interface TaskRowProps {
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
-  onTaskAssign: (taskId: string, userId: number | null) => void;
+  onTaskAssign: (taskId: string, userId: string | null) => void;
 }
 
 function TaskRow({
@@ -262,9 +261,14 @@ function TaskRow({
   onTaskStatusChange,
   onTaskAssign,
 }: TaskRowProps) {
+  const teamMembers = useTeamMembers();
+  const memberById = React.useMemo(
+    () => new Map(teamMembers.map((m) => [m.id, m])),
+    [teamMembers]
+  );
   const assignees = task.assignee_ids
-    .map((id) => MEMBER_BY_ID.get(id))
-    .filter(Boolean) as (typeof TEAM_MEMBERS)[number][];
+    .map((id) => memberById.get(id))
+    .filter(Boolean) as TeamMember[];
   const tone = dueDateTone(task.due_date);
   const statusMeta = STATUS_META[task.status];
   const tags = task.tags.slice(0, 2);
@@ -379,7 +383,7 @@ function TaskRow({
                 Clear all
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              {TEAM_MEMBERS.map((m) => (
+              {teamMembers.map((m) => (
                 <DropdownMenuCheckboxItem
                   key={m.id}
                   checked={task.assignee_ids.includes(m.id)}

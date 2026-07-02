@@ -7,13 +7,13 @@ import {
   getDashboardMobileTabItems,
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
-import { usePermissions } from "@/hooks/usePermissions";
+import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { cn } from "@/lib/utils";
 
 export function DashboardMobileTabBar() {
   const pathname = usePathname();
-  const { canExportProposals } = usePermissions();
-  const tabItems = getDashboardMobileTabItems(canExportProposals);
+  const accessible = useAccessibleHrefs();
+  const tabItems = getDashboardMobileTabItems(accessible);
 
   return (
     <nav

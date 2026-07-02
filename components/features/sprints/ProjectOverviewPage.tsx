@@ -24,7 +24,8 @@ import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { useProjectsStore } from "@/store/projects-store";
-import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { backlogHref } from "@/lib/constants/sprints";
 import {
   backlogShareUrl,
   copyTextToClipboard,
@@ -117,6 +118,9 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     updateSprint,
     deleteSprint,
     setSprintStatus,
+    loaded: sprintsLoaded,
+    error: sprintsError,
+    hydrateFromSupabase: hydrateSprints,
   } = useSprints();
 
   const { tasks } = useTasks();
@@ -124,9 +128,14 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
   const projectRecord = useProjectsStore((s) =>
     s.projects.find((p) => p.id === projectId)
   );
+  const projectsLoaded = useProjectsStore((s) => s.loaded);
   const projectLabel = projectRecord?.name ?? "Project";
 
-  const [loading, setLoading] = React.useState(true);
+  // Demo shows a brief skeleton; live mode waits on the synced stores.
+  const [demoSettling, setDemoSettling] = React.useState(!isSupabaseConfigured);
+  const loading = isSupabaseConfigured
+    ? !sprintsLoaded || !projectsLoaded
+    : demoSettling;
   const [createOpen, setCreateOpen] = React.useState(false);
   const [editSprint, setEditSprint] = React.useState<Sprint | null>(null);
   const [editOpen, setEditOpen] = React.useState(false);
@@ -134,7 +143,8 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   React.useEffect(() => {
-    const t = setTimeout(() => setLoading(false), 300);
+    if (isSupabaseConfigured) return;
+    const t = setTimeout(() => setDemoSettling(false), 300);
     return () => clearTimeout(t);
   }, []);
 
@@ -237,6 +247,21 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     );
   }
 
+  if (sprintsError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-destructive/30 bg-destructive/5 px-6 py-16 text-center">
+        <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+          <Layers className="size-6" aria-hidden />
+        </div>
+        <p className="text-sm font-medium">Couldn&apos;t load sprints</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{sprintsError}</p>
+        <Button type="button" variant="outline" onClick={() => void hydrateSprints()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
   return (
     <>
       <CreateSprintModal
@@ -333,13 +358,16 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               </div>
               <p className="text-sm font-medium">No sprints yet</p>
               <p className="max-w-sm text-sm text-muted-foreground">
-                Create your first sprint to start organizing tasks into
-                time-boxed iterations.
+                {canEditProject
+                  ? "Create your first sprint to start organizing tasks into time-boxed iterations."
+                  : "No sprints yet. An admin or manager can create the first one."}
               </p>
-              <Button type="button" onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" aria-hidden />
-                Create sprint
-              </Button>
+              {canEditProject ? (
+                <Button type="button" onClick={() => setCreateOpen(true)}>
+                  <Plus className="size-4" aria-hidden />
+                  Create sprint
+                </Button>
+              ) : null}
             </div>
           </div>
         ) : (

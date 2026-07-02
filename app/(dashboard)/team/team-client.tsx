@@ -1,13 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, MailPlus, ShieldAlert } from "lucide-react";
+import { ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import { toast } from "sonner";
 
+import { AdminInvitesSection } from "@/components/features/settings/AdminInvitesSection";
+import { MemberAccessDialog } from "@/components/features/team/MemberAccessDialog";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -15,8 +18,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -32,501 +33,228 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Textarea } from "@/components/ui/textarea";
+import { usePermissions } from "@/hooks/usePermissions";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import { useAuthStore, type UserRole } from "@/store/auth-store";
+import { useTeamMembers } from "@/store/team-store";
+import type { TeamMember } from "@/types/task.types";
 
-/** Stable IDs the API can persist (RBAC / invite payload). */
-export const PERMISSION_IDS = [
-  "content.view",
-  "project.create",
-  "project.edit",
-  "project.delete",
-  "task.create",
-  "task.edit",
-  "task.delete",
-  "team.manage",
-  "proposals.export",
-] as const;
-
-export type PermissionId = (typeof PERMISSION_IDS)[number];
-
-type PermissionDef = {
-  id: PermissionId;
-  label: string;
-  description: string;
-  group: string;
-};
-
-const PERMISSIONS: PermissionDef[] = [
-  {
-    id: "content.view",
-    group: "General",
-    label: "View workspace content",
-    description: "See projects, tasks, boards, and shared data.",
-  },
-  {
-    id: "project.create",
-    group: "Projects",
-    label: "Create projects",
-    description: "Start new projects and workspaces.",
-  },
-  {
-    id: "project.edit",
-    group: "Projects",
-    label: "Edit projects",
-    description: "Change project details and settings.",
-  },
-  {
-    id: "project.delete",
-    group: "Projects",
-    label: "Delete projects",
-    description: "Remove projects (destructive).",
-  },
-  {
-    id: "task.create",
-    group: "Tasks",
-    label: "Create tasks",
-    description: "Add tasks on boards and lists.",
-  },
-  {
-    id: "task.edit",
-    group: "Tasks",
-    label: "Edit tasks",
-    description: "Update status, assignees, and details.",
-  },
-  {
-    id: "task.delete",
-    group: "Tasks",
-    label: "Delete tasks",
-    description: "Remove tasks (destructive).",
-  },
-  {
-    id: "team.manage",
-    group: "Team",
-    label: "Manage team & invites",
-    description: "Invite people, change access, revoke invites.",
-  },
-  {
-    id: "proposals.export",
-    group: "Proposals",
-    label: "Export proposals",
-    description: "PDF / Excel exports for client proposals.",
-  },
+const ROLES: { value: UserRole; label: string }[] = [
+  { value: "admin", label: "Admin" },
+  { value: "manager", label: "Manager" },
+  { value: "member", label: "Member" },
+  { value: "viewer", label: "Viewer" },
 ];
 
-type PresetKey = "viewer" | "member" | "manager" | "admin";
-
-const PRESET_KEYS: PresetKey[] = [
-  "viewer",
-  "member",
-  "manager",
-  "admin",
-];
-
-const TEMPLATE_LABEL: Record<PresetKey | "custom", string> = {
-  custom: "Custom (adjusted below)",
-  viewer: "Viewer — read only",
-  member: "Member — tasks",
-  manager: "Manager — projects + tasks",
-  admin: "Admin — full access",
-};
-
-/** Presets match your product matrix; users can still tweak every checkbox. */
-const TEMPLATE_PERMISSIONS: Record<PresetKey, Set<PermissionId>> = {
-  viewer: new Set<PermissionId>(["content.view"]),
-  member: new Set<PermissionId>([
-    "content.view",
-    "task.create",
-    "task.edit",
-  ]),
-  manager: new Set<PermissionId>([
-    "content.view",
-    "project.create",
-    "project.edit",
-    "task.create",
-    "task.edit",
-    "task.delete",
-    "proposals.export",
-  ]),
-  admin: new Set<PermissionId>(PERMISSION_IDS),
-};
-
-function setsEqual(a: Set<string>, b: Set<string>) {
-  if (a.size !== b.size) return false;
-  for (const x of a) if (!b.has(x)) return false;
-  return true;
-}
-
-function detectTemplate(selected: Set<PermissionId>): PresetKey | null {
-  for (const k of PRESET_KEYS) {
-    if (setsEqual(selected, TEMPLATE_PERMISSIONS[k])) return k;
-  }
-  return null;
-}
-
-function permissionSummary(selected: Set<PermissionId>): string {
-  const match = detectTemplate(selected);
-  if (match) return TEMPLATE_LABEL[match];
-  return `Custom · ${selected.size} permission${selected.size === 1 ? "" : "s"}`;
-}
-
-const GROUP_ORDER = ["General", "Projects", "Tasks", "Team", "Proposals"];
-
-function groupPermissions(list: PermissionDef[]) {
-  const map = new Map<string, PermissionDef[]>();
-  for (const p of list) {
-    const g = p.group;
-    if (!map.has(g)) map.set(g, []);
-    map.get(g)!.push(p);
-  }
-  return GROUP_ORDER.filter((g) => map.has(g)).map((g) => ({
-    group: g,
-    items: map.get(g)!,
-  }));
-}
-
-type PendingInvite = {
-  id: string;
-  email: string;
-  permissionIds: PermissionId[];
-  summaryLabel: string;
-  sentAt: string;
-  expiresAt: string;
-};
-
-const INITIAL_PENDING: PendingInvite[] = [
+const ROLE_REFERENCE: { role: string; blurb: string }[] = [
   {
-    id: "inv_01",
-    email: "jamie@client.com",
-    permissionIds: ["content.view", "task.create", "task.edit"],
-    summaryLabel: TEMPLATE_LABEL.member,
-    sentAt: "Mar 28, 2026",
-    expiresAt: "Apr 4, 2026",
+    role: "Admin",
+    blurb:
+      "Full access — manage the team & invites, delete projects, plus everything below.",
   },
   {
-    id: "inv_02",
-    email: "sam@agency.io",
-    permissionIds: ["content.view"],
-    summaryLabel: TEMPLATE_LABEL.viewer,
-    sentAt: "Mar 30, 2026",
-    expiresAt: "Apr 6, 2026",
+    role: "Manager",
+    blurb:
+      "Create & edit projects and sprints, full task control, export proposals & run the estimator.",
   },
+  {
+    role: "Member",
+    blurb:
+      "Create and edit tasks and comments. No project, team, or proposal access.",
+  },
+  { role: "Viewer", blurb: "Read-only access to all workspace content." },
 ];
 
 export function TeamClientPage() {
-  const [email, setEmail] = React.useState("");
-  const [note, setNote] = React.useState("");
-  const [emailError, setEmailError] = React.useState<string | null>(null);
+  const { canManageTeam } = usePermissions();
+  const authId = useAuthStore((s) => s.user.authId);
+  const members = useTeamMembers();
 
-  const [selected, setSelected] = React.useState<Set<PermissionId>>(
-    () => new Set(TEMPLATE_PERMISSIONS.member)
-  );
+  const [overrides, setOverrides] = React.useState<Record<string, UserRole>>({});
+  const [savingId, setSavingId] = React.useState<string | null>(null);
+  const [pageAccessOverrides, setPageAccessOverrides] = React.useState<
+    Record<string, string[] | null>
+  >({});
+  const [accessMember, setAccessMember] = React.useState<TeamMember | null>(null);
 
-  const [pending, setPending] = React.useState<PendingInvite[]>(INITIAL_PENDING);
-  const [isSubmitting, setIsSubmitting] = React.useState(false);
-  const [status, setStatus] = React.useState<string | null>(null);
+  const roleOf = (id: string, fallback: UserRole) => overrides[id] ?? fallback;
+  const pageAccessOf = (m: TeamMember): string[] | null =>
+    m.id in pageAccessOverrides ? pageAccessOverrides[m.id] : m.page_access ?? null;
 
-  const grouped = React.useMemo(() => groupPermissions(PERMISSIONS), []);
+  const canEditRoles = canManageTeam && isSupabaseConfigured;
 
-  const presetSelectValue = detectTemplate(selected) ?? "custom";
+  const openAccess = (m: TeamMember, currentRole: UserRole) =>
+    setAccessMember({ ...m, role: currentRole, page_access: pageAccessOf(m) });
 
-  function applyPreset(key: PresetKey) {
-    setSelected(new Set(TEMPLATE_PERMISSIONS[key]));
-  }
-
-  function togglePermission(id: PermissionId, checked: boolean) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id);
-      else next.delete(id);
-      return next;
-    });
-  }
-
-  function validateEmail(value: string) {
-    const t = value.trim();
-    if (!t) return "Email is required.";
-    if (!/^\S+@\S+\.\S+$/.test(t)) return "Enter a valid email address.";
-    return null;
-  }
-
-  async function onInvite(e: React.FormEvent) {
-    e.preventDefault();
-    setStatus(null);
-    const err = validateEmail(email);
-    setEmailError(err);
-    if (err) return;
-
-    if (selected.size === 0) {
-      setStatus("Select at least one permission (e.g. View workspace content).");
-      return;
+  const changeRole = async (id: string, role: UserRole, prev: UserRole) => {
+    setOverrides((o) => ({ ...o, [id]: role }));
+    setSavingId(id);
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role })
+      .eq("id", id);
+    setSavingId(null);
+    if (error) {
+      setOverrides((o) => ({ ...o, [id]: prev }));
+      toast.error("Couldn't update role", {
+        description: parseSupabaseError(error),
+      });
+    } else {
+      toast.success("Role updated");
     }
-
-    setIsSubmitting(true);
-    try {
-      await new Promise((r) => setTimeout(r, 600));
-      const ids = [...selected].sort() as PermissionId[];
-      const next: PendingInvite = {
-        id: `inv_${Date.now()}`,
-        email: email.trim(),
-        permissionIds: ids,
-        summaryLabel: permissionSummary(selected),
-        sentAt: "Just now",
-        expiresAt: "7 days",
-      };
-      setPending((prev) => [next, ...prev]);
-      setEmail("");
-      setNote("");
-      setStatus(
-        "Invite queued (demo). Payload will include permission IDs for the backend to enforce."
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
+  };
 
   return (
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="People"
         title="Team & access"
-        description="Invite-only signup. Choose exactly what this person can do — like Shopify staff permissions — or start from a preset and adjust."
+        description="Invite-only workspace. Manage who has access and the role they hold."
       />
 
-      <Alert>
-        <ShieldAlert className="size-4" aria-hidden="true" />
-        <AlertTitle>Invite-only registration</AlertTitle>
-        <AlertDescription>
-          New users join only through an invite. Each invite stores a permission
-          set your API validates on every request. Wire this form to{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            POST /invites
-          </code>{" "}
-          with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-            permission_ids[]
-          </code>
-          .
-        </AlertDescription>
-      </Alert>
+      {canManageTeam ? (
+        <Alert>
+          <ShieldAlert className="size-4" aria-hidden="true" />
+          <AlertTitle>Invite-only registration</AlertTitle>
+          <AlertDescription>
+            New members can only join by invite. Send one below — they get an
+            email to set a password and join with the role you choose. Anyone not
+            invited is rejected at sign-up.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <MailPlus className="size-4 text-muted-foreground" aria-hidden />
-              Invite someone
-            </CardTitle>
-            <CardDescription>
-              Pick a preset to pre-fill access, then turn individual permissions
-              on or off before sending.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <form onSubmit={onInvite} className="space-y-6" noValidate>
-              <div className="grid gap-6 lg:grid-cols-2">
-                <div className="space-y-4">
-                  <div className="space-y-1.5">
-                    <Label htmlFor="invite-email">Work email</Label>
-                    <Input
-                      id="invite-email"
-                      name="email"
-                      type="email"
-                      autoComplete="off"
-                      placeholder="colleague@company.com"
-                      value={email}
-                      onChange={(e) => {
-                        setEmail(e.target.value);
-                        if (emailError) setEmailError(null);
-                      }}
-                      aria-invalid={Boolean(emailError) || undefined}
-                    />
-                    {emailError ? (
-                      <p className="text-xs text-destructive">{emailError}</p>
-                    ) : null}
-                  </div>
+      {/* Real invite UI — admin + live mode only (renders nothing otherwise). */}
+      <AdminInvitesSection />
 
-                  <div className="space-y-1.5">
-                    <Label htmlFor="invite-template">Start from preset</Label>
-                    <Select
-                      value={presetSelectValue}
-                      onValueChange={(v) => {
-                        if (
-                          v === "viewer" ||
-                          v === "member" ||
-                          v === "manager" ||
-                          v === "admin"
-                        ) {
-                          applyPreset(v);
-                        }
-                      }}
-                    >
-                      <SelectTrigger
-                        id="invite-template"
-                        className="w-full max-w-full"
-                      >
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="custom" disabled>
-                          {TEMPLATE_LABEL.custom}
-                        </SelectItem>
-                        {PRESET_KEYS.map((k) => (
-                          <SelectItem key={k} value={k}>
-                            {TEMPLATE_LABEL[k]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <p className="text-xs text-muted-foreground">
-                      Pick a preset to reset the checkboxes, then turn individual
-                      permissions on or off. If the set doesn’t match a preset,
-                      the menu shows Custom.
-                    </p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <Label htmlFor="invite-note">Personal note (optional)</Label>
-                    <Textarea
-                      id="invite-note"
-                      placeholder="e.g. You’ll be on the Client Portal project."
-                      rows={3}
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      className="min-h-18 resize-y"
-                    />
-                  </div>
-                </div>
-
-                <div className="rounded-lg border bg-card/50 p-4">
-                  <div className="mb-3 flex items-center justify-between gap-2">
-                    <Label className="text-sm font-medium">
-                      Permissions for this invite
-                    </Label>
-                    <Badge variant="outline">{permissionSummary(selected)}</Badge>
-                  </div>
-                  <div className="max-h-[min(420px,55vh)] space-y-5 overflow-y-auto pr-1">
-                    {grouped.map(({ group, items }) => (
-                      <div key={group}>
-                        <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          {group}
-                        </p>
-                        <ul className="space-y-3">
-                          {items.map((p) => (
-                            <li
-                              key={p.id}
-                              className="flex gap-3 rounded-md border border-transparent p-2 hover:bg-muted/40"
-                            >
-                              <Checkbox
-                                id={`perm-${p.id}`}
-                                checked={selected.has(p.id)}
-                                onCheckedChange={(v) =>
-                                  togglePermission(p.id, v === true)
-                                }
-                                className="mt-0.5"
-                              />
-                              <div className="min-w-0 flex-1">
-                                <Label
-                                  htmlFor={`perm-${p.id}`}
-                                  className="cursor-pointer text-sm font-medium leading-snug"
-                                >
-                                  {p.label}
-                                </Label>
-                                <p className="mt-0.5 text-xs text-muted-foreground">
-                                  {p.description}
-                                </p>
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {status ? (
-                <p className="text-sm text-foreground" role="status">
-                  {status}
-                </p>
-              ) : null}
-
-              <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
-                {isSubmitting ? (
-                  <>
-                    <Loader2
-                      className="mr-2 size-4 animate-spin"
-                      aria-hidden
-                    />
-                    Sending invite…
-                  </>
-                ) : (
-                  "Send invite"
-                )}
-              </Button>
-            </form>
+      {canManageTeam && !isSupabaseConfigured ? (
+        <Card>
+          <CardContent className="py-6 text-sm text-muted-foreground">
+            Inviting teammates needs the Supabase backend (email + auth). This
+            demo has no server to send invites.
           </CardContent>
         </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="text-base">Pending invitations</CardTitle>
-            <CardDescription>
-              Each row stores the permission set that will apply when they
-              accept.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0">
-            {pending.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No pending invites.</p>
-            ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Access</TableHead>
-                    <TableHead>Sent</TableHead>
-                    <TableHead>Expires</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {pending.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="font-medium">{row.email}</TableCell>
-                      <TableCell>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-sm">{row.summaryLabel}</span>
-                          <span className="text-xs text-muted-foreground">
-                            {row.permissionIds.length} id
-                            {row.permissionIds.length === 1 ? "" : "s"}:{" "}
-                            {row.permissionIds.join(", ")}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.sentAt}
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {row.expiresAt}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-            <p className="mt-4 text-xs text-muted-foreground">
-              Later: resend, revoke, and compare invites to live members from the
-              API.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      ) : null}
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Preset reference</CardTitle>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Users className="size-4 text-muted-foreground" aria-hidden />
+            Members
+          </CardTitle>
           <CardDescription>
-            Starting points only—every invite can mix permissions freely. Backend
-            should still authorize by permission ID, not by preset name.
+            Everyone with an account in this workspace
+            {canEditRoles ? " — change a role inline (admin)." : "."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="pt-0">
+          {members.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No members yet.</p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden sm:table-cell">Email</TableHead>
+                    <TableHead className="w-40">Role</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {members.map((m) => {
+                    const current = roleOf(m.id, m.role);
+                    const isSelf = m.id === authId;
+                    return (
+                      <TableRow key={m.id}>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Avatar size="sm" className="shrink-0">
+                              {m.avatar_url ? (
+                                <AvatarImage src={m.avatar_url} alt="" />
+                              ) : null}
+                              <AvatarFallback>{m.initials}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium">
+                              {m.name}
+                              {isSelf ? (
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  (you)
+                                </span>
+                              ) : null}
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden text-muted-foreground sm:table-cell">
+                          {m.email}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1.5">
+                            {canEditRoles && !isSelf ? (
+                              <Select
+                                value={current}
+                                disabled={savingId === m.id}
+                                onValueChange={(v) =>
+                                  void changeRole(m.id, v as UserRole, current)
+                                }
+                              >
+                                <SelectTrigger size="sm" className="w-28 capitalize">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {ROLES.map((r) => (
+                                    <SelectItem key={r.value} value={r.value}>
+                                      {r.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge
+                                variant="secondary"
+                                className="font-normal capitalize"
+                              >
+                                {current}
+                              </Badge>
+                            )}
+                            {canEditRoles && !isSelf && current !== "admin" ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                title="Manage page access"
+                                aria-label={`Manage page access for ${m.name}`}
+                                onClick={() => openAccess(m, current)}
+                              >
+                                <SlidersHorizontal className="size-4" />
+                              </Button>
+                            ) : null}
+                          </div>
+                          {current !== "admin" && pageAccessOf(m) != null ? (
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              Custom access
+                            </span>
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">What each role can do</CardTitle>
+          <CardDescription>
+            Access is role-based and enforced by the database (RLS) — the UI just
+            mirrors it. Pick a role when you invite someone.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
@@ -534,34 +262,37 @@ export function TeamClientPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="min-w-[160px]">Preset</TableHead>
-                  <TableHead>Includes</TableHead>
+                  <TableHead className="min-w-28">Role</TableHead>
+                  <TableHead>Access</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(
-                  ["viewer", "member", "manager", "admin"] as const
-                ).map((key) => (
-                  <TableRow key={key}>
-                    <TableCell className="font-medium">
-                      {TEMPLATE_LABEL[key]}
-                    </TableCell>
+                {ROLE_REFERENCE.map((r) => (
+                  <TableRow key={r.role}>
+                    <TableCell className="font-medium">{r.role}</TableCell>
                     <TableCell className="text-muted-foreground">
-                      {[...TEMPLATE_PERMISSIONS[key]].join(", ")}
+                      {r.blurb}
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            If someone has{" "}
-            <span className="font-medium text-foreground">View</span> but not
-            edit rights, hide action controls instead of showing disabled
-            buttons.
-          </p>
         </CardContent>
       </Card>
+
+      {accessMember ? (
+        <MemberAccessDialog
+          member={accessMember}
+          open={accessMember != null}
+          onOpenChange={(v) => {
+            if (!v) setAccessMember(null);
+          }}
+          onSaved={(value) =>
+            setPageAccessOverrides((o) => ({ ...o, [accessMember.id]: value }))
+          }
+        />
+      ) : null}
     </div>
   );
 }

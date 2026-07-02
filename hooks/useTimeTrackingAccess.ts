@@ -23,9 +23,11 @@ export interface TimeTrackingAccess {
  * or manager/admin for corrections. Viewers never edit.
  */
 export function useTimeTrackingAccess(task: Task | null): TimeTrackingAccess | null {
-  const userId = useAuthStore((s) => s.user.id);
+  const authId = useAuthStore((s) => s.user.authId);
+  const demoId = useAuthStore((s) => s.user.id);
   const role = useAuthStore((s) => s.user.role);
   const { canEditTask } = usePermissions();
+  const userId = authId ?? String(demoId);
 
   return useMemo(() => {
     if (!task) return null;

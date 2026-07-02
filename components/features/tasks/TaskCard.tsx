@@ -37,9 +37,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
-import type { Task } from "@/types/task.types";
+import type { Task, TeamMember } from "@/types/task.types";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
@@ -55,7 +55,7 @@ export interface TaskCardProps {
   onClick: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onStatusChange: (taskId: string, status: TaskStatus) => void;
-  onAssign: (taskId: string, userId: number | null) => void;
+  onAssign: (taskId: string, userId: string | null) => void;
 }
 
 function startOfDay(d: Date): Date {
@@ -107,6 +107,7 @@ export function TaskCard({
   onAssign,
 }: TaskCardProps) {
   const [assignOpen, setAssignOpen] = React.useState(false);
+  const teamMembers = useTeamMembers();
 
   const {
     attributes,
@@ -128,8 +129,8 @@ export function TaskCard({
     "border-l-slate-400";
 
   const assignees = task.assignee_ids
-    .map((id) => TEAM_MEMBERS.find((m) => m.id === id))
-    .filter(Boolean) as (typeof TEAM_MEMBERS)[number][];
+    .map((id) => teamMembers.find((m) => m.id === id))
+    .filter(Boolean) as TeamMember[];
 
   const dueTone = dueDateTone(task.due_date);
 
@@ -381,7 +382,7 @@ export function TaskCard({
                   >
                     Clear all
                   </Button>
-                  {TEAM_MEMBERS.map((member) => {
+                  {teamMembers.map((member) => {
                     const checked = task.assignee_ids.includes(member.id);
                     return (
                       <label

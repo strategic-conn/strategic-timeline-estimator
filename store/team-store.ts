@@ -1,0 +1,88 @@
+"use client";
+
+import { create } from "zustand";
+
+import { deriveInitials } from "@/lib/utils/initials";
+import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import type { Database } from "@/types/database.types";
+import type { TeamMember } from "@/types/task.types";
+
+type ProfileRow = Database["public"]["Tables"]["profiles"]["Row"];
+
+const AVATAR_COLORS = [
+  "#6366f1",
+  "#0ea5e9",
+  "#f59e0b",
+  "#10b981",
+  "#ec4899",
+  "#8b5cf6",
+  "#ef4444",
+  "#14b8a6",
+];
+
+/** Stable color per profile id so avatars are consistent across reloads. */
+function colorForId(id: string): string {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
+}
+
+function rowToMember(r: ProfileRow): TeamMember {
+  return {
+    id: r.id,
+    name: r.name,
+    email: r.email,
+    role: r.role,
+    avatar_url: r.avatar_url ?? "",
+    initials: deriveInitials(r.name),
+    avatarColor: colorForId(r.id),
+    page_access: r.page_access ?? null,
+  };
+}
+
+interface TeamState {
+  members: TeamMember[];
+  loading: boolean;
+  loaded: boolean;
+  error: string | null;
+  hydrateFromSupabase: () => Promise<void>;
+}
+
+/**
+ * The team directory. In live mode it holds real `profiles`; in demo mode it
+ * mirrors TEAM_MEMBERS so every consumer can read people from one place.
+ */
+export const useTeamStore = create<TeamState>()((set) => ({
+  members: isSupabaseConfigured ? [] : [...TEAM_MEMBERS],
+  loading: isSupabaseConfigured,
+  loaded: !isSupabaseConfigured,
+  error: null,
+
+  hydrateFromSupabase: async () => {
+    if (!isSupabaseConfigured) return;
+    set({ loading: true, error: null });
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("name", { ascending: true });
+    if (error) {
+      set({ loading: false, loaded: true, error: parseSupabaseError(error) });
+      return;
+    }
+    set({
+      members: (data ?? []).map(rowToMember),
+      loading: false,
+      loaded: true,
+      error: null,
+    });
+  },
+}));
+
+/** Reactive list of team members (real profiles in live mode, demo otherwise). */
+export function useTeamMembers(): TeamMember[] {
+  return useTeamStore((s) => s.members);
+}

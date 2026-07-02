@@ -19,18 +19,20 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { TEAM_MEMBERS, ALL_TAGS } from "@/lib/dummy/tasks.data";
+import { ALL_TAGS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import {
   TASK_PRIORITIES,
   TASK_STATUSES,
   type TaskPriority,
   type TaskStatus,
+  type TeamMember,
 } from "@/types/task.types";
 
 export interface TaskFiltersProps {
   filters: {
-    assigneeIds: number[];
+    assigneeIds: string[];
     priorities: TaskPriority[];
     statuses: TaskStatus[];
     tags: string[];
@@ -64,7 +66,7 @@ function FilterCountBadge({ count }: { count: number }) {
   );
 }
 
-function AssigneeAvatar({ member }: { member: (typeof TEAM_MEMBERS)[number] }) {
+function AssigneeAvatar({ member }: { member: TeamMember }) {
   return (
     <span className="relative flex size-7 shrink-0 overflow-hidden rounded-full ring-1 ring-border">
       <img
@@ -122,6 +124,7 @@ export function TaskFilters({
   const [priorityOpen, setPriorityOpen] = React.useState(false);
   const [statusOpen, setStatusOpen] = React.useState(false);
   const [tagOpen, setTagOpen] = React.useState(false);
+  const teamMembers = useTeamMembers();
 
   const patch = React.useCallback(
     (partial: Partial<TaskFiltersProps["filters"]>) => {
@@ -130,7 +133,7 @@ export function TaskFilters({
     [filters, onFiltersChange]
   );
 
-  const toggleAssignee = (id: number) => {
+  const toggleAssignee = (id: string) => {
     patch({ assigneeIds: toggleInArray(filters.assigneeIds, id) });
   };
 
@@ -176,7 +179,7 @@ export function TaskFilters({
             <CommandList>
               <CommandEmpty>No teammate found.</CommandEmpty>
               <CommandGroup heading="Team">
-                {TEAM_MEMBERS.map((member) => {
+                {teamMembers.map((member) => {
                   const selected = filters.assigneeIds.includes(member.id);
                   return (
                     <CommandItem

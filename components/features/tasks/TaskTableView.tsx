@@ -40,13 +40,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import { formatWorkHours } from "@/lib/utils/work-hours";
-import type { Task, TaskPriority, TaskStatus } from "@/types/task.types";
+import type { Task, TaskPriority, TaskStatus, TeamMember } from "@/types/task.types";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types";
 
-const MEMBER_BY_ID = new Map(TEAM_MEMBERS.map((m) => [m.id, m]));
+type MemberMap = Map<string, TeamMember>;
 
 const STATUS_META = Object.fromEntries(
   TASK_STATUSES.map((s) => [s.value, s])
@@ -91,7 +91,7 @@ export interface TaskTableViewProps {
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
-  onTaskAssign: (taskId: string, userId: number | null) => void;
+  onTaskAssign: (taskId: string, userId: string | null) => void;
 }
 
 function calendarYmd(d: Date): number {
@@ -120,24 +120,25 @@ function formatShortDate(iso?: string): string {
   }).format(d);
 }
 
-function assigneeSortKey(task: Task): string {
+function assigneeSortKey(task: Task, memberById: MemberMap): string {
   if (!task.assignee_ids.length) return "\uffff";
   return [...task.assignee_ids]
-    .map((id) => MEMBER_BY_ID.get(id)?.name ?? "")
+    .map((id) => memberById.get(id)?.name ?? "")
     .sort()
     .join(",")
     .toLowerCase();
 }
 
-function reporterSortKey(task: Task): string {
-  return (MEMBER_BY_ID.get(task.reporter_id)?.name ?? "").toLowerCase();
+function reporterSortKey(task: Task, memberById: MemberMap): string {
+  return (memberById.get(task.reporter_id)?.name ?? "").toLowerCase();
 }
 
 function compareTasks(
   a: Task,
   b: Task,
   column: TaskTableSortColumn,
-  dir: "asc" | "desc"
+  dir: "asc" | "desc",
+  memberById: MemberMap
 ): number {
   const sign = dir === "asc" ? 1 : -1;
   let cmp = 0;
@@ -153,7 +154,9 @@ function compareTasks(
       cmp = PRIORITY_SORT_INDEX[a.priority] - PRIORITY_SORT_INDEX[b.priority];
       break;
     case "assignee":
-      cmp = assigneeSortKey(a).localeCompare(assigneeSortKey(b));
+      cmp = assigneeSortKey(a, memberById).localeCompare(
+        assigneeSortKey(b, memberById)
+      );
       break;
     case "tags":
       cmp = [...a.tags].sort().join(",").localeCompare([...b.tags].sort().join(","));
@@ -171,7 +174,9 @@ function compareTasks(
       cmp = (a.logged_hours ?? -1) - (b.logged_hours ?? -1);
       break;
     case "reporter":
-      cmp = reporterSortKey(a).localeCompare(reporterSortKey(b));
+      cmp = reporterSortKey(a, memberById).localeCompare(
+        reporterSortKey(b, memberById)
+      );
       break;
     case "created_at":
       cmp = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
@@ -221,6 +226,12 @@ function TaskTableView({
   const [page, setPage] = React.useState(1);
   const [pageSize, setPageSize] = React.useState<10 | 25 | 50>(10);
 
+  const teamMembers = useTeamMembers();
+  const memberById = React.useMemo<MemberMap>(
+    () => new Map(teamMembers.map((m) => [m.id, m])),
+    [teamMembers]
+  );
+
   const sortColumn = sort.column;
   const sortDirection = sort.direction;
 
@@ -234,8 +245,10 @@ function TaskTableView({
 
   const sortedTasks = React.useMemo(() => {
     if (!sortColumn) return tasks;
-    return [...tasks].sort((a, b) => compareTasks(a, b, sortColumn, sortDirection));
-  }, [tasks, sortColumn, sortDirection]);
+    return [...tasks].sort((a, b) =>
+      compareTasks(a, b, sortColumn, sortDirection, memberById)
+    );
+  }, [tasks, sortColumn, sortDirection, memberById]);
 
   const totalPages = Math.max(1, Math.ceil(sortedTasks.length / pageSize));
   const safePage = Math.min(page, totalPages);
@@ -361,9 +374,9 @@ function TaskTableView({
               const statusMeta = STATUS_META[task.status];
               const priorityMeta = TASK_PRIORITIES.find((p) => p.value === task.priority);
               const assignees = task.assignee_ids
-                .map((id) => MEMBER_BY_ID.get(id))
-                .filter(Boolean) as (typeof TEAM_MEMBERS)[number][];
-              const reporter = MEMBER_BY_ID.get(task.reporter_id);
+                .map((id) => memberById.get(id))
+                .filter(Boolean) as TeamMember[];
+              const reporter = memberById.get(task.reporter_id);
               const dueTone = dueDateTone(task.due_date);
 
               return (
@@ -490,7 +503,7 @@ function TaskTableView({
                           Clear all
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        {TEAM_MEMBERS.map((m) => (
+                        {teamMembers.map((m) => (
                           <DropdownMenuCheckboxItem
                             key={m.id}
                             checked={task.assignee_ids.includes(m.id)}

@@ -19,11 +19,11 @@ import {
 } from "@/components/ui/sheet";
 import {
   DASHBOARD_NAV_ITEMS,
-  filterDashboardNavItems,
+  filterNavByAccess,
   groupDashboardNavItems,
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
-import { usePermissions } from "@/hooks/usePermissions";
+import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { useAuthStore } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 
@@ -31,11 +31,8 @@ export function DashboardMobileMenu() {
   const pathname = usePathname();
   const [open, setOpen] = React.useState(false);
   const user = useAuthStore((s) => s.user);
-  const { canExportProposals } = usePermissions();
-  const navItems = filterDashboardNavItems(
-    DASHBOARD_NAV_ITEMS,
-    canExportProposals
-  );
+  const accessible = useAccessibleHrefs();
+  const navItems = filterNavByAccess(DASHBOARD_NAV_ITEMS, accessible);
   const groups = groupDashboardNavItems(navItems);
 
   return (

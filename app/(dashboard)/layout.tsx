@@ -6,9 +6,12 @@ import { AppAtmosphere } from "@/components/layouts/app-atmosphere";
 import { DashboardHeader } from "@/components/layouts/dashboard-header";
 import { DashboardMobileTabBar } from "@/components/layouts/dashboard-mobile-tab-bar";
 import { DashboardSidebarNav } from "@/components/layouts/dashboard-sidebar-nav";
+import { PageAccessGuard } from "@/components/layouts/page-access-guard";
 import { SidebarUserCard } from "@/components/layouts/sidebar-user-card";
+import { WorkspaceSync } from "@/components/layouts/workspace-sync";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -21,6 +24,8 @@ export default function DashboardLayout({
 }>) {
   return (
     <div className="relative flex h-svh min-h-0 w-full overflow-hidden bg-background text-foreground print:h-auto print:min-h-0 print:overflow-visible">
+      <WorkspaceSync />
+      <PageAccessGuard />
       <AppAtmosphere variant="app" />
 
       <aside className="relative z-10 hidden h-svh min-h-0 w-56 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-3 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:p-4 print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex xl:w-64">
@@ -42,7 +47,7 @@ export default function DashboardLayout({
             </span>
           </Link>
           <Badge variant="outline" className="shrink-0 font-mono text-[0.65rem]">
-            Demo
+            {isSupabaseConfigured ? "Live" : "Demo"}
           </Badge>
         </div>
 

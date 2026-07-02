@@ -72,6 +72,7 @@ import {
   platformLabel,
   type CatalogItem,
 } from "@/lib/proposal-catalog";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
@@ -142,19 +143,23 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const updateLineItem = useProposalEstimatorStore((s) => s.updateLineItem);
   const removeLineItem = useProposalEstimatorStore((s) => s.removeLineItem);
 
-  const [hydrated, setHydrated] = React.useState(() =>
+  // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
+  // store). Demo mode: gate on localStorage rehydration completing.
+  const liveLoaded = useProposalEstimatorStore((s) => s.loaded);
+  const [persistHydrated, setPersistHydrated] = React.useState(() =>
     useProposalEstimatorStore.persist.hasHydrated(),
   );
+  const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
 
   React.useEffect(() => {
     if (useProposalEstimatorStore.persist.hasHydrated()) {
-      setHydrated(true);
+      setPersistHydrated(true);
       return;
     }
     const unsub = useProposalEstimatorStore.persist.onFinishHydration(() => {
-      setHydrated(true);
+      setPersistHydrated(true);
     });
     return unsub;
   }, []);

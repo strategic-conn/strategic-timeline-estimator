@@ -24,7 +24,7 @@ export interface KanbanColumnProps {
   onTaskClick: (taskId: string) => void;
   onTaskDelete: (taskId: string) => void;
   onTaskStatusChange: (taskId: string, status: TaskStatus) => void;
-  onTaskAssign: (taskId: string, userId: number | null) => void;
+  onTaskAssign: (taskId: string, userId: string | null) => void;
   /** Opens the full create-task dialog with this column's status pre-selected. */
   onRequestCreateTask: (status: TaskStatus) => void;
 }

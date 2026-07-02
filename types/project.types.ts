@@ -5,7 +5,11 @@ export interface Project {
   name: string;
   description?: string;
   status: ProjectStatus;
-  owner_id: number;
+  /**
+   * Owner. In demo mode this is a stringified TEAM_MEMBERS id ("1"–"6"); in
+   * Supabase mode it's the owner's profile UUID.
+   */
+  owner_id: string;
   created_at: string;
   updated_at: string;
 }

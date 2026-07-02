@@ -82,11 +82,18 @@ export function useTasks() {
   const store = useTasksDataStore();
   return {
     tasks: store.tasks,
+    loading: store.loading,
+    loaded: store.loaded,
+    error: store.error,
+    hydrateTasks: store.hydrateFromSupabase,
     createTask: store.createTask,
     updateTask: store.updateTask,
     deleteTask: store.deleteTask,
     moveTask: store.moveTask,
     reorderTask: store.reorderTask,
+    beginTaskDrag: store.beginTaskDrag,
+    commitTaskMove: store.commitTaskMove,
+    cancelTaskDrag: store.cancelTaskDrag,
     addComment: store.addComment,
     editComment: store.editComment,
     deleteComment: store.deleteComment,

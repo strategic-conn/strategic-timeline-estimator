@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Project } from "@/types/project.types";
 
 const schema = z.object({
@@ -34,7 +35,7 @@ const schema = z.object({
     .max(200, "Name must be 200 characters or fewer"),
   description: z.string().max(2000).optional(),
   status: z.enum(["active", "completed", "archived"]),
-  owner_id: z.number().int().positive(),
+  owner_id: z.string().min(1),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -58,7 +59,7 @@ export function EditProjectModal({
       name: "",
       description: "",
       status: "active",
-      owner_id: 1,
+      owner_id: "1",
     },
     mode: "onBlur",
   });
@@ -143,30 +144,29 @@ export function EditProjectModal({
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Owner</Label>
-              <Controller
-                control={form.control}
-                name="owner_id"
-                render={({ field }) => (
-                  <Select
-                    value={String(field.value)}
-                    onValueChange={(v) => field.onChange(Number(v))}
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {TEAM_MEMBERS.map((m) => (
-                        <SelectItem key={m.id} value={String(m.id)}>
-                          {m.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-              />
-            </div>
+            {!isSupabaseConfigured ? (
+              <div className="space-y-2">
+                <Label>Owner</Label>
+                <Controller
+                  control={form.control}
+                  name="owner_id"
+                  render={({ field }) => (
+                    <Select value={field.value} onValueChange={field.onChange}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TEAM_MEMBERS.map((m) => (
+                          <SelectItem key={m.id} value={String(m.id)}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+              </div>
+            ) : null}
           </div>
 
           <DialogFooter className="gap-2 sm:gap-0">

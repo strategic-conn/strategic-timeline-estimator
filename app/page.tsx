@@ -79,12 +79,9 @@ export default function Home() {
         </Link>
 
         <div className="flex items-center gap-1 sm:gap-2">
-          <Button variant="ghost" size="sm" className="text-muted-foreground" asChild>
-            <Link href="/login">Sign in</Link>
-          </Button>
           <Button size="sm" className="hidden sm:inline-flex" asChild>
-            <Link href="/register">
-              Create account
+            <Link href="/login">
+              Sign in
               <ArrowRight className="ml-1 size-3.5 opacity-80" aria-hidden />
             </Link>
           </Button>
@@ -122,9 +119,6 @@ export default function Home() {
                 Sign in to dashboard
                 <ArrowRight className="ml-2 size-4" aria-hidden />
               </Link>
-            </Button>
-            <Button size="lg" variant="outline" className="w-full sm:w-auto" asChild>
-              <Link href="/register">Create account</Link>
             </Button>
           </div>
 

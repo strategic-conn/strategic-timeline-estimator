@@ -21,6 +21,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { usePermissions } from "@/hooks/usePermissions";
 import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { copyTextToClipboard, projectShareUrl } from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
@@ -41,8 +42,10 @@ export interface ProjectCardProps {
   onDelete: (project: Project) => void;
 }
 
-function ownerName(ownerId: number) {
-  return TEAM_MEMBERS.find((m) => m.id === ownerId)?.name ?? `User ${ownerId}`;
+function ownerName(ownerId: string) {
+  // Demo owners are stringified TEAM_MEMBERS ids; live owners are profile UUIDs.
+  const demo = TEAM_MEMBERS.find((m) => String(m.id) === ownerId);
+  return demo?.name ?? "You";
 }
 
 export function ProjectCard({
@@ -51,12 +54,14 @@ export function ProjectCard({
   onEdit,
   onDelete,
 }: ProjectCardProps) {
+  const { canEditProject, canDeleteProject } = usePermissions();
   const sprintCount = useSprintsStore(
     (s) => s.sprints.filter((sp) => sp.project_id === project.id).length
   );
   const activeSprint = useSprintsStore(
     (s) => s.sprints.find((sp) => sp.project_id === project.id && sp.status === "active")
   );
+  const canManage = canEditProject || canDeleteProject;
 
   return (
     <Card className="group relative overflow-hidden">
@@ -83,30 +88,38 @@ export function ProjectCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(project)}>
-                Edit project
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => onDelete(project)}
-              >
-                Delete project
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => onSetStatus(project.id, "active")}>
-                Mark active
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onSetStatus(project.id, "completed")}
-              >
-                Mark completed
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => onSetStatus(project.id, "archived")}
-              >
-                Archive
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
+              {canEditProject ? (
+                <DropdownMenuItem onClick={() => onEdit(project)}>
+                  Edit project
+                </DropdownMenuItem>
+              ) : null}
+              {canDeleteProject ? (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => onDelete(project)}
+                >
+                  Delete project
+                </DropdownMenuItem>
+              ) : null}
+              {canEditProject ? (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => onSetStatus(project.id, "active")}>
+                    Mark active
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onSetStatus(project.id, "completed")}
+                  >
+                    Mark completed
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => onSetStatus(project.id, "archived")}
+                  >
+                    Archive
+                  </DropdownMenuItem>
+                </>
+              ) : null}
+              {canManage ? <DropdownMenuSeparator /> : null}
               <DropdownMenuItem
                 onClick={async () => {
                   const ok = await copyTextToClipboard(

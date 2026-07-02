@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useWeeklyCapacityStore } from "@/store/weekly-capacity-store";
 
 type MemberWeeklyHoursInputProps = {
-  memberId: number;
+  memberId: string;
   /** Effective hours from store (after clamp). */
   committedHours: number;
   /** Accessible label (person name). */

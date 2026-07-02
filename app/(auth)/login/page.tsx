@@ -3,13 +3,15 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Eye, EyeOff, Loader2, LogIn } from "lucide-react";
+import { Loader2, LogIn } from "lucide-react";
 
+import { PasswordInput } from "@/components/common/password-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useAuth } from "@/hooks/useAuth";
 
 type FieldErrors = Partial<Record<"email" | "password", string>>;
 
@@ -29,10 +31,10 @@ function validate(values: { email: string; password: string }): FieldErrors {
 
 export default function LoginPage() {
   const router = useRouter();
+  const { isConfigured, signIn } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [remember, setRemember] = React.useState(true);
-  const [showPassword, setShowPassword] = React.useState(false);
 
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
@@ -47,9 +49,18 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
     try {
-      // Frontend-only for now: simulate a request so UI flows are real.
-      await new Promise((r) => setTimeout(r, 700));
-      router.push("/dashboard");
+      if (isConfigured) {
+        const { error } = await signIn(email, password);
+        if (error) {
+          setFormError(error);
+          return;
+        }
+        // signIn handles navigation to /dashboard on success.
+      } else {
+        // Demo fallback: simulate a request so UI flows are real.
+        await new Promise((r) => setTimeout(r, 700));
+        router.push("/dashboard");
+      }
     } catch {
       setFormError("Sign in failed. Please try again.");
     } finally {
@@ -67,7 +78,9 @@ export default function LoginPage() {
           Sign in
         </CardTitle>
         <CardDescription>
-          Use your work email. We’ll connect this to Supabase Auth next.
+          {isConfigured
+            ? "Sign in with your Supabase account."
+            : "Use your work email. We’ll connect this to Supabase Auth next."}
         </CardDescription>
       </CardHeader>
 
@@ -101,52 +114,26 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            <div className="relative">
-              <Input
-                id="password"
-                name="password"
-                type={showPassword ? "text" : "password"}
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                aria-invalid={Boolean(errors.password) || undefined}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-1 top-1/2 -translate-y-1/2"
-                onClick={() => setShowPassword((v) => !v)}
-                aria-label={showPassword ? "Hide password" : "Show password"}
-              >
-                {showPassword ? (
-                  <EyeOff className="size-4" aria-hidden="true" />
-                ) : (
-                  <Eye className="size-4" aria-hidden="true" />
-                )}
-              </Button>
-            </div>
+            <PasswordInput
+              id="password"
+              name="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              aria-invalid={Boolean(errors.password) || undefined}
+            />
             {errors.password ? (
               <p className="text-xs text-destructive">{errors.password}</p>
             ) : null}
           </div>
 
-          <div className="flex items-center justify-between">
-            <label className="flex items-center gap-2 text-xs">
-              <Checkbox
-                checked={remember}
-                onCheckedChange={(v) => setRemember(v === true)}
-              />
-              Remember me
-            </label>
-
-            <Link
-              href="/register"
-              className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-            >
-              Create account
-            </Link>
-          </div>
+          <label className="flex w-fit items-center gap-2 text-xs">
+            <Checkbox
+              checked={remember}
+              onCheckedChange={(v) => setRemember(v === true)}
+            />
+            Remember me
+          </label>
 
           {formError ? (
             <p className="text-sm text-destructive" role="alert">

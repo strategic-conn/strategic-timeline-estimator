@@ -3,20 +3,21 @@ export type TaskPriority = "low" | "medium" | "high" | "critical";
 
 export interface Reaction {
   emoji: string;
-  userIds: number[];
+  userIds: string[];
 }
 
 export interface Reply {
   id: string;
-  author_id: number;
+  author_id: string;
   body: string;
   created_at: string;
-  mentions: number[];
+  mentions: string[];
+  reactions: Reaction[];
 }
 
 export interface Comment {
   id: string;
-  author_id: number;
+  author_id: string;
   body: string;
   created_at: string;
   reactions: Reaction[];
@@ -29,9 +30,9 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
-  /** Zero or more people assigned to the task. */
-  assignee_ids: number[];
-  reporter_id: number;
+  /** Zero or more people assigned to the task (profile ids). */
+  assignee_ids: string[];
+  reporter_id: string;
   project_id: string;
   /** null or undefined = backlog (not assigned to any sprint). */
   sprint_id?: string | null;
@@ -46,13 +47,15 @@ export interface Task {
 }
 
 export interface TeamMember {
-  id: number;
+  id: string;
   name: string;
   email: string;
   role: "admin" | "manager" | "member" | "viewer";
   avatar_url: string;
   initials: string;
   avatarColor: string;
+  /** Per-user page allowlist (hrefs). null/undefined = role defaults. */
+  page_access?: string[] | null;
 }
 
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [
@@ -72,4 +75,4 @@ export const TASK_PRIORITIES: { value: TaskPriority; label: string; color: strin
 
 export const EMOJI_OPTIONS = ["👍", "❤️", "😄", "🎉", "👀", "🚀", "😕", "✅"] as const;
 
-export const CURRENT_USER_ID = 6;
+export const CURRENT_USER_ID = "6";

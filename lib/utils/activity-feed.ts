@@ -1,4 +1,11 @@
-import type { AppNotification } from "@/store/notifications-store";
+/** Minimal shape shared by activity-log entries and notifications. */
+export interface ActivityLike {
+  id: string;
+  text: string;
+  at: string;
+  href?: string;
+  project_id?: string | null;
+}
 
 /** Fixed locale so SSR and browser produce identical strings (avoids hydration errors). */
 const ACTIVITY_DATE_LOCALE = "en-US";
@@ -11,7 +18,7 @@ export function deriveProjectIdFromHref(href: string | undefined): string | null
 }
 
 export function activityItemMatchesProject(
-  item: AppNotification,
+  item: ActivityLike,
   projectId: string
 ): boolean {
   if (item.project_id === projectId) return true;
@@ -19,7 +26,7 @@ export function activityItemMatchesProject(
   return fromHref === projectId;
 }
 
-export function sortActivityNewestFirst(items: AppNotification[]): AppNotification[] {
+export function sortActivityNewestFirst<T extends ActivityLike>(items: T[]): T[] {
   return [...items].sort(
     (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
   );
@@ -28,12 +35,12 @@ export function sortActivityNewestFirst(items: AppNotification[]): AppNotificati
 export type ActivityDayGroup = {
   key: string;
   label: string;
-  items: AppNotification[];
+  items: ActivityLike[];
 };
 
-export function groupActivityByDay(items: AppNotification[]): ActivityDayGroup[] {
+export function groupActivityByDay(items: ActivityLike[]): ActivityDayGroup[] {
   const sorted = sortActivityNewestFirst(items);
-  const map = new Map<string, AppNotification[]>();
+  const map = new Map<string, ActivityLike[]>();
   const order: string[] = [];
 
   for (const item of sorted) {

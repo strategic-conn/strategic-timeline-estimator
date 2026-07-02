@@ -64,7 +64,8 @@ import { HelpTip } from "@/components/common/help-tip"
 import { TaskCommentSection } from "@/components/features/tasks/TaskCommentSection"
 import { TaskTimeTracker } from "@/components/features/tasks/TaskTimeTracker"
 import { useTimeTrackingAccess } from "@/hooks/useTimeTrackingAccess"
-import { ALL_TAGS, TEAM_MEMBERS } from "@/lib/dummy/tasks.data"
+import { ALL_TAGS } from "@/lib/dummy/tasks.data"
+import { useTeamMembers } from "@/store/team-store"
 import { copyTextToClipboard, taskShareUrl } from "@/lib/utils/share-links"
 import { cn } from "@/lib/utils"
 import { formatWorkHours, roundWorkHours } from "@/lib/utils/work-hours"
@@ -84,13 +85,13 @@ export interface TaskDetailDrawerProps {
     taskId: string,
     commentId: string,
     body: string,
-    mentionIds: number[]
+    mentionIds: string[]
   ) => void
   onAddReaction: (
     taskId: string,
     commentId: string,
     emoji: string,
-    userId: number
+    userId: string
   ) => void
   onAppendLoggedHours: (taskId: string, hours: number) => void
   /** When viewing the backlog board, offer one-click moves into sprints. */
@@ -112,10 +113,6 @@ function emptyDraft(): DraftFields {
     estimated_hours: undefined,
     logged_hours: undefined,
   }
-}
-
-function memberById(id: number) {
-  return TEAM_MEMBERS.find((m) => m.id === id)
 }
 
 function formatDateTime(iso: string) {
@@ -189,6 +186,12 @@ export function TaskDetailDrawer({
   const [dueOpen, setDueOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
   const [assigneesOpen, setAssigneesOpen] = React.useState(false)
+
+  const teamMembers = useTeamMembers()
+  const memberById = React.useCallback(
+    (id: string) => teamMembers.find((m) => m.id === id),
+    [teamMembers]
+  )
 
   const timeAccess = useTimeTrackingAccess(task)
 
@@ -572,7 +575,7 @@ export function TaskDetailDrawer({
                             >
                               Clear all
                             </Button>
-                            {TEAM_MEMBERS.map((m) => {
+                            {teamMembers.map((m) => {
                               const checked = task.assignee_ids.includes(m.id)
                               return (
                                 <label

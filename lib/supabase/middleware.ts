@@ -1,5 +1,5 @@
 /**
- * Session-refresh helper called from the root middleware on every request.
+ * Session-refresh helper called from the root proxy.ts on every request.
  *
  * IMPORTANT: until Supabase env vars are set this is a pass-through no-op, so the
  * current demo (Zustand + localStorage) keeps working unchanged. Once configured,
@@ -37,8 +37,34 @@ export async function updateSession(request: NextRequest) {
   });
 
   // Touch the session so Supabase can rotate the cookie if needed.
-  // (Add role-based redirects here once auth is live.)
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // ── Route guards ──────────────────────────────────────────────────────────
+  const path = request.nextUrl.pathname;
+  const isAuthRoute = path === "/login" || path === "/register";
+  // `/auth/*` (invite / email confirm handlers) must run before the guard, and
+  // `/accept-invite` is reached from the confirm redirect to set a password.
+  const isPublic =
+    isAuthRoute ||
+    path === "/" ||
+    path.startsWith("/auth/") ||
+    path === "/accept-invite";
+
+  // Unauthenticated → bounce protected routes to the login screen.
+  if (!user && !isPublic) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    return NextResponse.redirect(redirectUrl);
+  }
+
+  // Already signed in → keep them out of the auth screens.
+  if (user && isAuthRoute) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/dashboard";
+    return NextResponse.redirect(redirectUrl);
+  }
 
   return response;
 }

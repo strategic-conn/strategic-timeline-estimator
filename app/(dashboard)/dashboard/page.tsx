@@ -34,7 +34,7 @@ import { useAuthStore } from "@/store/auth-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
-import { useNotificationsStore } from "@/store/notifications-store";
+import { useActivityStore } from "@/store/activity-store";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import { cn } from "@/lib/utils";
 import {
@@ -111,12 +111,12 @@ function timeAgo(iso: string): string {
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
-  const userId = user.id;
+  const userId = user.authId ?? String(user.id);
   const firstName = user.name.trim().split(/\s+/)[0] || "there";
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
-  const notifications = useNotificationsStore((s) => s.items);
+  const activity = useActivityStore((s) => s.items);
 
   const activeProjects = useMemo(
     () => projects.filter((p) => p.status === "active"),
@@ -190,7 +190,7 @@ export default function DashboardPage() {
     return backlogHref(task.project_id, task.id);
   };
 
-  const recentActivity = notifications.slice(0, 5);
+  const recentActivity = activity.slice(0, 5);
 
   return (
     <div className="flex flex-col gap-6">

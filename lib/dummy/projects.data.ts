@@ -13,7 +13,7 @@ export const DUMMY_PROJECTS: Project[] = [
     description:
       "Core SaaS dashboard: tasks, estimates, schedule, reporting, and team access.",
     status: "active",
-    owner_id: 1,
+    owner_id: "1",
     created_at: daysFromNow(-30),
     updated_at: daysFromNow(-1),
   },
@@ -23,7 +23,7 @@ export const DUMMY_PROJECTS: Project[] = [
     description:
       "External-facing portal for clients to review milestones, approve proposals, and track delivery.",
     status: "active",
-    owner_id: 2,
+    owner_id: "2",
     created_at: daysFromNow(-50),
     updated_at: daysFromNow(-3),
   },
@@ -33,7 +33,7 @@ export const DUMMY_PROJECTS: Project[] = [
     description:
       "Ops and developer experience improvements: CI, linting, release notes, and admin workflows.",
     status: "completed",
-    owner_id: 1,
+    owner_id: "1",
     created_at: daysFromNow(-120),
     updated_at: daysFromNow(-20),
   },
@@ -43,7 +43,7 @@ export const DUMMY_PROJECTS: Project[] = [
     description:
       "Marketing site redesign with new typography, color system, and conversion-focused landing pages.",
     status: "archived",
-    owner_id: 3,
+    owner_id: "3",
     created_at: daysFromNow(-200),
     updated_at: daysFromNow(-90),
   },

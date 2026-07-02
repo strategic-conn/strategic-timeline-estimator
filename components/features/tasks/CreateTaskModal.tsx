@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus } from "@/types/task.types";
 import {
@@ -51,7 +51,7 @@ const schema = z.object({
   description: z.string().max(2000).optional(),
   status: z.enum(["todo", "in_progress", "in_review", "done", "blocked"]),
   priority: z.enum(["low", "medium", "high", "critical"]),
-  assignee_ids: z.array(z.number().int()),
+  assignee_ids: z.array(z.string()),
   due_date: z.string().optional(),
   estimated_hours: z.number().min(0).optional(),
   tags: z.array(z.string()),
@@ -86,6 +86,7 @@ export function CreateTaskModal({
 }: CreateTaskModalProps) {
   const [tagInput, setTagInput] = React.useState("");
   const [calOpen, setCalOpen] = React.useState(false);
+  const teamMembers = useTeamMembers();
 
   const {
     register,
@@ -271,7 +272,12 @@ export function CreateTaskModal({
               <div className="space-y-1.5">
                 <Label>Assignees</Label>
                 <div className="max-h-40 space-y-1 overflow-y-auto rounded-md border p-2">
-                  {TEAM_MEMBERS.map((m) => {
+                  {teamMembers.length === 0 ? (
+                    <p className="px-1 py-2 text-xs text-muted-foreground">
+                      No teammates yet.
+                    </p>
+                  ) : null}
+                  {teamMembers.map((m) => {
                     const checked = field.value.includes(m.id);
                     return (
                       <label
@@ -285,7 +291,7 @@ export function CreateTaskModal({
                               field.onChange([...field.value, m.id]);
                             } else {
                               field.onChange(
-                                field.value.filter((x: number) => x !== m.id)
+                                field.value.filter((x: string) => x !== m.id)
                               );
                             }
                           }}

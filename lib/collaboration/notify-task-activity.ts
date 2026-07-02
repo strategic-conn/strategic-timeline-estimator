@@ -1,4 +1,5 @@
 import { pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import { withProjectScope } from "@/lib/activity/project-label";
 import { taskBoardRelativePath } from "@/lib/utils/share-links";
 import type { Task } from "@/types/task.types";
 
@@ -16,11 +17,11 @@ type TaskNotifyFields = Pick<Task, "id" | "title" | "project_id" | "sprint_id">;
  */
 export function notifyTaskActivity(summary: string, task: TaskNotifyFields): void {
   const href = taskBoardRelativePath(task as Task);
-  pushWorkspaceActivity(summary, href, task.project_id);
+  pushWorkspaceActivity(withProjectScope(summary, task.project_id), href, task.project_id);
 }
 
 export function notifyCommentAdded(task: TaskNotifyFields): void {
-  notifyTaskActivity(`Comment on “${ellipsizeTitle(task.title)}”`, task);
+  notifyTaskActivity(`commented on “${ellipsizeTitle(task.title)}”`, task);
 }
 
 export function notifyReplyAdded(
@@ -29,17 +30,17 @@ export function notifyReplyAdded(
 ): void {
   const extra =
     mentionCount > 0 ? ` · ${mentionCount} mention${mentionCount === 1 ? "" : "s"}` : "";
-  notifyTaskActivity(`Reply on “${ellipsizeTitle(task.title)}”${extra}`, task);
+  notifyTaskActivity(`replied on “${ellipsizeTitle(task.title)}”${extra}`, task);
 }
 
 export function notifyCommentEdited(task: TaskNotifyFields): void {
-  notifyTaskActivity(`Comment updated on “${ellipsizeTitle(task.title)}”`, task);
+  notifyTaskActivity(`edited a comment on “${ellipsizeTitle(task.title)}”`, task);
 }
 
 export function notifyCommentRemoved(task: TaskNotifyFields): void {
-  notifyTaskActivity(`Comment removed on “${ellipsizeTitle(task.title)}”`, task);
+  notifyTaskActivity(`removed a comment on “${ellipsizeTitle(task.title)}”`, task);
 }
 
 export function notifyAssigneesUpdated(task: TaskNotifyFields): void {
-  notifyTaskActivity(`Assignees updated on “${ellipsizeTitle(task.title)}”`, task);
+  notifyTaskActivity(`updated assignees on “${ellipsizeTitle(task.title)}”`, task);
 }

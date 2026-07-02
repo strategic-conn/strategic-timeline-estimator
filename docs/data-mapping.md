@@ -1,23 +1,41 @@
 # Data mapping & schema (application model)
 
-This document reflects **only what exists in the codebase today**: TypeScript types (`types/`), Zustand stores (`store/`), and reference data (`lib/dummy/`). Persistence is **browser `localStorage`** via Zustand `persist` keys listed below (no live backend yet). The backend target is **Supabase** — the matching Postgres schema/RLS live in `supabase/migrations/`; see [backend-supabase.md](backend-supabase.md).
+This document describes the application data model (TypeScript types in `types/`, Zustand stores in `store/`).
+
+> **Status: wired to Supabase (with a demo fallback).** When `NEXT_PUBLIC_SUPABASE_*` env vars are set,
+> stores hydrate from and write to live Supabase (schema/RLS in `supabase/migrations/`, see
+> [backend-supabase.md](backend-supabase.md)) via the synced-store bridge. With no env vars, the app
+> falls back to Zustand + `localStorage` + `DUMMY_*` seeds. The switch is `isSupabaseConfigured`.
+>
+> **Two staleness caveats vs. the tables below** (kept for the demo-era field listings, not yet fully rewritten):
+> - **Person ids are `string` (UUID)**, not `number` — `TeamMember.id`, `owner_id`, `reporter_id`,
+>   `assignee_ids[]`, `AvailabilityEntry.user_id`, comment/reply `author_id`, reaction `userIds`, and
+>   weekly-capacity keys all flipped to `string` (Phase 3b-1). Demo mode uses `"1".."6"`.
+> - **Proposals use the v2 shape** (`ProposalLineItem` = `base_hours` × tier multiplier × `quantity`,
+>   plus roll-up `addons`), not the old `complexity`/`hours` line item shown further down. Notifications
+>   and the workspace activity log are now **separate** stores (`notifications-store` / `activity-store`).
 
 ---
 
 ## Persistence keys (localStorage)
 
+Demo mode persists full state to these keys. **In live mode each store `partialize`s to empty** (data
+is the source-of-truth in Supabase and re-fetched on load), so stale localStorage never shadows live data.
+
 | Persist key                   | Store / area                   | Version |
 | ----------------------------- | ------------------------------ | ------- |
-| `timeline-projects`           | Projects                       | 1       |
-| `timeline-sprints`            | Sprints                        | 1       |
-| `timeline-tasks`              | Tasks (incl. nested comments)  | 1       |
-| `timeline-notifications`      | Notifications / activity feed  | 1       |
-| `timeline-proposal-estimator` | Client quotes & line items     | 1       |
-| `timeline-availability`       | PTO / availability entries     | 1       |
-| `timeline-weekly-capacity`    | Per–team-member hour overrides | 1       |
-| `timeline-auth`               | Signed-in user profile (demo)  | 1       |
+| `timeline-projects`           | Projects                       | 2       |
+| `timeline-sprints`            | Sprints                        | 2       |
+| `timeline-tasks`              | Tasks (incl. nested comments)  | 2       |
+| `timeline-notifications`      | Notifications (personal bell)  | 1       |
+| `timeline-activity`           | Workspace activity feed        | 1       |
+| `timeline-proposal-estimator` | Client quotes & line items     | 3       |
+| `timeline-availability`       | PTO / availability entries     | 2       |
+| `timeline-weekly-capacity`    | Per–team-member hour overrides | 2       |
+| `timeline-auth`               | Signed-in user profile (demo mirror) | 1 |
 
-**Not persisted** (in-memory session only): task board UI (`selectedTaskId`, `activeView`), task timers (`useTaskTimerStore`), most filter panel state in pages.
+**Not persisted** (in-memory only): the team directory (`team-store`, hydrated live/from `TEAM_MEMBERS`),
+task board UI (`selectedTaskId`, `activeView`), task timers (`useTaskTimerStore`), most page filter state.
 
 ---
 

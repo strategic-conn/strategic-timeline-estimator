@@ -4,8 +4,10 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import Link from "next/link";
+import { ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 
+import { AvatarCropperDialog } from "@/components/features/settings/AvatarCropperDialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +26,9 @@ import {
   type ProfileFormValues,
 } from "@/lib/validations/profile.schema";
 import { deriveInitials } from "@/lib/utils/initials";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
 
 function userToFormValues(u: {
@@ -62,11 +67,99 @@ export function ProfileForm() {
   const avatarWatch = watch("avatar_url");
   const nameWatch = watch("name");
 
-  const onSubmit = (data: ProfileFormValues) => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [cropFile, setCropFile] = React.useState<File | null>(null);
+  const [cropOpen, setCropOpen] = React.useState(false);
+  const canUpload = isSupabaseConfigured && !!user.authId;
+
+  const MAX_AVATAR_BYTES = 8 * 1024 * 1024; // 8 MB source (cropped output is small)
+
+  // Selecting a file opens the cropper; upload happens on the cropped result.
+  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so re-selecting the same file fires change again.
+    e.target.value = "";
+    if (!file || !user.authId) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("That file isn't an image");
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      toast.error("Image is too large", { description: "Keep it under 8 MB." });
+      return;
+    }
+    setCropFile(file);
+    setCropOpen(true);
+  };
+
+  const closeCropper = () => {
+    setCropOpen(false);
+    setCropFile(null);
+  };
+
+  const handleCroppedUpload = async (blob: Blob) => {
+    if (!user.authId) return;
+    setUploading(true);
+    try {
+      const supabase = createClient();
+      // Owner-scoped folder — RLS requires the first path segment = auth.uid().
+      const path = `${user.authId}/avatar-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage
+        .from("avatars")
+        .upload(path, blob, {
+          upsert: true,
+          cacheControl: "3600",
+          contentType: "image/jpeg",
+        });
+      if (uploadError) {
+        toast.error("Couldn't upload image", {
+          description: parseSupabaseError(uploadError),
+        });
+        return;
+      }
+      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+      setValue("avatar_url", data.publicUrl, {
+        shouldDirty: true,
+        shouldValidate: true,
+      });
+      closeCropper();
+      toast.success("Photo uploaded", {
+        description: "Save changes to apply it to your profile.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onSubmit = async (data: ProfileFormValues) => {
+    const name = data.name.trim();
+    const avatar_url = data.avatar_url?.trim() || undefined;
+
+    if (isSupabaseConfigured && user.authId) {
+      const supabase = createClient();
+      const { error } = await supabase
+        .from("profiles")
+        .update({ name, avatar_url: avatar_url ?? null })
+        .eq("id", user.authId);
+      if (error) {
+        toast.error("Couldn't save profile", {
+          description: parseSupabaseError(error),
+        });
+        return;
+      }
+      // Email is managed by Supabase Auth — keep the store name/avatar in step.
+      updateProfile({ name, avatar_url });
+      reset(userToFormValues(useAuthStore.getState().user));
+      toast.success("Profile updated");
+      return;
+    }
+
     updateProfile({
-      name: data.name.trim(),
+      name,
       email: data.email.trim(),
-      avatar_url: data.avatar_url?.trim() || undefined,
+      avatar_url,
     });
     reset(userToFormValues(useAuthStore.getState().user));
     toast.success("Profile updated", {
@@ -83,10 +176,9 @@ export function ProfileForm() {
       <CardHeader>
         <CardTitle>Your profile</CardTitle>
         <CardDescription>
-          Name, email, and photo are stored in this browser for the demo. A real build
-          will sync with{" "}
-          <code className="rounded bg-muted px-1 py-0.5 text-xs">GET /auth/me</code> and
-          update endpoints.
+          {isSupabaseConfigured
+            ? "Name and photo sync to your Supabase profile. Email is managed by your sign-in account."
+            : "Name, email, and photo are stored in this browser for the demo."}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -101,9 +193,35 @@ export function ProfileForm() {
                   {initialsPreview}
                 </AvatarFallback>
               </Avatar>
-              <p className="max-w-36 text-center text-xs text-muted-foreground">
-                Preview updates as you type the image URL or name.
-              </p>
+              {canUpload ? (
+                <>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarFile}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full gap-1.5"
+                    disabled={uploading}
+                    onClick={() => fileInputRef.current?.click()}
+                  >
+                    <ImagePlus className="size-4" aria-hidden />
+                    Upload photo
+                  </Button>
+                  <p className="max-w-36 text-center text-xs text-muted-foreground">
+                    PNG or JPG. Crop &amp; zoom before saving.
+                  </p>
+                </>
+              ) : (
+                <p className="max-w-36 text-center text-xs text-muted-foreground">
+                  Preview updates as you type the image URL or name.
+                </p>
+              )}
             </div>
 
             <div className="min-w-0 flex-1 space-y-4">
@@ -128,7 +246,9 @@ export function ProfileForm() {
                   id="profile-email"
                   type="email"
                   autoComplete="email"
+                  readOnly={isSupabaseConfigured}
                   aria-invalid={errors.email ? "true" : undefined}
+                  className={isSupabaseConfigured ? "bg-muted/50" : undefined}
                   {...register("email")}
                 />
                 {errors.email ? (
@@ -166,7 +286,9 @@ export function ProfileForm() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">User ID</p>
-                  <p className="font-mono text-sm tabular-nums">{user.id}</p>
+                  <p className="truncate font-mono text-sm" title={user.authId ?? String(user.id)}>
+                    {user.authId ?? user.id}
+                  </p>
                 </div>
                 <div className="space-y-1">
                   <p className="text-xs font-medium text-muted-foreground">Role</p>
@@ -175,15 +297,21 @@ export function ProfileForm() {
                       {user.role}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
-                      Switch from the{" "}
-                      <Link href="/dashboard" className="underline underline-offset-2">
-                        sidebar
-                      </Link>{" "}
-                      for the demo, or ask an admin on{" "}
-                      <Link href="/team" className="underline underline-offset-2">
-                        Team
-                      </Link>
-                      .
+                      {isSupabaseConfigured ? (
+                        "Set by an admin in the database."
+                      ) : (
+                        <>
+                          Switch from the{" "}
+                          <Link href="/dashboard" className="underline underline-offset-2">
+                            sidebar
+                          </Link>{" "}
+                          for the demo, or ask an admin on{" "}
+                          <Link href="/team" className="underline underline-offset-2">
+                            Team
+                          </Link>
+                          .
+                        </>
+                      )}
                     </span>
                   </div>
                 </div>
@@ -226,6 +354,14 @@ export function ProfileForm() {
           </div>
         </form>
       </CardContent>
+
+      <AvatarCropperDialog
+        open={cropOpen}
+        file={cropFile}
+        busy={uploading}
+        onCancel={closeCropper}
+        onCropped={handleCroppedUpload}
+      />
     </Card>
   );
 }

@@ -15,10 +15,12 @@ import { TaskDetailDrawer } from "@/components/features/tasks/TaskDetailDrawer";
 import { CreateTaskModal } from "@/components/features/tasks/CreateTaskModal";
 import { EditTaskModal } from "@/components/features/tasks/EditTaskModal";
 import { DeleteTaskDialog } from "@/components/features/tasks/DeleteTaskDialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTasks, useTasksStore } from "@/hooks/useTasks";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { TASK_FOCUS_QUERY_PARAM } from "@/lib/constants/task-focus";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskStatus } from "@/types/task.types";
 import type { BacklogSprintMoveTarget } from "@/components/features/tasks/TaskBoardToolbar";
@@ -48,11 +50,17 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
 
   const {
     tasks,
+    loaded: tasksLoaded,
+    error: tasksError,
+    hydrateTasks,
     createTask,
     updateTask,
     deleteTask,
     moveTask,
     reorderTask,
+    beginTaskDrag,
+    commitTaskMove,
+    cancelTaskDrag,
     addComment,
     editComment,
     deleteComment,
@@ -66,6 +74,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
   } = useTasks();
 
   const allSprints = useSprintsStore((s) => s.sprints);
+  const teamMembers = useTeamMembers();
 
   const activeView = useTasksStore((s) => s.activeView);
   const selectedTaskId = useTasksStore((s) => s.selectedTaskId);
@@ -207,7 +216,8 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
           t.title.toLowerCase().includes(q) ||
           t.tags.some((tag) => tag.toLowerCase().includes(q)) ||
           t.assignee_ids.some((id) =>
-            TEAM_MEMBERS.find((m) => m.id === id)
+            teamMembers
+              .find((m) => m.id === id)
               ?.name.toLowerCase()
               .includes(q),
           ),
@@ -235,7 +245,7 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     }
 
     return result;
-  }, [tasks, filters, projectId, sprintId]);
+  }, [tasks, filters, projectId, sprintId, teamMembers]);
 
   const highlightTaskId = React.useMemo(() => {
     if (!focusParam) return null;
@@ -409,7 +419,19 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [selectedTaskId, setSelectedTaskId]);
 
-  if (loading) {
+  if (tasksError && (!isSupabaseConfigured || tasksLoaded)) {
+    return (
+      <div className="flex w-full flex-col items-center justify-center gap-3 rounded-lg border border-dashed py-16 text-center">
+        <p className="text-sm font-medium">Couldn&apos;t load tasks</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{tasksError}</p>
+        <Button variant="outline" size="sm" onClick={() => void hydrateTasks()}>
+          Try again
+        </Button>
+      </div>
+    );
+  }
+
+  if (loading || (isSupabaseConfigured && !tasksLoaded)) {
     return (
       <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -481,6 +503,9 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
             onTaskAssign={assignTask}
             onMoveTask={moveTask}
             onReorderTask={reorderTask}
+            onBeginDrag={beginTaskDrag}
+            onCommitMove={commitTaskMove}
+            onCancelDrag={cancelTaskDrag}
             onRequestCreateTask={(status) => {
               setCreateTaskDefaultStatus(status);
               setCreateOpen(true);

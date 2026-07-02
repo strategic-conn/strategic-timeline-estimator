@@ -47,7 +47,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ymdCompare } from "@/lib/utils/availability-dates";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { AvailabilityEntryKind } from "@/types/availability.types";
 
@@ -73,20 +73,26 @@ type FormValues = z.infer<typeof schema>;
 
 export function AdminTeamTimeOffSection() {
   const { canEditOthersAvailability } = usePermissions();
+  const members = useTeamMembers();
   const entries = useAvailabilityStore((s) => s.entries);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
 
-  const [selectedUserId, setSelectedUserId] = React.useState<number>(
-    TEAM_MEMBERS[0]?.id ?? 1
-  );
+  const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<{
     id: string;
-    userId: number;
+    userId: string;
   } | null>(null);
 
-  const selectedMember = TEAM_MEMBERS.find((m) => m.id === selectedUserId);
+  // Default to the first teammate once the directory loads (live mode hydrates async).
+  React.useEffect(() => {
+    if (!selectedUserId && members.length > 0) {
+      setSelectedUserId(members[0].id);
+    }
+  }, [members, selectedUserId]);
+
+  const selectedMember = members.find((m) => m.id === selectedUserId);
 
   const forPerson = React.useMemo(
     () =>
@@ -146,7 +152,7 @@ export function AdminTeamTimeOffSection() {
             <h2 className="text-base font-semibold">Team time off (admin)</h2>
             <p className="text-sm text-muted-foreground">
               Add or remove PTO and away days for anyone on the team. Shown on the
-              calendar like their own entries. Demo only — wire to your API later.
+              calendar like their own entries.
             </p>
           </div>
         </div>
@@ -155,14 +161,14 @@ export function AdminTeamTimeOffSection() {
             Person
           </Label>
           <Select
-            value={String(selectedUserId)}
-            onValueChange={(v) => setSelectedUserId(Number(v))}
+            value={selectedUserId}
+            onValueChange={(v) => setSelectedUserId(v)}
           >
             <SelectTrigger id="admin-pto-person" className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TEAM_MEMBERS.map((m) => (
+              {members.map((m) => (
                 <SelectItem key={m.id} value={String(m.id)}>
                   {m.name}{" "}
                   <span className="text-muted-foreground">({m.role})</span>
@@ -323,7 +329,7 @@ export function AdminTeamTimeOffSection() {
             <AlertDialogTitle>Remove this entry?</AlertDialogTitle>
             <AlertDialogDescription>
               This removes the time off block for{" "}
-              {selectedMember?.name ?? "this person"} in the demo store only.
+              {selectedMember?.name ?? "this person"}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

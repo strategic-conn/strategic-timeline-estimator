@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { toast } from "sonner";
 
 import {
   notifyAssigneesUpdated,
@@ -10,19 +11,32 @@ import {
   notifyCommentRemoved,
   notifyReplyAdded,
 } from "@/lib/collaboration/notify-task-activity";
-import { pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import { pushWorkspaceActivity, notifyUsers } from "@/lib/activity/workspace-push";
+import { withProjectScope } from "@/lib/activity/project-label";
+import { commentRecipients, taskRecipients } from "@/lib/activity/recipients";
 import { projectOverviewHref, sprintTasksHref } from "@/lib/constants/sprints";
 import { DUMMY_TASKS } from "@/lib/dummy/tasks.data";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { offerUndoToast } from "@/lib/undo/offer-undo-toast";
 import { taskBoardRelativePath } from "@/lib/utils/share-links";
 import { roundWorkHours } from "@/lib/utils/work-hours";
+import { useAuthStore } from "@/store/auth-store";
+import type { Database } from "@/types/database.types";
 import type {
   Comment,
+  Reaction,
+  Reply,
   Task,
-  TaskPriority,
   TaskStatus,
 } from "@/types/task.types";
 import { CURRENT_USER_ID, TASK_STATUSES } from "@/types/task.types";
+
+/** Author for a new comment/reply: real signed-in user in live mode, demo id otherwise. */
+function currentAuthorId(): string {
+  return useAuthStore.getState().user.authId ?? CURRENT_USER_ID;
+}
 
 function columnLabel(status: TaskStatus): string {
   return TASK_STATUSES.find((s) => s.value === status)?.label ?? status;
@@ -41,6 +55,204 @@ function nextTaskId(tasks: Task[]): string {
   return `T-${String(max + 1).padStart(3, "0")}`;
 }
 
+function titleOf(task: Task): string {
+  return task.title.trim() || "Untitled task";
+}
+
+/** Display name of the person performing the current action. */
+function actorName(): string {
+  return useAuthStore.getState().user.name?.trim() || "Someone";
+}
+
+/** Single-line, length-capped preview of a comment/reply body for notifications. */
+function bodyPreview(body: string, max = 60): string {
+  const s = body.replace(/\s+/g, " ").trim();
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s;
+}
+
+/** Send a targeted notification about a task (actor auto-excluded by the store). */
+function notifyAboutTask(
+  recipientIds: string[],
+  text: string,
+  task: Task,
+): void {
+  notifyUsers(
+    recipientIds,
+    withProjectScope(text, task.project_id),
+    taskBoardRelativePath(task),
+    task.project_id,
+  );
+}
+
+type SupabaseBrowserClient = ReturnType<typeof createClient>;
+type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+type TaskRowWithAssignees = TaskRow & {
+  task_assignees: { profile_id: string }[];
+};
+
+function rowToTask(r: TaskRowWithAssignees): Task {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description ?? undefined,
+    status: r.status,
+    priority: r.priority,
+    assignee_ids: (r.task_assignees ?? []).map((a) => a.profile_id),
+    reporter_id: r.reporter_id,
+    project_id: r.project_id,
+    sprint_id: r.sprint_id,
+    due_date: r.due_date ?? undefined,
+    estimated_hours: r.estimated_hours ?? undefined,
+    logged_hours: r.logged_hours ?? undefined,
+    tags: r.tags,
+    position: r.position,
+    created_at: r.created_at,
+    updated_at: r.updated_at,
+    comments: [],
+  };
+}
+
+/** Replace a task's assignee rows wholesale (delete-all then insert the new set). */
+async function syncAssignees(
+  supabase: SupabaseBrowserClient,
+  taskId: string,
+  assigneeIds: string[],
+): Promise<{ error: { message?: string } | null }> {
+  const del = await supabase
+    .from("task_assignees")
+    .delete()
+    .eq("task_id", taskId);
+  if (del.error) return { error: del.error };
+  if (assigneeIds.length) {
+    const ins = await supabase
+      .from("task_assignees")
+      .insert(assigneeIds.map((profile_id) => ({ task_id: taskId, profile_id })));
+    if (ins.error) return { error: ins.error };
+  }
+  return { error: null };
+}
+
+type CommentRow = Database["public"]["Tables"]["task_comments"]["Row"];
+type CommentRowWithReactions = CommentRow & {
+  comment_reactions: { profile_id: string; emoji: string }[];
+};
+
+/** Collapse per-(profile,emoji) reaction rows into the UI's emoji→userIds shape. */
+function groupReactions(
+  rows: { profile_id: string; emoji: string }[],
+): Reaction[] {
+  const byEmoji = new Map<string, string[]>();
+  for (const r of rows) {
+    const arr = byEmoji.get(r.emoji) ?? [];
+    arr.push(r.profile_id);
+    byEmoji.set(r.emoji, arr);
+  }
+  return [...byEmoji.entries()].map(([emoji, userIds]) => ({ emoji, userIds }));
+}
+
+/** Toggle a user's emoji reaction within a list (add / remove, dropping empties). */
+function toggleReactionList(
+  reactions: Reaction[],
+  emoji: string,
+  userId: string,
+): Reaction[] {
+  const existing = reactions.find((r) => r.emoji === emoji);
+  if (!existing) return [...reactions, { emoji, userIds: [userId] }];
+  if (existing.userIds.includes(userId)) {
+    const filtered = existing.userIds.filter((u) => u !== userId);
+    return filtered.length > 0
+      ? reactions.map((r) =>
+          r.emoji === emoji ? { ...r, userIds: filtered } : r,
+        )
+      : reactions.filter((r) => r.emoji !== emoji);
+  }
+  return reactions.map((r) =>
+    r.emoji === emoji ? { ...r, userIds: [...r.userIds, userId] } : r,
+  );
+}
+
+/**
+ * Idempotently set a user's emoji reaction to present/absent within a list.
+ * Unlike `toggleReactionList`, applying the same realtime event twice is safe
+ * (our own optimistic write echoes back), so this never flips an existing state.
+ */
+function ensureReaction(
+  reactions: Reaction[],
+  emoji: string,
+  userId: string,
+  present: boolean,
+): Reaction[] {
+  const existing = reactions.find((r) => r.emoji === emoji);
+  const has = existing?.userIds.includes(userId) ?? false;
+  if (present) {
+    if (has) return reactions;
+    if (!existing) return [...reactions, { emoji, userIds: [userId] }];
+    return reactions.map((r) =>
+      r.emoji === emoji ? { ...r, userIds: [...r.userIds, userId] } : r,
+    );
+  }
+  if (!has) return reactions;
+  const filtered = existing!.userIds.filter((u) => u !== userId);
+  return filtered.length > 0
+    ? reactions.map((r) => (r.emoji === emoji ? { ...r, userIds: filtered } : r))
+    : reactions.filter((r) => r.emoji !== emoji);
+}
+
+/**
+ * Build the nested `Comment[]` (top-level newest-first, replies oldest-first)
+ * per task id from flat task_comments rows + embedded reactions.
+ */
+function assembleCommentsByTask(
+  rows: CommentRowWithReactions[],
+): Map<string, Comment[]> {
+  const byTask = new Map<string, CommentRowWithReactions[]>();
+  for (const r of rows) {
+    const arr = byTask.get(r.task_id) ?? [];
+    arr.push(r);
+    byTask.set(r.task_id, arr);
+  }
+  const result = new Map<string, Comment[]>();
+  for (const [taskId, taskRows] of byTask) {
+    const repliesByParent = new Map<string, CommentRowWithReactions[]>();
+    for (const r of taskRows) {
+      if (r.parent_id) {
+        const arr = repliesByParent.get(r.parent_id) ?? [];
+        arr.push(r);
+        repliesByParent.set(r.parent_id, arr);
+      }
+    }
+    const comments: Comment[] = taskRows
+      .filter((r) => r.parent_id == null)
+      .sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )
+      .map((c) => ({
+        id: c.id,
+        author_id: c.author_id,
+        body: c.body,
+        created_at: c.created_at,
+        reactions: groupReactions(c.comment_reactions ?? []),
+        replies: (repliesByParent.get(c.id) ?? [])
+          .sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime(),
+          )
+          .map((rep) => ({
+            id: rep.id,
+            author_id: rep.author_id,
+            body: rep.body,
+            created_at: rep.created_at,
+            mentions: rep.mentions ?? [],
+            reactions: groupReactions(rep.comment_reactions ?? []),
+          })),
+      }));
+    result.set(taskId, comments);
+  }
+  return result;
+}
+
 type CreateTaskPayload = Omit<
   Task,
   "id" | "position" | "created_at" | "updated_at" | "comments"
@@ -48,6 +260,36 @@ type CreateTaskPayload = Omit<
 
 interface TasksState {
   tasks: Task[];
+  /** True while the first Supabase fetch is in flight (live mode only). */
+  loading: boolean;
+  /** True once a fetch has resolved (or immediately in demo mode). */
+  loaded: boolean;
+  error: string | null;
+  /** Pull tasks (+ assignees) from Supabase into the store (live mode). */
+  hydrateFromSupabase: () => Promise<void>;
+  /** Realtime: merge a task INSERT/UPDATE (keeps local assignees + comments). */
+  applyRealtimeTaskUpsert: (row: TaskRow) => void;
+  /** Realtime: remove a task by id. */
+  applyRealtimeTaskDelete: (id: string) => void;
+  /** Realtime: add/remove a single task_assignees row (idempotent). */
+  applyRealtimeAssignee: (
+    taskId: string,
+    profileId: string,
+    present: boolean,
+  ) => void;
+  /** Realtime: insert a comment/reply row (dedupes by id). */
+  applyRealtimeCommentInsert: (row: CommentRow) => void;
+  /** Realtime: apply a comment/reply body edit. */
+  applyRealtimeCommentUpdate: (row: CommentRow) => void;
+  /** Realtime: remove a comment/reply by id. */
+  applyRealtimeCommentDelete: (id: string) => void;
+  /** Realtime: set a reaction present/absent on a comment/reply (idempotent). */
+  applyRealtimeReaction: (
+    commentId: string,
+    profileId: string,
+    emoji: string,
+    present: boolean,
+  ) => void;
   createTask: (payload: CreateTaskPayload) => void;
   updateTask: (id: string, partial: Partial<Task>) => void;
   deleteTask: (id: string) => void;
@@ -58,6 +300,12 @@ interface TasksState {
     toIndex: number,
     status: TaskStatus,
   ) => void;
+  /** Snapshot the board at drag start (for drop-commit rollback / undo). */
+  beginTaskDrag: () => void;
+  /** Persist the dragged task's final column once + push one notification. */
+  commitTaskMove: (taskId: string) => void;
+  /** Abandon an in-flight drag, restoring the pre-drag board. */
+  cancelTaskDrag: () => void;
   addComment: (taskId: string, body: string) => void;
   editComment: (taskId: string, commentId: string, body: string) => void;
   deleteComment: (taskId: string, commentId: string) => void;
@@ -65,52 +313,374 @@ interface TasksState {
     taskId: string,
     commentId: string,
     body: string,
-    mentionIds: number[],
+    mentionIds: string[],
   ) => void;
   addReaction: (
     taskId: string,
     commentId: string,
     emoji: string,
-    userId: number,
+    userId: string,
   ) => void;
-  assignTask: (taskId: string, userId: number | null) => void;
+  assignTask: (taskId: string, userId: string | null) => void;
   appendLoggedHours: (taskId: string, hours: number) => void;
   bulkUpdateStatus: (taskIds: string[], status: TaskStatus) => void;
   bulkDelete: (taskIds: string[]) => void;
   bulkMoveToSprint: (taskIds: string[], sprintId: string) => void;
 }
 
+// Pre-drag board snapshot, set by beginTaskDrag. Module-scoped because a drag is
+// a single, transient interaction — no need to put it in (or persist) state.
+let dragBefore: Task[] | null = null;
+
 export const useTasksDataStore = create<TasksState>()(
   persist(
     (set, get) => ({
-      tasks: [...DUMMY_TASKS],
+      // Live mode starts empty and hydrates from Supabase; demo seeds locally.
+      tasks: isSupabaseConfigured ? [] : [...DUMMY_TASKS],
+      loading: isSupabaseConfigured,
+      loaded: !isSupabaseConfigured,
+      error: null,
+
+      hydrateFromSupabase: async () => {
+        if (!isSupabaseConfigured) return;
+        set({ loading: true, error: null });
+        const supabase = createClient();
+        const { data, error } = await supabase
+          .from("tasks")
+          .select("*, task_assignees(profile_id)")
+          .order("position", { ascending: true });
+        if (error) {
+          set({ loading: false, loaded: true, error: parseSupabaseError(error) });
+          return;
+        }
+        const tasks = ((data ?? []) as unknown as TaskRowWithAssignees[]).map(
+          rowToTask,
+        );
+        // Render the board immediately; comments load right after.
+        set({ tasks, loading: false, loaded: true, error: null });
+
+        if (!tasks.length) return;
+        const { data: commentData, error: cErr } = await supabase
+          .from("task_comments")
+          .select("*, comment_reactions(profile_id, emoji)")
+          .order("created_at", { ascending: true });
+        if (cErr || !commentData) return; // boards stay usable without comments
+        const byTask = assembleCommentsByTask(
+          commentData as unknown as CommentRowWithReactions[],
+        );
+        set((s) => ({
+          tasks: s.tasks.map((t) => ({
+            ...t,
+            comments: byTask.get(t.id) ?? [],
+          })),
+        }));
+      },
+
+      // ── Realtime appliers (idempotent — our own writes echo back here too) ──
+      applyRealtimeTaskUpsert: (row) => {
+        // Don't disrupt an in-progress local drag; the drop commit reconciles.
+        if (dragBefore) return;
+        set((s) => {
+          const existing = s.tasks.find((t) => t.id === row.id);
+          if (existing) {
+            return {
+              tasks: s.tasks.map((t) =>
+                t.id === row.id
+                  ? {
+                      ...t, // keep local assignee_ids + comments
+                      title: row.title,
+                      description: row.description ?? undefined,
+                      status: row.status,
+                      priority: row.priority,
+                      reporter_id: row.reporter_id,
+                      project_id: row.project_id,
+                      sprint_id: row.sprint_id,
+                      due_date: row.due_date ?? undefined,
+                      estimated_hours: row.estimated_hours ?? undefined,
+                      logged_hours: row.logged_hours ?? undefined,
+                      tags: row.tags,
+                      position: row.position,
+                      created_at: row.created_at,
+                      updated_at: row.updated_at,
+                    }
+                  : t,
+              ),
+            };
+          }
+          // New task from another user — assignees/comments arrive via their
+          // own events (and are already embedded on next full hydrate).
+          return {
+            tasks: [...s.tasks, rowToTask({ ...row, task_assignees: [] })],
+          };
+        });
+      },
+
+      applyRealtimeTaskDelete: (id) => {
+        if (dragBefore) return;
+        set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+      },
+
+      applyRealtimeAssignee: (taskId, profileId, present) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const has = t.assignee_ids.includes(profileId);
+            if (present && !has)
+              return { ...t, assignee_ids: [...t.assignee_ids, profileId] };
+            if (!present && has)
+              return {
+                ...t,
+                assignee_ids: t.assignee_ids.filter((x) => x !== profileId),
+              };
+            return t;
+          }),
+        })),
+
+      applyRealtimeCommentInsert: (row) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== row.task_id) return t;
+            // Dedupe: skip if the comment or reply is already present.
+            const seen = t.comments.some(
+              (c) => c.id === row.id || c.replies.some((r) => r.id === row.id),
+            );
+            if (seen) return t;
+            if (row.parent_id == null) {
+              const comment: Comment = {
+                id: row.id,
+                author_id: row.author_id,
+                body: row.body,
+                created_at: row.created_at,
+                reactions: [],
+                replies: [],
+              };
+              return { ...t, comments: [comment, ...t.comments] };
+            }
+            const reply: Reply = {
+              id: row.id,
+              author_id: row.author_id,
+              body: row.body,
+              created_at: row.created_at,
+              mentions: row.mentions ?? [],
+              reactions: [],
+            };
+            return {
+              ...t,
+              comments: t.comments.map((c) =>
+                c.id === row.parent_id
+                  ? {
+                      ...c,
+                      replies: [...c.replies, reply].sort(
+                        (a, b) =>
+                          new Date(a.created_at).getTime() -
+                          new Date(b.created_at).getTime(),
+                      ),
+                    }
+                  : c,
+              ),
+            };
+          }),
+        })),
+
+      applyRealtimeCommentUpdate: (row) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== row.task_id) return t;
+            return {
+              ...t,
+              comments: t.comments.map((c) =>
+                c.id === row.id
+                  ? { ...c, body: row.body }
+                  : {
+                      ...c,
+                      replies: c.replies.map((r) =>
+                        r.id === row.id ? { ...r, body: row.body } : r,
+                      ),
+                    },
+              ),
+            };
+          }),
+        })),
+
+      applyRealtimeCommentDelete: (id) =>
+        set((s) => ({
+          // Row delete carries only the PK, so search every task.
+          tasks: s.tasks.map((t) => ({
+            ...t,
+            comments: t.comments
+              .filter((c) => c.id !== id)
+              .map((c) => ({
+                ...c,
+                replies: c.replies.filter((r) => r.id !== id),
+              })),
+          })),
+        })),
+
+      applyRealtimeReaction: (commentId, profileId, emoji, present) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) => ({
+            ...t,
+            comments: t.comments.map((c) => {
+              if (c.id === commentId) {
+                return {
+                  ...c,
+                  reactions: ensureReaction(
+                    c.reactions,
+                    emoji,
+                    profileId,
+                    present,
+                  ),
+                };
+              }
+              if (c.replies.some((r) => r.id === commentId)) {
+                return {
+                  ...c,
+                  replies: c.replies.map((r) =>
+                    r.id === commentId
+                      ? {
+                          ...r,
+                          reactions: ensureReaction(
+                            r.reactions,
+                            emoji,
+                            profileId,
+                            present,
+                          ),
+                        }
+                      : r,
+                  ),
+                };
+              }
+              return c;
+            }),
+          })),
+        })),
 
       createTask: (payload) => {
-        const beforeTasks = structuredClone(get().tasks);
         const now = new Date().toISOString();
-        const existing = get().tasks.filter(
+        const position = get().tasks.filter(
           (t) =>
             t.status === payload.status && t.project_id === payload.project_id,
-        );
-        const task: Task = {
-          ...payload,
-          id: nextTaskId(get().tasks),
-          position: existing.length,
-          created_at: now,
-          updated_at: now,
-          comments: [],
-        };
-        set((s) => ({ tasks: [...s.tasks, task] }));
-        offerUndoToast("Task created", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-          task.title.trim() || undefined,
-        );
-        const titleUi = task.title.trim() || "Untitled task";
-        pushWorkspaceActivity(
-          `Created task "${titleUi}"`,
-          taskBoardRelativePath(task),
-          task.project_id,
-        );
+        ).length;
+
+        if (!isSupabaseConfigured) {
+          const beforeTasks = structuredClone(get().tasks);
+          const task: Task = {
+            ...payload,
+            id: nextTaskId(get().tasks),
+            position,
+            created_at: now,
+            updated_at: now,
+            comments: [],
+          };
+          set((s) => ({ tasks: [...s.tasks, task] }));
+          offerUndoToast(
+            "Task created",
+            () => useTasksDataStore.setState({ tasks: beforeTasks }),
+            task.title.trim() || undefined,
+          );
+          pushWorkspaceActivity(
+            withProjectScope(`Created task "${titleOf(task)}"`, task.project_id),
+            taskBoardRelativePath(task),
+            task.project_id,
+          );
+          notifyAboutTask(
+            task.assignee_ids,
+            `${actorName()} assigned you a new task: "${titleOf(task)}"`,
+            task,
+          );
+          return;
+        }
+
+        // ── Supabase: optimistic insert with a client-generated UUID (no
+        // temp→real swap), reconcile on response.
+        void (async () => {
+          const reporterId = useAuthStore.getState().user.authId;
+          if (!reporterId) {
+            toast.error("Couldn't create task", {
+              description: "You need to be signed in.",
+            });
+            return;
+          }
+          // Real id client-side (no temp→real swap) so the row is stable even
+          // if the user acts on it before the insert returns.
+          const id = crypto.randomUUID();
+          const optimistic: Task = {
+            ...payload,
+            reporter_id: reporterId,
+            id,
+            position,
+            created_at: now,
+            updated_at: now,
+            comments: [],
+          };
+          set((s) => ({ tasks: [...s.tasks, optimistic] }));
+
+          const supabase = createClient();
+          const { data, error } = await supabase
+            .from("tasks")
+            .insert({
+              id,
+              project_id: payload.project_id,
+              sprint_id: payload.sprint_id ?? null,
+              title: payload.title,
+              description: payload.description ?? null,
+              status: payload.status,
+              priority: payload.priority,
+              reporter_id: reporterId,
+              due_date: payload.due_date ?? null,
+              estimated_hours: payload.estimated_hours ?? null,
+              logged_hours: payload.logged_hours ?? null,
+              tags: payload.tags,
+              position,
+            })
+            .select()
+            .single();
+
+          if (error || !data) {
+            set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+            toast.error("Couldn't create task", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+
+          if (payload.assignee_ids.length) {
+            const { error: aErr } = await supabase
+              .from("task_assignees")
+              .insert(
+                payload.assignee_ids.map((profile_id) => ({
+                  task_id: data.id,
+                  profile_id,
+                })),
+              );
+            if (aErr) {
+              toast.error("Task created, but assignees didn't save", {
+                description: parseSupabaseError(aErr),
+              });
+            }
+          }
+
+          const saved = rowToTask({
+            ...(data as TaskRow),
+            task_assignees: payload.assignee_ids.map((profile_id) => ({
+              profile_id,
+            })),
+          });
+          set((s) => ({
+            tasks: s.tasks.map((t) => (t.id === id ? saved : t)),
+          }));
+          toast.success("Task created");
+          pushWorkspaceActivity(
+            withProjectScope(`Created task "${titleOf(saved)}"`, saved.project_id),
+            taskBoardRelativePath(saved),
+            saved.project_id,
+          );
+          notifyAboutTask(
+            saved.assignee_ids,
+            `${actorName()} assigned you a new task: "${titleOf(saved)}"`,
+            saved,
+          );
+        })();
       },
 
       updateTask: (id, partial) => {
@@ -124,51 +694,148 @@ export const useTasksDataStore = create<TasksState>()(
           normalized.estimated_hours = roundWorkHours(
             normalized.estimated_hours,
           );
+        const now = new Date().toISOString();
         set((s) => ({
           tasks: s.tasks.map((t) =>
-            t.id === id
-              ? { ...t, ...normalized, updated_at: new Date().toISOString() }
-              : t,
+            t.id === id ? { ...t, ...normalized, updated_at: now } : t,
           ),
         }));
-        offerUndoToast("Task updated", () =>
-          useTasksDataStore.setState((s) => ({
-            tasks: s.tasks.map((t) =>
-              t.id === id ? structuredClone(snapshot) : t,
-            ),
-          })),
-        );
-        const merged = get().tasks.find((t) => t.id === id)!;
-        const titleUi = merged.title.trim() || "Untitled task";
-        pushWorkspaceActivity(
-          `Updated task "${titleUi}"`,
-          taskBoardRelativePath(merged),
-          merged.project_id,
-        );
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast("Task updated", () =>
+            useTasksDataStore.setState((s) => ({
+              tasks: s.tasks.map((t) =>
+                t.id === id ? structuredClone(snapshot) : t,
+              ),
+            })),
+          );
+          const merged = get().tasks.find((t) => t.id === id)!;
+          pushWorkspaceActivity(
+            withProjectScope(`Updated task "${titleOf(merged)}"`, merged.project_id),
+            taskBoardRelativePath(merged),
+            merged.project_id,
+          );
+          return;
+        }
+
+        void (async () => {
+          const supabase = createClient();
+          const fields: Database["public"]["Tables"]["tasks"]["Update"] = {
+            updated_at: now,
+          };
+          if (normalized.title !== undefined) fields.title = normalized.title;
+          if (normalized.description !== undefined)
+            fields.description = normalized.description ?? null;
+          if (normalized.status !== undefined) fields.status = normalized.status;
+          if (normalized.priority !== undefined)
+            fields.priority = normalized.priority;
+          if (normalized.sprint_id !== undefined)
+            fields.sprint_id = normalized.sprint_id ?? null;
+          if (normalized.due_date !== undefined)
+            fields.due_date = normalized.due_date ?? null;
+          if (normalized.estimated_hours !== undefined)
+            fields.estimated_hours = normalized.estimated_hours ?? null;
+          if (normalized.logged_hours !== undefined)
+            fields.logged_hours = normalized.logged_hours ?? null;
+          if (normalized.tags !== undefined) fields.tags = normalized.tags;
+          if (normalized.position !== undefined)
+            fields.position = normalized.position;
+
+          const { error } = await supabase
+            .from("tasks")
+            .update(fields)
+            .eq("id", id);
+
+          let assigneeErr: { message?: string } | null = null;
+          if (!error && normalized.assignee_ids !== undefined) {
+            const res = await syncAssignees(
+              supabase,
+              id,
+              normalized.assignee_ids,
+            );
+            assigneeErr = res.error;
+          }
+
+          if (error || assigneeErr) {
+            set((s) => ({
+              tasks: s.tasks.map((t) =>
+                t.id === id ? structuredClone(snapshot) : t,
+              ),
+            }));
+            toast.error("Couldn't update task", {
+              description: parseSupabaseError(error ?? assigneeErr),
+            });
+            return;
+          }
+          toast.success("Task updated");
+          const merged = get().tasks.find((t) => t.id === id);
+          if (merged) {
+            pushWorkspaceActivity(
+              withProjectScope(`Updated task "${titleOf(merged)}"`, merged.project_id),
+              taskBoardRelativePath(merged),
+              merged.project_id,
+            );
+          }
+        })();
       },
 
       deleteTask: (id) => {
         const task = get().tasks.find((t) => t.id === id);
         const beforeTasks = structuredClone(get().tasks);
         set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
-        offerUndoToast("Task deleted", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
-        if (task) {
-          const titleUi = task.title.trim() || "Untitled task";
-          pushWorkspaceActivity(
-            `Deleted task "${titleUi}"`,
-            taskBoardRelativePath(task),
-            task.project_id,
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast("Task deleted", () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
           );
+          if (task) {
+            pushWorkspaceActivity(
+              withProjectScope(`Deleted task "${titleOf(task)}"`, task.project_id),
+              taskBoardRelativePath(task),
+              task.project_id,
+            );
+            notifyAboutTask(
+              taskRecipients(task),
+              `${actorName()} deleted "${titleOf(task)}"`,
+              task,
+            );
+          }
+          return;
         }
+
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase.from("tasks").delete().eq("id", id);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't delete task", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          toast.success("Task deleted");
+          if (task) {
+            pushWorkspaceActivity(
+              withProjectScope(`Deleted task "${titleOf(task)}"`, task.project_id),
+              taskBoardRelativePath(task),
+              task.project_id,
+            );
+            notifyAboutTask(
+              taskRecipients(task),
+              `${actorName()} deleted "${titleOf(task)}"`,
+              task,
+            );
+          }
+        })();
       },
 
+      // moveTask / reorderTask are LOCAL-ONLY: they run repeatedly during a drag
+      // (drag-over previews the card between columns). Nothing is persisted and
+      // no notification is pushed here — that happens once on drop in
+      // commitTaskMove. beginTaskDrag snapshots state for undo/rollback.
       moveTask: (taskId, toStatus, toIndex) => {
-        const snap = get();
-        const task = snap.tasks.find((t) => t.id === taskId);
-        if (!task) return;
-        const beforeTasks = structuredClone(snap.tasks);
+        const exists = get().tasks.find((t) => t.id === taskId);
+        if (!exists) return;
         set((s) => {
           const task = s.tasks.find((t) => t.id === taskId);
           if (!task) return s;
@@ -185,28 +852,13 @@ export const useTasksDataStore = create<TasksState>()(
           const rest = others.filter((t) => t.status !== toStatus);
           return { tasks: [...rest, ...reindexed] };
         });
-        offerUndoToast("Task moved", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
-        const moved = get().tasks.find((t) => t.id === taskId);
-        if (moved) {
-          const titleUi = moved.title.trim() || "Untitled task";
-          pushWorkspaceActivity(
-            `"${titleUi}" moved to ${columnLabel(moved.status)}`,
-            taskBoardRelativePath(moved),
-            moved.project_id,
-          );
-        }
       },
 
       reorderTask: (taskId, _fromIndex, toIndex, status) => {
-        const snap = get();
-        const sorted = snap.tasks
-          .filter((t) => t.status === status)
+        const sorted = get()
+          .tasks.filter((t) => t.status === status)
           .sort((a, b) => a.position - b.position);
-        const idxEarly = sorted.findIndex((t) => t.id === taskId);
-        if (idxEarly === -1) return;
-        const beforeTasks = structuredClone(snap.tasks);
+        if (sorted.findIndex((t) => t.id === taskId) === -1) return;
         set((s) => {
           const columnTasks = s.tasks
             .filter((t) => t.status === status)
@@ -224,37 +876,148 @@ export const useTasksDataStore = create<TasksState>()(
             ),
           };
         });
-        offerUndoToast("Task reordered", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
+      },
+
+      beginTaskDrag: () => {
+        dragBefore = structuredClone(get().tasks);
+      },
+
+      cancelTaskDrag: () => {
+        if (dragBefore) set({ tasks: dragBefore });
+        dragBefore = null;
+      },
+
+      commitTaskMove: (taskId) => {
+        const before = dragBefore;
+        dragBefore = null;
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task) return;
+
+        if (!isSupabaseConfigured) {
+          if (before) {
+            const snapshot = before;
+            offerUndoToast("Task moved", () =>
+              useTasksDataStore.setState({ tasks: snapshot }),
+            );
+          }
+          pushWorkspaceActivity(
+            withProjectScope(
+              `moved "${titleOf(task)}" to ${columnLabel(task.status)}`,
+              task.project_id,
+            ),
+            taskBoardRelativePath(task),
+            task.project_id,
+          );
+          notifyAboutTask(
+            taskRecipients(task),
+            `${actorName()} moved "${titleOf(task)}" to ${columnLabel(task.status)}`,
+            task,
+          );
+          return;
+        }
+
+        void (async () => {
+          const supabase = createClient();
+          const now = new Date().toISOString();
+          // Persist the task's final column (status + position for every row).
+          const colRows = get()
+            .tasks.filter((t) => t.status === task.status)
+            .map((t) => ({ id: t.id, position: t.position }));
+          const results = await Promise.all(
+            colRows.map((r) =>
+              supabase
+                .from("tasks")
+                .update({
+                  status: task.status,
+                  position: r.position,
+                  updated_at: now,
+                })
+                .eq("id", r.id),
+            ),
+          );
+          const failed = results.find((r) => r.error);
+          if (failed?.error) {
+            if (before) set({ tasks: before });
+            toast.error("Couldn't save the board", {
+              description: parseSupabaseError(failed.error),
+            });
+            return;
+          }
+          pushWorkspaceActivity(
+            withProjectScope(
+              `moved "${titleOf(task)}" to ${columnLabel(task.status)}`,
+              task.project_id,
+            ),
+            taskBoardRelativePath(task),
+            task.project_id,
+          );
+          notifyAboutTask(
+            taskRecipients(task),
+            `${actorName()} moved "${titleOf(task)}" to ${columnLabel(task.status)}`,
+            task,
+          );
+        })();
       },
 
       addComment: (taskId, body) => {
+        const id = isSupabaseConfigured ? crypto.randomUUID() : uid();
+        const author_id = currentAuthorId();
         const comment: Comment = {
-          id: uid(),
-          author_id: CURRENT_USER_ID,
+          id,
+          author_id,
           body,
           created_at: new Date().toISOString(),
           reactions: [],
           replies: [],
         };
+        const before = structuredClone(get().tasks);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId ? { ...t, comments: [comment, ...t.comments] } : t,
           ),
         }));
         const task = get().tasks.find((t) => t.id === taskId);
-        if (task) notifyCommentAdded(task);
+        if (task) {
+          notifyCommentAdded(task);
+          notifyAboutTask(
+            taskRecipients(task),
+            `${actorName()} commented on "${titleOf(task)}": "${bodyPreview(body)}"`,
+            task,
+          );
+        }
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("task_comments")
+            .insert({ id, task_id: taskId, author_id, body, parent_id: null });
+          if (error) {
+            set({ tasks: before });
+            toast.error("Couldn't post comment", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
       },
 
       editComment: (taskId, commentId, body) => {
+        const before = structuredClone(get().tasks);
+        // Match a top-level comment OR a nested reply by id.
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
               ? {
                   ...t,
                   comments: t.comments.map((c) =>
-                    c.id === commentId ? { ...c, body } : c,
+                    c.id === commentId
+                      ? { ...c, body }
+                      : {
+                          ...c,
+                          replies: c.replies.map((r) =>
+                            r.id === commentId ? { ...r, body } : r,
+                          ),
+                        },
                   ),
                 }
               : t,
@@ -262,28 +1025,73 @@ export const useTasksDataStore = create<TasksState>()(
         }));
         const task = get().tasks.find((t) => t.id === taskId);
         if (task) notifyCommentEdited(task);
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("task_comments")
+            .update({ body })
+            .eq("id", commentId);
+          if (error) {
+            set({ tasks: before });
+            toast.error("Couldn't update comment", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
       },
 
       deleteComment: (taskId, commentId) => {
+        const before = structuredClone(get().tasks);
+        // Remove a top-level comment OR a nested reply by id.
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
-              ? { ...t, comments: t.comments.filter((c) => c.id !== commentId) }
+              ? {
+                  ...t,
+                  comments: t.comments
+                    .filter((c) => c.id !== commentId)
+                    .map((c) => ({
+                      ...c,
+                      replies: c.replies.filter((r) => r.id !== commentId),
+                    })),
+                }
               : t,
           ),
         }));
         const task = get().tasks.find((t) => t.id === taskId);
         if (task) notifyCommentRemoved(task);
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          // Cascade removes child replies + reactions in the DB.
+          const { error } = await supabase
+            .from("task_comments")
+            .delete()
+            .eq("id", commentId);
+          if (error) {
+            set({ tasks: before });
+            toast.error("Couldn't delete comment", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
       },
 
       addReply: (taskId, commentId, body, mentionIds) => {
+        const id = isSupabaseConfigured ? crypto.randomUUID() : uid();
+        const author_id = currentAuthorId();
         const reply = {
-          id: uid(),
-          author_id: CURRENT_USER_ID,
+          id,
+          author_id,
           body,
           created_at: new Date().toISOString(),
           mentions: mentionIds,
+          reactions: [],
         };
+        const before = structuredClone(get().tasks);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
@@ -299,53 +1107,130 @@ export const useTasksDataStore = create<TasksState>()(
           ),
         }));
         const task = get().tasks.find((t) => t.id === taskId);
-        if (task) notifyReplyAdded(task, mentionIds.length);
+        if (task) {
+          notifyReplyAdded(task, mentionIds.length);
+          notifyAboutTask(
+            commentRecipients(task, mentionIds),
+            `${actorName()} replied on "${titleOf(task)}": "${bodyPreview(body)}"`,
+            task,
+          );
+        }
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase.from("task_comments").insert({
+            id,
+            task_id: taskId,
+            author_id,
+            body,
+            parent_id: commentId,
+            mentions: mentionIds,
+          });
+          if (error) {
+            set({ tasks: before });
+            toast.error("Couldn't post reply", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
       },
 
-      addReaction: (taskId, commentId, emoji, userId) =>
+      addReaction: (taskId, commentId, emoji, userId) => {
+        // The target can be a top-level comment OR a reply (both are
+        // task_comments rows / reactable in the UI). Capture pre-toggle state
+        // so the DB call knows whether to insert or delete.
+        const task0 = get().tasks.find((t) => t.id === taskId);
+        let target: Comment | Reply | undefined;
+        let targetKind: "comment" | "reply" = "comment";
+        for (const c of task0?.comments ?? []) {
+          if (c.id === commentId) {
+            target = c;
+            targetKind = "comment";
+            break;
+          }
+          const rep = c.replies.find((r) => r.id === commentId);
+          if (rep) {
+            target = rep;
+            targetKind = "reply";
+            break;
+          }
+        }
+        const had =
+          target?.reactions
+            .find((r) => r.emoji === emoji)
+            ?.userIds.includes(userId) ?? false;
+        const before = structuredClone(get().tasks);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
               ? {
                   ...t,
                   comments: t.comments.map((c) => {
-                    if (c.id !== commentId) return c;
-                    const existing = c.reactions.find((r) => r.emoji === emoji);
-                    if (existing) {
-                      if (existing.userIds.includes(userId)) {
-                        const filtered = existing.userIds.filter(
-                          (u) => u !== userId,
-                        );
-                        return {
-                          ...c,
-                          reactions:
-                            filtered.length > 0
-                              ? c.reactions.map((r) =>
-                                  r.emoji === emoji
-                                    ? { ...r, userIds: filtered }
-                                    : r,
-                                )
-                              : c.reactions.filter((r) => r.emoji !== emoji),
-                        };
-                      }
+                    if (c.id === commentId) {
                       return {
                         ...c,
-                        reactions: c.reactions.map((r) =>
-                          r.emoji === emoji
-                            ? { ...r, userIds: [...r.userIds, userId] }
+                        reactions: toggleReactionList(
+                          c.reactions,
+                          emoji,
+                          userId,
+                        ),
+                      };
+                    }
+                    if (c.replies.some((r) => r.id === commentId)) {
+                      return {
+                        ...c,
+                        replies: c.replies.map((r) =>
+                          r.id === commentId
+                            ? {
+                                ...r,
+                                reactions: toggleReactionList(
+                                  r.reactions,
+                                  emoji,
+                                  userId,
+                                ),
+                              }
                             : r,
                         ),
                       };
                     }
-                    return {
-                      ...c,
-                      reactions: [...c.reactions, { emoji, userIds: [userId] }],
-                    };
+                    return c;
                   }),
                 }
               : t,
           ),
-        })),
+        }));
+
+        // Notify the comment/reply author when a reaction is ADDED (not removed).
+        if (task0 && target && !had) {
+          notifyAboutTask(
+            [target.author_id],
+            `${actorName()} reacted ${emoji} to your ${targetKind}: "${bodyPreview(target.body)}"`,
+            task0,
+          );
+        }
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } = had
+            ? await supabase
+                .from("comment_reactions")
+                .delete()
+                .eq("comment_id", commentId)
+                .eq("profile_id", userId)
+                .eq("emoji", emoji)
+            : await supabase
+                .from("comment_reactions")
+                .insert({ comment_id: commentId, profile_id: userId, emoji });
+          if (error) {
+            set({ tasks: before });
+            toast.error("Couldn't update reaction", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
+      },
 
       assignTask: (taskId, userId) => {
         const beforeTasks = structuredClone(get().tasks);
@@ -370,68 +1255,145 @@ export const useTasksDataStore = create<TasksState>()(
           }),
         }));
         const task = get().tasks.find((t) => t.id === taskId);
-        if (task) notifyAssigneesUpdated(task);
-        offerUndoToast("Assignees updated", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
+        if (task) {
+          notifyAssigneesUpdated(task);
+          notifyAboutTask(
+            task.assignee_ids,
+            `${actorName()} assigned you to "${titleOf(task)}"`,
+            task,
+          );
+        }
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast("Assignees updated", () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
+          );
+          return;
+        }
+
+        void (async () => {
+          const supabase = createClient();
+          const after = get().tasks.find((t) => t.id === taskId);
+          const { error } = await syncAssignees(
+            supabase,
+            taskId,
+            after?.assignee_ids ?? [],
+          );
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't update assignees", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
       },
 
       appendLoggedHours: (taskId, hours) => {
         if (hours <= 0) return;
         const beforeTasks = structuredClone(get().tasks);
+        const now = new Date().toISOString();
         set((s) => ({
           tasks: s.tasks.map((t) =>
             t.id === taskId
               ? {
                   ...t,
                   logged_hours: roundWorkHours((t.logged_hours ?? 0) + hours),
-                  updated_at: new Date().toISOString(),
+                  updated_at: now,
                 }
               : t,
           ),
         }));
-        offerUndoToast("Logged time updated", () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
         const task = get().tasks.find((t) => t.id === taskId);
-        if (task) {
-          const titleUi = task.title.trim() || "Untitled task";
-          pushWorkspaceActivity(
-            `Logged time on "${titleUi}"`,
-            taskBoardRelativePath(task),
-            task.project_id,
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast("Logged time updated", () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
           );
+          if (task) {
+            pushWorkspaceActivity(
+              withProjectScope(`Logged time on "${titleOf(task)}"`, task.project_id),
+              taskBoardRelativePath(task),
+              task.project_id,
+            );
+          }
+          return;
         }
+
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("tasks")
+            .update({ logged_hours: task?.logged_hours ?? 0, updated_at: now })
+            .eq("id", taskId);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't log time", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          if (task) {
+            pushWorkspaceActivity(
+              withProjectScope(`Logged time on "${titleOf(task)}"`, task.project_id),
+              taskBoardRelativePath(task),
+              task.project_id,
+            );
+          }
+        })();
       },
 
       bulkUpdateStatus: (taskIds, status) => {
         if (!taskIds.length) return;
         const beforeTasks = structuredClone(get().tasks);
+        const now = new Date().toISOString();
         set((s) => ({
           tasks: s.tasks.map((t) =>
-            taskIds.includes(t.id)
-              ? { ...t, status, updated_at: new Date().toISOString() }
-              : t,
+            taskIds.includes(t.id) ? { ...t, status, updated_at: now } : t,
           ),
         }));
         const n = taskIds.length;
-        const toastMsg =
-          n === 1 ? "Task status updated" : `${n} tasks updated`;
-        offerUndoToast(toastMsg, () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
+        const toastMsg = n === 1 ? "Task status updated" : `${n} tasks updated`;
+        const activityMsg = `updated status on ${n === 1 ? "a task" : `${n} tasks`}`;
         const primary = taskIds
-          .map((tid) =>
-            beforeTasks.find((t) => t.id === tid),
-          )
+          .map((tid) => beforeTasks.find((t) => t.id === tid))
           .find(Boolean);
-        if (primary) {
-          pushWorkspaceActivity(
-            toastMsg,
-            taskBoardRelativePath({ ...primary, status }),
-            primary.project_id,
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast(toastMsg, () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
           );
+          if (primary) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, primary.project_id),
+              taskBoardRelativePath({ ...primary, status }),
+              primary.project_id,
+            );
+          }
+          return;
         }
+
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("tasks")
+            .update({ status, updated_at: now })
+            .in("id", taskIds);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't update tasks", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          toast.success(toastMsg);
+          if (primary) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, primary.project_id),
+              taskBoardRelativePath({ ...primary, status }),
+              primary.project_id,
+            );
+          }
+        })();
       },
 
       bulkDelete: (taskIds) => {
@@ -445,53 +1407,119 @@ export const useTasksDataStore = create<TasksState>()(
           tasks: s.tasks.filter((t) => !taskIds.includes(t.id)),
         }));
         const toastMsg = n === 1 ? "Task deleted" : `${n} tasks deleted`;
-        offerUndoToast(toastMsg, () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
-        if (anchor) {
-          pushWorkspaceActivity(
-            toastMsg,
-            projectOverviewHref(anchor.project_id),
-            anchor.project_id,
+        const activityMsg = `deleted ${n === 1 ? "a task" : `${n} tasks`}`;
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast(toastMsg, () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
           );
+          if (anchor) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, anchor.project_id),
+              projectOverviewHref(anchor.project_id),
+              anchor.project_id,
+            );
+          }
+          return;
         }
+
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("tasks")
+            .delete()
+            .in("id", taskIds);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't delete tasks", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          toast.success(toastMsg);
+          if (anchor) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, anchor.project_id),
+              projectOverviewHref(anchor.project_id),
+              anchor.project_id,
+            );
+          }
+        })();
       },
 
       bulkMoveToSprint: (taskIds, sprintId) => {
         if (!taskIds.length) return;
         const beforeTasks = structuredClone(get().tasks);
+        const now = new Date().toISOString();
         const anchor = taskIds
           .map((id) => beforeTasks.find((t) => t.id === id))
           .find(Boolean);
         set((s) => ({
           tasks: s.tasks.map((t) =>
             taskIds.includes(t.id)
-              ? {
-                  ...t,
-                  sprint_id: sprintId,
-                  updated_at: new Date().toISOString(),
-                }
+              ? { ...t, sprint_id: sprintId, updated_at: now }
               : t,
           ),
         }));
         const n = taskIds.length;
         const toastMsg =
           n === 1 ? "Task moved to sprint" : `${n} tasks moved to sprint`;
-        offerUndoToast(toastMsg, () =>
-          useTasksDataStore.setState({ tasks: beforeTasks }),
-        );
-        if (anchor) {
-          pushWorkspaceActivity(
-            toastMsg,
-            sprintTasksHref(anchor.project_id, sprintId),
-            anchor.project_id,
+        const activityMsg = `moved ${n === 1 ? "a task" : `${n} tasks`} to a sprint`;
+
+        if (!isSupabaseConfigured) {
+          offerUndoToast(toastMsg, () =>
+            useTasksDataStore.setState({ tasks: beforeTasks }),
           );
+          if (anchor) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, anchor.project_id),
+              sprintTasksHref(anchor.project_id, sprintId),
+              anchor.project_id,
+            );
+          }
+          return;
         }
+
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("tasks")
+            .update({ sprint_id: sprintId, updated_at: now })
+            .in("id", taskIds);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't move tasks", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          toast.success(toastMsg);
+          if (anchor) {
+            pushWorkspaceActivity(
+              withProjectScope(activityMsg, anchor.project_id),
+              sprintTasksHref(anchor.project_id, sprintId),
+              anchor.project_id,
+            );
+          }
+        })();
       },
     }),
     {
       name: "timeline-tasks",
-      version: 1,
+      version: 2,
+      // Live data is the source-of-truth in Supabase and re-fetched on load;
+      // demo mode keeps persisting to localStorage.
+      partialize: (s) =>
+        isSupabaseConfigured ? { tasks: [] } : { tasks: s.tasks },
+      migrate: (persisted) => {
+        if (isSupabaseConfigured) {
+          return {
+            ...(persisted as object),
+            tasks: [],
+          } as unknown as TasksState;
+        }
+        return persisted as TasksState;
+      },
     },
   ),
 );

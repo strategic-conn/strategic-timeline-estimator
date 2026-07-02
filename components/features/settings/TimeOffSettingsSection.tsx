@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { ymdCompare } from "@/lib/utils/availability-dates";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { AvailabilityEntryKind } from "@/types/availability.types";
@@ -71,7 +72,7 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export function TimeOffSettingsSection() {
-  const userId = useAuthStore((s) => s.user.id);
+  const userId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const entries = useAvailabilityStore((s) => s.entries);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
@@ -132,8 +133,10 @@ export function TimeOffSettingsSection() {
           <div>
             <h2 className="text-base font-semibold">Time off & availability</h2>
             <p className="text-sm text-muted-foreground">
-              Log when you&apos;re out so teammates see it on the calendar. Stored
-              locally in this demo.
+              Log when you&apos;re out so teammates see it on the calendar.
+              {isSupabaseConfigured
+                ? " Saved to your workspace."
+                : " Stored locally in this demo."}
             </p>
           </div>
         </div>
@@ -277,8 +280,8 @@ export function TimeOffSettingsSection() {
           <AlertDialogHeader>
             <AlertDialogTitle>Remove this time off?</AlertDialogTitle>
             <AlertDialogDescription>
-              This only removes your local entry in the demo. Your team calendar
-              will update immediately.
+              This removes the time off entry. Your team calendar will update
+              immediately.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

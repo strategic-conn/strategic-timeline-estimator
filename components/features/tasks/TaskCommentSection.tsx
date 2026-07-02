@@ -21,22 +21,16 @@ import {
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
 import { cn } from "@/lib/utils";
-import type { Comment, Reply } from "@/types/task.types";
-import {
-  CURRENT_USER_ID,
-  EMOJI_OPTIONS,
-} from "@/types/task.types";
+import { useAuthStore } from "@/store/auth-store";
+import { useTeamMembers } from "@/store/team-store";
+import type { Comment, Reply, TeamMember } from "@/types/task.types";
+import { EMOJI_OPTIONS } from "@/types/task.types";
 
 const MAX_COMMENT_LENGTH = 1000;
 
 const MENTION_SPAN_CLASS =
   "text-blue-600 dark:text-blue-400 font-medium";
-
-const NAMES_BY_LENGTH = [...TEAM_MEMBERS].sort(
-  (a, b) => b.name.length - a.name.length
-);
 
 function escapeHtml(text: string): string {
   return text
@@ -52,9 +46,12 @@ function escapeRegExp(s: string): string {
 }
 
 /** Converts `@Full Name` segments (known team members) to highlighted spans; escapes the rest. */
-function commentBodyToHighlightHtml(body: string): string {
+function commentBodyToHighlightHtml(body: string, members: TeamMember[]): string {
   let html = escapeHtml(body);
-  for (const m of NAMES_BY_LENGTH) {
+  const namesByLength = [...members].sort(
+    (a, b) => b.name.length - a.name.length
+  );
+  for (const m of namesByLength) {
     const nameEscaped = escapeHtml(m.name);
     const re = new RegExp(`@${escapeRegExp(nameEscaped)}`, "g");
     html = html.replace(
@@ -89,19 +86,19 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(sec / 2592000)}mo ago`;
 }
 
-function getMember(id: number) {
-  return TEAM_MEMBERS.find((m) => m.id === id);
+function getMember(id: string, members: TeamMember[]) {
+  return members.find((m) => m.id === id);
 }
 
-function filterMembersByQuery(query: string) {
+function filterMembersByQuery(query: string, members: TeamMember[]) {
   const q = query.trim().toLowerCase();
-  if (!q) return TEAM_MEMBERS;
-  return TEAM_MEMBERS.filter((m) => m.name.toLowerCase().includes(q));
+  if (!q) return members;
+  return members.filter((m) => m.name.toLowerCase().includes(q));
 }
 
-function extractMentionIds(body: string): number[] {
-  const ids: number[] = [];
-  for (const m of TEAM_MEMBERS) {
+function extractMentionIds(body: string, members: TeamMember[]): string[] {
+  const ids: string[] = [];
+  for (const m of members) {
     if (body.includes(`@${m.name}`)) {
       ids.push(m.id);
     }
@@ -113,10 +110,12 @@ function useMentionableTextarea({
   value,
   onChange,
   maxLength,
+  members,
 }: {
   value: string;
   onChange: (next: string) => void;
   maxLength: number;
+  members: TeamMember[];
 }) {
   const ref = React.useRef<HTMLTextAreaElement>(null);
   const [mention, setMention] = React.useState<{
@@ -160,7 +159,7 @@ function useMentionableTextarea({
     updateMentionFromCursor(el, el.selectionStart);
   };
 
-  const insertMention = (member: (typeof TEAM_MEMBERS)[number]) => {
+  const insertMention = (member: TeamMember) => {
     const el = ref.current;
     if (!el || !mention) return;
     const pos = el.selectionStart;
@@ -180,7 +179,9 @@ function useMentionableTextarea({
   };
 
   const mentionOpen = mention !== null;
-  const filteredMembers = mention ? filterMembersByQuery(mention.query) : [];
+  const filteredMembers = mention
+    ? filterMembersByQuery(mention.query, members)
+    : [];
 
   return {
     ref,
@@ -194,11 +195,17 @@ function useMentionableTextarea({
   };
 }
 
-function CommentBodyHtml({ body }: { body: string }) {
+function CommentBodyHtml({
+  body,
+  members,
+}: {
+  body: string;
+  members: TeamMember[];
+}) {
   const html = React.useMemo(() => {
-    const raw = commentBodyToHighlightHtml(body);
+    const raw = commentBodyToHighlightHtml(body, members);
     return sanitizeCommentHtml(raw);
-  }, [body]);
+  }, [body, members]);
 
   return (
     <div
@@ -218,13 +225,13 @@ export interface TaskCommentSectionProps {
     taskId: string,
     commentId: string,
     body: string,
-    mentionIds: number[]
+    mentionIds: string[]
   ) => void;
   onAddReaction: (
     taskId: string,
     commentId: string,
     emoji: string,
-    userId: number
+    userId: string
   ) => void;
 }
 
@@ -237,11 +244,15 @@ export function TaskCommentSection({
   onAddReply,
   onAddReaction,
 }: TaskCommentSectionProps) {
+  const members = useTeamMembers();
+  const currentUserId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
+
   const [composer, setComposer] = React.useState("");
   const main = useMentionableTextarea({
     value: composer,
     onChange: setComposer,
     maxLength: MAX_COMMENT_LENGTH,
+    members,
   });
 
   const [expandedThreads, setExpandedThreads] = React.useState<
@@ -391,6 +402,8 @@ export function TaskCommentSection({
               <CommentThread
                 taskId={taskId}
                 comment={comment}
+                members={members}
+                currentUserId={currentUserId}
                 expanded={!!expandedThreads[comment.id]}
                 onToggleReplies={() => toggleThread(comment.id)}
                 onExpandForReply={() =>
@@ -425,6 +438,8 @@ export function TaskCommentSection({
 function CommentThread({
   taskId,
   comment,
+  members,
+  currentUserId,
   expanded,
   onToggleReplies,
   onExpandForReply,
@@ -443,6 +458,8 @@ function CommentThread({
 }: {
   taskId: string;
   comment: Comment;
+  members: TeamMember[];
+  currentUserId: string;
   expanded: boolean;
   onToggleReplies: () => void;
   onExpandForReply: () => void;
@@ -459,14 +476,14 @@ function CommentThread({
   onSaveEdit: () => void;
   onEditDraftChange: (v: string) => void;
 }) {
-  const author = getMember(comment.author_id);
+  const author = getMember(comment.author_id, members);
   const isEditing = editingId === comment.id;
   const [reactionOpen, setReactionOpen] = React.useState(false);
 
   const submitReply = () => {
     const body = replyBody.trim();
     if (!body) return;
-    const mentionIds = extractMentionIds(body);
+    const mentionIds = extractMentionIds(body, members);
     onAddReply(taskId, comment.id, body, mentionIds);
     setReplyBody("");
   };
@@ -475,10 +492,11 @@ function CommentThread({
     value: replyBody,
     onChange: setReplyBody,
     maxLength: MAX_COMMENT_LENGTH,
+    members,
   });
 
   const toggleReaction = (emoji: string) => {
-    onAddReaction(taskId, comment.id, emoji, CURRENT_USER_ID);
+    onAddReaction(taskId, comment.id, emoji, currentUserId);
   };
 
   return (
@@ -535,12 +553,12 @@ function CommentThread({
               </div>
             </div>
           ) : (
-            <CommentBodyHtml body={comment.body} />
+            <CommentBodyHtml body={comment.body} members={members} />
           )}
 
           <div className="flex flex-wrap items-center gap-1 pt-1">
             {comment.reactions.map((r) => {
-              const active = r.userIds.includes(CURRENT_USER_ID);
+              const active = r.userIds.includes(currentUserId);
               return (
                 <Button
                   key={r.emoji}
@@ -619,7 +637,7 @@ function CommentThread({
                 <ReplyIcon className="size-3" data-icon="inline-start" />
                 Reply
               </Button>
-              {comment.author_id === CURRENT_USER_ID && (
+              {comment.author_id === currentUserId && (
                 <>
                   <Button
                     type="button"
@@ -654,8 +672,11 @@ function CommentThread({
                     <ReplyBlock
                       taskId={taskId}
                       reply={reply}
+                      members={members}
+                      currentUserId={currentUserId}
                       onEditComment={onEditComment}
                       onDeleteComment={onDeleteComment}
+                      onAddReaction={onAddReaction}
                       editingId={editingId}
                       editDraft={editDraft}
                       onStartEdit={onStartEdit}
@@ -755,8 +776,11 @@ function CommentThread({
 function ReplyBlock({
   taskId,
   reply,
+  members,
+  currentUserId,
   onEditComment,
   onDeleteComment,
+  onAddReaction,
   editingId,
   editDraft,
   onStartEdit,
@@ -766,8 +790,11 @@ function ReplyBlock({
 }: {
   taskId: string;
   reply: Reply;
+  members: TeamMember[];
+  currentUserId: string;
   onEditComment: TaskCommentSectionProps["onEditComment"];
   onDeleteComment: TaskCommentSectionProps["onDeleteComment"];
+  onAddReaction: TaskCommentSectionProps["onAddReaction"];
   editingId: string | null;
   editDraft: string;
   onStartEdit: (id: string, body: string) => void;
@@ -775,8 +802,13 @@ function ReplyBlock({
   onSaveEdit: () => void;
   onEditDraftChange: (v: string) => void;
 }) {
-  const author = getMember(reply.author_id);
+  const author = getMember(reply.author_id, members);
   const isEditing = editingId === reply.id;
+  const [reactionOpen, setReactionOpen] = React.useState(false);
+
+  const toggleReaction = (emoji: string) => {
+    onAddReaction(taskId, reply.id, emoji, currentUserId);
+  };
 
   return (
     <div className="group/reply flex gap-2">
@@ -828,9 +860,65 @@ function ReplyBlock({
             </div>
           </div>
         ) : (
-          <CommentBodyHtml body={reply.body} />
+          <CommentBodyHtml body={reply.body} members={members} />
         )}
-        {!isEditing && reply.author_id === CURRENT_USER_ID && (
+
+        {!isEditing && (
+          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+            {reply.reactions.map((r) => {
+              const active = r.userIds.includes(currentUserId);
+              return (
+                <Button
+                  key={r.emoji}
+                  type="button"
+                  variant={active ? "secondary" : "outline"}
+                  size="xs"
+                  className="h-6 gap-1 px-1.5 font-normal"
+                  onClick={() => toggleReaction(r.emoji)}
+                  aria-pressed={active}
+                >
+                  <span>{r.emoji}</span>
+                  <span className="text-muted-foreground tabular-nums">
+                    {r.userIds.length}
+                  </span>
+                </Button>
+              );
+            })}
+            <Popover open={reactionOpen} onOpenChange={setReactionOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  className="text-muted-foreground"
+                  aria-label="Add reaction"
+                >
+                  <Smile className="size-3.5" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-2" align="start">
+                <div className="grid grid-cols-4 gap-1">
+                  {EMOJI_OPTIONS.map((emoji) => (
+                    <button
+                      key={emoji}
+                      type="button"
+                      className="flex size-9 items-center justify-center rounded-md text-lg hover:bg-muted"
+                      onMouseDown={(e) => e.preventDefault()}
+                      onClick={() => {
+                        toggleReaction(emoji);
+                        setReactionOpen(false);
+                      }}
+                    >
+                      {emoji}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        )}
+
+        {!isEditing && reply.author_id === currentUserId && (
           <div className="flex gap-2 opacity-0 transition-opacity group-hover/reply:opacity-100">
             <Button
               type="button"
