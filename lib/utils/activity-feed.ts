@@ -32,15 +32,43 @@ export function sortActivityNewestFirst<T extends ActivityLike>(items: T[]): T[]
   );
 }
 
-export type ActivityDayGroup = {
+/** Resolve the actor id for an item: explicit `actor_id`, else name-prefix match. */
+export function resolveActorId(
+  item: { actor_id?: string; text: string },
+  members: { id: string; name: string }[]
+): string | null {
+  if (item.actor_id) return item.actor_id;
+  const m = members.find((mm) => mm.name && item.text.startsWith(mm.name));
+  return m ? m.id : null;
+}
+
+/** Strip the leading actor name and trailing " · Project" so both can render separately. */
+export function activityDisplayBody(
+  text: string,
+  actorName: string | null,
+  projectName: string | null
+): string {
+  let body = text;
+  if (actorName && body.startsWith(actorName)) {
+    body = body.slice(actorName.length).replace(/^\s+/, "");
+  }
+  if (projectName && body.endsWith(` · ${projectName}`)) {
+    body = body.slice(0, body.length - ` · ${projectName}`.length);
+  }
+  return body;
+}
+
+export type ActivityDayGroup<T extends ActivityLike = ActivityLike> = {
   key: string;
   label: string;
-  items: ActivityLike[];
+  items: T[];
 };
 
-export function groupActivityByDay(items: ActivityLike[]): ActivityDayGroup[] {
+export function groupActivityByDay<T extends ActivityLike>(
+  items: T[]
+): ActivityDayGroup<T>[] {
   const sorted = sortActivityNewestFirst(items);
-  const map = new Map<string, ActivityLike[]>();
+  const map = new Map<string, T[]>();
   const order: string[] = [];
 
   for (const item of sorted) {

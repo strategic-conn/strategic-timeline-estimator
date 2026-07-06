@@ -503,6 +503,126 @@ export function TaskDetailDrawer({
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-5 p-4 pb-6">
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
+                    <div className="col-span-2 rounded-lg border border-border bg-muted/15 p-4">
+                      <div className="mb-3 flex items-center gap-1">
+                        <Clock className="size-4 shrink-0 text-muted-foreground" />
+                        <span className="text-sm font-semibold tracking-tight">
+                          Time tracking
+                        </span>
+                        <HelpTip label="How time tracking works">
+                          <p>
+                            <strong>Saved total</strong> is stored in hours (decimals
+                            allowed).
+                          </p>
+                          <p>
+                            The <strong>session</strong> clock uses{" "}
+                            <span className="font-mono">hh:mm:ss</span>.{" "}
+                            <strong>Stop</strong> converts that duration to hours and adds
+                            it to your saved total.
+                          </p>
+                          <p>
+                            Only <strong>assignees</strong> can run the session timer.
+                            Managers and admins may edit the saved total to correct
+                            entries.
+                          </p>
+                        </HelpTip>
+                      </div>
+                      <div className="flex flex-col gap-5">
+                        <div>
+                          <div className="mb-1.5 flex items-center gap-0.5">
+                            <p className="text-xs font-medium text-muted-foreground">
+                              Saved total (hours)
+                            </p>
+                            <HelpTip label="About saved total">
+                              <p>
+                                {timeAccess?.canEditLoggedHours ? (
+                                  <>
+                                    Tap the field to edit. Use decimal hours (for
+                                    example{" "}
+                                    <span className="font-mono">1.5</span> for 1h 30m).
+                                  </>
+                                ) : (
+                                  <>
+                                    You can view logged hours here. Only assignees,
+                                    managers, and admins can change this value.
+                                  </>
+                                )}
+                              </p>
+                              <p>
+                                <strong>Stop</strong> on the session timer also updates
+                                this total when you are assigned to the task.
+                              </p>
+                            </HelpTip>
+                          </div>
+                          {timeAccess?.canEditLoggedHours ? (
+                            editingLog ? (
+                              <Input
+                                type="number"
+                                min={0}
+                                step={0.25}
+                                className="h-9"
+                                value={draft.logged_hours ?? ""}
+                                onChange={(e) => {
+                                  const v = e.target.value
+                                  setDraft((d) => ({
+                                    ...d,
+                                    logged_hours:
+                                      v === "" ? undefined : Number(v),
+                                  }))
+                                }}
+                                onBlur={() => {
+                                  setDraft((d) => ({
+                                    ...d,
+                                    logged_hours:
+                                      d.logged_hours != null
+                                        ? roundWorkHours(d.logged_hours)
+                                        : undefined,
+                                  }))
+                                  setEditingLog(false)
+                                }}
+                                autoFocus
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-left text-sm tabular-nums hover:bg-muted/50"
+                                onClick={() => setEditingLog(true)}
+                              >
+                                {formatWorkHours(draft.logged_hours)}
+                              </button>
+                            )
+                          ) : (
+                            <div className="w-full rounded-lg border border-border bg-muted/20 px-2.5 py-2 text-sm tabular-nums text-muted-foreground">
+                              {formatWorkHours(draft.logged_hours)} h
+                            </div>
+                          )}
+                          {timeAccess?.canEditLoggedHours &&
+                          !timeAccess.isAssignee ? (
+                            <p className="mt-1.5 text-xs text-muted-foreground">
+                              Manager or admin correction — assignees use the session
+                              timer when assigned.
+                            </p>
+                          ) : null}
+                        </div>
+
+                        <Separator className="bg-border/70" />
+
+                        <div>
+                          <TaskTimeTracker
+                            embedded
+                            taskId={task.id}
+                            savedLoggedHours={draft.logged_hours ?? 0}
+                            timerEnabled={
+                              timeAccess?.canUseSessionTimer ?? false
+                            }
+                            onCommitSession={(h) =>
+                              onAppendLoggedHours(task.id, h)
+                            }
+                          />
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="col-span-2 sm:col-span-1">
                       <p className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
                         <User className="size-3.5" />
@@ -703,126 +823,6 @@ export function TaskDetailDrawer({
                           {formatWorkHours(draft.estimated_hours)}
                         </button>
                       )}
-                    </div>
-
-                    <div className="col-span-2 rounded-lg border border-border bg-muted/15 p-4">
-                      <div className="mb-3 flex items-center gap-1">
-                        <Clock className="size-4 shrink-0 text-muted-foreground" />
-                        <span className="text-sm font-semibold tracking-tight">
-                          Time tracking
-                        </span>
-                        <HelpTip label="How time tracking works">
-                          <p>
-                            <strong>Saved total</strong> is stored in hours (decimals
-                            allowed).
-                          </p>
-                          <p>
-                            The <strong>session</strong> clock uses{" "}
-                            <span className="font-mono">hh:mm:ss</span>.{" "}
-                            <strong>Stop</strong> converts that duration to hours and adds
-                            it to your saved total.
-                          </p>
-                          <p>
-                            Only <strong>assignees</strong> can run the session timer.
-                            Managers and admins may edit the saved total to correct
-                            entries.
-                          </p>
-                        </HelpTip>
-                      </div>
-                      <div className="flex flex-col gap-5">
-                        <div>
-                          <div className="mb-1.5 flex items-center gap-0.5">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              Saved total (hours)
-                            </p>
-                            <HelpTip label="About saved total">
-                              <p>
-                                {timeAccess?.canEditLoggedHours ? (
-                                  <>
-                                    Tap the field to edit. Use decimal hours (for
-                                    example{" "}
-                                    <span className="font-mono">1.5</span> for 1h 30m).
-                                  </>
-                                ) : (
-                                  <>
-                                    You can view logged hours here. Only assignees,
-                                    managers, and admins can change this value.
-                                  </>
-                                )}
-                              </p>
-                              <p>
-                                <strong>Stop</strong> on the session timer also updates
-                                this total when you are assigned to the task.
-                              </p>
-                            </HelpTip>
-                          </div>
-                          {timeAccess?.canEditLoggedHours ? (
-                            editingLog ? (
-                              <Input
-                                type="number"
-                                min={0}
-                                step={0.25}
-                                className="h-9"
-                                value={draft.logged_hours ?? ""}
-                                onChange={(e) => {
-                                  const v = e.target.value
-                                  setDraft((d) => ({
-                                    ...d,
-                                    logged_hours:
-                                      v === "" ? undefined : Number(v),
-                                  }))
-                                }}
-                                onBlur={() => {
-                                  setDraft((d) => ({
-                                    ...d,
-                                    logged_hours:
-                                      d.logged_hours != null
-                                        ? roundWorkHours(d.logged_hours)
-                                        : undefined,
-                                  }))
-                                  setEditingLog(false)
-                                }}
-                                autoFocus
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-left text-sm tabular-nums hover:bg-muted/50"
-                                onClick={() => setEditingLog(true)}
-                              >
-                                {formatWorkHours(draft.logged_hours)}
-                              </button>
-                            )
-                          ) : (
-                            <div className="w-full rounded-lg border border-border bg-muted/20 px-2.5 py-2 text-sm tabular-nums text-muted-foreground">
-                              {formatWorkHours(draft.logged_hours)} h
-                            </div>
-                          )}
-                          {timeAccess?.canEditLoggedHours &&
-                          !timeAccess.isAssignee ? (
-                            <p className="mt-1.5 text-xs text-muted-foreground">
-                              Manager or admin correction — assignees use the session
-                              timer when assigned.
-                            </p>
-                          ) : null}
-                        </div>
-
-                        <Separator className="bg-border/70" />
-
-                        <div>
-                          <TaskTimeTracker
-                            embedded
-                            taskId={task.id}
-                            savedLoggedHours={draft.logged_hours ?? 0}
-                            timerEnabled={
-                              timeAccess?.canUseSessionTimer ?? false
-                            }
-                            onCommitSession={(h) =>
-                              onAppendLoggedHours(task.id, h)
-                            }
-                          />
-                        </div>
-                      </div>
                     </div>
 
                     <div className="col-span-2">
