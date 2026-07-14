@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
 } from "lucide-react";
 
+import { InviteHashCatcher } from "@/components/features/auth/invite-hash-catcher";
 import { AppAtmosphere } from "@/components/layouts/app-atmosphere";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -64,6 +65,7 @@ export default function Home() {
         "bg-background text-foreground"
       )}
     >
+      <InviteHashCatcher />
       <AppAtmosphere variant="marketing" />
 
       <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 px-5 py-4 sm:px-8">
