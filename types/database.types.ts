@@ -162,41 +162,6 @@ export type Database = {
           },
         ]
       }
-      discovery_projects: {
-        Row: {
-          created_at: string
-          data: Json
-          id: string
-          owner_id: string | null
-          tracker: Json
-          updated_at: string
-        }
-        Insert: {
-          created_at?: string
-          data?: Json
-          id?: string
-          owner_id?: string | null
-          tracker?: Json
-          updated_at?: string
-        }
-        Update: {
-          created_at?: string
-          data?: Json
-          id?: string
-          owner_id?: string | null
-          tracker?: Json
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "discovery_projects_owner_id_fkey"
-            columns: ["owner_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       notifications: {
         Row: {
           created_at: string
