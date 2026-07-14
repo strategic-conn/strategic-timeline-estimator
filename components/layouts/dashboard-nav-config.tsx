@@ -3,7 +3,6 @@ import {
   Activity,
   CalendarDays,
   Compass,
-  FileText,
   FolderKanban,
   LayoutDashboard,
   Milestone,
@@ -48,8 +47,8 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   { href: "/team", label: "Team", icon: Users, group: "plan" },
   // Commercial
   {
-    href: "/discovery",
-    label: "Discovery",
+    href: "/proposals",
+    label: "Estimator",
     icon: Compass,
     group: "commercial",
     requireCanExportProposals: true,
@@ -61,13 +60,6 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     group: "commercial",
     requireCanExportProposals: true,
     comingSoon: true,
-  },
-  {
-    href: "/proposals",
-    label: "Proposals",
-    icon: FileText,
-    group: "commercial",
-    requireCanExportProposals: true,
   },
   // System
   { href: "/settings", label: "Settings", icon: Settings, group: "system" },

@@ -1,12 +1,6 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { DiscoveryDashboardClient } from "@/components/features/discovery/DiscoveryDashboardClient";
-
-export const metadata: Metadata = {
-  title: "Discovery Estimator",
-  description: "Scope projects into hours estimates, timelines, and risk scores.",
-};
-
+// Discovery merged into the Estimator (Proposals). Old links land on the tool.
 export default function DiscoveryPage() {
-  return <DiscoveryDashboardClient />;
+  redirect("/proposals");
 }

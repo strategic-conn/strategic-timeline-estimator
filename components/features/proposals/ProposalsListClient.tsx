@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { FileText, Layers, Plus, Trash2 } from "lucide-react";
+import { Compass, FileText, Layers, Library, Plus, Trash2 } from "lucide-react";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
@@ -47,13 +47,17 @@ import { quoteTotals } from "@/lib/constants/proposal-estimator";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
+import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
 } from "@/lib/proposal-catalog";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import type { DiscoveryProject } from "@/types/discovery.types";
 import type { ClientQuote, ProposalPlatform } from "@/types/proposal.types";
+
+type EstimateMethod = "guided" | "manual";
 
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
@@ -65,6 +69,7 @@ export function ProposalsListClient() {
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
 
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [method, setMethod] = React.useState<EstimateMethod>("guided");
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
   const [newProjectId, setNewProjectId] = React.useState<string>("__none__");
@@ -94,14 +99,30 @@ export function ProposalsListClient() {
   const submitCreate = () => {
     const title = newTitle.trim();
     if (!title) return;
+    // Guided estimates carry a blank scoping questionnaire; the editor opens on
+    // its Scope & risk tab and generates line items from the answers.
+    let discovery: DiscoveryProject | null = null;
+    if (method === "guided") {
+      const now = new Date().toISOString();
+      discovery = {
+        ...createEmptyDiscoveryProject(),
+        id: crypto.randomUUID(),
+        name: title,
+        client_name: newClient.trim(),
+        created_at: now,
+        updated_at: now,
+      };
+    }
     const id = createProposal({
       title,
       client_name: newClient.trim() || undefined,
       project_id:
         newProjectId && newProjectId !== "__none__" ? newProjectId : null,
       platform: newPlatform,
+      discovery,
     });
     setCreateOpen(false);
+    setMethod("guided");
     setNewTitle("");
     setNewClient("");
     setNewProjectId("__none__");
@@ -117,8 +138,8 @@ export function ProposalsListClient() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Commercial"
-        title="Proposals"
-        description={`Catalog-driven client quotes with tier multipliers, dependencies, and roll-up add-ons.${
+        title="Estimator"
+        description={`Scope work with the guided questionnaire or the platform catalog, then quote it — tier multipliers, dependencies, and roll-up add-ons.${
           isSupabaseConfigured
             ? ""
             : " Data stays in this browser until the API is connected."
@@ -130,7 +151,7 @@ export function ProposalsListClient() {
             onClick={() => setCreateOpen(true)}
           >
             <Plus className="size-4" aria-hidden />
-            New quote
+            New estimate
           </Button>
         }
       />
@@ -145,9 +166,10 @@ export function ProposalsListClient() {
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
               <FileText className="size-6 text-muted-foreground" aria-hidden />
             </div>
-            <CardTitle>No quotes yet</CardTitle>
+            <CardTitle>No estimates yet</CardTitle>
             <CardDescription>
-              Create a quote to browse the platform catalog and roll up hours.
+              Start one with the guided questionnaire or the platform catalog,
+              then roll up hours and quote it.
             </CardDescription>
             <Button
               type="button"
@@ -155,7 +177,7 @@ export function ProposalsListClient() {
               onClick={() => setCreateOpen(true)}
             >
               <Plus className="size-4" aria-hidden />
-              New quote
+              New estimate
             </Button>
           </CardHeader>
         </Card>
@@ -238,11 +260,52 @@ export function ProposalsListClient() {
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>New client quote</DialogTitle>
+            <DialogTitle>New estimate</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
             <div className="grid gap-2">
-              <Label htmlFor="quote-title">Quote title</Label>
+              <Label>How do you want to scope it?</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setMethod("guided")}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+                    method === "guided"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border hover:bg-muted/40",
+                  )}
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    <Compass className="size-4 text-primary" aria-hidden />
+                    Guided
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Answer a questionnaire → hours, timeline &amp; risk
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMethod("manual")}
+                  className={cn(
+                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+                    method === "manual"
+                      ? "border-primary bg-primary/5 ring-1 ring-primary"
+                      : "border-border hover:bg-muted/40",
+                  )}
+                >
+                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                    <Library className="size-4 text-primary" aria-hidden />
+                    Catalog / manual
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Pick catalog rows or add freehand lines
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="quote-title">Estimate title</Label>
               <Input
                 id="quote-title"
                 value={newTitle}

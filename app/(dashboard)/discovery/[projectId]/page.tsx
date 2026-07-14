@@ -1,19 +1,7 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { DiscoveryProjectClient } from "@/components/features/discovery/DiscoveryProjectClient";
-
-export const metadata: Metadata = {
-  title: "Discovery",
-  description: "Discovery wizard, hours breakdown, timeline, and tracker.",
-};
-
-type DiscoveryDetailPageProps = {
-  params: Promise<{ projectId: string }>;
-};
-
-export default async function DiscoveryDetailPage({
-  params,
-}: DiscoveryDetailPageProps) {
-  const { projectId } = await params;
-  return <DiscoveryProjectClient projectId={projectId} />;
+// Discovery merged into the Estimator. Guided scoping now lives inside a
+// proposal (Scope & risk tab), so standalone discovery links redirect there.
+export default function DiscoveryDetailPage() {
+  redirect("/proposals");
 }

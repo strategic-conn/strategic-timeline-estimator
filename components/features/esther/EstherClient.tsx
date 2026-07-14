@@ -23,12 +23,13 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/usePermissions";
+import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
 import { discoveryFromEstherAnalysis } from "@/lib/discovery/from-esther";
 import { analyzeBrief, classifyMessage } from "@/lib/esther/engine";
 import { ESTHER_SAMPLE_BRIEF } from "@/lib/esther/sample";
-import { useDiscoveryStore } from "@/store/discovery-store";
 import { useEstherStore, estherUid } from "@/store/esther-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import type { DiscoveryProject } from "@/types/discovery.types";
 import type { EstherAnalysis } from "@/types/esther.types";
 import type { ProposalPlatform } from "@/types/proposal.types";
 
@@ -44,7 +45,7 @@ export function EstherClient() {
   const createProposalFromDraft = useProposalEstimatorStore(
     (s) => s.createProposalFromDraft,
   );
-  const createDiscovery = useDiscoveryStore((s) => s.createProject);
+  const createProposal = useProposalEstimatorStore((s) => s.createProposal);
 
   const [hydrated, setHydrated] = React.useState(() =>
     useEstherStore.persist.hasHydrated(),
@@ -202,11 +203,26 @@ export function EstherClient() {
 
   const handleStartDiscovery = React.useCallback(
     (analysis: EstherAnalysis) => {
-      const id = createDiscovery(discoveryFromEstherAnalysis(analysis));
-      toast.success("Discovery started from Esther's brief");
-      router.push(`/discovery/${id}`);
+      // Guided scoping now lives inside an estimate — seed a proposal with the
+      // discovery answers and open it on the Scope & risk tab.
+      const now = new Date().toISOString();
+      const discovery: DiscoveryProject = {
+        ...createEmptyDiscoveryProject(),
+        ...discoveryFromEstherAnalysis(analysis),
+        id: crypto.randomUUID(),
+        created_at: now,
+        updated_at: now,
+      };
+      const id = createProposal({
+        title: analysis.suggestedTitle,
+        client_name: analysis.clientName,
+        platform: analysis.platform,
+        discovery,
+      });
+      toast.success("Estimate started from Esther's brief");
+      router.push(`/proposals/${id}`);
     },
-    [createDiscovery, router],
+    [createProposal, router],
   );
 
   if (!canExportProposals) {

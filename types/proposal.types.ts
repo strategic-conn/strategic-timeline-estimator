@@ -8,6 +8,7 @@
  */
 
 import type { ProposalPlatform } from "@/lib/proposal-catalog";
+import type { DiscoveryProject } from "@/types/discovery.types";
 
 export type { ProposalPlatform };
 
@@ -71,6 +72,12 @@ export interface ClientQuote {
   line_items: ProposalLineItem[];
   /** Roll-up add-ons applied on top of dev hours (PM, responsive, design, QA). */
   addons: ProposalAddons;
+  /**
+   * Guided-scoping answers (the merged Discovery questionnaire). Present when the
+   * estimate was built via the guided path; risk/timeline/Min-Mid-Max derive from
+   * it (lib/discovery). Null/undefined = a catalog/manual quote with no scope.
+   */
+  discovery?: DiscoveryProject | null;
   /**
    * When true, requirements aren't pinned down yet — every line is priced as
    * Advanced (1.5×) for the totals regardless of its own tier (workbook rule).

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
   ChevronDown,
+  Compass,
   FileDown,
   FileSpreadsheet,
   FolderPlus,
@@ -17,9 +18,14 @@ import {
   Sparkles,
   Trash2,
   TriangleAlert,
+  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { DiscoveryGantt } from "@/components/features/discovery/DiscoveryGantt";
+import { DiscoveryHoursBreakdown } from "@/components/features/discovery/DiscoveryHoursBreakdown";
+import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
+import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
@@ -85,12 +91,16 @@ import {
   platformLabel,
   type CatalogItem,
 } from "@/lib/proposal-catalog";
+import { analyzeDiscovery, formatHours } from "@/lib/discovery";
+import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
+import type { DiscoveryFieldId } from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import type { DiscoveryProject } from "@/types/discovery.types";
 import type {
   ClientQuote,
   ProposalLineItem,
@@ -159,6 +169,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const setProposalStatus = useProposalEstimatorStore(
     (s) => s.setProposalStatus,
   );
+  const setDiscovery = useProposalEstimatorStore((s) => s.setDiscovery);
+  const regenerateLineItems = useProposalEstimatorStore(
+    (s) => s.regenerateLineItems,
+  );
   const convertToProject = useProposalEstimatorStore((s) => s.convertToProject);
 
   const [convertOpen, setConvertOpen] = React.useState(false);
@@ -175,6 +189,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
+  const [scopeTab, setScopeTab] = React.useState("questionnaire");
 
   React.useEffect(() => {
     if (useProposalEstimatorStore.persist.hasHydrated()) {
@@ -193,6 +208,15 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       router.replace("/proposals");
     }
   }, [hydrated, quote, router]);
+
+  // A freshly-created guided estimate (scope present, no lines yet) opens on the
+  // questionnaire so the user starts scoping right away.
+  const tabInitRef = React.useRef(false);
+  React.useEffect(() => {
+    if (!hydrated || !quote || tabInitRef.current) return;
+    tabInitRef.current = true;
+    if (quote.discovery && quote.line_items.length === 0) setTab("guided");
+  }, [hydrated, quote]);
 
   const projectName = quote?.project_id
     ? projects.find((p) => p.id === quote.project_id)?.name ?? null
@@ -223,6 +247,45 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         : { groups: [], subtotal: () => 0 },
     [quote],
   );
+
+  // Guided scope: derive the estimate/timeline/risk from the saved answers.
+  const scopeResult = React.useMemo(
+    () => (quote?.discovery ? analyzeDiscovery(quote.discovery) : null),
+    [quote?.discovery],
+  );
+
+  const startGuided = React.useCallback(() => {
+    if (!quote) return;
+    const now = new Date().toISOString();
+    const blank: DiscoveryProject = {
+      ...createEmptyDiscoveryProject(),
+      id: quote.id,
+      name: quote.title,
+      client_name: quote.client_name ?? "",
+      created_at: now,
+      updated_at: now,
+    };
+    setDiscovery(quote.id, blank);
+  }, [quote, setDiscovery]);
+
+  const handleScopeChange = React.useCallback(
+    (id: DiscoveryFieldId, value: string | number | boolean | null) => {
+      if (!quote?.discovery) return;
+      setDiscovery(quote.id, {
+        ...quote.discovery,
+        [id]: value,
+        updated_at: new Date().toISOString(),
+      } as DiscoveryProject);
+    },
+    [quote, setDiscovery],
+  );
+
+  const handleGenerateLines = React.useCallback(() => {
+    if (!quote) return;
+    regenerateLineItems(quote.id);
+    toast.success("Line items generated from scope");
+    setTab("scope");
+  }, [quote, regenerateLineItems]);
 
   const handlePrint = () => {
     window.print();
@@ -301,7 +364,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         <Button variant="ghost" size="sm" className="w-fit gap-2 px-0" asChild>
           <Link href="/proposals">
             <ArrowLeft className="size-4" aria-hidden />
-            All proposals
+            All estimates
           </Link>
         </Button>
 
@@ -407,8 +470,12 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         <Tabs value={tab} onValueChange={setTab} className="gap-5">
           <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
             <TabsTrigger value="setup">Setup</TabsTrigger>
+            <TabsTrigger value="guided" className="gap-1.5">
+              <Compass className="size-3.5" aria-hidden />
+              Scope &amp; risk
+            </TabsTrigger>
             <TabsTrigger value="scope" className="gap-1.5">
-              Scope
+              Line items
               <Badge variant="secondary" className="tabular-nums">
                 {quote.line_items.length}
               </Badge>
@@ -518,20 +585,117 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             </Card>
 
             <div className="flex justify-end">
-              <Button type="button" onClick={() => setTab("scope")}>
-                Next: Scope
+              <Button type="button" onClick={() => setTab("guided")}>
+                Next: Scope &amp; risk
               </Button>
             </div>
+          </TabsContent>
+
+          {/* ---- GUIDED SCOPE & RISK ---- */}
+          <TabsContent value="guided" className="flex flex-col gap-5">
+            {!quote.discovery || !scopeResult ? (
+              <Card>
+                <CardHeader className="items-center gap-2 text-center">
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+                    <Compass className="size-6 text-muted-foreground" aria-hidden />
+                  </div>
+                  <CardTitle>Scope this estimate with the questionnaire</CardTitle>
+                  <CardDescription className="max-w-md text-balance">
+                    Answer a guided checklist and we&apos;ll compute Min/Mid/Max
+                    hours, a phased timeline, and a risk score — then generate the
+                    line items for you. Optional: you can also build line items by
+                    hand under Line items.
+                  </CardDescription>
+                  <Button
+                    type="button"
+                    className="mt-2 gap-1.5"
+                    onClick={startGuided}
+                  >
+                    <Compass className="size-4" aria-hidden />
+                    Start guided scoping
+                  </Button>
+                </CardHeader>
+              </Card>
+            ) : (
+              <>
+                <Card>
+                  <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                      <DiscoveryRiskBadge
+                        level={scopeResult.risk.level}
+                        score={scopeResult.risk.score}
+                      />
+                      <span className="tabular-nums">
+                        <span className="text-muted-foreground">Estimate </span>
+                        {formatHours(scopeResult.estimate.total.min)}–
+                        {formatHours(scopeResult.estimate.total.max)} hrs
+                      </span>
+                      <span className="tabular-nums text-muted-foreground">
+                        ~{scopeResult.timeline.totalWeeks} wks · launch{" "}
+                        {scopeResult.timeline.launchDate}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end gap-1">
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={handleGenerateLines}
+                      >
+                        <Wand2 className="size-3.5" aria-hidden />
+                        {quote.line_items.length
+                          ? "Regenerate line items"
+                          : "Generate line items"}
+                      </Button>
+                      {quote.line_items.length ? (
+                        <span className="text-[0.7rem] text-muted-foreground">
+                          Replaces the current {quote.line_items.length} line
+                          {quote.line_items.length === 1 ? "" : "s"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                <Tabs
+                  value={scopeTab}
+                  onValueChange={setScopeTab}
+                  className="gap-4"
+                >
+                  <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+                    <TabsTrigger value="questionnaire">Questionnaire</TabsTrigger>
+                    <TabsTrigger value="hours">Hours</TabsTrigger>
+                    <TabsTrigger value="timeline">Timeline</TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="questionnaire">
+                    <DiscoveryWizard
+                      project={quote.discovery}
+                      onChange={handleScopeChange}
+                      onViewEstimate={() => setScopeTab("hours")}
+                    />
+                  </TabsContent>
+                  <TabsContent value="hours">
+                    <DiscoveryHoursBreakdown result={scopeResult} />
+                  </TabsContent>
+                  <TabsContent value="timeline">
+                    <DiscoveryGantt
+                      result={scopeResult}
+                      project={quote.discovery}
+                    />
+                  </TabsContent>
+                </Tabs>
+              </>
+            )}
           </TabsContent>
 
           {/* ---- SCOPE ---- */}
           <TabsContent value="scope" className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold">Scope &amp; line items</h2>
+                <h2 className="text-base font-semibold">Line items</h2>
                 <p className="text-sm text-muted-foreground">
-                  Pull tasks from the {platformLabel(quote.platform)} catalog or
-                  add freehand rows.
+                  Generate them from Scope &amp; risk, pull from the{" "}
+                  {platformLabel(quote.platform)} catalog, or add freehand rows.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">

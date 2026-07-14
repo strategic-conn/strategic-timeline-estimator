@@ -324,6 +324,7 @@ export type Database = {
           addons: Json
           client_name: string | null
           created_at: string
+          discovery: Json | null
           id: string
           line_items: Json
           notes: string | null
@@ -339,6 +340,7 @@ export type Database = {
           addons?: Json
           client_name?: string | null
           created_at?: string
+          discovery?: Json | null
           id?: string
           line_items?: Json
           notes?: string | null
@@ -354,6 +356,7 @@ export type Database = {
           addons?: Json
           client_name?: string | null
           created_at?: string
+          discovery?: Json | null
           id?: string
           line_items?: Json
           notes?: string | null

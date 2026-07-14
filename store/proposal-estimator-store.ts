@@ -9,6 +9,9 @@ import {
   DEFAULT_ADDONS,
   computeLineHours,
 } from "@/lib/constants/proposal-estimator";
+import { analyzeDiscovery } from "@/lib/discovery";
+import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
+import type { DiscoveryProject } from "@/types/discovery.types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
@@ -40,6 +43,7 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     line_items: (r.line_items as unknown as ProposalLineItem[]) ?? [],
     addons: { ...DEFAULT_ADDONS, ...(r.addons as unknown as ProposalAddons) },
     requirements_unclear: r.requirements_unclear,
+    discovery: (r.discovery as unknown as DiscoveryProject | null) ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -59,6 +63,7 @@ function quoteUpdatePayload(
     line_items: q.line_items as unknown as Json,
     addons: q.addons as unknown as Json,
     requirements_unclear: q.requirements_unclear,
+    discovery: (q.discovery ?? null) as unknown as Json,
     updated_at: q.updated_at,
   };
 }
@@ -148,6 +153,8 @@ export type CreateQuoteInput = {
   project_id?: string | null;
   client_name?: string;
   platform?: ProposalPlatform;
+  /** Guided-scoping answers, when created via the guided (questionnaire) path. */
+  discovery?: DiscoveryProject | null;
 };
 
 /** A fully-formed quote draft (e.g. from Esther) imported in one shot, tiers preserved. */
@@ -206,6 +213,13 @@ interface ProposalEstimatorState {
     >,
   ) => void;
   updateAddons: (id: string, partial: Partial<ProposalAddons>) => void;
+  /** Save the guided-scoping answers on a proposal (merged Discovery wizard). */
+  setDiscovery: (id: string, discovery: DiscoveryProject) => void;
+  /**
+   * (Re)generate the line items from the proposal's saved `discovery` scope —
+   * runs the estimate engine and replaces the line items + scope-derived add-ons.
+   */
+  regenerateLineItems: (id: string) => void;
   /** Move a proposal through its approval lifecycle (draft/sent/approved/rejected). */
   setProposalStatus: (id: string, status: ProposalStatus) => void;
   /**
@@ -277,9 +291,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           notes: undefined,
           platform: input.platform ?? "react_next",
           status: "draft",
-          line_items: [emptyLineItem()],
+          // Guided quotes start empty (the wizard generates lines); manual keep a starter row.
+          line_items: input.discovery ? [] : [emptyLineItem()],
           addons: { ...DEFAULT_ADDONS },
           requirements_unclear: false,
+          discovery: input.discovery ?? null,
           created_at: now,
           updated_at: now,
         };
@@ -308,6 +324,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               line_items: quote.line_items as unknown as Json,
               addons: quote.addons as unknown as Json,
               requirements_unclear: quote.requirements_unclear,
+              discovery: (quote.discovery ?? null) as unknown as Json,
             });
             if (error) {
               set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
@@ -419,6 +436,52 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               ? {
                   ...p,
                   addons: { ...p.addons, ...partial },
+                  updated_at: new Date().toISOString(),
+                }
+              : p,
+          ),
+        }));
+        persistQuoteDoc(id, get);
+      },
+
+      setDiscovery: (id, discovery) => {
+        set((s) => ({
+          proposals: s.proposals.map((p) =>
+            p.id === id
+              ? { ...p, discovery, updated_at: new Date().toISOString() }
+              : p,
+          ),
+        }));
+        persistQuoteDoc(id, get);
+      },
+
+      regenerateLineItems: (id) => {
+        const quote = get().proposals.find((p) => p.id === id);
+        if (!quote?.discovery) return;
+        const result = analyzeDiscovery(quote.discovery);
+        const draft = proposalDraftFromDiscovery(quote.discovery, result);
+        const line_items: ProposalLineItem[] = draft.line_items.map((li) => ({
+          id: uid(),
+          title: li.title,
+          module: li.module ?? null,
+          category_id: li.category_id ?? null,
+          catalog_id: li.catalog_id ?? null,
+          base_hours: li.base_hours,
+          tier: li.tier,
+          quantity: li.quantity,
+          hours: computeLineHours(li.base_hours, li.tier, li.quantity),
+          depends_on: [],
+        }));
+        set((s) => ({
+          proposals: s.proposals.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  line_items,
+                  // Discovery itemises design/QA/PM into phases — don't double-count.
+                  addons: { ...p.addons, ...draft.addons },
+                  requirements_unclear:
+                    draft.requirements_unclear ?? p.requirements_unclear,
                   updated_at: new Date().toISOString(),
                 }
               : p,

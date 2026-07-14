@@ -31,12 +31,9 @@ export default function EstherPage() {
             She&apos;s being polished and will be available shortly.
           </CardDescription>
         </CardHeader>
-        <CardFooter className="justify-center gap-3 border-t pt-4">
-          <Button asChild variant="outline">
-            <Link href="/proposals">Go to Proposals</Link>
-          </Button>
+        <CardFooter className="justify-center border-t pt-4">
           <Button asChild>
-            <Link href="/discovery">Try Discovery</Link>
+            <Link href="/proposals">Go to the Estimator</Link>
           </Button>
         </CardFooter>
       </Card>
