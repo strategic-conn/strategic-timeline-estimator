@@ -9,7 +9,8 @@ export interface Project {
    * Owner. In demo mode this is a stringified TEAM_MEMBERS id ("1"–"6"); in
    * Supabase mode it's the owner's profile UUID.
    */
-  owner_id: string;
+  /** null = owner was deleted ("Former member"). */
+  owner_id: string | null;
   created_at: string;
   updated_at: string;
 }

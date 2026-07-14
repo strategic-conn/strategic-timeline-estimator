@@ -70,7 +70,7 @@ export function EditProjectModal({
       name: project.name,
       description: project.description ?? "",
       status: project.status,
-      owner_id: project.owner_id,
+      owner_id: project.owner_id ?? "",
     });
   }, [open, project, form.reset]);
 

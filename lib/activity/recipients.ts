@@ -2,7 +2,9 @@ import type { Task } from "@/types/task.types";
 
 /** People who care about a task: its assignees + the reporter (deduped). */
 export function taskRecipients(task: Pick<Task, "assignee_ids" | "reporter_id">): string[] {
-  return [...new Set([...task.assignee_ids, task.reporter_id])].filter(Boolean);
+  return [...new Set([...task.assignee_ids, task.reporter_id])].filter(
+    (x): x is string => !!x,
+  );
 }
 
 /** Task participants plus anyone @-mentioned (for comment/reply notifications). */

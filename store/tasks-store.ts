@@ -25,10 +25,12 @@ import { roundWorkHours } from "@/lib/utils/work-hours";
 import { useAuthStore } from "@/store/auth-store";
 import type { Database } from "@/types/database.types";
 import type {
+  AssignmentStatus,
   Comment,
   Reaction,
   Reply,
   Task,
+  TaskAssignment,
   TaskStatus,
 } from "@/types/task.types";
 import { CURRENT_USER_ID, TASK_STATUSES } from "@/types/task.types";
@@ -86,18 +88,37 @@ function notifyAboutTask(
 
 type SupabaseBrowserClient = ReturnType<typeof createClient>;
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
+type AssigneeRow = {
+  profile_id: string;
+  status: AssignmentStatus;
+  assigned_by: string | null;
+  responded_at: string | null;
+  note: string | null;
+};
 type TaskRowWithAssignees = TaskRow & {
-  task_assignees: { profile_id: string }[];
+  task_assignees: AssigneeRow[];
 };
 
+function rowToAssignment(a: AssigneeRow): TaskAssignment {
+  return {
+    profile_id: a.profile_id,
+    status: (a.status as AssignmentStatus) ?? "accepted",
+    assigned_by: a.assigned_by ?? null,
+    responded_at: a.responded_at ?? null,
+    note: a.note ?? null,
+  };
+}
+
 function rowToTask(r: TaskRowWithAssignees): Task {
+  const assignees = (r.task_assignees ?? []).map(rowToAssignment);
   return {
     id: r.id,
     title: r.title,
     description: r.description ?? undefined,
     status: r.status,
     priority: r.priority,
-    assignee_ids: (r.task_assignees ?? []).map((a) => a.profile_id),
+    assignees,
+    assignee_ids: assignees.map((a) => a.profile_id),
     reporter_id: r.reporter_id,
     project_id: r.project_id,
     sprint_id: r.sprint_id,
@@ -112,24 +133,74 @@ function rowToTask(r: TaskRowWithAssignees): Task {
   };
 }
 
-/** Replace a task's assignee rows wholesale (delete-all then insert the new set). */
-async function syncAssignees(
+/** New assignments are pending unless you assign yourself (auto-accepted). */
+function newAssignment(
+  profileId: string,
+  assignerId: string | null,
+): TaskAssignment {
+  const self = assignerId != null && profileId === assignerId;
+  return {
+    profile_id: profileId,
+    status: self ? "accepted" : "pending",
+    assigned_by: assignerId,
+    responded_at: self ? new Date().toISOString() : null,
+    note: null,
+  };
+}
+
+/** Merge a new assignee id-list onto existing assignments, preserving statuses. */
+function mergeAssigneesForIds(
+  existing: TaskAssignment[],
+  newIds: string[],
+  assignerId: string | null,
+): TaskAssignment[] {
+  const byId = new Map(existing.map((a) => [a.profile_id, a]));
+  return newIds.map((id) => byId.get(id) ?? newAssignment(id, assignerId));
+}
+
+/** Persist an assignee change as a diff (keeps existing rows/statuses intact). */
+async function syncAssigneeDiff(
   supabase: SupabaseBrowserClient,
   taskId: string,
-  assigneeIds: string[],
+  existing: TaskAssignment[],
+  newIds: string[],
+  assignerId: string | null,
 ): Promise<{ error: { message?: string } | null }> {
-  const del = await supabase
-    .from("task_assignees")
-    .delete()
-    .eq("task_id", taskId);
-  if (del.error) return { error: del.error };
-  if (assigneeIds.length) {
-    const ins = await supabase
+  const existingIds = new Set(existing.map((a) => a.profile_id));
+  const nextIds = new Set(newIds);
+  const toRemove = [...existingIds].filter((id) => !nextIds.has(id));
+  const toAdd = newIds.filter((id) => !existingIds.has(id));
+
+  if (toRemove.length) {
+    const del = await supabase
       .from("task_assignees")
-      .insert(assigneeIds.map((profile_id) => ({ task_id: taskId, profile_id })));
+      .delete()
+      .eq("task_id", taskId)
+      .in("profile_id", toRemove);
+    if (del.error) return { error: del.error };
+  }
+  if (toAdd.length) {
+    const ins = await supabase.from("task_assignees").insert(
+      toAdd.map((profile_id) => {
+        const a = newAssignment(profile_id, assignerId);
+        return {
+          task_id: taskId,
+          profile_id,
+          status: a.status,
+          assigned_by: a.assigned_by,
+          responded_at: a.responded_at,
+        };
+      }),
+    );
     if (ins.error) return { error: ins.error };
   }
   return { error: null };
+}
+
+/** Profile ids added by moving from `before` to `after` (for notifying new assignees). */
+function addedAssigneeIds(before: string[], after: string[]): string[] {
+  const b = new Set(before);
+  return after.filter((id) => !b.has(id));
 }
 
 type CommentRow = Database["public"]["Tables"]["task_comments"]["Row"];
@@ -255,7 +326,7 @@ function assembleCommentsByTask(
 
 type CreateTaskPayload = Omit<
   Task,
-  "id" | "position" | "created_at" | "updated_at" | "comments"
+  "id" | "position" | "created_at" | "updated_at" | "comments" | "assignees"
 >;
 
 interface TasksState {
@@ -271,12 +342,10 @@ interface TasksState {
   applyRealtimeTaskUpsert: (row: TaskRow) => void;
   /** Realtime: remove a task by id. */
   applyRealtimeTaskDelete: (id: string) => void;
-  /** Realtime: add/remove a single task_assignees row (idempotent). */
-  applyRealtimeAssignee: (
-    taskId: string,
-    profileId: string,
-    present: boolean,
-  ) => void;
+  /** Realtime: upsert a task_assignees row (INSERT/UPDATE — status-aware). */
+  applyRealtimeAssignmentUpsert: (taskId: string, a: TaskAssignment) => void;
+  /** Realtime: remove a task_assignees row (reject/pass/unassign). */
+  applyRealtimeAssignmentDelete: (taskId: string, profileId: string) => void;
   /** Realtime: insert a comment/reply row (dedupes by id). */
   applyRealtimeCommentInsert: (row: CommentRow) => void;
   /** Realtime: apply a comment/reply body edit. */
@@ -322,6 +391,14 @@ interface TasksState {
     userId: string,
   ) => void;
   assignTask: (taskId: string, userId: string | null) => void;
+  /** Developer responds to a pending assignment: accept (keeps it) or reject (removes it). */
+  respondToAssignment: (
+    taskId: string,
+    response: "accepted" | "rejected",
+    note?: string,
+  ) => void;
+  /** Developer hands their assignment to another developer (pending for them). */
+  passAssignment: (taskId: string, toProfileId: string, note?: string) => void;
   appendLoggedHours: (taskId: string, hours: number) => void;
   bulkUpdateStatus: (taskIds: string[], status: TaskStatus) => void;
   bulkDelete: (taskIds: string[]) => void;
@@ -347,7 +424,9 @@ export const useTasksDataStore = create<TasksState>()(
         const supabase = createClient();
         const { data, error } = await supabase
           .from("tasks")
-          .select("*, task_assignees(profile_id)")
+          .select(
+            "*, task_assignees(profile_id, status, assigned_by, responded_at, note)",
+          )
           .order("position", { ascending: true });
         if (error) {
           set({ loading: false, loaded: true, error: parseSupabaseError(error) });
@@ -420,19 +499,28 @@ export const useTasksDataStore = create<TasksState>()(
         set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
       },
 
-      applyRealtimeAssignee: (taskId, profileId, present) =>
+      applyRealtimeAssignmentUpsert: (taskId, a) =>
         set((s) => ({
           tasks: s.tasks.map((t) => {
             if (t.id !== taskId) return t;
-            const has = t.assignee_ids.includes(profileId);
-            if (present && !has)
-              return { ...t, assignee_ids: [...t.assignee_ids, profileId] };
-            if (!present && has)
-              return {
-                ...t,
-                assignee_ids: t.assignee_ids.filter((x) => x !== profileId),
-              };
-            return t;
+            const exists = t.assignees.some(
+              (x) => x.profile_id === a.profile_id,
+            );
+            const assignees = exists
+              ? t.assignees.map((x) => (x.profile_id === a.profile_id ? a : x))
+              : [...t.assignees, a];
+            return { ...t, assignees, assignee_ids: assignees.map((x) => x.profile_id) };
+          }),
+        })),
+
+      applyRealtimeAssignmentDelete: (taskId, profileId) =>
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const assignees = t.assignees.filter(
+              (x) => x.profile_id !== profileId,
+            );
+            return { ...t, assignees, assignee_ids: assignees.map((x) => x.profile_id) };
           }),
         })),
 
@@ -566,6 +654,9 @@ export const useTasksDataStore = create<TasksState>()(
           const beforeTasks = structuredClone(get().tasks);
           const task: Task = {
             ...payload,
+            assignees: payload.assignee_ids.map((pid) =>
+              newAssignment(pid, payload.reporter_id),
+            ),
             id: nextTaskId(get().tasks),
             position,
             created_at: now,
@@ -607,6 +698,9 @@ export const useTasksDataStore = create<TasksState>()(
           const optimistic: Task = {
             ...payload,
             reporter_id: reporterId,
+            assignees: payload.assignee_ids.map((pid) =>
+              newAssignment(pid, reporterId),
+            ),
             id,
             position,
             created_at: now,
@@ -648,10 +742,16 @@ export const useTasksDataStore = create<TasksState>()(
             const { error: aErr } = await supabase
               .from("task_assignees")
               .insert(
-                payload.assignee_ids.map((profile_id) => ({
-                  task_id: data.id,
-                  profile_id,
-                })),
+                payload.assignee_ids.map((profile_id) => {
+                  const a = newAssignment(profile_id, reporterId);
+                  return {
+                    task_id: data.id,
+                    profile_id,
+                    status: a.status,
+                    assigned_by: a.assigned_by,
+                    responded_at: a.responded_at,
+                  };
+                }),
               );
             if (aErr) {
               toast.error("Task created, but assignees didn't save", {
@@ -662,9 +762,16 @@ export const useTasksDataStore = create<TasksState>()(
 
           const saved = rowToTask({
             ...(data as TaskRow),
-            task_assignees: payload.assignee_ids.map((profile_id) => ({
-              profile_id,
-            })),
+            task_assignees: payload.assignee_ids.map((profile_id) => {
+              const a = newAssignment(profile_id, reporterId);
+              return {
+                profile_id,
+                status: a.status,
+                assigned_by: a.assigned_by ?? null,
+                responded_at: a.responded_at ?? null,
+                note: null,
+              };
+            }),
           });
           set((s) => ({
             tasks: s.tasks.map((t) => (t.id === id ? saved : t)),
@@ -695,11 +802,40 @@ export const useTasksDataStore = create<TasksState>()(
             normalized.estimated_hours,
           );
         const now = new Date().toISOString();
+        // Assignees changing → merge onto existing (new people become pending).
+        const assignerId = useAuthStore.getState().user.authId ?? CURRENT_USER_ID;
         set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === id ? { ...t, ...normalized, updated_at: now } : t,
-          ),
+          tasks: s.tasks.map((t) => {
+            if (t.id !== id) return t;
+            const next: Task = { ...t, ...normalized, updated_at: now };
+            if (normalized.assignee_ids !== undefined) {
+              next.assignees = mergeAssigneesForIds(
+                t.assignees,
+                normalized.assignee_ids,
+                assignerId,
+              );
+              next.assignee_ids = next.assignees.map((a) => a.profile_id);
+            }
+            return next;
+          }),
         }));
+
+        // Notify anyone newly assigned (they must accept or decline).
+        const addedIds =
+          normalized.assignee_ids !== undefined
+            ? addedAssigneeIds(snapshot.assignee_ids, normalized.assignee_ids)
+            : [];
+        if (addedIds.length) {
+          const t = get().tasks.find((x) => x.id === id);
+          if (t) {
+            notifyAssigneesUpdated(t);
+            notifyAboutTask(
+              addedIds,
+              `${actorName()} assigned you a task: "${titleOf(t)}" — accept or decline`,
+              t,
+            );
+          }
+        }
 
         if (!isSupabaseConfigured) {
           offerUndoToast("Task updated", () =>
@@ -748,10 +884,12 @@ export const useTasksDataStore = create<TasksState>()(
 
           let assigneeErr: { message?: string } | null = null;
           if (!error && normalized.assignee_ids !== undefined) {
-            const res = await syncAssignees(
+            const res = await syncAssigneeDiff(
               supabase,
               id,
+              snapshot.assignees,
               normalized.assignee_ids,
+              assignerId,
             );
             assigneeErr = res.error;
           }
@@ -1202,7 +1340,7 @@ export const useTasksDataStore = create<TasksState>()(
         }));
 
         // Notify the comment/reply author when a reaction is ADDED (not removed).
-        if (task0 && target && !had) {
+        if (task0 && target && !had && target.author_id) {
           notifyAboutTask(
             [target.author_id],
             `${actorName()} reacted ${emoji} to your ${targetKind}: "${bodyPreview(target.body)}"`,
@@ -1234,32 +1372,41 @@ export const useTasksDataStore = create<TasksState>()(
 
       assignTask: (taskId, userId) => {
         const beforeTasks = structuredClone(get().tasks);
+        const prev = get().tasks.find((t) => t.id === taskId);
+        if (!prev) return;
+        const assignerId =
+          useAuthStore.getState().user.authId ?? CURRENT_USER_ID;
+        const newIds =
+          userId == null
+            ? []
+            : prev.assignee_ids.includes(userId)
+              ? prev.assignee_ids.filter((x) => x !== userId)
+              : [...prev.assignee_ids, userId];
+
         set((s) => ({
           tasks: s.tasks.map((t) => {
             if (t.id !== taskId) return t;
-            if (userId == null) {
-              return {
-                ...t,
-                assignee_ids: [],
-                updated_at: new Date().toISOString(),
-              };
-            }
-            const has = t.assignee_ids.includes(userId);
+            const assignees = mergeAssigneesForIds(
+              t.assignees,
+              newIds,
+              assignerId,
+            );
             return {
               ...t,
-              assignee_ids: has
-                ? t.assignee_ids.filter((x) => x !== userId)
-                : [...t.assignee_ids, userId],
+              assignees,
+              assignee_ids: assignees.map((a) => a.profile_id),
               updated_at: new Date().toISOString(),
             };
           }),
         }));
+
+        const added = addedAssigneeIds(prev.assignee_ids, newIds);
         const task = get().tasks.find((t) => t.id === taskId);
-        if (task) {
+        if (task && added.length) {
           notifyAssigneesUpdated(task);
           notifyAboutTask(
-            task.assignee_ids,
-            `${actorName()} assigned you to "${titleOf(task)}"`,
+            added,
+            `${actorName()} assigned you a task: "${titleOf(task)}" — accept or decline`,
             task,
           );
         }
@@ -1273,16 +1420,162 @@ export const useTasksDataStore = create<TasksState>()(
 
         void (async () => {
           const supabase = createClient();
-          const after = get().tasks.find((t) => t.id === taskId);
-          const { error } = await syncAssignees(
+          const { error } = await syncAssigneeDiff(
             supabase,
             taskId,
-            after?.assignee_ids ?? [],
+            prev.assignees,
+            newIds,
+            assignerId,
           );
           if (error) {
             set({ tasks: beforeTasks });
             toast.error("Couldn't update assignees", {
               description: parseSupabaseError(error),
+            });
+          }
+        })();
+      },
+
+      respondToAssignment: (taskId, response, note) => {
+        const me = useAuthStore.getState().user.authId ?? CURRENT_USER_ID;
+        const beforeTasks = structuredClone(get().tasks);
+        const task0 = get().tasks.find((t) => t.id === taskId);
+        const mine = task0?.assignees.find((a) => a.profile_id === me);
+        if (!task0 || !mine) return;
+        const assigner = mine.assigned_by ?? task0.reporter_id;
+        const now = new Date().toISOString();
+
+        // Optimistic: accept updates my status; reject removes me.
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            if (response === "rejected") {
+              const assignees = t.assignees.filter((a) => a.profile_id !== me);
+              return {
+                ...t,
+                assignees,
+                assignee_ids: assignees.map((a) => a.profile_id),
+              };
+            }
+            const assignees = t.assignees.map((a) =>
+              a.profile_id === me
+                ? { ...a, status: "accepted" as AssignmentStatus, responded_at: now }
+                : a,
+            );
+            return { ...t, assignees };
+          }),
+        }));
+
+        const verb = response === "accepted" ? "accepted" : "declined";
+        pushWorkspaceActivity(
+          withProjectScope(
+            `${verb} the task "${titleOf(task0)}"`,
+            task0.project_id,
+          ),
+          taskBoardRelativePath(task0),
+          task0.project_id,
+        );
+        notifyAboutTask(
+          assigner ? [assigner] : [],
+          `${actorName()} ${verb} "${titleOf(task0)}"${note ? `: "${bodyPreview(note)}"` : ""}`,
+          task0,
+        );
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } =
+            response === "rejected"
+              ? await supabase
+                  .from("task_assignees")
+                  .delete()
+                  .eq("task_id", taskId)
+                  .eq("profile_id", me)
+              : await supabase
+                  .from("task_assignees")
+                  .update({ status: "accepted", responded_at: now, note: note ?? null })
+                  .eq("task_id", taskId)
+                  .eq("profile_id", me);
+          if (error) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't save your response", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
+      },
+
+      passAssignment: (taskId, toProfileId, note) => {
+        const me = useAuthStore.getState().user.authId ?? CURRENT_USER_ID;
+        const beforeTasks = structuredClone(get().tasks);
+        const task0 = get().tasks.find((t) => t.id === taskId);
+        const mine = task0?.assignees.find((a) => a.profile_id === me);
+        if (!task0 || !mine || toProfileId === me) return;
+        const assigner = mine.assigned_by ?? task0.reporter_id;
+
+        // Optimistic: remove me, add the target as pending (assigned by me).
+        set((s) => ({
+          tasks: s.tasks.map((t) => {
+            if (t.id !== taskId) return t;
+            const kept = t.assignees.filter((a) => a.profile_id !== me);
+            const already = kept.some((a) => a.profile_id === toProfileId);
+            const assignees = already
+              ? kept
+              : [...kept, newAssignment(toProfileId, me)];
+            return {
+              ...t,
+              assignees,
+              assignee_ids: assignees.map((a) => a.profile_id),
+            };
+          }),
+        }));
+
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (task) {
+          pushWorkspaceActivity(
+            withProjectScope(
+              `passed the task "${titleOf(task)}" to a teammate`,
+              task.project_id,
+            ),
+            taskBoardRelativePath(task),
+            task.project_id,
+          );
+          notifyAboutTask(
+            [toProfileId],
+            `${actorName()} passed you a task: "${titleOf(task)}" — accept or decline`,
+            task,
+          );
+          notifyAboutTask(
+            assigner ? [assigner] : [],
+            `${actorName()} passed "${titleOf(task)}" to another developer`,
+            task,
+          );
+        }
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const del = await supabase
+            .from("task_assignees")
+            .delete()
+            .eq("task_id", taskId)
+            .eq("profile_id", me);
+          let insErr: { message?: string } | null = del.error;
+          if (!insErr) {
+            const a = newAssignment(toProfileId, me);
+            const ins = await supabase.from("task_assignees").insert({
+              task_id: taskId,
+              profile_id: toProfileId,
+              status: a.status,
+              assigned_by: me,
+              note: note ?? null,
+            });
+            insErr = ins.error;
+          }
+          if (insErr) {
+            set({ tasks: beforeTasks });
+            toast.error("Couldn't pass the task", {
+              description: parseSupabaseError(insErr),
             });
           }
         })();
@@ -1331,6 +1624,13 @@ export const useTasksDataStore = create<TasksState>()(
               description: parseSupabaseError(error),
             });
             return;
+          }
+          // Attribution row (backs the workload views). logged_hours is the cache.
+          const loggerId = useAuthStore.getState().user.authId;
+          if (loggerId) {
+            void supabase
+              .from("time_entries")
+              .insert({ task_id: taskId, profile_id: loggerId, hours });
           }
           if (task) {
             pushWorkspaceActivity(

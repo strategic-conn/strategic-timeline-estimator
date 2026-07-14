@@ -9,7 +9,6 @@ import { toast } from "sonner";
 import { DiscoveryGantt } from "@/components/features/discovery/DiscoveryGantt";
 import { DiscoveryHoursBreakdown } from "@/components/features/discovery/DiscoveryHoursBreakdown";
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
-import { DiscoveryTracker } from "@/components/features/discovery/DiscoveryTracker";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Button } from "@/components/ui/button";
@@ -143,7 +142,6 @@ export function DiscoveryProjectClient({ projectId }: { projectId: string }) {
           <TabsTrigger value="discovery">Discovery</TabsTrigger>
           <TabsTrigger value="hours">Hours</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-          <TabsTrigger value="tracker">Tracker</TabsTrigger>
         </TabsList>
 
         <TabsContent value="discovery">
@@ -158,9 +156,6 @@ export function DiscoveryProjectClient({ projectId }: { projectId: string }) {
         </TabsContent>
         <TabsContent value="timeline">
           <DiscoveryGantt result={result} project={project} />
-        </TabsContent>
-        <TabsContent value="tracker">
-          <DiscoveryTracker projectId={projectId} result={result} />
         </TabsContent>
       </Tabs>
     </div>

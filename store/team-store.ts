@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { create } from "zustand";
 
 import { deriveInitials } from "@/lib/utils/initials";
@@ -40,6 +41,8 @@ function rowToMember(r: ProfileRow): TeamMember {
     initials: deriveInitials(r.name),
     avatarColor: colorForId(r.id),
     page_access: r.page_access ?? null,
+    deactivated_at: r.deactivated_at ?? null,
+    confirmed_at: r.confirmed_at ?? null,
   };
 }
 
@@ -85,4 +88,22 @@ export const useTeamStore = create<TeamState>()((set) => ({
 /** Reactive list of team members (real profiles in live mode, demo otherwise). */
 export function useTeamMembers(): TeamMember[] {
   return useTeamStore((s) => s.members);
+}
+
+/**
+ * Active members only — for assignee/teammate pickers. Excludes deactivated
+ * members and pending invitees (never accepted → can't be assigned work).
+ */
+export function useActiveTeamMembers(): TeamMember[] {
+  const members = useTeamStore((s) => s.members);
+  return useMemo(
+    () => members.filter((m) => !m.deactivated_at && m.confirmed_at),
+    [members],
+  );
+}
+
+/** Members who have accepted their invite — for the Team directory. */
+export function useJoinedTeamMembers(): TeamMember[] {
+  const members = useTeamStore((s) => s.members);
+  return useMemo(() => members.filter((m) => m.confirmed_at), [members]);
 }

@@ -167,7 +167,7 @@ export type Database = {
           created_at: string
           data: Json
           id: string
-          owner_id: string
+          owner_id: string | null
           tracker: Json
           updated_at: string
         }
@@ -175,7 +175,7 @@ export type Database = {
           created_at?: string
           data?: Json
           id?: string
-          owner_id: string
+          owner_id?: string | null
           tracker?: Json
           updated_at?: string
         }
@@ -183,7 +183,7 @@ export type Database = {
           created_at?: string
           data?: Json
           id?: string
-          owner_id?: string
+          owner_id?: string | null
           tracker?: Json
           updated_at?: string
         }
@@ -245,7 +245,9 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          confirmed_at: string | null
           created_at: string
+          deactivated_at: string | null
           email: string
           id: string
           name: string
@@ -255,7 +257,9 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          confirmed_at?: string | null
           created_at?: string
+          deactivated_at?: string | null
           email: string
           id: string
           name: string
@@ -265,7 +269,9 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          confirmed_at?: string | null
           created_at?: string
+          deactivated_at?: string | null
           email?: string
           id?: string
           name?: string
@@ -281,7 +287,7 @@ export type Database = {
           description: string | null
           id: string
           name: string
-          owner_id: string
+          owner_id: string | null
           status: Database["public"]["Enums"]["project_status"]
           updated_at: string
         }
@@ -290,7 +296,7 @@ export type Database = {
           description?: string | null
           id?: string
           name: string
-          owner_id: string
+          owner_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
@@ -299,7 +305,7 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
-          owner_id?: string
+          owner_id?: string | null
           status?: Database["public"]["Enums"]["project_status"]
           updated_at?: string
         }
@@ -321,10 +327,11 @@ export type Database = {
           id: string
           line_items: Json
           notes: string | null
-          owner_id: string
+          owner_id: string | null
           platform: string
           project_id: string | null
           requirements_unclear: boolean
+          status: string
           title: string
           updated_at: string
         }
@@ -335,10 +342,11 @@ export type Database = {
           id?: string
           line_items?: Json
           notes?: string | null
-          owner_id: string
+          owner_id?: string | null
           platform: string
           project_id?: string | null
           requirements_unclear?: boolean
+          status?: string
           title: string
           updated_at?: string
         }
@@ -349,10 +357,11 @@ export type Database = {
           id?: string
           line_items?: Json
           notes?: string | null
-          owner_id?: string
+          owner_id?: string | null
           platform?: string
           project_id?: string | null
           requirements_unclear?: boolean
+          status?: string
           title?: string
           updated_at?: string
         }
@@ -422,18 +431,37 @@ export type Database = {
       }
       task_assignees: {
         Row: {
+          assigned_by: string | null
+          note: string | null
           profile_id: string
+          responded_at: string | null
+          status: string
           task_id: string
         }
         Insert: {
+          assigned_by?: string | null
+          note?: string | null
           profile_id: string
+          responded_at?: string | null
+          status?: string
           task_id: string
         }
         Update: {
+          assigned_by?: string | null
+          note?: string | null
           profile_id?: string
+          responded_at?: string | null
+          status?: string
           task_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "task_assignees_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "task_assignees_profile_id_fkey"
             columns: ["profile_id"]
@@ -452,7 +480,7 @@ export type Database = {
       }
       task_comments: {
         Row: {
-          author_id: string
+          author_id: string | null
           body: string
           created_at: string
           id: string
@@ -461,7 +489,7 @@ export type Database = {
           task_id: string
         }
         Insert: {
-          author_id: string
+          author_id?: string | null
           body: string
           created_at?: string
           id?: string
@@ -470,7 +498,7 @@ export type Database = {
           task_id: string
         }
         Update: {
-          author_id?: string
+          author_id?: string | null
           body?: string
           created_at?: string
           id?: string
@@ -513,7 +541,7 @@ export type Database = {
           position: number
           priority: Database["public"]["Enums"]["task_priority"]
           project_id: string
-          reporter_id: string
+          reporter_id: string | null
           sprint_id: string | null
           status: Database["public"]["Enums"]["task_status"]
           tags: string[]
@@ -530,7 +558,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id: string
-          reporter_id: string
+          reporter_id?: string | null
           sprint_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tags?: string[]
@@ -547,7 +575,7 @@ export type Database = {
           position?: number
           priority?: Database["public"]["Enums"]["task_priority"]
           project_id?: string
-          reporter_id?: string
+          reporter_id?: string | null
           sprint_id?: string | null
           status?: Database["public"]["Enums"]["task_status"]
           tags?: string[]
@@ -574,6 +602,48 @@ export type Database = {
             columns: ["sprint_id"]
             isOneToOne: false
             referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      time_entries: {
+        Row: {
+          hours: number
+          id: string
+          logged_at: string
+          note: string | null
+          profile_id: string
+          task_id: string
+        }
+        Insert: {
+          hours: number
+          id?: string
+          logged_at?: string
+          note?: string | null
+          profile_id: string
+          task_id: string
+        }
+        Update: {
+          hours?: number
+          id?: string
+          logged_at?: string
+          note?: string | null
+          profile_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]

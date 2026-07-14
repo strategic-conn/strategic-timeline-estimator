@@ -1,12 +1,29 @@
 "use client";
 
 import * as React from "react";
-import { ShieldAlert, SlidersHorizontal, Users } from "lucide-react";
+import {
+  ShieldAlert,
+  SlidersHorizontal,
+  Trash2,
+  UserCheck,
+  UserX,
+  Users,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import { AdminInvitesSection } from "@/components/features/settings/AdminInvitesSection";
 import { MemberAccessDialog } from "@/components/features/team/MemberAccessDialog";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +55,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore, type UserRole } from "@/store/auth-store";
-import { useTeamMembers } from "@/store/team-store";
+import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import type { TeamMember } from "@/types/task.types";
 
 const ROLES: { value: UserRole; label: string }[] = [
@@ -70,7 +87,7 @@ const ROLE_REFERENCE: { role: string; blurb: string }[] = [
 export function TeamClientPage() {
   const { canManageTeam } = usePermissions();
   const authId = useAuthStore((s) => s.user.authId);
-  const members = useTeamMembers();
+  const members = useJoinedTeamMembers();
 
   const [overrides, setOverrides] = React.useState<Record<string, UserRole>>({});
   const [savingId, setSavingId] = React.useState<string | null>(null);
@@ -78,6 +95,56 @@ export function TeamClientPage() {
     Record<string, string[] | null>
   >({});
   const [accessMember, setAccessMember] = React.useState<TeamMember | null>(null);
+  const hydrateTeam = useTeamStore((s) => s.hydrateFromSupabase);
+  const [deactivateTarget, setDeactivateTarget] =
+    React.useState<TeamMember | null>(null);
+  const [deleteTarget, setDeleteTarget] = React.useState<TeamMember | null>(null);
+  const [statusSaving, setStatusSaving] = React.useState(false);
+
+  const active = members.filter((m) => !m.deactivated_at);
+  const deactivated = members.filter((m) => m.deactivated_at);
+
+  const setActive = async (m: TeamMember, deactivate: boolean) => {
+    setStatusSaving(true);
+    try {
+      const res = await fetch(`/api/users/${m.id}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deactivate }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error(deactivate ? "Couldn't deactivate" : "Couldn't reactivate", {
+          description: payload.error ?? `Request failed (${res.status}).`,
+        });
+        return;
+      }
+      await hydrateTeam();
+      toast.success(
+        deactivate ? `${m.name} deactivated` : `${m.name} reactivated`
+      );
+    } finally {
+      setStatusSaving(false);
+    }
+  };
+
+  const deleteMember = async (m: TeamMember) => {
+    setStatusSaving(true);
+    try {
+      const res = await fetch(`/api/users/${m.id}`, { method: "DELETE" });
+      const payload = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        toast.error("Couldn't delete", {
+          description: payload.error ?? `Request failed (${res.status}).`,
+        });
+        return;
+      }
+      await hydrateTeam();
+      toast.success(`${m.name} permanently deleted`);
+    } finally {
+      setStatusSaving(false);
+    }
+  };
 
   const roleOf = (id: string, fallback: UserRole) => overrides[id] ?? fallback;
   const pageAccessOf = (m: TeamMember): string[] | null =>
@@ -151,7 +218,7 @@ export function TeamClientPage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-0">
-          {members.length === 0 ? (
+          {active.length === 0 ? (
             <p className="text-sm text-muted-foreground">No members yet.</p>
           ) : (
             <div className="overflow-x-auto rounded-lg border">
@@ -164,7 +231,7 @@ export function TeamClientPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {members.map((m) => {
+                  {active.map((m) => {
                     const current = roleOf(m.id, m.role);
                     const isSelf = m.id === authId;
                     return (
@@ -232,6 +299,19 @@ export function TeamClientPage() {
                                 <SlidersHorizontal className="size-4" />
                               </Button>
                             ) : null}
+                            {canEditRoles && !isSelf ? (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon-sm"
+                                className="text-muted-foreground hover:text-destructive"
+                                title="Deactivate member"
+                                aria-label={`Deactivate ${m.name}`}
+                                onClick={() => setDeactivateTarget(m)}
+                              >
+                                <UserX className="size-4" />
+                              </Button>
+                            ) : null}
                           </div>
                           {current !== "admin" && pageAccessOf(m) != null ? (
                             <span className="mt-1 block text-xs text-muted-foreground">
@@ -248,6 +328,73 @@ export function TeamClientPage() {
           )}
         </CardContent>
       </Card>
+
+      {canEditRoles && deactivated.length > 0 ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <UserX className="size-4 text-muted-foreground" aria-hidden />
+              Deactivated
+            </CardTitle>
+            <CardDescription>
+              Access revoked. Their history stays attributed; reactivate to
+              restore access.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <ul className="divide-y divide-border rounded-lg border">
+              {deactivated.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 px-3 py-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Avatar size="sm" className="shrink-0 opacity-60">
+                      {m.avatar_url ? (
+                        <AvatarImage src={m.avatar_url} alt="" />
+                      ) : null}
+                      <AvatarFallback>{m.initials}</AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-muted-foreground">
+                        {m.name}
+                      </p>
+                      <p className="truncate text-xs text-muted-foreground">
+                        {m.email}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5"
+                      disabled={statusSaving}
+                      onClick={() => void setActive(m, false)}
+                    >
+                      <UserCheck className="size-4" aria-hidden />
+                      Reactivate
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="text-muted-foreground hover:text-destructive"
+                      title="Delete permanently"
+                      aria-label={`Delete ${m.name} permanently`}
+                      disabled={statusSaving}
+                      onClick={() => setDeleteTarget(m)}
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </Button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      ) : null}
 
       <Card>
         <CardHeader>
@@ -293,6 +440,73 @@ export function TeamClientPage() {
           }
         />
       ) : null}
+
+      <AlertDialog
+        open={deactivateTarget != null}
+        onOpenChange={(v) => {
+          if (!v) setDeactivateTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Deactivate {deactivateTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              They&apos;ll be signed out and blocked from logging in. Their tasks,
+              comments, and logged hours stay in the workspace, and you can
+              reactivate them anytime.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const m = deactivateTarget;
+                setDeactivateTarget(null);
+                if (m) void setActive(m, true);
+              }}
+            >
+              Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={deleteTarget != null}
+        onOpenChange={(v) => {
+          if (!v) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Permanently delete {deleteTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This can&apos;t be undone. Their account is erased and anything they
+              authored — projects, tasks, comments — is reattributed to
+              &quot;Former member.&quot; Assignments, reactions, and logged-hour
+              entries are removed. To keep their history intact, reactivate instead.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                const m = deleteTarget;
+                setDeleteTarget(null);
+                if (m) void deleteMember(m);
+              }}
+            >
+              Delete permanently
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

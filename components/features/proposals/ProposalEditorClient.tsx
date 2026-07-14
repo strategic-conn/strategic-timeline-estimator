@@ -8,6 +8,7 @@ import {
   ChevronDown,
   FileDown,
   FileSpreadsheet,
+  FolderPlus,
   Library,
   Link2,
   Plus,
@@ -35,6 +36,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,6 +76,10 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import {
+  PROPOSAL_STATUS_META,
+  PROPOSAL_STATUS_ORDER,
+} from "@/lib/constants/proposal-status";
+import {
   PROPOSAL_PLATFORM_OPTIONS,
   categoryName,
   platformLabel,
@@ -82,6 +95,7 @@ import type {
   ClientQuote,
   ProposalLineItem,
   ProposalPlatform,
+  ProposalStatus,
   ProposalTier,
 } from "@/types/proposal.types";
 
@@ -142,6 +156,15 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   );
   const updateLineItem = useProposalEstimatorStore((s) => s.updateLineItem);
   const removeLineItem = useProposalEstimatorStore((s) => s.removeLineItem);
+  const setProposalStatus = useProposalEstimatorStore(
+    (s) => s.setProposalStatus,
+  );
+  const convertToProject = useProposalEstimatorStore((s) => s.convertToProject);
+
+  const [convertOpen, setConvertOpen] = React.useState(false);
+  const [convertName, setConvertName] = React.useState("");
+  const [convertSeedTasks, setConvertSeedTasks] = React.useState(true);
+  const [converting, setConverting] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
@@ -238,6 +261,27 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     }
   };
 
+  const openConvert = () => {
+    if (!quote) return;
+    setConvertName(quote.title);
+    setConvertSeedTasks(true);
+    setConvertOpen(true);
+  };
+
+  const handleConvert = async () => {
+    if (!quote) return;
+    setConverting(true);
+    const id = await convertToProject(quote.id, {
+      name: convertName,
+      seedTasks: convertSeedTasks,
+    });
+    setConverting(false);
+    if (id) {
+      setConvertOpen(false);
+      router.push(`/projects/${id}`);
+    }
+  };
+
   if (!canExportProposals) {
     return <ProposalAccessDenied />;
   }
@@ -272,7 +316,39 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             .filter(Boolean)
             .join(" · ")}
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Select
+                value={quote.status}
+                onValueChange={(v) =>
+                  setProposalStatus(quote.id, v as ProposalStatus)
+                }
+              >
+                <SelectTrigger size="sm" className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROPOSAL_STATUS_ORDER.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {PROPOSAL_STATUS_META[s].label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {quote.project_id ? (
+                <Button variant="outline" size="sm" className="gap-1.5" asChild>
+                  <Link href={`/projects/${quote.project_id}`}>
+                    <FolderPlus className="size-4" aria-hidden />
+                    View project
+                  </Link>
+                </Button>
+              ) : quote.status === "approved" ? (
+                <Button size="sm" className="gap-1.5" onClick={openConvert}>
+                  <FolderPlus className="size-4" aria-hidden />
+                  Start project
+                </Button>
+              ) : null}
+
               <div className="hidden flex-col items-end leading-tight sm:flex">
                 <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
                   Total
@@ -679,6 +755,63 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         alreadyAddedIds={alreadyAddedIds}
         onAdd={handleAddFromCatalog}
       />
+
+      <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Start a project from this proposal</DialogTitle>
+            <DialogDescription>
+              Creates a new project a coordinator can plan and staff. The proposal
+              stays linked to it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-1">
+            <div className="space-y-1.5">
+              <Label htmlFor="convert-name">Project name</Label>
+              <Input
+                id="convert-name"
+                value={convertName}
+                onChange={(e) => setConvertName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
+              <Checkbox
+                checked={convertSeedTasks}
+                onCheckedChange={(v) => setConvertSeedTasks(v === true)}
+                className="mt-0.5"
+              />
+              <span>
+                <span className="font-medium">Create tasks from line items</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">
+                  {quote.line_items.filter((li) => li.title.trim()).length} backlog
+                  task(s) will be created, each with its estimated hours. You can
+                  organise them into sprints and assign developers afterward.
+                </span>
+              </span>
+            </label>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConvertOpen(false)}
+              disabled={converting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void handleConvert()}
+              disabled={converting || !convertName.trim()}
+              className="gap-1.5"
+            >
+              <FolderPlus className="size-4" aria-hidden />
+              {converting ? "Creating…" : "Create project"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

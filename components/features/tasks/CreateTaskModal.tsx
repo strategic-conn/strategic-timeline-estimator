@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useTeamMembers } from "@/store/team-store";
+import { useActiveTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import type { Task, TaskPriority, TaskStatus } from "@/types/task.types";
 import {
@@ -71,7 +71,7 @@ export interface CreateTaskModalProps {
   onCreate: (
     payload: Omit<
       Task,
-      "id" | "position" | "created_at" | "updated_at" | "comments"
+      "id" | "position" | "created_at" | "updated_at" | "comments" | "assignees"
     >
   ) => void;
 }
@@ -86,7 +86,7 @@ export function CreateTaskModal({
 }: CreateTaskModalProps) {
   const [tagInput, setTagInput] = React.useState("");
   const [calOpen, setCalOpen] = React.useState(false);
-  const teamMembers = useTeamMembers();
+  const teamMembers = useActiveTeamMembers();
 
   const {
     register,

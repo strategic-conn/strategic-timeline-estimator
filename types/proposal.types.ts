@@ -13,6 +13,9 @@ export type { ProposalPlatform };
 
 export type ProposalTier = "basic" | "advanced" | "custom";
 
+/** Approval lifecycle: draft → sent → approved/rejected. Approved → convert to project. */
+export type ProposalStatus = "draft" | "sent" | "approved" | "rejected";
+
 export interface ProposalLineItem {
   id: string;
   /** Short description of work for the client quote */
@@ -63,6 +66,8 @@ export interface ClientQuote {
   notes?: string;
   /** Which platform's catalog this quote pulls from. */
   platform: ProposalPlatform;
+  /** Approval lifecycle. New quotes start as `draft`. */
+  status: ProposalStatus;
   line_items: ProposalLineItem[];
   /** Roll-up add-ons applied on top of dev hours (PM, responsive, design, QA). */
   addons: ProposalAddons;

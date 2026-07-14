@@ -94,22 +94,54 @@ async function handleInvite(request: Request) {
 
   // Send the invite email. The email template links to /auth/confirm (see setup
   // notes); user_metadata.name flows into the profile via the signup trigger.
-  const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
-    data: name ? { name } : undefined,
-  });
+  const invite = () =>
+    admin.auth.admin.inviteUserByEmail(email, {
+      data: name ? { name } : undefined,
+    });
+
+  let { error: inviteErr } = await invite();
+
+  // Self-heal a stuck invite: inviteUserByEmail creates the auth user up front,
+  // so if a first invite's link expired or was consumed (e.g. Outlook/Defender
+  // SafeLinks pre-fetches and burns the one-time token), re-inviting fails with
+  // "already registered". If that user never confirmed, delete the stale row and
+  // re-send a fresh link. A user who actually set a password is left untouched.
+  if (inviteErr && /already.*registered/i.test(inviteErr.message)) {
+    const stale = await findPendingUser(admin, email);
+    if (!stale) {
+      return NextResponse.json(
+        { error: "That email already has an active account." },
+        { status: 400 },
+      );
+    }
+    // The allowlist row is already in place from the upsert above (deleteUser
+    // cascades the profile but not the allowlist), so the retry's signup trigger
+    // will find it and rebuild the profile.
+    await admin.auth.admin.deleteUser(stale.id);
+    ({ error: inviteErr } = await invite());
+  }
+
   if (inviteErr) {
-    const already = /already been registered|already registered/i.test(
-      inviteErr.message,
-    );
-    return NextResponse.json(
-      {
-        error: already
-          ? "That email already has an account."
-          : inviteErr.message,
-      },
-      { status: 400 },
-    );
+    return NextResponse.json({ error: inviteErr.message }, { status: 400 });
   }
 
   return NextResponse.json({ ok: true });
+}
+
+/**
+ * Find an auth user by email that has NOT completed onboarding (never confirmed,
+ * never signed in) — i.e. a stuck invite that's safe to delete and re-send.
+ * Returns null if no match or the user already set a password.
+ * ponytail: listUsers is paginated; one page of 1000 covers an internal team.
+ * Swap for a filtered lookup if the directory ever outgrows a page.
+ */
+async function findPendingUser(
+  admin: NonNullable<ReturnType<typeof createAdminClient>>,
+  email: string,
+) {
+  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const match = data?.users.find((u) => u.email?.toLowerCase() === email);
+  if (!match) return null;
+  const confirmed = match.email_confirmed_at || match.last_sign_in_at;
+  return confirmed ? null : match;
 }

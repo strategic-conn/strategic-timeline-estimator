@@ -86,7 +86,7 @@ function timeAgo(dateString: string): string {
   return `${Math.floor(sec / 2592000)}mo ago`;
 }
 
-function getMember(id: string, members: TeamMember[]) {
+function getMember(id: string | null, members: TeamMember[]) {
   return members.find((m) => m.id === id);
 }
 

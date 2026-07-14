@@ -8,7 +8,8 @@ export interface Reaction {
 
 export interface Reply {
   id: string;
-  author_id: string;
+  /** null = author was deleted ("Former member"). */
+  author_id: string | null;
   body: string;
   created_at: string;
   mentions: string[];
@@ -17,11 +18,25 @@ export interface Reply {
 
 export interface Comment {
   id: string;
-  author_id: string;
+  /** null = author was deleted ("Former member"). */
+  author_id: string | null;
   body: string;
   created_at: string;
   reactions: Reaction[];
   replies: Reply[];
+}
+
+/** A task assignment's response state. Rejected/passed rows are removed. */
+export type AssignmentStatus = "pending" | "accepted" | "rejected" | "passed";
+
+/** One person's assignment to a task, with its acceptance lifecycle. */
+export interface TaskAssignment {
+  profile_id: string;
+  status: AssignmentStatus;
+  /** Who assigned them (the coordinator, or the dev who passed it). */
+  assigned_by?: string | null;
+  responded_at?: string | null;
+  note?: string | null;
 }
 
 export interface Task {
@@ -30,9 +45,15 @@ export interface Task {
   description?: string;
   status: TaskStatus;
   priority: TaskPriority;
-  /** Zero or more people assigned to the task (profile ids). */
+  /**
+   * Profile ids of everyone currently on the task (pending + accepted).
+   * Kept as the simple id list every board/avatar/ filter reads.
+   */
   assignee_ids: string[];
-  reporter_id: string;
+  /** Full assignment records (status/assigned_by/note) — the acceptance lifecycle. */
+  assignees: TaskAssignment[];
+  /** null = reporter was deleted ("Former member"). */
+  reporter_id: string | null;
   project_id: string;
   /** null or undefined = backlog (not assigned to any sprint). */
   sprint_id?: string | null;
@@ -56,6 +77,10 @@ export interface TeamMember {
   avatarColor: string;
   /** Per-user page allowlist (hrefs). null/undefined = role defaults. */
   page_access?: string[] | null;
+  /** Set when offboarded (banned). null/undefined = active. */
+  deactivated_at?: string | null;
+  /** Set when the invite was accepted. null/undefined = invited, not yet joined. */
+  confirmed_at?: string | null;
 }
 
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [

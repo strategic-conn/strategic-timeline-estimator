@@ -39,6 +39,16 @@ export default function LoginPage() {
   const [errors, setErrors] = React.useState<FieldErrors>({});
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [formError, setFormError] = React.useState<string | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
+
+  // Surface the reason /auth/confirm bounced here (e.g. a dead invite link).
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("error") === "invite_invalid") {
+      setNotice(
+        "That invite link was invalid or has expired — email links can only be opened once. Ask an admin to re-send your invite, then click the newest link.",
+      );
+    }
+  }, []);
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -85,6 +95,11 @@ export default function LoginPage() {
       </CardHeader>
 
       <CardContent>
+        {notice ? (
+          <p className="mb-4 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-sm text-amber-700 dark:text-amber-400">
+            {notice}
+          </p>
+        ) : null}
         <form onSubmit={onSubmit} className="space-y-4" noValidate>
           <div className="space-y-1.5">
             <Label htmlFor="email">Email</Label>

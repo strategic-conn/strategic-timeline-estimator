@@ -24,6 +24,12 @@ type SprintRow = Database["public"]["Tables"]["sprints"]["Row"];
 type TaskRow = Database["public"]["Tables"]["tasks"]["Row"];
 type CommentRow = Database["public"]["Tables"]["task_comments"]["Row"];
 type AssigneeKey = { task_id: string; profile_id: string };
+type AssigneeRow = AssigneeKey & {
+  status: import("@/types/task.types").AssignmentStatus;
+  assigned_by: string | null;
+  responded_at: string | null;
+  note: string | null;
+};
 type ReactionKey = { comment_id: string; profile_id: string; emoji: string };
 
 /**
@@ -170,12 +176,18 @@ export function WorkspaceSync() {
         { event: "*", schema: "public", table: "task_assignees" },
         (p) => {
           const store = useTasksDataStore.getState();
-          if (p.eventType === "INSERT") {
-            const r = p.new as AssigneeKey;
-            store.applyRealtimeAssignee(r.task_id, r.profile_id, true);
-          } else if (p.eventType === "DELETE") {
+          if (p.eventType === "DELETE") {
             const r = p.old as AssigneeKey;
-            store.applyRealtimeAssignee(r.task_id, r.profile_id, false);
+            store.applyRealtimeAssignmentDelete(r.task_id, r.profile_id);
+          } else {
+            const r = p.new as AssigneeRow;
+            store.applyRealtimeAssignmentUpsert(r.task_id, {
+              profile_id: r.profile_id,
+              status: r.status,
+              assigned_by: r.assigned_by,
+              responded_at: r.responded_at,
+              note: r.note,
+            });
           }
         },
       )

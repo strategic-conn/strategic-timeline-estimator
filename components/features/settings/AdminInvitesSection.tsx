@@ -2,7 +2,13 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { MailPlus, ShieldCheck, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  Mail,
+  MailPlus,
+  ShieldCheck,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
@@ -50,7 +56,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { type UserRole } from "@/store/auth-store";
-import { useTeamMembers } from "@/store/team-store";
+import { useJoinedTeamMembers } from "@/store/team-store";
 import type { Database } from "@/types/database.types";
 
 type InviteRow = Database["public"]["Tables"]["allowed_emails"]["Row"];
@@ -64,7 +70,7 @@ const ROLES: { value: UserRole; label: string }[] = [
 
 export function AdminInvitesSection() {
   const { canManageTeam } = usePermissions();
-  const members = useTeamMembers();
+  const members = useJoinedTeamMembers();
   const eligible = isSupabaseConfigured && canManageTeam;
 
   const [rows, setRows] = React.useState<InviteRow[]>([]);
@@ -76,6 +82,7 @@ export function AdminInvitesSection() {
     () => new Set(reachableForRole("member")),
   );
   const [adding, setAdding] = React.useState(false);
+  const [resending, setResending] = React.useState<string | null>(null);
   const [removeTarget, setRemoveTarget] = React.useState<string | null>(null);
 
   // When the role changes, reset the page selection to that role's full set.
@@ -163,6 +170,38 @@ export function AdminInvitesSection() {
       });
     } finally {
       setAdding(false);
+    }
+  };
+
+  // Re-send an existing invite. The /api/invites route self-heals a stuck invite
+  // (deletes the un-accepted auth user and mails a fresh link).
+  const onResend = async (row: InviteRow) => {
+    setResending(row.email);
+    try {
+      const res = await fetch("/api/invites", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: row.email,
+          role: row.role,
+          page_access: row.page_access,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as { error?: unknown };
+      if (!res.ok) {
+        toast.error("Couldn't resend invite", {
+          description:
+            typeof payload.error === "string" && payload.error
+              ? payload.error
+              : `Request failed (${res.status}).`,
+        });
+        return;
+      }
+      toast.success("Invite re-sent", {
+        description: `${row.email} will get a fresh link.`,
+      });
+    } finally {
+      setResending(null);
     }
   };
 
@@ -335,16 +374,29 @@ export function AdminInvitesSection() {
                     {format(new Date(row.created_at), "MMM d, yyyy")}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="text-destructive hover:bg-destructive/10"
-                      aria-label={`Remove invite for ${row.email}`}
-                      onClick={() => setRemoveTarget(row.email)}
-                    >
-                      <Trash2 className="size-4" />
-                    </Button>
+                    <div className="flex items-center justify-end gap-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        aria-label={`Resend invite to ${row.email}`}
+                        title="Resend invite"
+                        disabled={resending === row.email}
+                        onClick={() => void onResend(row)}
+                      >
+                        <Mail className="size-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-destructive hover:bg-destructive/10"
+                        aria-label={`Remove invite for ${row.email}`}
+                        onClick={() => setRemoveTarget(row.email)}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

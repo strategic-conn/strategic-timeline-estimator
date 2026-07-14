@@ -62,7 +62,8 @@ interface ProjectsState {
   applyRealtimeUpsert: (row: ProjectRow) => void;
   /** Remove a realtime-deleted project by id. */
   applyRealtimeDelete: (id: string) => void;
-  createProject: (payload: CreateProjectInput) => void;
+  /** Create a project; returns its id (client-generated in live mode). */
+  createProject: (payload: CreateProjectInput) => string;
   updateProject: (id: string, partial: Partial<Project>) => void;
   archiveProject: (id: string) => void;
   deleteProject: (id: string) => void;
@@ -138,11 +139,13 @@ export const useProjectsStore = create<ProjectsState>()(
             projectOverviewHref(id),
             id,
           );
-          return;
+          return id;
         }
 
         // ── Supabase: optimistic insert with a client-generated UUID (no
-        // temp→real swap), reconcile on response.
+        // temp→real swap), reconcile on response. The id is generated up front
+        // so callers (e.g. proposal→project convert) can use it immediately.
+        const id = crypto.randomUUID();
         void (async () => {
           const ownerId = useAuthStore.getState().user.authId;
           if (!ownerId) {
@@ -151,10 +154,6 @@ export const useProjectsStore = create<ProjectsState>()(
             });
             return;
           }
-          // Generate the real id client-side so the optimistic row already
-          // carries its final UUID — no temp→real swap, so links/routes opened
-          // immediately after create never hold a throwaway id.
-          const id = crypto.randomUUID();
           const now = new Date().toISOString();
           const optimistic: Project = {
             ...payload,
@@ -196,6 +195,8 @@ export const useProjectsStore = create<ProjectsState>()(
             saved.id,
           );
         })();
+
+        return id;
       },
 
       updateProject: (id, partial) => {

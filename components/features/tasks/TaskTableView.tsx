@@ -130,7 +130,7 @@ function assigneeSortKey(task: Task, memberById: MemberMap): string {
 }
 
 function reporterSortKey(task: Task, memberById: MemberMap): string {
-  return (memberById.get(task.reporter_id)?.name ?? "").toLowerCase();
+  return (memberById.get(task.reporter_id ?? "")?.name ?? "").toLowerCase();
 }
 
 function compareTasks(
@@ -376,7 +376,7 @@ function TaskTableView({
               const assignees = task.assignee_ids
                 .map((id) => memberById.get(id))
                 .filter(Boolean) as TeamMember[];
-              const reporter = memberById.get(task.reporter_id);
+              const reporter = memberById.get(task.reporter_id ?? "");
               const dueTone = dueDateTone(task.due_date);
 
               return (

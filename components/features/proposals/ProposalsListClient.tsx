@@ -44,7 +44,9 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { cn } from "@/lib/utils";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
@@ -185,6 +187,14 @@ export function ProposalsListClient() {
                         </Badge>
                         <Badge variant="secondary" className="tabular-nums">
                           {totals.grandHours} h
+                        </Badge>
+                        <Badge
+                          className={cn(
+                            "font-normal",
+                            PROPOSAL_STATUS_META[q.status ?? "draft"].className,
+                          )}
+                        >
+                          {PROPOSAL_STATUS_META[q.status ?? "draft"].label}
                         </Badge>
                       </div>
                       <CardDescription className="mt-1 flex flex-wrap gap-x-3 gap-y-1">

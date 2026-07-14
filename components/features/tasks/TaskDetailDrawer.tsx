@@ -3,6 +3,7 @@
 import * as React from "react"
 import {
   CalendarDays,
+  Check,
   Clock,
   Link2,
   MoreHorizontal,
@@ -10,6 +11,7 @@ import {
   Tag,
   Trash2,
   User,
+  UserPlus,
   X,
 } from "lucide-react"
 import { toast } from "sonner"
@@ -30,6 +32,14 @@ import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Calendar } from "@/components/ui/calendar"
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -37,6 +47,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import {
   Popover,
   PopoverContent,
@@ -65,12 +76,41 @@ import { TaskCommentSection } from "@/components/features/tasks/TaskCommentSecti
 import { TaskTimeTracker } from "@/components/features/tasks/TaskTimeTracker"
 import { useTimeTrackingAccess } from "@/hooks/useTimeTrackingAccess"
 import { ALL_TAGS } from "@/lib/dummy/tasks.data"
-import { useTeamMembers } from "@/store/team-store"
+import { useAuthStore } from "@/store/auth-store"
+import { useTasksDataStore } from "@/store/tasks-store"
+import { useActiveTeamMembers, useTeamMembers } from "@/store/team-store"
 import { copyTextToClipboard, taskShareUrl } from "@/lib/utils/share-links"
 import { cn } from "@/lib/utils"
 import { formatWorkHours, roundWorkHours } from "@/lib/utils/work-hours"
-import type { Task, TaskPriority, TaskStatus } from "@/types/task.types"
+import type {
+  AssignmentStatus,
+  Task,
+  TaskPriority,
+  TaskStatus,
+} from "@/types/task.types"
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types"
+
+const ASSIGN_STATUS_META: Record<
+  AssignmentStatus,
+  { label: string; cls: string }
+> = {
+  pending: {
+    label: "Pending",
+    cls: "bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300",
+  },
+  accepted: {
+    label: "Accepted",
+    cls: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300",
+  },
+  rejected: {
+    label: "Declined",
+    cls: "bg-rose-100 text-rose-700 dark:bg-rose-900/50 dark:text-rose-300",
+  },
+  passed: {
+    label: "Passed",
+    cls: "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300",
+  },
+}
 
 export interface TaskDetailDrawerProps {
   task: Task | null
@@ -188,12 +228,43 @@ export function TaskDetailDrawer({
   const [assigneesOpen, setAssigneesOpen] = React.useState(false)
 
   const teamMembers = useTeamMembers()
+  const activeMembers = useActiveTeamMembers()
   const memberById = React.useCallback(
-    (id: string) => teamMembers.find((m) => m.id === id),
+    (id: string | null) => (id ? teamMembers.find((m) => m.id === id) : undefined),
     [teamMembers]
   )
 
   const timeAccess = useTimeTrackingAccess(task)
+
+  const respondToAssignment = useTasksDataStore((s) => s.respondToAssignment)
+  const passAssignment = useTasksDataStore((s) => s.passAssignment)
+  const myId = useAuthStore((s) => s.user.authId ?? String(s.user.id))
+  const myAssignment = task?.assignees.find((a) => a.profile_id === myId)
+  const isPendingForMe = myAssignment?.status === "pending"
+
+  const [assignAction, setAssignAction] = React.useState<
+    "decline" | "pass" | null
+  >(null)
+  const [assignNote, setAssignNote] = React.useState("")
+  const [passTarget, setPassTarget] = React.useState<string>("")
+
+  const assignmentOf = React.useCallback(
+    (id: string) => task?.assignees.find((a) => a.profile_id === id),
+    [task]
+  )
+
+  const handleAccept = () => {
+    if (task) respondToAssignment(task.id, "accepted")
+  }
+  const confirmAssignAction = () => {
+    if (!task) return
+    if (assignAction === "decline") {
+      respondToAssignment(task.id, "rejected", assignNote.trim() || undefined)
+    } else if (assignAction === "pass" && passTarget) {
+      passAssignment(task.id, passTarget, assignNote.trim() || undefined)
+    }
+    setAssignAction(null)
+  }
 
   React.useEffect(() => {
     if (timeAccess && !timeAccess.canEditLoggedHours) {
@@ -217,6 +288,7 @@ export function TaskDetailDrawer({
     setEditingEst(false)
     setEditingLog(false)
     setTagInput("")
+    setAssignAction(null)
   }, [task?.id, task?.updated_at])
 
   const isOpen = Boolean(open && task)
@@ -502,6 +574,52 @@ export function TaskDetailDrawer({
 
               <ScrollArea className="min-h-0 flex-1">
                 <div className="space-y-5 p-4 pb-6">
+                  {isPendingForMe ? (
+                    <div className="rounded-lg border border-amber-300/70 bg-amber-50 p-3 dark:border-amber-800/60 dark:bg-amber-950/30">
+                      <div className="flex items-start gap-2">
+                        <UserPlus className="mt-0.5 size-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">
+                            You&apos;ve been assigned this task
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            Accept to start working, or decline / pass it to
+                            someone else.
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" className="gap-1.5" onClick={handleAccept}>
+                          <Check className="size-4" aria-hidden />
+                          Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            setAssignNote("")
+                            setAssignAction("decline")
+                          }}
+                        >
+                          Decline
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="gap-1.5"
+                          onClick={() => {
+                            setAssignNote("")
+                            setPassTarget("")
+                            setAssignAction("pass")
+                          }}
+                        >
+                          <UserPlus className="size-4" aria-hidden />
+                          Pass to…
+                        </Button>
+                      </div>
+                    </div>
+                  ) : null}
+
                   <div className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
                     <div className="col-span-2 rounded-lg border border-border bg-muted/15 p-4">
                       <div className="mb-3 flex items-center gap-1">
@@ -660,6 +778,18 @@ export function TaskDetailDrawer({
                                     .map((id) => memberById(id)?.name ?? `#${id}`)
                                     .join(", ")}
                                 </span>
+                                {task.assignees.some(
+                                  (a) => a.status === "pending"
+                                ) ? (
+                                  <span className="shrink-0 rounded bg-amber-100 px-1.5 py-0.5 text-[0.6rem] font-medium text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                                    {
+                                      task.assignees.filter(
+                                        (a) => a.status === "pending"
+                                      ).length
+                                    }{" "}
+                                    pending
+                                  </span>
+                                ) : null}
                               </div>
                             ) : (
                               <>
@@ -695,7 +825,13 @@ export function TaskDetailDrawer({
                             >
                               Clear all
                             </Button>
-                            {teamMembers.map((m) => {
+                            {teamMembers
+                              .filter(
+                                (m) =>
+                                  !m.deactivated_at ||
+                                  task.assignee_ids.includes(m.id)
+                              )
+                              .map((m) => {
                               const checked = task.assignee_ids.includes(m.id)
                               return (
                                 <label
@@ -718,7 +854,25 @@ export function TaskDetailDrawer({
                                       {m.initials}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span className="truncate">{m.name}</span>
+                                  <span className="min-w-0 flex-1 truncate">
+                                    {m.name}
+                                  </span>
+                                  {checked ? (
+                                    <span
+                                      className={cn(
+                                        "shrink-0 rounded px-1.5 py-0.5 text-[0.6rem] font-medium",
+                                        ASSIGN_STATUS_META[
+                                          assignmentOf(m.id)?.status ?? "accepted"
+                                        ].cls
+                                      )}
+                                    >
+                                      {
+                                        ASSIGN_STATUS_META[
+                                          assignmentOf(m.id)?.status ?? "accepted"
+                                        ].label
+                                      }
+                                    </span>
+                                  ) : null}
                                 </label>
                               )
                             })}
@@ -744,8 +898,7 @@ export function TaskDetailDrawer({
                           </AvatarFallback>
                         </Avatar>
                         <span className="font-medium">
-                          {memberById(task.reporter_id)?.name ??
-                            `User ${task.reporter_id}`}
+                          {memberById(task.reporter_id)?.name ?? "Former member"}
                         </span>
                       </div>
                     </div>
@@ -1038,6 +1191,84 @@ export function TaskDetailDrawer({
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+      ) : null}
+
+      {task ? (
+        <Dialog
+          open={assignAction != null}
+          onOpenChange={(v) => {
+            if (!v) setAssignAction(null)
+          }}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {assignAction === "pass"
+                  ? "Pass this task on"
+                  : "Decline this task"}
+              </DialogTitle>
+              <DialogDescription>
+                {assignAction === "pass"
+                  ? "Hand this task to another developer — they'll be notified to accept or decline."
+                  : "Let the coordinator know this isn't for you. They'll be notified so they can reassign it."}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-1">
+              {assignAction === "pass" ? (
+                <div className="space-y-1.5">
+                  <Label htmlFor="pass-target">Assign to</Label>
+                  <Select value={passTarget} onValueChange={setPassTarget}>
+                    <SelectTrigger id="pass-target" className="w-full">
+                      <SelectValue placeholder="Choose a teammate" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {activeMembers
+                        .filter((m) => m.id !== myId)
+                        .map((m) => (
+                          <SelectItem key={m.id} value={m.id}>
+                            {m.name}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : null}
+              <div className="space-y-1.5">
+                <Label htmlFor="assign-note">
+                  {assignAction === "pass" ? "Note (optional)" : "Reason (optional)"}
+                </Label>
+                <Textarea
+                  id="assign-note"
+                  rows={3}
+                  value={assignNote}
+                  onChange={(e) => setAssignNote(e.target.value)}
+                  placeholder={
+                    assignAction === "pass"
+                      ? "Context for the teammate…"
+                      : "Why this isn't a fit…"
+                  }
+                />
+              </div>
+            </div>
+            <DialogFooter className="gap-2 sm:gap-0">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAssignAction(null)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant={assignAction === "decline" ? "destructive" : "default"}
+                onClick={confirmAssignAction}
+                disabled={assignAction === "pass" && !passTarget}
+              >
+                {assignAction === "pass" ? "Pass task" : "Decline"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : null}
     </>
   )

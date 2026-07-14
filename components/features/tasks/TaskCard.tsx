@@ -131,6 +131,9 @@ export function TaskCard({
   const assignees = task.assignee_ids
     .map((id) => teamMembers.find((m) => m.id === id))
     .filter(Boolean) as TeamMember[];
+  const pendingIds = new Set(
+    task.assignees.filter((a) => a.status === "pending").map((a) => a.profile_id)
+  );
 
   const dueTone = dueDateTone(task.due_date);
 
@@ -338,7 +341,17 @@ export function TaskCard({
                       {assignees.slice(0, 3).map((a) => (
                         <Avatar
                           key={a.id}
-                          className="size-7 ring-2 ring-card"
+                          title={
+                            pendingIds.has(a.id)
+                              ? `${a.name} — hasn't accepted yet`
+                              : a.name
+                          }
+                          className={cn(
+                            "size-7 ring-2",
+                            pendingIds.has(a.id)
+                              ? "opacity-40 ring-amber-400"
+                              : "ring-card"
+                          )}
                         >
                           <AvatarImage src={a.avatar_url} alt={a.name} />
                           <AvatarFallback

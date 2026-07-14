@@ -271,7 +271,7 @@ export function ProjectsPage() {
             <p className="text-sm font-medium">No projects yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {canCreateProject
-                ? "Create your first project to organize tasks and timelines."
+                ? "Approve a proposal and hit “Start project” to seed one from its line items — or create a blank project here. Then add sprints and assign tasks to developers."
                 : "No projects yet. An admin or manager can create the first one."}
             </p>
             {canCreateProject ? (

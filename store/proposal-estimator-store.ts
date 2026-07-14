@@ -13,12 +13,16 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
+import { useProjectsStore } from "@/store/projects-store";
+import { useTasksDataStore } from "@/store/tasks-store";
 import type { Database, Json } from "@/types/database.types";
+import { CURRENT_USER_ID } from "@/types/task.types";
 import type {
   ClientQuote,
   ProposalAddons,
   ProposalLineItem,
   ProposalPlatform,
+  ProposalStatus,
   ProposalTier,
 } from "@/types/proposal.types";
 
@@ -32,6 +36,7 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     client_name: r.client_name ?? undefined,
     notes: r.notes ?? undefined,
     platform: r.platform as ProposalPlatform,
+    status: (r.status as ProposalStatus) ?? "draft",
     line_items: (r.line_items as unknown as ProposalLineItem[]) ?? [],
     addons: { ...DEFAULT_ADDONS, ...(r.addons as unknown as ProposalAddons) },
     requirements_unclear: r.requirements_unclear,
@@ -50,6 +55,7 @@ function quoteUpdatePayload(
     client_name: q.client_name ?? null,
     notes: q.notes ?? null,
     platform: q.platform,
+    status: q.status,
     line_items: q.line_items as unknown as Json,
     addons: q.addons as unknown as Json,
     requirements_unclear: q.requirements_unclear,
@@ -200,6 +206,17 @@ interface ProposalEstimatorState {
     >,
   ) => void;
   updateAddons: (id: string, partial: Partial<ProposalAddons>) => void;
+  /** Move a proposal through its approval lifecycle (draft/sent/approved/rejected). */
+  setProposalStatus: (id: string, status: ProposalStatus) => void;
+  /**
+   * Convert an (approved) proposal into a real project. Creates the project,
+   * optionally seeds backlog tasks from the line items, and links the proposal.
+   * Returns the new project id (or null on failure).
+   */
+  convertToProject: (
+    proposalId: string,
+    input: { name: string; seedTasks: boolean },
+  ) => Promise<string | null>;
   deleteProposal: (id: string) => void;
   addLineItem: (proposalId: string) => void;
   addLineItemsFromCatalog: (proposalId: string, items: CatalogItem[]) => void;
@@ -259,6 +276,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           client_name: input.client_name?.trim() || undefined,
           notes: undefined,
           platform: input.platform ?? "react_next",
+          status: "draft",
           line_items: [emptyLineItem()],
           addons: { ...DEFAULT_ADDONS },
           requirements_unclear: false,
@@ -286,6 +304,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               client_name: quote.client_name ?? null,
               notes: quote.notes ?? null,
               platform: quote.platform,
+              status: quote.status,
               line_items: quote.line_items as unknown as Json,
               addons: quote.addons as unknown as Json,
               requirements_unclear: quote.requirements_unclear,
@@ -333,6 +352,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           client_name: input.client_name?.trim() || undefined,
           notes: input.notes?.trim() || undefined,
           platform: input.platform,
+          status: "draft",
           line_items,
           addons: { ...DEFAULT_ADDONS, ...input.addons },
           requirements_unclear: input.requirements_unclear ?? false,
@@ -360,6 +380,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               client_name: quote.client_name ?? null,
               notes: quote.notes ?? null,
               platform: quote.platform,
+              status: quote.status,
               line_items: quote.line_items as unknown as Json,
               addons: quote.addons as unknown as Json,
               requirements_unclear: quote.requirements_unclear,
@@ -404,6 +425,169 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           ),
         }));
         persistQuoteDoc(id, get);
+      },
+
+      setProposalStatus: (id, status) => {
+        const prev = get().proposals.find((p) => p.id === id);
+        if (!prev) return;
+        set((s) => ({
+          proposals: s.proposals.map((p) =>
+            p.id === id
+              ? { ...p, status, updated_at: new Date().toISOString() }
+              : p,
+          ),
+        }));
+
+        if (!isSupabaseConfigured) return;
+        void (async () => {
+          const supabase = createClient();
+          const { error } = await supabase
+            .from("proposals")
+            .update({ status, updated_at: new Date().toISOString() })
+            .eq("id", id);
+          if (error) {
+            set((s) => ({
+              proposals: s.proposals.map((p) =>
+                p.id === id ? { ...p, status: prev.status } : p,
+              ),
+            }));
+            toast.error("Couldn't update status", {
+              description: parseSupabaseError(error),
+            });
+          }
+        })();
+      },
+
+      convertToProject: async (proposalId, input) => {
+        const quote = get().proposals.find((p) => p.id === proposalId);
+        if (!quote) return null;
+        const name = input.name.trim() || quote.title;
+        const description = quote.client_name
+          ? `Client: ${quote.client_name}`
+          : undefined;
+        // Line items with a real title become backlog tasks (estimate = line hours).
+        const seeds = input.seedTasks
+          ? quote.line_items.filter((li) => li.title.trim())
+          : [];
+
+        // ── Demo: synchronous store calls (no FK ordering to worry about). ──
+        if (!isSupabaseConfigured) {
+          const projectId = useProjectsStore.getState().createProject({
+            name,
+            description,
+            status: "active",
+            owner_id: String(useAuthStore.getState().user.id),
+          });
+          const tasksStore = useTasksDataStore.getState();
+          for (const li of seeds) {
+            tasksStore.createTask({
+              title: li.title,
+              description: undefined,
+              status: "todo",
+              priority: "medium",
+              assignee_ids: [],
+              reporter_id: CURRENT_USER_ID,
+              project_id: projectId,
+              sprint_id: null,
+              due_date: undefined,
+              estimated_hours: li.hours,
+              logged_hours: undefined,
+              tags: [],
+            });
+          }
+          set((s) => ({
+            proposals: s.proposals.map((p) =>
+              p.id === proposalId
+                ? {
+                    ...p,
+                    project_id: projectId,
+                    status: "approved",
+                    updated_at: new Date().toISOString(),
+                  }
+                : p,
+            ),
+          }));
+          toast.success("Project created from proposal");
+          return projectId;
+        }
+
+        // ── Live: ordered, awaited inserts so tasks never beat the project FK. ──
+        const ownerId = useAuthStore.getState().user.authId;
+        if (!ownerId) {
+          toast.error("You need to be signed in.");
+          return null;
+        }
+        const supabase = createClient();
+        const projectId = crypto.randomUUID();
+
+        const { data: projRow, error: pErr } = await supabase
+          .from("projects")
+          .insert({
+            id: projectId,
+            name,
+            description: description ?? null,
+            status: "active",
+            owner_id: ownerId,
+          })
+          .select()
+          .single();
+        if (pErr || !projRow) {
+          toast.error("Couldn't create project", {
+            description: parseSupabaseError(pErr),
+          });
+          return null;
+        }
+        // Optimistically add so navigation lands on a populated project.
+        useProjectsStore.getState().applyRealtimeUpsert(projRow);
+
+        if (seeds.length) {
+          const taskRows = seeds.map((li, i) => ({
+            id: crypto.randomUUID(),
+            project_id: projectId,
+            sprint_id: null,
+            title: li.title,
+            description: null,
+            status: "todo" as const,
+            priority: "medium" as const,
+            reporter_id: ownerId,
+            due_date: null,
+            estimated_hours: li.hours,
+            logged_hours: null,
+            tags: [] as string[],
+            position: i,
+          }));
+          const { error: tErr } = await supabase.from("tasks").insert(taskRows);
+          if (tErr) {
+            toast.error("Project created, but tasks didn't seed", {
+              description: parseSupabaseError(tErr),
+            });
+          }
+          // Tasks stream in via realtime (WorkspaceSync board channel).
+        }
+
+        const { error: qErr } = await supabase
+          .from("proposals")
+          .update({
+            project_id: projectId,
+            status: "approved",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", proposalId);
+        if (qErr) {
+          toast.error("Project created, but couldn't link the proposal", {
+            description: parseSupabaseError(qErr),
+          });
+        } else {
+          set((s) => ({
+            proposals: s.proposals.map((p) =>
+              p.id === proposalId
+                ? { ...p, project_id: projectId, status: "approved" }
+                : p,
+            ),
+          }));
+        }
+        toast.success("Project created from proposal");
+        return projectId;
       },
 
       deleteProposal: (id) => {
@@ -509,7 +693,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
     }),
     {
       name: "timeline-proposal-estimator",
-      version: 3,
+      version: 4,
       storage: proposalEstimatorStorage,
       // Live data is the source of truth in Supabase; don't persist it locally.
       partialize: (s) =>
@@ -522,7 +706,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           } as unknown as ProposalEstimatorState;
         }
         if (!state || typeof state !== "object") return state;
-        // v2 -> v3: add pm_basis to add-ons and requirements_unclear to quotes.
+        // v2/v3 -> v4: add pm_basis to add-ons, requirements_unclear + status to quotes.
         if (fromVersion >= 2) {
           const current = state as {
             proposals?: Array<Record<string, unknown>>;
@@ -535,6 +719,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                     : {};
                 return {
                   ...q,
+                  status: typeof q.status === "string" ? q.status : "draft",
                   requirements_unclear:
                     typeof q.requirements_unclear === "boolean"
                       ? q.requirements_unclear
@@ -590,6 +775,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               return {
                 ...q,
                 platform: "react_next",
+                status: typeof q.status === "string" ? q.status : "draft",
                 line_items,
                 addons: { ...DEFAULT_ADDONS },
                 requirements_unclear: false,

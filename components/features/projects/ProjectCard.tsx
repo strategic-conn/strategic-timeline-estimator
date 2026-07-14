@@ -42,7 +42,8 @@ export interface ProjectCardProps {
   onDelete: (project: Project) => void;
 }
 
-function ownerName(ownerId: string) {
+function ownerName(ownerId: string | null) {
+  if (!ownerId) return "Former member";
   // Demo owners are stringified TEAM_MEMBERS ids; live owners are profile UUIDs.
   const demo = TEAM_MEMBERS.find((m) => String(m.id) === ownerId);
   return demo?.name ?? "You";

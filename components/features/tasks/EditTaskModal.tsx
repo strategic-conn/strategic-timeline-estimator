@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { useTeamMembers } from "@/store/team-store";
+import { useActiveTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskPriority, TaskStatus } from "@/types/task.types";
@@ -74,7 +74,7 @@ export function EditTaskModal({
 }: EditTaskModalProps) {
   const [tagInput, setTagInput] = React.useState("");
   const [calOpen, setCalOpen] = React.useState(false);
-  const teamMembers = useTeamMembers();
+  const teamMembers = useActiveTeamMembers();
 
   const allSprints = useSprintsStore((s) => s.sprints);
   const projectSprints = React.useMemo(

@@ -17,7 +17,7 @@ function daysFromNow(days: number): string {
   return d.toISOString();
 }
 
-export const DUMMY_TASKS: Task[] = [
+const RAW_DUMMY_TASKS: Omit<Task, "assignees">[] = [
   {
     id: "T-001", title: "Set up auth flow with Supabase", description: "Wire Supabase Auth (@supabase/ssr) for cookie-based sessions. Handle login, logout, and middleware session refresh.", status: "done", priority: "high",
     assignee_ids: ["6"], reporter_id: "2", project_id: "proj-1", sprint_id: "sprint-1", due_date: daysFromNow(-3), estimated_hours: 8, logged_hours: 9, tags: ["frontend", "security"], position: 0, created_at: daysFromNow(-14), updated_at: daysFromNow(-2),
@@ -131,3 +131,12 @@ export const DUMMY_TASKS: Task[] = [
     assignee_ids: [], reporter_id: "1", project_id: "proj-1", sprint_id: null, due_date: daysFromNow(7), estimated_hours: 6, logged_hours: 0, tags: ["security", "devops"], position: 7, created_at: daysFromNow(-1), updated_at: daysFromNow(-1),
     comments: [], },
 ];
+
+// Demo assignments are all pre-accepted (they predate the acceptance lifecycle).
+export const DUMMY_TASKS: Task[] = RAW_DUMMY_TASKS.map((t) => ({
+  ...t,
+  assignees: t.assignee_ids.map((id) => ({
+    profile_id: id,
+    status: "accepted" as const,
+  })),
+}));

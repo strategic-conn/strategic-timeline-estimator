@@ -5,6 +5,7 @@ import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 
 import { MemberWeeklyHoursInput } from "@/components/features/workload/MemberWeeklyHoursInput";
+import { WorkloadMine } from "@/components/features/workload/WorkloadMine";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -30,7 +31,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
-import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
+import {
+  DEFAULT_WEEKLY_CAPACITY_HOURS,
+  startOfWeekIso,
+} from "@/lib/constants/workload";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { useAuthStore } from "@/store/auth-store";
 import { useTeamMembers } from "@/store/team-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
@@ -64,18 +71,72 @@ export function WorkloadClient() {
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
   const members = useTeamMembers();
+  const role = useAuthStore((s) => s.user.role);
+  const canSeeTeam = role === "admin" || role === "manager";
 
   const [projectId, setProjectId] = React.useState<ProjectFilter>("all");
+  const [view, setView] = React.useState<"mine" | "team">(
+    canSeeTeam ? "team" : "mine"
+  );
+  const toggle = canSeeTeam ? (
+    <div className="inline-flex rounded-lg border border-border/60 bg-card/50 p-0.5 text-sm">
+      {(["mine", "team"] as const).map((v) => (
+        <button
+          key={v}
+          type="button"
+          onClick={() => setView(v)}
+          className={cn(
+            "rounded-md px-3 py-1 capitalize transition-colors",
+            view === v
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          {v === "mine" ? "Mine" : "Team"}
+        </button>
+      ))}
+    </div>
+  ) : null;
 
   const projectNameMap = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
   );
 
+  // Actual hours logged this week per person (from time_entries; live only).
+  const [weekLogged, setWeekLogged] = React.useState<Record<string, number>>({});
+  React.useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    void (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("time_entries")
+        .select("profile_id, hours")
+        .gte("logged_at", startOfWeekIso());
+      if (!active) return;
+      const map: Record<string, number> = {};
+      for (const r of data ?? [])
+        map[r.profile_id] = (map[r.profile_id] ?? 0) + Number(r.hours);
+      setWeekLogged(map);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [tasks]);
+
   const rows = React.useMemo(() => {
     return members.map((m) => {
       const weeklyCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
       const open = openAssignedTasks(tasks, m.id, projectId);
+      const pending = tasks.filter(
+        (t) =>
+          (projectId === "all" || t.project_id === projectId) &&
+          t.assignees.some(
+            (a) => a.profile_id === m.id && a.status === "pending"
+          )
+      ).length;
+      const loggedWeek = Math.round((weekLogged[m.id] ?? 0) * 10) / 10;
       const openEst = open.reduce((s, t) => s + (t.estimated_hours ?? 0), 0);
       const openLogged = open.reduce((s, t) => s + (t.logged_hours ?? 0), 0);
       const now = new Date();
@@ -106,6 +167,8 @@ export function WorkloadClient() {
         weeklyCap,
         openTasks: open,
         openCount: open.length,
+        pending,
+        loggedWeek,
         openEst: Math.round(openEst * 10) / 10,
         openLogged: Math.round(openLogged * 10) / 10,
         overdue,
@@ -115,11 +178,13 @@ export function WorkloadClient() {
         overCap: openEst > weeklyCap,
       };
     }).sort((a, b) => b.openEst - a.openEst);
-  }, [members, tasks, projectId, projectNameMap, capacityOverrides]);
+  }, [members, tasks, projectId, projectNameMap, capacityOverrides, weekLogged]);
 
   const peopleWithOpen = rows.filter((r) => r.openCount > 0).length;
   const totalOpenEst = rows.reduce((s, r) => s + r.openEst, 0);
   const overCapacityCount = rows.filter((r) => r.overCap).length;
+
+  if (view === "mine") return <WorkloadMine toggle={toggle} />;
 
   return (
     <div className="flex flex-col gap-6">
@@ -128,7 +193,9 @@ export function WorkloadClient() {
         title="Resource allocation"
         description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below to save per person.`}
         actions={
-          <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
+          <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:items-end sm:justify-end">
+            {toggle}
+            <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
             <span className="text-xs font-medium text-muted-foreground">Project</span>
             <Select
               value={projectId}
@@ -146,6 +213,7 @@ export function WorkloadClient() {
                 ))}
               </SelectContent>
             </Select>
+            </div>
           </div>
         }
       />
@@ -245,7 +313,7 @@ export function WorkloadClient() {
                   <TableHead className="min-w-40">Person</TableHead>
                   <TableHead className="text-center tabular-nums">Open tasks</TableHead>
                   <TableHead className="text-right tabular-nums">Est. h</TableHead>
-                  <TableHead className="text-right tabular-nums">Logged</TableHead>
+                  <TableHead className="text-right tabular-nums">This wk</TableHead>
                   <TableHead className="min-w-32">Utilization</TableHead>
                   <TableHead className="text-center">Due risk</TableHead>
                 </TableRow>
@@ -255,8 +323,13 @@ export function WorkloadClient() {
                   <TableRow key={r.member.id}>
                     <TableCell>
                       <div className="font-medium">{r.member.name}</div>
-                      <div className="mt-0.5 text-xs capitalize text-muted-foreground">
+                      <div className="mt-0.5 flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
                         {r.member.role}
+                        {r.pending > 0 ? (
+                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[0.6rem] font-medium normal-case text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                            {r.pending} pending
+                          </span>
+                        ) : null}
                       </div>
                       {r.breakdown ? (
                         <p className="mt-2 max-w-md text-xs text-muted-foreground">
@@ -293,8 +366,15 @@ export function WorkloadClient() {
                     <TableCell className="text-right tabular-nums font-medium">
                       {r.openEst}h
                     </TableCell>
-                    <TableCell className="text-right tabular-nums text-muted-foreground">
-                      {r.openLogged}h
+                    <TableCell
+                      className={cn(
+                        "text-right tabular-nums",
+                        r.loggedWeek > 0
+                          ? "text-foreground"
+                          : "text-muted-foreground"
+                      )}
+                    >
+                      {r.loggedWeek}h
                     </TableCell>
                     <TableCell>
                       <div className="flex min-w-28 flex-col gap-1">
