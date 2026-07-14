@@ -1,6 +1,14 @@
 # Supabase Integration — Phase-by-Phase Plan
 
-> **Purpose:** a chunked, low-risk roadmap to move this app from the demo (Zustand +
+> **✅ DONE (historical record).** This roadmap is complete — the app is live on Supabase via the
+> **synced-store bridge** (each store hydrates + writes through optimistically behind
+> `isSupabaseConfigured`, with the demo fallback). The final wiring differs from the plan in one
+> way: **no TanStack Query** (installed but unwired; the bridge covers caching) — where this doc
+> says "replace the hook's body with Supabase queries," read "the store hydrates + writes through."
+> For current architecture see [backend-supabase.md](backend-supabase.md); for current truth see
+> [CLAUDE.md](../CLAUDE.md). Kept as a record of how the migration was sequenced.
+
+> **Purpose (original):** a chunked, low-risk roadmap to move this app from the demo (Zustand +
 > `localStorage`) to live Supabase, one feature slice at a time. Planning doc only — no code
 > changes here.
 >

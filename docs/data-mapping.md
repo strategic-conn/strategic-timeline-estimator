@@ -7,13 +7,25 @@ This document describes the application data model (TypeScript types in `types/`
 > [backend-supabase.md](backend-supabase.md)) via the synced-store bridge. With no env vars, the app
 > falls back to Zustand + `localStorage` + `DUMMY_*` seeds. The switch is `isSupabaseConfigured`.
 >
-> **Two staleness caveats vs. the tables below** (kept for the demo-era field listings, not yet fully rewritten):
+> **Staleness caveats vs. the tables below** (the field listings are demo-era; the authoritative
+> shape is `types/*.types.ts` + generated `types/database.types.ts`):
 > - **Person ids are `string` (UUID)**, not `number` — `TeamMember.id`, `owner_id`, `reporter_id`,
 >   `assignee_ids[]`, `AvailabilityEntry.user_id`, comment/reply `author_id`, reaction `userIds`, and
->   weekly-capacity keys all flipped to `string` (Phase 3b-1). Demo mode uses `"1".."6"`.
-> - **Proposals use the v2 shape** (`ProposalLineItem` = `base_hours` × tier multiplier × `quantity`,
->   plus roll-up `addons`), not the old `complexity`/`hours` line item shown further down. Notifications
->   and the workspace activity log are now **separate** stores (`notifications-store` / `activity-store`).
+>   weekly-capacity keys all flipped to `string`. Demo mode uses `"1".."6"`.
+> - Some author/owner ids are now **nullable** (`string | null`): offboarding a user hard-deletes them
+>   and their authored/owned rows anonymise to `null` → rendered as **"Former member"** (`owner_id`,
+>   `reporter_id`, comment/reply `author_id`).
+> - **`TeamMember`** also carries `page_access?: string[] | null` (per-user page allowlist),
+>   `deactivated_at?: string | null` (offboarded), and `confirmed_at?: string | null` (invite accepted;
+>   `null` = invited, not yet joined).
+> - **The Estimator merged Discovery + Proposals.** `ClientQuote` gained `platform`, `status`
+>   (draft/sent/approved/rejected), roll-up `addons`, `requirements_unclear`, and **`discovery`**
+>   (the guided questionnaire answers). `ProposalLineItem` is the v2 shape (`base_hours` × tier × `quantity`),
+>   **not** the old `complexity`/`hours` — both are corrected in the tables below. The old
+>   `discovery_projects` table was merged into `proposals.discovery` and dropped.
+> - **Tasks:** `task_assignees` rows carry a `status` (pending/accepted/rejected/passed) + `assigned_by`;
+>   hours are attributed per-session in **`time_entries`** (only accepted assignees log). Notifications and
+>   the workspace activity log are **separate** stores (`notifications-store` / `activity-store`).
 
 ---
 
@@ -29,7 +41,7 @@ is the source-of-truth in Supabase and re-fetched on load), so stale localStorag
 | `timeline-tasks`              | Tasks (incl. nested comments)  | 2       |
 | `timeline-notifications`      | Notifications (personal bell)  | 1       |
 | `timeline-activity`           | Workspace activity feed        | 1       |
-| `timeline-proposal-estimator` | Client quotes & line items     | 3       |
+| `timeline-proposal-estimator` | Estimator quotes (line items + addons + discovery) | 4       |
 | `timeline-availability`       | PTO / availability entries     | 2       |
 | `timeline-weekly-capacity`    | Per–team-member hour overrides | 2       |
 | `timeline-auth`               | Signed-in user profile (demo mirror) | 1 |
@@ -138,39 +150,53 @@ task board UI (`selectedTaskId`, `activeView`), task timers (`useTaskTimerStore`
 | created_at | string (ISO) |          |
 | mentions   | number[]     | user ids |
 
-### TeamMember (`types/task.types.ts` — reference shape, not a store)
+### TeamMember (`types/task.types.ts` — reference shape; live = `profiles`, demo = `TEAM_MEMBERS`)
 
-| Column      | Type                                           | Notes |
-| ----------- | ---------------------------------------------- | ----- |
-| id          | number                                         |       |
-| name        | string                                         |       |
-| email       | string                                         |       |
-| role        | `"admin" \| "manager" \| "member" \| "viewer"` |       |
-| avatar_url  | string                                         |       |
-| initials    | string                                         |       |
-| avatarColor | string                                         |       |
+| Column         | Type                                           | Notes                                        |
+| -------------- | ---------------------------------------------- | -------------------------------------------- |
+| id             | string                                         | UUID live; demo `"1".."6"`                   |
+| name           | string                                         |                                              |
+| email          | string                                         |                                              |
+| role           | `"admin" \| "manager" \| "member" \| "viewer"` |                                              |
+| avatar_url     | string                                         |                                              |
+| initials       | string                                         |                                              |
+| avatarColor    | string                                         |                                              |
+| page_access    | string[] \| null?                              | per-user page allowlist; null = role default |
+| deactivated_at | string \| null?                                | offboarded (banned); null = active           |
+| confirmed_at   | string \| null?                                | invite accepted; null = invited, not joined  |
 
-### ClientQuote (`types/proposal.types.ts`)
+### ClientQuote (`types/proposal.types.ts`) — the Estimator document
 
-| Column      | Type                        | Notes              |
-| ----------- | --------------------------- | ------------------ |
-| id          | string                      | e.g. `quote-1`     |
-| title       | string                      |                    |
-| project_id  | string \| null \| undefined | optional → Project |
-| client_name | string?                     | optional           |
-| notes       | string?                     | optional           |
-| line_items  | ProposalLineItem[]          |                    |
-| created_at  | string (ISO)                |                    |
-| updated_at  | string (ISO)                |                    |
+| Column              | Type                             | Notes                                             |
+| ------------------- | -------------------------------- | ------------------------------------------------- |
+| id                  | string                           | e.g. `quote-1` (demo) / UUID (live)               |
+| title               | string                           |                                                   |
+| project_id          | string \| null \| undefined      | optional → Project (set on Start project)         |
+| client_name         | string?                          | optional                                          |
+| notes               | string?                          | optional                                          |
+| platform            | ProposalPlatform                 | wordpress / shopify / wix / squarespace / php / react_next / custom |
+| status              | `"draft" \| "sent" \| "approved" \| "rejected"` | approval lifecycle                 |
+| line_items          | ProposalLineItem[]               | JSONB in `proposals`                              |
+| addons              | ProposalAddons                   | roll-up PM / responsive / design / QA (JSONB)     |
+| requirements_unclear| boolean                          | prices every line as Advanced when true           |
+| discovery           | DiscoveryProject \| null         | guided questionnaire answers (JSONB); null = catalog/manual |
+| created_at          | string (ISO)                     |                                                   |
+| updated_at          | string (ISO)                     |                                                   |
 
 ### ProposalLineItem
 
-| Column     | Type                                                | Notes                      |
-| ---------- | --------------------------------------------------- | -------------------------- |
-| id         | string                                              |                            |
-| title      | string                                              |                            |
-| complexity | `"easy" \| "medium" \| "complex" \| "very_complex"` | drives default hours in UI |
-| hours      | number                                              | snapshot for roll-up       |
+| Column      | Type                                  | Notes                                             |
+| ----------- | ------------------------------------- | ------------------------------------------------- |
+| id          | string                                |                                                   |
+| title       | string                                |                                                   |
+| module      | string \| null                        | catalog module label (null = freehand)            |
+| category_id | number \| null                        | catalog category                                  |
+| catalog_id  | number \| null                        | source catalog row (null = freehand)              |
+| base_hours  | number                                | per-unit hours before tier/quantity               |
+| tier        | `"basic" \| "advanced" \| "custom"`   | multiplier 1× / 1.5× / 2×                          |
+| quantity    | number                                |                                                   |
+| hours       | number                                | computed = `base_hours × tierMult × quantity`     |
+| depends_on  | string[]                              | ids of other line items this requires             |
 
 ### AvailabilityEntry (`types/availability.types.ts`)
 
@@ -296,7 +322,7 @@ Minimal **examples** aligned with types (your API can mirror these objects).
 }
 ```
 
-### Client quote with line items
+### Client quote with line items (Estimator)
 
 ```json
 {
@@ -305,14 +331,30 @@ Minimal **examples** aligned with types (your API can mirror these objects).
   "project_id": "proj-1",
   "client_name": "Acme",
   "notes": null,
+  "platform": "react_next",
+  "status": "draft",
+  "requirements_unclear": false,
+  "addons": {
+    "pm_enabled": true, "pm_basis": "simple", "pm_pct": 10,
+    "responsive_enabled": true, "responsive_pct": 25,
+    "design_enabled": true, "design_pct": 35,
+    "qa_enabled": true, "qa_pct": 20
+  },
   "line_items": [
     {
       "id": "li-abc",
       "title": "Feature A",
-      "complexity": "medium",
-      "hours": 12
+      "module": null,
+      "category_id": null,
+      "catalog_id": null,
+      "base_hours": 8,
+      "tier": "advanced",
+      "quantity": 1,
+      "hours": 12,
+      "depends_on": []
     }
   ],
+  "discovery": null,
   "created_at": "2026-04-01T12:00:00.000Z",
   "updated_at": "2026-04-01T12:00:00.000Z"
 }
@@ -418,4 +460,7 @@ Filters on individual pages (`TasksPage`, etc.) live in React `useState` unless 
 
 ---
 
-_Generated to match repository types and stores; keep in sync with `supabase/migrations/` as the schema evolves._
+_Generated to match repository types and stores; the generated `types/database.types.ts` is the
+authoritative live shape — keep this in sync with it and `supabase/migrations/` as the schema evolves.
+Last updated: 2026-07-15 — Estimator (Discovery merged), offboarding/invite fields, assignment
+lifecycle + `time_entries`; estimator tables corrected to the v2 shape._

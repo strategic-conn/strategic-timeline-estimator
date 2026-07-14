@@ -1,5 +1,12 @@
 # Workflow Revamp — Discovery → Proposal → Project → Task Acceptance → Workload
 
+> **✅ BUILT (historical record).** Phases A–E are implemented: proposal approval + convert-to-project
+> (`0015`), task-assignment accept/reject/pass lifecycle (`0016`), `time_entries` + logged-hours guard
+> (`0017`/`0018`), and personal vs team Workload. Since this plan, **Discovery was merged INTO the
+> Proposal estimator** (now one "Estimator"; see the `estimator-merge` note + [CLAUDE.md](../CLAUDE.md)),
+> so the "Discovery doc → Proposal" hand-off is now two input modes of one tool. §3 decisions were all
+> resolved as recommended. Kept as a record of the design.
+
 > **Purpose:** a phased, low-risk plan to add the sales-to-delivery workflow the client wants,
 > on top of the existing Supabase-wired app. Planning doc — **no code changes here.** Each phase
 > leaves the app working (behind `isSupabaseConfigured`, with the demo fallback intact) and keeps

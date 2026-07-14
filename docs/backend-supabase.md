@@ -1,20 +1,25 @@
 # Backend — Supabase
 
-> **Status: this is the chosen backend.** (The earlier Laravel REST plan is retired.) The SDK
-> and the client seam are **scaffolded but not yet wired** — the app still runs on Zustand +
-> `localStorage` (see [data-mapping.md](data-mapping.md)), and the schema in `supabase/migrations/`
-> hasn't been pushed to a live project yet. This doc is the source of truth for the integration.
+> **Status: WIRED (updated 2026-07-14).** This was the original integration plan (2026-06-22); the
+> app now runs live on Supabase via a **synced-store bridge** — each Zustand store hydrates from
+> Supabase and writes through optimistically (with rollback), behind the `isSupabaseConfigured`
+> flag, with the Zustand/`localStorage` demo kept as a fallback. It is **not** TanStack Query
+> (installed but unwired — the bridge covers caching). Schema is applied through
+> `supabase/migrations/0024`. Read the sections below as **architecture rationale + the v1 target
+> schema**; for current specifics (the merged **Estimator**, invite-only onboarding, two-tier
+> offboarding, task-assignment lifecycle, `time_entries`) **[CLAUDE.md](../CLAUDE.md) is the source of truth.**
 
-What's already in the repo:
+What's in the repo now:
 
-- `@supabase/supabase-js` + `@supabase/ssr` installed.
-- `lib/supabase/{client,server,middleware}.ts` + root `middleware.ts` (session refresh; no-op
-  until env vars are set, so the demo keeps working).
-- `supabase/migrations/0001_init.sql` (schema) and `0002_rls.sql` (RLS = the permission matrix).
-- `.env.example`, `types/database.types.ts` placeholder, and `db:push` / `db:types` npm scripts.
+- `@supabase/supabase-js` + `@supabase/ssr` wired; `lib/supabase/{client,server,middleware}.ts` +
+  root `proxy.ts` (Next 16's renamed root middleware) refresh the session cookie (no-op without env vars).
+- `supabase/migrations/0001…0024` — schema, RLS, realtime, storage, workflow (proposal status,
+  assignment lifecycle, `time_entries`), offboarding, invite-only + pending state, and the
+  Discovery→Estimator merge — pushed live.
+- `components/layouts/workspace-sync.tsx` hydrates every store on auth and opens the realtime channels.
+- `.env.example`, generated `types/database.types.ts` (`npm run db:types`), and `db:push` / `db:types` scripts.
 
-The frontend is deliberately backend-agnostic: every feature reads/writes a Zustand store, so the
-swap happens behind the hooks (`useProjects`, `useTasks`, …) — a contained change, not a rewrite.
+Components read a Zustand store (or a thin `hooks/` wrapper); the bridge does the Supabase I/O behind them — components never learn which backend they're on.
 
 ---
 
@@ -26,7 +31,7 @@ swap happens behind the hooks (`useProjects`, `useTasks`, …) — a contained c
 | ------------------- | ----------------------------------------------- | ------------------------------------------------------------------ |
 | Auth                | Sanctum, httpOnly cookie session, BFF route     | Supabase Auth (GoTrue) + `@supabase/ssr`, cookie-stored JWT        |
 | Authorization       | Enforced in Laravel controllers/policies        | **Postgres Row-Level Security (RLS)** policies on every table      |
-| Data access         | REST endpoints + Axios + TanStack Query         | `supabase-js` (PostgREST) ± TanStack Query, or Server Components    |
+| Data access         | REST endpoints + Axios + TanStack Query         | `supabase-js` (PostgREST) via the **synced-store bridge** (Zustand hydrate + optimistic write-through; not TanStack) |
 | Who owns the schema | Backend dev (migrations in Laravel)             | **Us** — SQL migrations in `supabase/migrations/`                  |
 | Server logic/export | Laravel controller (`GET /proposals/:id/export`)| Supabase **Edge Function** (Deno) or Postgres RPC                  |
 | Realtime            | Would need Pusher/WebSockets bolt-on            | **Built in** — Supabase Realtime (a real win for this app)         |
@@ -45,16 +50,16 @@ swap happens behind the hooks (`useProjects`, `useTasks`, …) — a contained c
 
 ---
 
-## Packages to add (none installed yet)
+## Packages (installed)
 
 ```bash
-npm install @supabase/supabase-js @supabase/ssr
-# TanStack Query is still recommended for cache/dedupe, same as the Laravel plan:
-npm install @tanstack/react-query
+@supabase/supabase-js @supabase/ssr   # installed + wired
+@tanstack/react-query                 # installed but NOT wired — the synced-store bridge covers caching
 ```
 
 `@supabase/ssr` is the App-Router-aware helper that stores the session in cookies and refreshes
-it from middleware — the Next.js 16 equivalent of the cookie story we wanted from Sanctum.
+it from middleware — the Next.js 16 equivalent of the cookie story we wanted from Sanctum. TanStack
+Query stays on the shelf unless a feature needs true server-state caching.
 
 ---
 
@@ -149,9 +154,18 @@ hard-coded object. `usePermissions()` keeps working unchanged — it just reads 
 
 The current entities live in [data-mapping.md](data-mapping.md). The demo uses text ids
 (`proj-1`, `T-001`) and numeric user ids; in Supabase these become **UUIDs**, with people coming
-from `auth.users`. Below is the normalized target. Proposals stay as a JSONB document for v1
-(the estimator is a self-contained blob today — matches the `timeline-proposal-estimator`
-localStorage shape — and can be normalized later).
+from `auth.users`. Below is the **v1 target** (migration `0001`). Proposals stay as a JSONB document
+(the estimator is a self-contained blob).
+
+> **The live schema has grown past this v1 block (all additive, `0003`–`0024`).** Don't treat the SQL
+> below as current — the authoritative shape is the generated `types/database.types.ts`. Notable additions:
+> `activity` (workspace log) · `allowed_emails` (invite allowlist) · `profiles.confirmed_at`
+> (invite accepted) / `deactivated_at` (offboarded) / `page_access` (per-user page allowlist) ·
+> `task_assignees.status`+`assigned_by`+`responded_at`+`note` (accept/reject/pass lifecycle) ·
+> `time_entries` (per-session hour attribution) · `proposals.status` (draft/sent/approved/rejected) +
+> `proposals.discovery` (guided-scope answers, from the Discovery merge) · offboarding switched five
+> author/owner FKs to `on delete set null` (anonymise to "Former member"). The `discovery_projects`
+> table existed (`0010`) but was merged into `proposals.discovery` and dropped (`0022`–`0023`).
 
 ```sql
 -- ── people ───────────────────────────────────────────────────────────────
@@ -303,7 +317,7 @@ gets enforced by the database, so a compromised client still can't exceed its ro
 
 ```sql
 -- helper: current user's role
-create or replace function current_role() returns user_role
+create or replace function current_user_role() returns user_role
 language sql stable security definer set search_path = public as $$
   select role from profiles where id = auth.uid()
 $$;
@@ -318,36 +332,36 @@ create policy "read projects" on projects
 
 -- Create/Edit project: admin + manager
 create policy "write projects" on projects
-  for insert with check (current_role() in ('admin', 'manager'));
+  for insert with check (current_user_role() in ('admin', 'manager'));
 create policy "update projects" on projects
-  for update using (current_role() in ('admin', 'manager'));
+  for update using (current_user_role() in ('admin', 'manager'));
 
 -- Delete project: admin only
 create policy "delete projects" on projects
-  for delete using (current_role() = 'admin');
+  for delete using (current_user_role() = 'admin');
 
 -- Tasks: create/edit = admin/manager/member; delete = admin/manager (matrix)
 create policy "read tasks" on tasks
   for select using (auth.role() = 'authenticated');
 create policy "create tasks" on tasks
-  for insert with check (current_role() in ('admin', 'manager', 'member'));
+  for insert with check (current_user_role() in ('admin', 'manager', 'member'));
 create policy "update tasks" on tasks
-  for update using (current_role() in ('admin', 'manager', 'member'));
+  for update using (current_user_role() in ('admin', 'manager', 'member'));
 create policy "delete tasks" on tasks
-  for delete using (current_role() in ('admin', 'manager'));
+  for delete using (current_user_role() in ('admin', 'manager'));
 
 -- PTO: edit others = admin/manager; members may edit only their own
 create policy "own or privileged availability" on availability_entries
   for all using (
-    user_id = auth.uid() or current_role() in ('admin', 'manager')
+    user_id = auth.uid() or current_user_role() in ('admin', 'manager')
   ) with check (
-    user_id = auth.uid() or current_role() in ('admin', 'manager')
+    user_id = auth.uid() or current_user_role() in ('admin', 'manager')
   );
 
 -- Proposals (estimator) = "Export proposals" gate: admin + manager only
 create policy "proposals admin/manager" on proposals
-  for all using (current_role() in ('admin', 'manager'))
-  with check (current_role() in ('admin', 'manager'));
+  for all using (current_user_role() in ('admin', 'manager'))
+  with check (current_user_role() in ('admin', 'manager'));
 
 -- Notifications: a user sees only their own
 create policy "own notifications" on notifications
@@ -360,78 +374,42 @@ create policy "own notifications" on notifications
 
 ---
 
-## Frontend pattern changes (vs the Axios pattern in CLAUDE.md)
+## Frontend pattern (as built — the synced-store bridge)
 
-CLAUDE.md's "API Call Pattern" (define types → axios fn → TanStack hook → component) becomes:
+> This section originally proposed TanStack Query. **The app went a different way:** the
+> **synced-store bridge**. Components read a Zustand store (or a thin `hooks/` wrapper); the store
+> hydrates from Supabase via `WorkspaceSync` and does optimistic **write-through + rollback**. The
+> same store serves the `localStorage` demo behind `isSupabaseConfigured`. See the **"Data Access
+> Pattern (synced-store bridge)"** example in [CLAUDE.md](../CLAUDE.md) for the canonical code — it's
+> the single source of truth so this doc doesn't drift.
 
-```ts
-// hooks/useTasks.ts — Supabase + TanStack Query
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { createClient } from "@/lib/supabase/client";
-import { toast } from "sonner";
-
-export function useTasks(sprintId: string) {
-  const supabase = createClient();
-  return useQuery({
-    queryKey: ["tasks", "sprint", sprintId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("*, task_assignees(profile_id), task_comments(*)")
-        .eq("sprint_id", sprintId)
-        .order("position");
-      if (error) throw error;       // RLS denial / network → onError
-      return data;
-    },
-  });
-}
-
-export function useCreateTask() {
-  const supabase = createClient();
-  const qc = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: { title: string; project_id: string; sprint_id?: string }) => {
-      const { data, error } = await supabase.from("tasks").insert(payload).select().single();
-      if (error) throw error;
-      return data;
-    },
-    onSuccess: (_d, v) => {
-      qc.invalidateQueries({ queryKey: ["tasks"] });
-      toast.success("Task created");
-    },
-    onError: (e) => toast.error(e.message),   // replaces parseApiError(axios)
-  });
-}
-```
-
-The component layer (`const { mutate } = useCreateTask()`) is **identical** to the Laravel plan —
-which is exactly why keeping all data access behind `hooks/` today protects us either way.
-
-**Optimistic updates** (CLAUDE.md rule #4: drag-drop, status changes) work the same with
-TanStack's `onMutate`/rollback, now talking to Supabase instead of axios.
+In short: `set(...)` optimistically → `await supabase.from(...).insert/update/delete()` → on error,
+revert the `set(...)` and `toast(parseSupabaseError(error))`. Realtime echoes are idempotent, so a
+store applying its own write twice is harmless. Optimistic drag-drop / status changes (CLAUDE.md
+rule #4) fall straight out of this — the UI updates before the round-trip.
 
 ---
 
-## Realtime (the upgrade Supabase unlocks)
+## Realtime (wired)
 
-Polling-free live updates for the collaborative surfaces:
+Polling-free live updates for the collaborative surfaces, all opened in
+`components/layouts/workspace-sync.tsx`. Handlers call **store appliers** (idempotent), not a query cache:
 
 ```ts
-// subscribe to new notifications for the bell + activity feed
+// notifications channel (scoped to the user by RLS + filter)
 const supabase = createClient();
 supabase
-  .channel("notifications")
+  .channel(`notifications:${authId}`)
   .on("postgres_changes",
     { event: "INSERT", schema: "public", table: "notifications",
-      filter: `recipient_id=eq.${userId}` },
-    (payload) => qc.invalidateQueries({ queryKey: ["notifications"] }),
+      filter: `recipient_id=eq.${authId}` },
+    (payload) => useNotificationsStore.getState().applyRealtimeInsert(payload.new),
   )
   .subscribe();
 ```
 
-Good candidates: `store/notifications-store.ts`, the activity feed, the Kanban board
-(task `status`/`position` changes), and `task_comments`. Today these are local-only; Realtime
-turns them multi-user with little extra code.
+Live surfaces today: notifications, the activity feed (`activity:workspace`), and the board
+(`workspace:board` — projects/sprints/tasks + `task_assignees` status, `task_comments` + reactions).
 
 ---
 
@@ -453,7 +431,7 @@ turns them multi-user with little extra code.
 | Numeric `TeamMember.id` / `user_id`       | `uuid` from `auth.users` via `profiles.id`                   |
 | Nested `Task.comments[]` / reactions      | `task_comments` + `comment_reactions` rows                  |
 | `Task.assignee_ids: number[]`             | `task_assignees` join table                                 |
-| Zustand `persist` to `localStorage`       | Postgres tables + RLS; TanStack Query cache replaces persist |
+| Zustand `persist` to `localStorage`       | Postgres tables + RLS; the synced-store bridge replaces persist (demo persist kept as fallback) |
 | `lib/dummy/*` seed data                   | `supabase/seed.sql`                                          |
 | Permissions only in `usePermissions()`    | RLS policies (UI hook becomes a mirror, not the gate)        |
 
@@ -465,10 +443,10 @@ tables, minting UUIDs and a `profiles` row per `TEAM_MEMBERS` entry.
 ## What stays the same either way
 
 - All UI components, the three-states rule (loading/error/empty), Zod validation, DOMPurify.
-- The `hooks/` seam — components never learn which backend they're on.
-- TanStack Query as the server-state layer (recommended for both).
-- The proposal estimator math and client-side PDF/Excel export already built this milestone.
+- The store / `hooks/` seam — components never learn which backend they're on.
+- The Estimator math and client-side PDF/Excel export.
 
 > _Companion to [CLAUDE.md](../CLAUDE.md) and [data-mapping.md](data-mapping.md). Update all three
-> together when the data model changes. Last updated: 2026-06-22 (Supabase confirmed as the backend)._
+> together when the data model changes. Last updated: 2026-07-14 — reframed from plan to WIRED
+> (synced-store bridge, not TanStack); schema live through migration `0024`; Discovery merged into the Estimator._
 ```

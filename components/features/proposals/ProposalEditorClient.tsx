@@ -727,6 +727,30 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               </div>
             </div>
 
+            {quote.discovery && quote.line_items.length === 0 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+                <p className="flex items-center gap-2 text-sm">
+                  <Compass className="size-4 shrink-0 text-primary" aria-hidden />
+                  <span>
+                    You scoped this with the questionnaire
+                    {scopeResult
+                      ? ` (~${formatHours(scopeResult.estimate.total.mid)} hrs)`
+                      : ""}
+                    , but haven&apos;t built the line items yet.
+                  </span>
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={handleGenerateLines}
+                >
+                  <Wand2 className="size-3.5" aria-hidden />
+                  Generate from scope
+                </Button>
+              </div>
+            ) : null}
+
             {platformHasCatalog ? (
               <ProposalDependencyAlert
                 platform={quote.platform}

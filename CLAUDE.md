@@ -35,7 +35,7 @@ not just fast code.
 | ----- | -------------------------------- | --------------------------------------- |
 | 1     | Auth, Projects/Workspaces, Tasks | **Wired** (live Supabase; demo fallback) — real Auth, projects, sprints, tasks/assignees, Kanban/list/table, backlog |
 | 2     | Collaboration, Scheduling, PTO   | **Wired** — comments/reactions, notifications + activity feed (Realtime), calendar, workload, PTO/availability, weekly capacity |
-| 3     | Proposals, Gantt Charts, Pricing | **Wired** — proposal estimator (v2 catalog/tier/add-ons) live; Gantt/Timeline + PDF/Excel export (client-side, unchanged) |
+| 3     | Estimator, Gantt Charts, Pricing | **Wired** — **Estimator** (Discovery + Proposals merged: guided questionnaire *or* catalog → one quote), approval → Start project; Gantt/Timeline + PDF/Excel export (client-side) |
 | 4     | Integrations, Performance, WCAG  | Realtime + Storage (avatars) done; RLS/security audit done. **Perf + WCAG passes still pending** |
 
 > Update this table when a phase starts or completes. "Wired" means the store hydrates from and
@@ -108,8 +108,9 @@ app/
 │   ├── gantt/                                 # Gantt / Timeline view
 │   ├── workload/                              # capacity vs. assigned hours per member
 │   ├── reports/
-│   ├── proposals/                             # proposal estimator (coordinator quotes)
-│   │   └── [proposalId]/                      # editor: catalog, line items, add-ons, PDF/Excel export
+│   ├── proposals/                             # Estimator (client quotes) — merged scoping + quoting tool
+│   │   └── [proposalId]/                      # editor tabs: Setup · Scope & risk (guided) · Line items (catalog/freehand) · Adjust · Review; PDF/Excel; Start project
+│   ├── discovery/                             # MERGED into Estimator — both routes redirect → /proposals
 │   ├── team/
 │   ├── settings/                             # profile, time-off, admin team time-off
 │   ├── tasks/page.tsx                         # top-level tasks entry
@@ -123,7 +124,8 @@ components/
 ├── common/             # coming-soon, shared bits
 ├── features/
 │   ├── projects/       # ProjectsPage, ProjectCard, Create/Edit/Delete modals
-│   ├── proposals/      # Estimator: editor, CatalogBrowser, AddonsCard, PDF preview mock, access-denied
+│   ├── proposals/      # Estimator: editor (Scope & risk + Line items tabs), CatalogBrowser, AddonsCard, DependencyAlert, PDF preview mock, access-denied
+│   ├── discovery/      # guided-scope UI reused BY the Estimator (no standalone route): DiscoveryWizard, Gantt, HoursBreakdown, RiskBadge, Field
 │   ├── sprints/        # ProjectOverviewPage, SprintCard, Create/Edit/Delete modals
 │   ├── tasks/          # TasksPage, KanbanBoard/Column, TaskCard, TaskDetailDrawer, list/table views, comments, time tracker, modals
 │   ├── gantt/          # GanttClient
@@ -139,6 +141,7 @@ lib/
 ├── dummy/              # demo data: projects, sprints, tasks (+ TEAM_MEMBERS)
 ├── constants/          # projects, sprints, proposal-estimator, workload, task-focus
 ├── proposal-catalog/   # catalog.json + index (platform → catalog rows)
+├── discovery/          # guided-scope rules engine (analyzeDiscovery) + to-proposal bridge + from-esther seed
 ├── activity/           # workspace-push (append activity/notifications)
 ├── collaboration/      # notify-task-activity
 ├── undo/               # offer-undo-toast (one-shot Undo)
@@ -148,7 +151,10 @@ store/                  # Zustand (live via WorkspaceSync + optimistic write-thr
                         #   notifications, weekly-capacity, proposal-estimator
 types/                  # project, sprint, task, proposal, availability, database (generated — `npm run db:types`)
 docs/                   # data-mapping.md (data shapes) + backend-supabase.md + supabase-integration-plan.md
-supabase/               # migrations/ (0001 schema, 0002 rls, 0003–0009 mentions/realtime/activity/storage/role-guard) + README — `npm run db:push`
+supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 mentions/realtime/activity/storage/role-guard ·
+                        #   0012/0014/0021 invite-only + pending state · 0015/0016/0017 workflow (proposal status, assignment lifecycle, time_entries) ·
+                        #   0018 logged-hours guard · 0019/0020 offboarding (deactivate/hard-delete) · 0022 proposals.discovery ·
+                        #   0023 migrate+drop discovery_projects · 0024 page-access heal + README — `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 ```
 
@@ -182,12 +188,12 @@ scoped by RLS.
 3. Root `proxy.ts` refreshes the session cookie on every request.
 4. RLS uses `auth.uid()` to scope every query automatically; on missing session, gate in middleware/UI.
 
-**To go live:**
+**Running it (already wired):**
 
-- Create a Supabase project; put URL + keys in `.env.local` (see `.env.example`).
-- `npm run db:push` to apply `supabase/migrations/`, then `npm run db:types` to regenerate `types/database.types.ts`.
-- Swap each Zustand store for Supabase queries behind its existing `hooks/` (the seam that keeps this a contained change).
-- Keep `usePermissions()` in lockstep with the RLS policies in `0002_rls.sql`.
+- Put a Supabase project's URL + keys in `.env.local` (see `.env.example`); with no env vars the demo fallback runs.
+- `npm run db:push` applies `supabase/migrations/`, then `npm run db:types` regenerates `types/database.types.ts`.
+- Each Zustand store is already connected to Supabase via the synced-store bridge (hydrate + optimistic write-through) behind `isSupabaseConfigured` — no per-feature swap needed.
+- Keep `usePermissions()` in lockstep with the RLS policies (`0002_rls.sql` and later migrations).
 
 ---
 
@@ -203,10 +209,11 @@ authorization into the database (the UI's `usePermissions()` becomes a mirror, n
 and Realtime gives the collaborative surfaces (notifications, activity, board, comments) live
 updates with little extra code. See [docs/backend-supabase.md](docs/backend-supabase.md).
 
-**Why TanStack Query + Zustand (not Redux)?**
-TanStack Query is the recommended cache/dedupe layer over Supabase queries (server state); Zustand
-holds only UI state (modals, board view). Keeping them separate is cleaner and faster. (TanStack
-is not installed yet — it lands with backend integration.)
+**Why Zustand + a synced-store bridge (not Redux, not TanStack yet)?**
+Each Zustand store hydrates from Supabase (via `WorkspaceSync`) and writes through optimistically with
+rollback — one store is the single read seam for components in **both** live and demo mode. TanStack
+Query is installed but **not** wired: the bridge already covers caching/dedupe, so it's only revisited
+if a feature needs true server-state caching. Redux would add boilerplate this doesn't need.
 
 **Why httpOnly cookies (not localStorage)?**
 localStorage is readable by any JS — vulnerable to XSS. Supabase Auth via `@supabase/ssr` keeps
@@ -231,14 +238,15 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `auth.users` + `profiles`             | Supabase Auth + select     | `useAuth` + `auth-store` (bridge) | Wired |
 | `projects`                            | select / insert / update / delete | `projects-store` / `useProjects` | Wired |
 | `sprints`                             | select / insert / update / delete | `sprints-store` / `useSprints` | Wired |
-| `tasks` (+ `task_assignees`)          | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
+| `tasks` (+ `task_assignees` w/ status) | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
+| `time_entries` (hour attribution)     | select / insert                   | `tasks-store` (logged via accepted assignees) | Wired |
 | `task_comments` (+ `comment_reactions`)| select / insert / update / delete + Realtime | `tasks-store` / `TaskCommentSection` | Wired |
 | `profiles` (team directory)           | select                     | `team-store` / `useTeamMembers` | Wired |
 | `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
 | `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
 | `availability_entries`                | select / insert / update / delete | `availability-store` (calendar/workload) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
-| `proposals` (jsonb document)          | select / insert / update / delete | `proposal-estimator-store` | Wired |
+| `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
@@ -311,12 +319,14 @@ interface Task {
 interface ClientQuote {
   id: string;                 // UUID (demo: quote-N)
   title: string;
-  project_id?: string | null; // optional → projects.id
+  project_id?: string | null; // optional → projects.id (set on Start project)
   client_name?: string;
   platform: ProposalPlatform;
+  status: "draft" | "sent" | "approved" | "rejected"; // approval lifecycle
   line_items: ProposalLineItem[]; // JSONB in the proposals table
   addons: ProposalAddons;         // JSONB roll-up (PM/responsive/design/QA)
   requirements_unclear: boolean;
+  discovery?: DiscoveryProject | null; // guided questionnaire answers (JSONB); null = catalog/manual quote
   created_at: string;
   updated_at: string;
 }
@@ -324,46 +334,39 @@ interface ClientQuote {
 
 ---
 
-## Proposal estimator (workflow coordinators)
+## Estimator (Discovery + Proposals, merged)
 
-**Purpose:** A **separate coordinator-facing tool** to build **client quotes** from a structured list of work—not the same UX as the day-to-day sprint board (line items estimate and sell work; linking rows to real `Task` records later is optional, not required for v1).
+**Purpose:** One coordinator-facing tool to **scope and quote** client work. It replaces what were two separate tools — a *Discovery* scoping wizard and a *Proposals* estimator — merged into one so a work list is entered **once** and flows forward. The document is a `ClientQuote`; a quote becomes a real project later via **Start project**. See `docs/workflow-revamp-plan.md` and the `estimator-merge` memory note.
 
-> **The estimator evolved past the original 4-tier model.** What's described below is the
-> current **v2** implementation (see `types/proposal.types.ts`, `lib/constants/proposal-estimator.ts`,
-> `lib/proposal-catalog/`). The old "Easy/Medium/Complex/Very complex = fixed hours" design is gone.
+**Two ways to scope one work list (both produce `line_items`):**
 
-**Flow (v2)**
+- **Guided** — answer the questionnaire (the former Discovery wizard, ~64 fields). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
+- **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
-1. Open or create a **quote** (`ClientQuote`: title, optional `project_id`, client name, notes).
-2. Pick a **platform** — WordPress, Shopify, Wix, Squarespace, Custom PHP/HTML/CSS, Custom React/Next, or "Other / blank slate". Each platform (except blank) has a baked **catalog** of work items.
-3. Add **line items**, either by importing **catalog rows** (`CatalogBrowser`, grouped by module) or as freehand lines. Each line carries `base_hours`, a **tier**, a **quantity**, and optional `depends_on` references.
-4. **Tier** is a multiplier on base hours, not a fixed lookup: **Basic = 1×, Advanced = 1.5×, Custom = 2×** (`TIER_MULTIPLIERS`). Line hours = `base_hours × tierMultiplier × quantity`.
-5. **Roll-up add-ons** apply globally on top of dev hours, compounding in order (`computeQuoteTotals`):
-   `responsive = dev × pct` → `design = (dev+responsive) × pct` → `qa = (…) × pct` → `pm = (…) × pct`.
-   Defaults: PM 10%, Responsive 25%, Design 35%, QA 20% (each toggleable — `DEFAULT_ADDONS`).
-6. Totals show dev / responsive / design / qa / pm / **grand total** hours.
-7. **Output:** in-browser **PDF preview mock** plus real **PDF export** (jsPDF) and **Excel export** (xlsx) — see `lib/utils/proposal-pdf-export.ts` and `proposal-excel-export.ts`. The `GET /proposals/:id/export` endpoint is still the eventual server-side path.
+**Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). A freshly-created guided estimate opens on Scope & risk; a "Generate from scope" prompt appears on Line items until it's built.
 
-**Catalog source:** `lib/proposal-catalog/catalog.json`, generated from `project-csv/tasks and integration.xlsx`. Frontend-only; replace with API when published.
+**Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
 
-**Frontend-only (current):** `store/proposal-estimator-store.ts` is Zustand + persist (`timeline-proposal-estimator`). At integration, this maps to the `proposals` table (`line_items` + `addons` as JSONB — see `supabase/migrations/0001_init.sql`).
+**Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** (`convertToProject`) creates a real project, optionally seeds backlog tasks from the line items (each with its estimated hours), and links `proposals.project_id`.
 
-**Permissions:** Same matrix as **Export proposals** — **Admin** and **Manager** only. **Member** and **Viewer** must not see primary entry points or mutating controls. Gate with **`canExportProposals`** from `usePermissions()` so UI stays aligned with the permissions table below.
+**Output:** in-browser **PDF preview mock** + real **PDF** (jsPDF) and **Excel** (xlsx) export — `lib/utils/proposal-pdf-export.ts`, `proposal-excel-export.ts`. Optional server-side export (Edge Function → Storage) is still a later path.
 
-**Backend (later):** the `proposals` table + RLS already exist in `supabase/migrations/`. Optional server-side export is a Supabase Edge Function → Storage bucket; the client-side jsPDF/xlsx export works today.
+**Data:** `store/proposal-estimator-store.ts` (Zustand + persist demo key `timeline-proposal-estimator`; live via the `proposals` table — `line_items` + `addons` + `discovery` as JSONB). The old standalone `discovery_projects` table was migrated into `proposals.discovery` and dropped (`0022`–`0023`). **Catalog source:** `lib/proposal-catalog/catalog.json` (from `project-csv/tasks and integration.xlsx`).
+
+**Permissions:** **Admin + Manager only** — gate with **`canExportProposals`** from `usePermissions()`. Member/Viewer must not see entry points or mutating controls. Enforced by RLS on `proposals`.
 
 ---
 
 ## State Management Map
 
-> All persisted stores use Zustand `persist` → `localStorage` (keys prefixed `timeline-`;
-> see [docs/data-mapping.md](docs/data-mapping.md) for the full key list). At integration these
-> stores are replaced by Supabase queries (TanStack Query as the cache layer) — Zustand keeps
-> only true UI state. Not wired yet.
+> **Live mode:** each store hydrates from Supabase (via `WorkspaceSync`) and writes through
+> optimistically — the synced-store bridge, **not** TanStack Query. **Demo mode** (no env vars):
+> the same stores persist to `localStorage` (keys prefixed `timeline-`; full list in
+> [docs/data-mapping.md](docs/data-mapping.md)). The keys below are the **demo-mode** storage.
 
 | State                          | Lives In                                  | Persist key / note                       |
 | ------------------------------ | ----------------------------------------- | ---------------------------------------- |
-| User session + role (demo)     | `store/auth-store.ts`                      | `timeline-auth` (demo user; no cookie yet) |
+| User session + role            | `store/auth-store.ts` (mirrors Supabase Auth) | `timeline-auth` (demo only; live = httpOnly cookie) |
 | Projects list                  | `store/projects-store.ts`                  | `timeline-projects`                       |
 | Sprints list                   | `store/sprints-store.ts`                   | `timeline-sprints`                        |
 | Tasks (+ nested comments)      | `store/tasks-store.ts`                     | `timeline-tasks`                          |
@@ -388,13 +391,15 @@ interface ClientQuote {
 | Create task      | Yes   | Yes     | Yes    | No     |
 | Edit task        | Yes   | Yes     | Yes    | No     |
 | Delete task      | Yes   | Yes     | No     | No     |
-| Manage team      | Yes   | No      | No     | No     |
+| Manage team (invite / deactivate / delete member) | Yes | No | No | No |
 | View all content | Yes   | Yes     | Yes    | Yes    |
 | Export proposals | Yes   | Yes     | No     | No     |
-| Proposal estimator (client quotes) | Yes | Yes | No | No |
+| Estimator (scope + client quotes) | Yes | Yes | No | No |
 | Edit others' PTO/availability | Yes | Yes | No | No |
 
-> **Proposal estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
+> **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
+> **Offboarding** (deactivate/reactivate + permanent delete) and **invites** are admin-only, via
+> `/api/users/[id]/status`, `/api/users/[id]`, and `/api/invites` (service-role, server-side).
 >
 > Permissions are enforced by **Supabase RLS** (`supabase/migrations/0002_rls.sql`). The UI uses
 > `usePermissions()` to show/hide controls — keep the two in lockstep.
@@ -417,48 +422,36 @@ NEXT_PUBLIC_APP_ENV=development
 
 ## Coding Patterns I Follow
 
-### Data Access Pattern (Supabase + TanStack Query)
+### Data Access Pattern (synced-store bridge)
 
-> Today the hooks read/write Zustand stores (demo). At integration, swap the hook body for a
-> Supabase query — the component layer never changes. See [docs/backend-supabase.md](docs/backend-supabase.md)
-> for the full version. The current demo runs without TanStack Query (it lands with this swap).
+> Components never call Supabase directly — they read a Zustand store (or a thin `hooks/` wrapper).
+> The store hydrates from Supabase via `WorkspaceSync` and does optimistic **write-through + rollback**;
+> the same store serves the `localStorage` demo behind `isSupabaseConfigured`. Realtime echoes are
+> idempotent, so a store's own write is harmless. (No TanStack Query — the bridge covers caching.)
 
 ```ts
-// 1. Types come from the generated schema (types/database.types.ts) after `npm run db:types`.
-interface CreateTaskPayload {
-  title: string;
-  project_id: string;
-  due_date?: string;
-}
+// store/tasks-store.ts (shape) — one action handles live + demo in one place
+createTask: (input) => {
+  const id = isSupabaseConfigured ? crypto.randomUUID() : nextLocalId();
+  const task = { ...input, id /* …defaults… */ };
+  set((s) => ({ tasks: [task, ...s.tasks] })); // 1. optimistic UI update
 
-// 2. Custom hook in hooks/useTasks.ts — Supabase via @supabase/ssr client
-export const useCreateTask = () => {
-  const supabase = createClient(); // lib/supabase/client.ts
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (payload: CreateTaskPayload) => {
-      const { data, error } = await supabase
-        .from("tasks")
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error; // RLS denial / network → onError
-      return data;
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: QUERY_KEYS.tasks.byProject(variables.project_id),
-      });
-      toast.success("Task created");
-    },
-    onError: (error) => {
-      toast.error(error.message); // Postgres/RLS error message
-    },
-  });
-};
+  if (!isSupabaseConfigured) return id;         // demo: localStorage persist only
 
-// 3. Component just calls the hook
-const { mutate: createTask, isPending } = useCreateTask();
+  void (async () => {                            // 2. write through to Supabase
+    const supabase = createClient();             // lib/supabase/client.ts
+    const { error } = await supabase.from("tasks").insert({ id, ...input });
+    if (error) {                                 // 3. roll back + surface the RLS/DB error
+      set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+      toast.error("Couldn't create task", { description: parseSupabaseError(error) });
+    }
+  })();
+  return id;
+},
+
+// Component / hook just reads the store — never touches Supabase:
+const tasks = useTasks();
+const createTask = useTasksDataStore((s) => s.createTask);
 ```
 
 ### Form Pattern
@@ -543,7 +536,10 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
-> Last updated: 2026-07-01 — Supabase integration wired (Auth, data, Realtime, Storage, RLS) via the
-> synced-store bridge, with the Zustand/localStorage demo kept as a fallback behind `isSupabaseConfigured`.
+> Last updated: 2026-07-14 — **Discovery + Proposals merged into one Estimator** (guided questionnaire
+> *or* catalog → one quote; `proposals.discovery` JSONB; `/discovery` redirects). Also since 2026-07-01:
+> invite-only onboarding + pending state, two-tier user offboarding (deactivate / hard-delete), and the
+> sales→delivery workflow (proposal approval → project, task-assignment accept/reject/pass, `time_entries`,
+> personal vs team Workload). Supabase remains wired via the synced-store bridge with the demo fallback.
 > Maintainer: Frontend Dev
 > Update this file whenever the project scope, stack, or patterns change.
