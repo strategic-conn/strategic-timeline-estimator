@@ -164,6 +164,7 @@ export type Database = {
       }
       notifications: {
         Row: {
+          actor_id: string | null
           created_at: string
           href: string | null
           id: string
@@ -173,6 +174,7 @@ export type Database = {
           text: string
         }
         Insert: {
+          actor_id?: string | null
           created_at?: string
           href?: string | null
           id?: string
@@ -182,6 +184,7 @@ export type Database = {
           text: string
         }
         Update: {
+          actor_id?: string | null
           created_at?: string
           href?: string | null
           id?: string

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Bell, Check, Trash2 } from "lucide-react";
 
+import { ActivityRow } from "@/components/features/activity/ActivityRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,19 +16,9 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useNotificationsStore } from "@/store/notifications-store";
+import { useProjectsStore } from "@/store/projects-store";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
-
-function timeAgo(iso: string): string {
-  const ms = Date.now() - new Date(iso).getTime();
-  const secs = Math.floor(ms / 1000);
-  if (secs < 60) return "Just now";
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d`;
-}
 
 export function NotificationBell() {
   const [open, setOpen] = React.useState(false);
@@ -35,6 +26,14 @@ export function NotificationBell() {
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const markRead = useNotificationsStore((s) => s.markRead);
   const clear = useNotificationsStore((s) => s.clear);
+
+  // Resolve avatars + project labels once (not per row), same as the activity feed.
+  const members = useTeamMembers();
+  const projects = useProjectsStore((s) => s.projects);
+  const projectMap = React.useMemo(
+    () => new Map(projects.map((p) => [p.id, p.name])),
+    [projects],
+  );
 
   const unreadCount = items.filter((n) => !n.read).length;
 
@@ -113,24 +112,24 @@ export function NotificationBell() {
                 const Inner = (
                   <div
                     className={cn(
-                      "flex items-start gap-3 px-4 py-3 text-sm transition-colors hover:bg-muted/50",
+                      "flex gap-2 px-4 py-3 transition-colors hover:bg-muted/50",
                       !n.read && "bg-primary/5"
                     )}
                   >
-                    <span
-                      className={cn(
-                        "mt-1.5 size-2 shrink-0 rounded-full",
-                        n.read ? "bg-transparent" : "bg-primary"
-                      )}
-                    />
                     <div className="min-w-0 flex-1">
-                      <p className={cn("leading-snug", !n.read && "font-medium")}>
-                        {n.text}
-                      </p>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {timeAgo(n.at)}
-                      </p>
+                      <ActivityRow
+                        item={n}
+                        members={members}
+                        projectMap={projectMap}
+                        showActorName={false}
+                      />
                     </div>
+                    {!n.read ? (
+                      <span
+                        className="mt-1 size-2 shrink-0 rounded-full bg-primary"
+                        aria-label="Unread"
+                      />
+                    ) : null}
                   </div>
                 );
 
@@ -143,7 +142,7 @@ export function NotificationBell() {
                           markRead(n.id);
                           close();
                         }}
-                        className="block"
+                        className="block outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
                       >
                         {Inner}
                       </Link>

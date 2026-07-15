@@ -34,7 +34,7 @@ export function sortActivityNewestFirst<T extends ActivityLike>(items: T[]): T[]
 
 /** Resolve the actor id for an item: explicit `actor_id`, else name-prefix match. */
 export function resolveActorId(
-  item: { actor_id?: string; text: string },
+  item: { actor_id?: string | null; text: string },
   members: { id: string; name: string }[]
 ): string | null {
   if (item.actor_id) return item.actor_id;

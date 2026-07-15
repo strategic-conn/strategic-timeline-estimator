@@ -20,6 +20,8 @@ export interface AppNotification {
   href?: string;
   /** Workspace project scope (for activity feed filters). */
   project_id?: string | null;
+  /** Who triggered it → drives the avatar + name in the bell. Null = system/legacy. */
+  actor_id?: string | null;
 }
 
 type NotificationRow = Database["public"]["Tables"]["notifications"]["Row"];
@@ -32,6 +34,7 @@ function rowToNotification(r: NotificationRow): AppNotification {
     read: r.read,
     href: r.href ?? undefined,
     project_id: r.project_id,
+    actor_id: r.actor_id,
   };
 }
 
@@ -136,6 +139,7 @@ export const useNotificationsStore = create<NotificationsState>()(
             read: false,
             href,
             project_id: project_id ?? null,
+            actor_id: actor,
           };
           set((s) => ({ items: [item, ...s.items].slice(0, 50) }));
           return;
@@ -151,6 +155,7 @@ export const useNotificationsStore = create<NotificationsState>()(
             recipient_id: rid,
             text,
             href: href ?? null,
+            actor_id: actor ?? null,
           }));
           let { error } = await supabase
             .from("notifications")
