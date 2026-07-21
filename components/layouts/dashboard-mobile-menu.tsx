@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import * as React from "react";
 import { Menu } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,11 +24,13 @@ import {
 } from "@/components/layouts/dashboard-nav-config";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { useAuthStore } from "@/store/auth-store";
+import { useNavDrawerStore } from "@/store/nav-drawer-store";
 import { cn } from "@/lib/utils";
 
 export function DashboardMobileMenu() {
   const pathname = usePathname();
-  const [open, setOpen] = React.useState(false);
+  const open = useNavDrawerStore((s) => s.open);
+  const setOpen = useNavDrawerStore((s) => s.setOpen);
   const user = useAuthStore((s) => s.user);
   const accessible = useAccessibleHrefs();
   const navItems = filterNavByAccess(DASHBOARD_NAV_ITEMS, accessible);

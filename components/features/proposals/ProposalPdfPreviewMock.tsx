@@ -30,7 +30,7 @@ export function ProposalPdfPreviewMock({
   return (
     <div
       className={cn(
-        "rounded-2xl border bg-white p-8 text-slate-900 shadow-sm print:border-0 print:shadow-none print:rounded-none print:p-0",
+        "rounded-2xl border bg-white p-4 text-slate-900 shadow-sm sm:p-8 print:rounded-none print:border-0 print:p-0 print:shadow-none",
         className,
       )}
     >
@@ -67,7 +67,8 @@ export function ProposalPdfPreviewMock({
 
       <section className="mt-6">
         <h2 className="text-sm font-semibold text-slate-800">Line items</h2>
-        <table className="mt-3 w-full border-collapse text-sm">
+        <div className="mt-3 overflow-x-auto print:overflow-visible">
+          <table className="w-full min-w-136 border-collapse text-sm">
           <thead>
             <tr className="border-b border-slate-200 text-left text-slate-600">
               <th className="py-2 pr-3 font-medium">#</th>
@@ -112,7 +113,8 @@ export function ProposalPdfPreviewMock({
               </tr>
             ))}
           </tbody>
-        </table>
+          </table>
+        </div>
       </section>
 
       <section className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm">

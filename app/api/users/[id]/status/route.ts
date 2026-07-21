@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { isUuid, requireAdmin, serverError } from "@/lib/supabase/require-admin";
 
 /**
  * POST /api/users/[id]/status  { deactivate: boolean } — admin-only.
  * Deactivate = ban the auth user (real access revocation) + flag the profile.
  * Reactivate = un-ban + clear the flag. Their data/history stays attributed.
+ * Guard: can't deactivate yourself or the last remaining active admin.
  */
 export async function POST(
   request: Request,
@@ -14,21 +14,13 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      return NextResponse.json({ error: "You're not signed in." }, { status: 401 });
+    if (!isUuid(id)) {
+      return NextResponse.json({ error: "Invalid user id." }, { status: 400 });
     }
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single();
-    if (profile?.role !== "admin") {
-      return NextResponse.json({ error: "Admins only." }, { status: 403 });
-    }
+
+    const gate = await requireAdmin();
+    if ("error" in gate) return gate.error;
+    const { supabase, admin, user } = gate.ctx;
 
     const body = (await request.json().catch(() => null)) as {
       deactivate?: boolean;
@@ -42,12 +34,30 @@ export async function POST(
       );
     }
 
-    const admin = createAdminClient();
-    if (!admin) {
-      return NextResponse.json(
-        { error: "Not configured on the server (missing SUPABASE_SERVICE_ROLE_KEY)." },
-        { status: 501 },
-      );
+    // Don't let the workspace lose its last way in: block deactivating the only
+    // active admin. (Swap admins by promoting someone else first.)
+    if (deactivate) {
+      const { data: target } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", id)
+        .single();
+      if (target?.role === "admin") {
+        const { count } = await supabase
+          .from("profiles")
+          .select("id", { count: "exact", head: true })
+          .eq("role", "admin")
+          .is("deactivated_at", null);
+        if ((count ?? 0) <= 1) {
+          return NextResponse.json(
+            {
+              error:
+                "This is the last active admin — promote another admin before deactivating this one.",
+            },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // The real lock: ban (revokes sessions on refresh) or un-ban.
@@ -55,7 +65,7 @@ export async function POST(
       ban_duration: deactivate ? "876000h" : "none",
     });
     if (banErr) {
-      return NextResponse.json({ error: banErr.message }, { status: 400 });
+      return serverError("/api/users/[id]/status ban", banErr, 400);
     }
 
     const { error: flagErr } = await supabase
@@ -63,15 +73,11 @@ export async function POST(
       .update({ deactivated_at: deactivate ? new Date().toISOString() : null })
       .eq("id", id);
     if (flagErr) {
-      return NextResponse.json({ error: flagErr.message }, { status: 400 });
+      return serverError("/api/users/[id]/status flag", flagErr, 400);
     }
 
     return NextResponse.json({ ok: true });
   } catch (e) {
-    console.error("[/api/users/[id]/status] error:", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Unexpected server error." },
-      { status: 500 },
-    );
+    return serverError("/api/users/[id]/status", e);
   }
 }

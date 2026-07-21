@@ -162,6 +162,38 @@ export type Database = {
           },
         ]
       }
+      member_skills: {
+        Row: {
+          confidence: number
+          created_at: string
+          profile_id: string
+          skill: string
+          updated_at: string
+        }
+        Insert: {
+          confidence?: number
+          created_at?: string
+          profile_id: string
+          skill: string
+          updated_at?: string
+        }
+        Update: {
+          confidence?: number
+          created_at?: string
+          profile_id?: string
+          skill?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "member_skills_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notifications: {
         Row: {
           actor_id: string | null
@@ -194,6 +226,13 @@ export type Database = {
           text?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "notifications_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notifications_project_id_fkey"
             columns: ["project_id"]

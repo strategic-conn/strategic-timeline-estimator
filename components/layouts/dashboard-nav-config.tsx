@@ -152,8 +152,9 @@ export function groupDashboardNavItems(items: DashboardNavItem[]): {
 }
 
 /**
- * Bottom bar destinations (mobile). Always includes Timeline so it matches the
- * sidebar; when the user can export proposals, Proposals is included (5 tabs).
+ * Primary bottom-bar destinations (mobile) — up to 4. The bar adds a "More" tab
+ * that opens the full nav drawer, so everything else (Timeline, Workload, Team,
+ * Activity, Settings…) stays reachable without cramming the bar.
  */
 export function getDashboardMobileTabItems(
   accessible: Set<string>
@@ -169,12 +170,12 @@ export function getDashboardMobileTabItems(
     "/projects",
     ...(accessible.has("/proposals") ? ["/proposals"] : []),
     "/calendar",
-    "/gantt",
   ];
 
   return hrefSequence
     .map((href) => byHref.get(href))
-    .filter((item): item is DashboardNavItem => item != null);
+    .filter((item): item is DashboardNavItem => item != null)
+    .slice(0, 4);
 }
 
 export function isDashboardNavActive(pathname: string, href: string) {

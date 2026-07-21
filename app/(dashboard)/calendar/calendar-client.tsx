@@ -369,26 +369,41 @@ export function CalendarClient() {
             </CardContent>
           </Card>
 
+          {/* Legend — grouped + 2-column so it's compact, not a tall list. */}
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Legend</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-1.5 pt-0 text-xs">
-              {Object.entries(STATUS_DOT).map(([status, color]) => (
-                <div key={status} className="flex items-center gap-2">
-                  <span className={cn("size-2 rounded-full", color)} />
-                  <span className="capitalize text-muted-foreground">
-                    {status.replace("_", " ")}
-                  </span>
+            <CardContent className="space-y-3 pt-0">
+              <div>
+                <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  Task status
+                </p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  {Object.entries(STATUS_DOT).map(([status, color]) => (
+                    <div key={status} className="flex items-center gap-2">
+                      <span className={cn("size-2 shrink-0 rounded-full", color)} />
+                      <span className="capitalize text-muted-foreground">
+                        {status.replace("_", " ")}
+                      </span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-sm bg-amber-500" />
-                <span className="text-muted-foreground">Sprint milestone</span>
               </div>
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-sm bg-rose-500/70" />
-                <span className="text-muted-foreground">PTO / away</span>
+              <div>
+                <p className="mb-1.5 text-[0.65rem] font-semibold uppercase tracking-wide text-muted-foreground/80">
+                  On the calendar
+                </p>
+                <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-sm bg-amber-500" />
+                    <span className="text-muted-foreground">Sprint milestone</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-sm bg-rose-500/70" />
+                    <span className="text-muted-foreground">PTO / away</span>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

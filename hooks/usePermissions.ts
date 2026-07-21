@@ -15,6 +15,8 @@ interface Permissions {
   /** Log PTO / availability for people other than yourself (demo: admin + manager). */
   canEditOthersAvailability: boolean;
   canExportProposals: boolean;
+  /** Edit another person's skill profile (self-edit is always allowed via RLS). */
+  canEditMemberSkills: boolean;
   isViewer: boolean;
 }
 
@@ -29,6 +31,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canManageTeam: true,
     canEditOthersAvailability: true,
     canExportProposals: true,
+    canEditMemberSkills: true,
   },
   manager: {
     canCreateProject: true,
@@ -40,6 +43,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canManageTeam: false,
     canEditOthersAvailability: true,
     canExportProposals: true,
+    canEditMemberSkills: true,
   },
   member: {
     canCreateProject: false,
@@ -51,6 +55,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canManageTeam: false,
     canEditOthersAvailability: false,
     canExportProposals: false,
+    canEditMemberSkills: false,
   },
   viewer: {
     canCreateProject: false,
@@ -62,6 +67,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canManageTeam: false,
     canEditOthersAvailability: false,
     canExportProposals: false,
+    canEditMemberSkills: false,
   },
 };
 

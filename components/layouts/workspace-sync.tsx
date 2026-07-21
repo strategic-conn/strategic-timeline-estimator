@@ -7,6 +7,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useActivityStore } from "@/store/activity-store";
 import { useAuthStore } from "@/store/auth-store";
 import { useAvailabilityStore } from "@/store/availability-store";
+import { useMemberSkillsStore } from "@/store/member-skills-store";
 import { useNotificationsStore } from "@/store/notifications-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
@@ -55,6 +56,7 @@ export function WorkspaceSync() {
   const hydrateProposals = useProposalEstimatorStore(
     (s) => s.hydrateFromSupabase,
   );
+  const hydrateSkills = useMemberSkillsStore((s) => s.hydrateFromSupabase);
 
   React.useEffect(() => {
     if (!isSupabaseConfigured || !authId) return;
@@ -67,6 +69,7 @@ export function WorkspaceSync() {
     void hydrateAvailability();
     void hydrateCapacity();
     void hydrateProposals();
+    void hydrateSkills();
   }, [
     authId,
     hydrateProjects,
@@ -78,6 +81,7 @@ export function WorkspaceSync() {
     hydrateAvailability,
     hydrateCapacity,
     hydrateProposals,
+    hydrateSkills,
   ]);
 
   // Live notifications: stream this user's rows (RLS already scopes to them).

@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { format, isValid } from "date-fns";
 import { enUS } from "date-fns/locale";
-import { CalendarRange, Info } from "lucide-react";
+import { CalendarRange, FolderKanban, Info } from "lucide-react";
 
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -76,6 +76,10 @@ export function GanttClient() {
     () => new Map(projects.map((p) => [p.id, p.name])),
     [projects]
   );
+  const scopeLabel =
+    projectId === "all"
+      ? "All projects"
+      : projectNameMap.get(projectId) ?? "Project";
 
   const model = React.useMemo(
     () => buildGanttLayout(tasks, sprints, projectNameMap, projectId),
@@ -127,15 +131,19 @@ export function GanttClient() {
           title="Timeline"
           description="See when work is scheduled: each bar is the sprint dates for that task (capped by due date), or created→due for backlog items. Bars use status colors. Click a bar to jump to the board with that task focused."
           actions={
-            <div className="flex w-full flex-col gap-1.5 sm:w-56">
+            <div className="flex w-full flex-col gap-1.5 sm:w-64">
               <span className="text-xs font-medium text-muted-foreground">
-                Project
+                View a project&apos;s timeline
               </span>
               <Select
                 value={projectId}
                 onValueChange={(v) => setProjectId(v as ProjectFilter)}
               >
-                <SelectTrigger className="w-full border-border/60 bg-background/80">
+                <SelectTrigger className="w-full gap-2 border-border/60 bg-background/80">
+                  <FolderKanban
+                    className="size-4 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   <SelectValue placeholder="All projects" />
                 </SelectTrigger>
                 <SelectContent>
@@ -147,6 +155,9 @@ export function GanttClient() {
                   ))}
                 </SelectContent>
               </Select>
+              <span className="text-[0.7rem] text-muted-foreground">
+                Pick a project to see only its schedule.
+              </span>
             </div>
           }
         />
@@ -169,7 +180,10 @@ export function GanttClient() {
                     {formatEnUS(rangeEnd, "MMM d, yyyy")}
                   </span>
                   <span className="text-xs">
-                    {rows.length} {rows.length === 1 ? "task" : "tasks"} · Weeks
+                    <span className="font-medium text-foreground/90">
+                      {scopeLabel}
+                    </span>{" "}
+                    · {rows.length} {rows.length === 1 ? "task" : "tasks"} · Weeks
                     start Sunday
                   </span>
                 </CardDescription>

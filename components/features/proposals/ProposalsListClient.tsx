@@ -48,6 +48,7 @@ import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
+import { applyPlatformToDiscovery } from "@/lib/discovery/platform-sync";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
@@ -104,14 +105,19 @@ export function ProposalsListClient() {
     let discovery: DiscoveryProject | null = null;
     if (method === "guided") {
       const now = new Date().toISOString();
-      discovery = {
-        ...createEmptyDiscoveryProject(),
-        id: crypto.randomUUID(),
-        name: title,
-        client_name: newClient.trim(),
-        created_at: now,
-        updated_at: now,
-      };
+      // Mirror the chosen platform onto the questionnaire + apply implied answers
+      // (e.g. Shopify ⇒ e-commerce) so platform-derived questions aren't re-asked.
+      discovery = applyPlatformToDiscovery(
+        {
+          ...createEmptyDiscoveryProject(),
+          id: crypto.randomUUID(),
+          name: title,
+          client_name: newClient.trim(),
+          created_at: now,
+          updated_at: now,
+        },
+        newPlatform,
+      );
     }
     const id = createProposal({
       title,

@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ShieldAlert,
   SlidersHorizontal,
+  Star,
   Trash2,
   UserCheck,
   UserX,
@@ -12,6 +13,7 @@ import {
 import { toast } from "sonner";
 
 import { AdminInvitesSection } from "@/components/features/settings/AdminInvitesSection";
+import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import { MemberAccessDialog } from "@/components/features/team/MemberAccessDialog";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
@@ -35,6 +37,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -85,9 +94,11 @@ const ROLE_REFERENCE: { role: string; blurb: string }[] = [
 ];
 
 export function TeamClientPage() {
-  const { canManageTeam } = usePermissions();
+  const { canManageTeam, canEditMemberSkills } = usePermissions();
   const authId = useAuthStore((s) => s.user.authId);
+  const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const members = useJoinedTeamMembers();
+  const [skillsMember, setSkillsMember] = React.useState<TeamMember | null>(null);
 
   const [overrides, setOverrides] = React.useState<Record<string, UserRole>>({});
   const [savingId, setSavingId] = React.useState<string | null>(null);
@@ -221,110 +232,111 @@ export function TeamClientPage() {
           {active.length === 0 ? (
             <p className="text-sm text-muted-foreground">No members yet.</p>
           ) : (
-            <div className="overflow-x-auto rounded-lg border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead className="hidden sm:table-cell">Email</TableHead>
-                    <TableHead className="w-40">Role</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {active.map((m) => {
-                    const current = roleOf(m.id, m.role);
-                    const isSelf = m.id === authId;
-                    return (
-                      <TableRow key={m.id}>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Avatar size="sm" className="shrink-0">
-                              {m.avatar_url ? (
-                                <AvatarImage src={m.avatar_url} alt="" />
-                              ) : null}
-                              <AvatarFallback>{m.initials}</AvatarFallback>
-                            </Avatar>
-                            <span className="font-medium">
-                              {m.name}
-                              {isSelf ? (
-                                <span className="text-muted-foreground">
-                                  {" "}
-                                  (you)
-                                </span>
-                              ) : null}
-                            </span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="hidden text-muted-foreground sm:table-cell">
-                          {m.email}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1.5">
-                            {canEditRoles && !isSelf ? (
-                              <Select
-                                value={current}
-                                disabled={savingId === m.id}
-                                onValueChange={(v) =>
-                                  void changeRole(m.id, v as UserRole, current)
-                                }
-                              >
-                                <SelectTrigger size="sm" className="w-28 capitalize">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {ROLES.map((r) => (
-                                    <SelectItem key={r.value} value={r.value}>
-                                      {r.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              <Badge
-                                variant="secondary"
-                                className="font-normal capitalize"
-                              >
-                                {current}
-                              </Badge>
-                            )}
-                            {canEditRoles && !isSelf && current !== "admin" ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                title="Manage page access"
-                                aria-label={`Manage page access for ${m.name}`}
-                                onClick={() => openAccess(m, current)}
-                              >
-                                <SlidersHorizontal className="size-4" />
-                              </Button>
-                            ) : null}
-                            {canEditRoles && !isSelf ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="icon-sm"
-                                className="text-muted-foreground hover:text-destructive"
-                                title="Deactivate member"
-                                aria-label={`Deactivate ${m.name}`}
-                                onClick={() => setDeactivateTarget(m)}
-                              >
-                                <UserX className="size-4" />
-                              </Button>
-                            ) : null}
-                          </div>
-                          {current !== "admin" && pageAccessOf(m) != null ? (
-                            <span className="mt-1 block text-xs text-muted-foreground">
-                              Custom access
+            <ul className="divide-y divide-border rounded-lg border">
+              {active.map((m) => {
+                const current = roleOf(m.id, m.role);
+                const isSelf = m.id === authId;
+                return (
+                  <li
+                    key={m.id}
+                    className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      <Avatar size="sm" className="shrink-0">
+                        {m.avatar_url ? (
+                          <AvatarImage src={m.avatar_url} alt="" />
+                        ) : null}
+                        <AvatarFallback>{m.initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">
+                          {m.name}
+                          {isSelf ? (
+                            <span className="font-normal text-muted-foreground">
+                              {" "}
+                              (you)
                             </span>
                           ) : null}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
+                        </p>
+                        <p className="truncate text-xs text-muted-foreground">
+                          {m.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5 pl-10 sm:shrink-0 sm:justify-end sm:pl-0">
+                      {canEditRoles && !isSelf ? (
+                        <Select
+                          value={current}
+                          disabled={savingId === m.id}
+                          onValueChange={(v) =>
+                            void changeRole(m.id, v as UserRole, current)
+                          }
+                        >
+                          <SelectTrigger size="sm" className="w-28 capitalize">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ROLES.map((r) => (
+                              <SelectItem key={r.value} value={r.value}>
+                                {r.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge
+                          variant="secondary"
+                          className="font-normal capitalize"
+                        >
+                          {current}
+                        </Badge>
+                      )}
+                      {current !== "admin" && pageAccessOf(m) != null ? (
+                        <span className="text-xs text-muted-foreground">
+                          Custom access
+                        </span>
+                      ) : null}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="text-muted-foreground hover:text-foreground"
+                        title="Skills & tech stack"
+                        aria-label={`Skills for ${m.name}`}
+                        onClick={() => setSkillsMember(m)}
+                      >
+                        <Star className="size-4" />
+                      </Button>
+                      {canEditRoles && !isSelf && current !== "admin" ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Manage page access"
+                          aria-label={`Manage page access for ${m.name}`}
+                          onClick={() => openAccess(m, current)}
+                        >
+                          <SlidersHorizontal className="size-4" />
+                        </Button>
+                      ) : null}
+                      {canEditRoles && !isSelf ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          title="Deactivate member"
+                          aria-label={`Deactivate ${m.name}`}
+                          onClick={() => setDeactivateTarget(m)}
+                        >
+                          <UserX className="size-4" />
+                        </Button>
+                      ) : null}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </CardContent>
       </Card>
@@ -440,6 +452,33 @@ export function TeamClientPage() {
           }
         />
       ) : null}
+
+      <Dialog
+        open={skillsMember != null}
+        onOpenChange={(v) => {
+          if (!v) setSkillsMember(null);
+        }}
+      >
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {skillsMember?.name}
+              {skillsMember && skillsMember.id === selfId ? " (you)" : ""} — Skills
+            </DialogTitle>
+            <DialogDescription>
+              {skillsMember && (skillsMember.id === selfId || canEditMemberSkills)
+                ? "Add technologies and rate confidence (1–5 stars)."
+                : "Tech stack and confidence, as reported."}
+            </DialogDescription>
+          </DialogHeader>
+          {skillsMember ? (
+            <MemberSkillsEditor
+              profileId={skillsMember.id}
+              editable={skillsMember.id === selfId || canEditMemberSkills}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={deactivateTarget != null}

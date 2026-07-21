@@ -1,10 +1,11 @@
 "use client";
 
-import { Building2, CalendarOff, Lock, User } from "lucide-react";
+import { Building2, CalendarOff, Lock, Star, User } from "lucide-react";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
 import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
+import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import {
   Card,
   CardContent,
@@ -15,8 +16,11 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/store/auth-store";
 
 export function SettingsClient() {
+  const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
+
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <WorkspacePageHeader
@@ -26,31 +30,38 @@ export function SettingsClient() {
       />
 
       <Tabs defaultValue="profile" className="w-full gap-6">
-        <TabsList className="grid h-auto w-full grid-cols-2 gap-1 rounded-2xl border border-border/60 bg-muted/50 p-1 text-center shadow-sm backdrop-blur-sm dark:bg-muted/30 sm:grid-cols-4">
+        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:justify-center dark:bg-muted/30 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger
             value="profile"
-            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
           >
             <User className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Profile</span>
           </TabsTrigger>
           <TabsTrigger
+            value="skills"
+            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+          >
+            <Star className="size-4 shrink-0" aria-hidden />
+            <span className="truncate">Skills</span>
+          </TabsTrigger>
+          <TabsTrigger
             value="timeoff"
-            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
           >
             <CalendarOff className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Time off</span>
           </TabsTrigger>
           <TabsTrigger
             value="workspace"
-            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
           >
             <Building2 className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Workspace</span>
           </TabsTrigger>
           <TabsTrigger
             value="security"
-            className="h-auto min-h-11 w-full min-w-0 flex-initial justify-center gap-2 px-2 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
           >
             <Lock className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Security</span>
@@ -59,6 +70,22 @@ export function SettingsClient() {
 
         <TabsContent value="profile" className="mt-0 outline-none">
           <ProfileForm />
+        </TabsContent>
+
+        <TabsContent value="skills" className="mt-0 outline-none">
+          <Card>
+            <CardHeader>
+              <CardTitle>Your skills &amp; tech stack</CardTitle>
+              <CardDescription>
+                List the technologies you work with and rate your confidence
+                (1–5 stars). This helps coordinators staff projects to the right
+                people — and powers smarter assignment suggestions later.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <MemberSkillsEditor profileId={selfId} editable />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="timeoff" className="mt-0 outline-none">

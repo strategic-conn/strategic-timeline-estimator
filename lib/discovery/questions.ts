@@ -1,6 +1,5 @@
 import {
   CRM_OPTIONS,
-  DISCOVERY_PLATFORM_OPTIONS,
   EMAIL_OPTIONS,
   FORM_COMPLEXITY_OPTIONS,
   HOSTING_OPTIONS,
@@ -9,6 +8,11 @@ import {
   REGULATED_TYPE_OPTIONS,
   type Option,
 } from "@/lib/discovery/constants";
+import {
+  hostingOptionsFor,
+  isEcommercePlatform,
+  isHostedPlatform,
+} from "@/lib/discovery/platform-sync";
 import type { DiscoveryProject } from "@/types/discovery.types";
 
 export type FieldType =
@@ -31,6 +35,8 @@ export interface DiscoveryQuestion {
   label: string;
   type: FieldType;
   options?: Option[];
+  /** Dynamic options (overrides `options`), e.g. hosting compatible with the platform. */
+  optionsFor?: (p: DiscoveryProject) => Option[];
   help?: string;
   /** Short "what this drives" hint from the spec's Estimation Impact column. */
   impact?: string;
@@ -212,7 +218,15 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     requiredWhen: (p) => p.has_custom_forms,
     impact: "Basic +3–6 · Multi-step +6–10 · Conditional +10–16",
   },
-  { id: "has_ecommerce", section: 2, label: "E-Commerce Required?", type: "toggle", impact: "+20–40 hrs base scope" },
+  {
+    id: "has_ecommerce",
+    section: 2,
+    label: "E-Commerce Required?",
+    type: "toggle",
+    impact: "+20–40 hrs base scope",
+    // Implied for e-commerce platforms (e.g. Shopify) — set from the platform.
+    visibleWhen: (p) => !isEcommercePlatform(p.platform),
+  },
   {
     id: "product_count",
     section: 2,
@@ -249,15 +263,8 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   { id: "has_approved_photography", section: 3, label: "Approved Photography Provided?", type: "toggle", impact: "No adds +3–6 hrs (stock sourcing)" },
   { id: "needs_custom_illustrations", section: 3, label: "Custom Illustrations Required?", type: "toggle", impact: "+12–20 hrs Design" },
   { id: "needs_animations", section: 3, label: "Animations / Parallax Effects?", type: "toggle", impact: "+8–14 hrs Design (motion)" },
-  {
-    id: "platform",
-    section: 3,
-    label: "Preferred CMS / Platform",
-    type: "dropdown",
-    options: DISCOVERY_PLATFORM_OPTIONS,
-    required: true,
-    impact: "Platform setup 4–8 hrs",
-  },
+  // NOTE: platform is no longer asked here — it's the estimate's platform
+  // (Setup tab), mirrored onto `discovery.platform` via applyPlatformToDiscovery.
   {
     id: "design_revision_rounds",
     section: 3,
@@ -312,8 +319,12 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     label: "Preferred Hosting Environment",
     type: "dropdown",
     options: HOSTING_OPTIONS,
+    // Only show hosts compatible with the platform (e.g. no Shopify host on WordPress).
+    optionsFor: (p) => hostingOptionsFor(p.platform),
     required: true,
     impact: "Affects setup time noted in dev",
+    // Hosted platforms (Shopify/Wix/Squarespace) host the site — set, not asked.
+    visibleWhen: (p) => !isHostedPlatform(p.platform),
   },
   { id: "has_crm_integration", section: 5, label: "CRM Integration?", type: "toggle", impact: "+8–12 hrs Development" },
   {

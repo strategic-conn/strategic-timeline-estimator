@@ -46,8 +46,9 @@ export function DiscoveryWizard({
 
   return (
     <div className="grid gap-5 lg:grid-cols-[14rem_1fr]">
-      {/* Section rail */}
-      <nav className="flex gap-2 overflow-x-auto lg:flex-col lg:overflow-visible">
+      {/* Section rail — a compact numbered stepper on mobile (circles fit without
+          scrolling), the detailed sidebar with titles/status on desktop. */}
+      <nav className="flex items-center justify-between gap-1 overflow-x-auto pb-1 lg:flex-col lg:items-stretch lg:justify-normal lg:gap-2 lg:overflow-visible lg:pb-0">
         {DISCOVERY_SECTIONS.map((s) => {
           const active = s.n === section;
           const open = unanswered[s.n] ?? 0;
@@ -56,26 +57,31 @@ export function DiscoveryWizard({
               key={s.n}
               type="button"
               onClick={() => setSection(s.n)}
+              aria-current={active ? "step" : undefined}
+              aria-label={`Section ${s.n}: ${s.title}${
+                open === 0 ? " (complete)" : `, ${open} required left`
+              }`}
               className={cn(
-                "flex shrink-0 items-center gap-2.5 rounded-xl border px-3 py-2 text-left text-sm transition-colors lg:shrink",
+                "flex shrink-0 items-center gap-2.5 rounded-xl text-left text-sm transition-colors lg:shrink lg:border lg:px-3 lg:py-2",
                 active
-                  ? "border-primary/50 bg-primary/5"
-                  : "border-border/60 hover:bg-muted/50",
+                  ? "lg:border-primary/50 lg:bg-primary/5"
+                  : "lg:border-border/60 lg:hover:bg-muted/50",
               )}
             >
               <span
                 className={cn(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
+                  "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-2 lg:size-6 lg:ring-0",
                   open === 0
                     ? "bg-green-500/15 text-green-600 dark:text-green-400"
                     : active
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted text-muted-foreground",
+                  active ? "ring-primary" : "ring-transparent",
                 )}
               >
                 {open === 0 ? <Check className="size-3.5" /> : s.n}
               </span>
-              <span className="min-w-0">
+              <span className="hidden min-w-0 lg:block">
                 <span className="block truncate font-medium">{s.title}</span>
                 <span className="block text-[0.7rem] text-muted-foreground">
                   {open === 0 ? "Complete" : `${open} required left`}

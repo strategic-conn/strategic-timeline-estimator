@@ -170,9 +170,9 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
             />
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             <Select value={fProject} onValueChange={setFProject}>
-              <SelectTrigger size="sm" className="w-42">
+              <SelectTrigger size="sm" className="w-full sm:w-42">
                 <SelectValue placeholder="Project" />
               </SelectTrigger>
               <SelectContent>
@@ -186,7 +186,7 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
             </Select>
 
             <Select value={fCategory} onValueChange={setFCategory}>
-              <SelectTrigger size="sm" className="w-38">
+              <SelectTrigger size="sm" className="w-full sm:w-38">
                 <SelectValue placeholder="Activity" />
               </SelectTrigger>
               <SelectContent>
@@ -206,7 +206,7 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
             </Select>
 
             <Select value={fUser} onValueChange={setFUser}>
-              <SelectTrigger size="sm" className="w-38">
+              <SelectTrigger size="sm" className="w-full sm:w-38">
                 <SelectValue placeholder="Person" />
               </SelectTrigger>
               <SelectContent>
@@ -219,21 +219,24 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
               </SelectContent>
             </Select>
 
-            {hasActiveFilters ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="gap-1 text-muted-foreground"
-                onClick={clearFilters}
-              >
-                <X className="size-3.5" aria-hidden />
-                Clear
-              </Button>
-            ) : null}
-
-            <span className="ml-auto text-xs text-muted-foreground tabular-nums">
-              {filtered.length} of {scoped.length}
-            </span>
+            <div className="flex items-center justify-between gap-3 sm:ml-auto">
+              {hasActiveFilters ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1 text-muted-foreground"
+                  onClick={clearFilters}
+                >
+                  <X className="size-3.5" aria-hidden />
+                  Clear
+                </Button>
+              ) : (
+                <span aria-hidden />
+              )}
+              <span className="text-xs tabular-nums text-muted-foreground">
+                {filtered.length} of {scoped.length}
+              </span>
+            </div>
           </div>
         </div>
       )}

@@ -93,6 +93,12 @@ import {
 } from "@/lib/proposal-catalog";
 import { analyzeDiscovery, formatHours } from "@/lib/discovery";
 import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
+import {
+  quoteHasWork,
+  resultFromQuote,
+  tentativeProject,
+} from "@/lib/discovery/from-line-items";
+import { applyPlatformToDiscovery } from "@/lib/discovery/platform-sync";
 import type { DiscoveryFieldId } from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
@@ -253,6 +259,17 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     () => (quote?.discovery ? analyzeDiscovery(quote.discovery) : null),
     [quote?.discovery],
   );
+
+  // Catalog / manual estimates (no guided scope): a tentative timeline from the
+  // line items + add-ons, through the same engine. Recomputes as the quote changes.
+  const catalogResult = React.useMemo(
+    () =>
+      quote && !quote.discovery && quoteHasWork(quote)
+        ? resultFromQuote(quote)
+        : null,
+    [quote],
+  );
+  const tentProject = React.useMemo(() => tentativeProject(), []);
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -545,11 +562,17 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <Label>Platform</Label>
                   <Select
                     value={quote.platform}
-                    onValueChange={(v) =>
-                      updateProposal(quote.id, {
-                        platform: v as ProposalPlatform,
-                      })
-                    }
+                    onValueChange={(v) => {
+                      const platform = v as ProposalPlatform;
+                      updateProposal(quote.id, { platform });
+                      // Keep the guided questionnaire aligned to the platform.
+                      if (quote.discovery) {
+                        setDiscovery(
+                          quote.id,
+                          applyPlatformToDiscovery(quote.discovery, platform),
+                        );
+                      }
+                    }}
                   >
                     <SelectTrigger className="w-full">
                       <SelectValue />
@@ -593,30 +616,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
           {/* ---- GUIDED SCOPE & RISK ---- */}
           <TabsContent value="guided" className="flex flex-col gap-5">
-            {!quote.discovery || !scopeResult ? (
-              <Card>
-                <CardHeader className="items-center gap-2 text-center">
-                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-                    <Compass className="size-6 text-muted-foreground" aria-hidden />
-                  </div>
-                  <CardTitle>Scope this estimate with the questionnaire</CardTitle>
-                  <CardDescription className="max-w-md text-balance">
-                    Answer a guided checklist and we&apos;ll compute Min/Mid/Max
-                    hours, a phased timeline, and a risk score — then generate the
-                    line items for you. Optional: you can also build line items by
-                    hand under Line items.
-                  </CardDescription>
-                  <Button
-                    type="button"
-                    className="mt-2 gap-1.5"
-                    onClick={startGuided}
-                  >
-                    <Compass className="size-4" aria-hidden />
-                    Start guided scoping
-                  </Button>
-                </CardHeader>
-              </Card>
-            ) : (
+            {quote.discovery && scopeResult ? (
               <>
                 <Card>
                   <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
@@ -633,6 +633,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       <span className="tabular-nums text-muted-foreground">
                         ~{scopeResult.timeline.totalWeeks} wks · launch{" "}
                         {scopeResult.timeline.launchDate}
+                      </span>
+                      <span className="text-muted-foreground">
+                        Platform:{" "}
+                        <span className="font-medium text-foreground">
+                          {platformLabel(quote.platform)}
+                        </span>{" "}
+                        <span className="text-xs">(set in Setup)</span>
                       </span>
                     </div>
                     <div className="flex flex-col items-end gap-1">
@@ -685,6 +692,52 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   </TabsContent>
                 </Tabs>
               </>
+            ) : catalogResult ? (
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                  <p className="max-w-md text-sm text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      Tentative timeline
+                    </span>{" "}
+                    — auto-generated from your line items &amp; add-ons, starting
+                    today. Answer the questionnaire for a detailed timeline and a
+                    risk score.
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="gap-1.5"
+                    onClick={startGuided}
+                  >
+                    <Compass className="size-3.5" aria-hidden />
+                    Start guided scoping
+                  </Button>
+                </div>
+                <DiscoveryGantt result={catalogResult} project={tentProject} />
+              </>
+            ) : (
+              <Card>
+                <CardHeader className="items-center gap-2 text-center">
+                  <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+                    <Compass className="size-6 text-muted-foreground" aria-hidden />
+                  </div>
+                  <CardTitle>Scope this estimate to see a timeline</CardTitle>
+                  <CardDescription className="max-w-md text-balance">
+                    Add line items (Line items tab) for a tentative timeline, or
+                    answer the guided questionnaire for Min/Mid/Max hours, a phased
+                    timeline, and a risk score — then generate the line items for you.
+                  </CardDescription>
+                  <Button
+                    type="button"
+                    className="mt-2 gap-1.5"
+                    onClick={startGuided}
+                  >
+                    <Compass className="size-4" aria-hidden />
+                    Start guided scoping
+                  </Button>
+                </CardHeader>
+              </Card>
             )}
           </TabsContent>
 
@@ -802,8 +855,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               ))}
             </div>
 
-            <div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-md">
-              <div className="flex items-center gap-2 text-sm">
+            <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span className="text-muted-foreground">Dev hours</span>
                 <span className="tabular-nums text-base font-semibold">
                   {devHours} h
@@ -822,7 +875,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 type="button"
                 variant="outline"
                 size="sm"
-                className="gap-1.5"
+                className="w-full gap-1.5 sm:w-auto"
                 onClick={() => setTab("adjust")}
               >
                 <SlidersHorizontal className="size-3.5" aria-hidden />
@@ -1105,23 +1158,58 @@ function LineItemRow({
     })
     .filter(Boolean) as string[];
 
+  // Details (tier/base/qty/deps) collapse by default — the summary row stays
+  // scannable, especially on mobile. A freshly-added freehand row (no title yet)
+  // starts expanded so you can set its hours right away.
+  const [open, setOpen] = React.useState(() => !line.title.trim());
+
   return (
-    <div className="flex items-start gap-3 bg-card p-3 transition-colors hover:bg-muted/30">
-      <Badge
-        variant="outline"
-        className="mt-1 h-6 w-9 shrink-0 justify-center tabular-nums"
-      >
-        {index}
-      </Badge>
-      <div className="min-w-0 flex-1 space-y-2.5">
-        <Input
-          value={line.title}
-          placeholder="Work package"
-          onChange={(e) => onChange({ title: e.target.value })}
-          className="h-9"
-        />
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1.5">
+    <div className="bg-card p-3 transition-colors hover:bg-muted/30">
+      {/* Summary — always visible, scannable */}
+      <div className="flex items-center gap-2.5">
+        <Badge
+          variant="outline"
+          className="h-6 w-8 shrink-0 justify-center tabular-nums"
+        >
+          {index}
+        </Badge>
+        <div className="min-w-0 flex-1">
+          <Input
+            value={line.title}
+            placeholder="Work package"
+            onChange={(e) => onChange({ title: e.target.value })}
+            className="h-9"
+          />
+          <p className="mt-1 truncate text-[0.7rem] tabular-nums text-muted-foreground">
+            {tierLabel(shownTier)} · {line.base_hours}h base · ×{line.quantity}
+            {requirementsUnclear ? " · priced Advanced" : ""}
+            {depCount ? ` · needs ${depPositions.join(", ")}` : ""}
+          </p>
+        </div>
+        <div className="shrink-0 text-right leading-none">
+          <span className="tabular-nums text-base font-semibold">{effHours}</span>
+          <span className="text-xs text-muted-foreground">h</span>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          className="shrink-0"
+          aria-expanded={open}
+          aria-label={open ? "Hide details" : "Edit details"}
+          onClick={() => setOpen((o) => !o)}
+        >
+          <ChevronDown
+            className={cn("size-4 transition-transform", open && "rotate-180")}
+            aria-hidden
+          />
+        </Button>
+      </div>
+
+      {/* Details — tier / base / qty / dependency / remove (collapsed by default) */}
+      {open ? (
+        <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-border/60 pt-3">
+          <div className="flex flex-col gap-1">
             <Label
               htmlFor={`tier-${line.id}`}
               className="text-xs text-muted-foreground"
@@ -1133,7 +1221,7 @@ function LineItemRow({
               onValueChange={(v) => onChange({ tier: v as ProposalTier })}
               disabled={requirementsUnclear}
             >
-              <SelectTrigger id={`tier-${line.id}`} className="h-8 w-32">
+              <SelectTrigger id={`tier-${line.id}`} className="h-8 w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1148,12 +1236,12 @@ function LineItemRow({
               </SelectContent>
             </Select>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-1">
             <Label
               htmlFor={`base-${line.id}`}
               className="text-xs text-muted-foreground"
             >
-              Base h
+              Base hours
             </Label>
             <Input
               id={`base-${line.id}`}
@@ -1166,10 +1254,10 @@ function LineItemRow({
                 const n = Number.parseFloat(e.target.value);
                 onChange({ base_hours: Number.isFinite(n) ? n : 0 });
               }}
-              className="h-8 w-20 text-right tabular-nums"
+              className="h-8 w-24 text-right tabular-nums"
             />
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-col gap-1">
             <Label
               htmlFor={`qty-${line.id}`}
               className="text-xs text-muted-foreground"
@@ -1187,94 +1275,86 @@ function LineItemRow({
                 const n = Number.parseInt(e.target.value, 10);
                 onChange({ quantity: Number.isFinite(n) && n > 0 ? n : 1 });
               }}
-              className="h-8 w-16 text-right tabular-nums"
+              className="h-8 w-20 text-right tabular-nums"
             />
           </div>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className={cn(
-                  "h-8 gap-1.5",
-                  missingDep && "border-destructive/40 text-destructive",
-                )}
-                disabled={otherLines.length === 0}
+          <div className="flex flex-1 flex-wrap items-center justify-end gap-2">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={cn(
+                    "h-8 gap-1.5",
+                    missingDep && "border-destructive/40 text-destructive",
+                  )}
+                  disabled={otherLines.length === 0}
+                >
+                  <Link2 className="size-3.5" aria-hidden />
+                  {depCount === 0
+                    ? "Add dependency"
+                    : `Depends on ${depPositions.join(", ")}`}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                align="start"
+                className="max-h-72 w-80 overflow-y-auto"
               >
-                <Link2 className="size-3.5" aria-hidden />
-                {depCount === 0
-                  ? "Add dependency"
-                  : `Depends on ${depPositions.join(", ")}`}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              align="start"
-              className="max-h-72 w-80 overflow-y-auto"
-            >
-              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Requires
-              </p>
-              {otherLines.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Add another line first to link a dependency.
+                <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Requires
                 </p>
-              ) : (
-                <ul className="flex flex-col gap-1">
-                  {otherLines.map((o) => {
-                    const inputId = `dep-${line.id}-${o.id}`;
-                    const checked = line.depends_on.includes(o.id);
-                    const otherIx = allLines.findIndex((li) => li.id === o.id);
-                    return (
-                      <li key={o.id} className="flex items-start gap-2">
-                        <Checkbox
-                          id={inputId}
-                          checked={checked}
-                          onCheckedChange={(v) => {
-                            const next = new Set(line.depends_on);
-                            if (v === true) next.add(o.id);
-                            else next.delete(o.id);
-                            onChange({ depends_on: Array.from(next) });
-                          }}
-                          className="mt-0.5"
-                        />
-                        <Label
-                          htmlFor={inputId}
-                          className="cursor-pointer text-sm font-normal leading-snug"
-                        >
-                          <span className="font-medium">#{otherIx + 1}</span>{" "}
-                          {o.title || "(untitled)"}
-                        </Label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </PopoverContent>
-          </Popover>
+                {otherLines.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Add another line first to link a dependency.
+                  </p>
+                ) : (
+                  <ul className="flex flex-col gap-1">
+                    {otherLines.map((o) => {
+                      const inputId = `dep-${line.id}-${o.id}`;
+                      const checked = line.depends_on.includes(o.id);
+                      const otherIx = allLines.findIndex((li) => li.id === o.id);
+                      return (
+                        <li key={o.id} className="flex items-start gap-2">
+                          <Checkbox
+                            id={inputId}
+                            checked={checked}
+                            onCheckedChange={(v) => {
+                              const next = new Set(line.depends_on);
+                              if (v === true) next.add(o.id);
+                              else next.delete(o.id);
+                              onChange({ depends_on: Array.from(next) });
+                            }}
+                            className="mt-0.5"
+                          />
+                          <Label
+                            htmlFor={inputId}
+                            className="cursor-pointer text-sm font-normal leading-snug"
+                          >
+                            <span className="font-medium">#{otherIx + 1}</span>{" "}
+                            {o.title || "(untitled)"}
+                          </Label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </PopoverContent>
+            </Popover>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground hover:text-destructive"
+              aria-label={`Remove line ${index}`}
+              onClick={onRemove}
+            >
+              <Trash2 className="size-3.5" />
+              Remove
+            </Button>
+          </div>
         </div>
-      </div>
-      <div className="flex shrink-0 flex-col items-end gap-1">
-        <div className="text-right">
-          <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-            Hours
-          </span>
-          <div className="tabular-nums text-base font-semibold">{effHours}</div>
-          <span className="text-[0.65rem] tabular-nums text-muted-foreground">
-            {line.base_hours} × {tierLabel(shownTier)} × {line.quantity}
-          </span>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-destructive"
-          aria-label={`Remove line ${index}`}
-          onClick={onRemove}
-        >
-          <Trash2 className="size-3.5" />
-        </Button>
-      </div>
+      ) : null}
     </div>
   );
 }

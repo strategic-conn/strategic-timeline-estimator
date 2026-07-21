@@ -67,7 +67,10 @@ export function DiscoveryField({
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>
-            {question.options?.map((o) => (
+            {(question.optionsFor
+              ? question.optionsFor(project)
+              : question.options ?? []
+            ).map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>

@@ -43,14 +43,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { usePermissions } from "@/hooks/usePermissions";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -342,67 +334,54 @@ export function AdminInvitesSection() {
           No pending invites. Add an email above to let someone register.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Email</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="hidden sm:table-cell">Added</TableHead>
-                <TableHead className="w-12 text-right" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {pendingRows.map((row) => (
-                <TableRow key={row.email}>
-                  <TableCell className="text-sm font-medium">
-                    {row.email}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <Badge variant="secondary" className="font-normal capitalize">
-                        {row.role}
-                      </Badge>
-                      {row.page_access != null ? (
-                        <span className="text-xs text-muted-foreground">
-                          · custom pages
-                        </span>
-                      ) : null}
-                    </div>
-                  </TableCell>
-                  <TableCell className="hidden text-sm text-muted-foreground sm:table-cell">
-                    {format(new Date(row.created_at), "MMM d, yyyy")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Resend invite to ${row.email}`}
-                        title="Resend invite"
-                        disabled={resending === row.email}
-                        onClick={() => void onResend(row)}
-                      >
-                        <Mail className="size-4" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="text-destructive hover:bg-destructive/10"
-                        aria-label={`Remove invite for ${row.email}`}
-                        onClick={() => setRemoveTarget(row.email)}
-                      >
-                        <Trash2 className="size-4" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+        <ul className="divide-y divide-border rounded-lg border">
+          {pendingRows.map((row) => (
+            <li
+              key={row.email}
+              className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">{row.email}</p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1">
+                  <Badge variant="secondary" className="font-normal capitalize">
+                    {row.role}
+                  </Badge>
+                  {row.page_access != null ? (
+                    <span className="text-xs text-muted-foreground">
+                      · custom pages
+                    </span>
+                  ) : null}
+                  <span className="text-xs text-muted-foreground">
+                    · added {format(new Date(row.created_at), "MMM d, yyyy")}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-1 sm:shrink-0 sm:justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  aria-label={`Resend invite to ${row.email}`}
+                  title="Resend invite"
+                  disabled={resending === row.email}
+                  onClick={() => void onResend(row)}
+                >
+                  <Mail className="size-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="text-destructive hover:bg-destructive/10"
+                  aria-label={`Remove invite for ${row.email}`}
+                  onClick={() => setRemoveTarget(row.email)}
+                >
+                  <Trash2 className="size-4" />
+                </Button>
+              </div>
+            </li>
+          ))}
+        </ul>
       )}
 
       <AlertDialog

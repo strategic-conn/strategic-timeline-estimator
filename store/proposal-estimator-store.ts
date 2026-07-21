@@ -10,6 +10,7 @@ import {
   computeLineHours,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
+import { phaseLabelForLineItem } from "@/lib/discovery/from-line-items";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import { createClient } from "@/lib/supabase/client";
@@ -555,7 +556,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               due_date: undefined,
               estimated_hours: li.hours,
               logged_hours: undefined,
-              tags: [],
+              tags: [phaseLabelForLineItem(li)],
             });
           }
           set((s) => ({
@@ -616,7 +617,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             due_date: null,
             estimated_hours: li.hours,
             logged_hours: null,
-            tags: [] as string[],
+            tags: [phaseLabelForLineItem(li)],
             position: i,
           }));
           const { error: tErr } = await supabase.from("tasks").insert(taskRows);

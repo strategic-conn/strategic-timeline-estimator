@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireAdmin, serverError } from "@/lib/supabase/require-admin";
 
 const VALID_ROLES = ["admin", "manager", "member", "viewer"] as const;
 type Role = (typeof VALID_ROLES)[number];
@@ -16,32 +16,14 @@ export async function POST(request: Request) {
   try {
     return await handleInvite(request);
   } catch (e) {
-    // A raw thrown error serializes to `{}` over JSON — log it and return the
-    // real message so the client shows something actionable.
-    console.error("[/api/invites] unhandled error:", e);
-    const message = e instanceof Error ? e.message : "Unexpected server error.";
-    return NextResponse.json({ error: message }, { status: 500 });
+    return serverError("/api/invites", e);
   }
 }
 
 async function handleInvite(request: Request) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return NextResponse.json({ error: "You're not signed in." }, { status: 401 });
-  }
-
-  // Authorize: only admins may invite (mirrors the allowed_emails RLS).
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .single();
-  if (profile?.role !== "admin") {
-    return NextResponse.json({ error: "Admins only." }, { status: 403 });
-  }
+  const gate = await requireAdmin();
+  if ("error" in gate) return gate.error;
+  const { supabase, admin, user } = gate.ctx;
 
   const body = (await request.json().catch(() => null)) as {
     email?: unknown;
@@ -69,17 +51,6 @@ async function handleInvite(request: Request) {
     return NextResponse.json({ error: "Pick a valid role." }, { status: 400 });
   }
 
-  const admin = createAdminClient();
-  if (!admin) {
-    return NextResponse.json(
-      {
-        error:
-          "Email invites aren't configured on the server (missing SUPABASE_SERVICE_ROLE_KEY).",
-      },
-      { status: 501 },
-    );
-  }
-
   // Record the allowlist entry first so the handle_new_user trigger accepts the
   // signup created by the invite. Upsert keeps the chosen role current.
   const { error: allowErr } = await supabase
@@ -89,7 +60,7 @@ async function handleInvite(request: Request) {
       { onConflict: "email" },
     );
   if (allowErr) {
-    return NextResponse.json({ error: allowErr.message }, { status: 400 });
+    return serverError("/api/invites allowlist", allowErr, 400);
   }
 
   // Send the invite email. The email template links to /auth/confirm (see setup
@@ -122,7 +93,7 @@ async function handleInvite(request: Request) {
   }
 
   if (inviteErr) {
-    return NextResponse.json({ error: inviteErr.message }, { status: 400 });
+    return serverError("/api/invites send", inviteErr, 400);
   }
 
   return NextResponse.json({ ok: true });
