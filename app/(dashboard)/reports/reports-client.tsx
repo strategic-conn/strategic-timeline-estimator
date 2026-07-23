@@ -33,7 +33,7 @@ import {
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
-import { TEAM_MEMBERS } from "@/lib/dummy/tasks.data";
+import { useTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import type { TaskStatus } from "@/types/task.types";
 
@@ -57,6 +57,7 @@ export function ReportsClient() {
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
+  const members = useTeamMembers();
 
   const statusBreakdown = React.useMemo(() => {
     const counts: Record<TaskStatus, number> = {
@@ -92,7 +93,7 @@ export function ReportsClient() {
   }, [projects, tasks, sprints]);
 
   const memberStats = React.useMemo(() => {
-    return TEAM_MEMBERS.map((m) => {
+    return members.map((m) => {
       const assigned = tasks.filter((t) => t.assignee_ids.includes(m.id));
       const done = assigned.filter((t) => t.status === "done").length;
       const logH = assigned.reduce((sum, t) => sum + (t.logged_hours ?? 0), 0);
@@ -103,7 +104,7 @@ export function ReportsClient() {
         logH: Math.round(logH * 10) / 10,
       };
     }).sort((a, b) => b.assigned - a.assigned);
-  }, [tasks]);
+  }, [tasks, members]);
 
   const totalEstimated = Math.round(
     tasks.reduce((s, t) => s + (t.estimated_hours ?? 0), 0)

@@ -5,7 +5,9 @@
  * httpOnly cookies (no token in localStorage). RLS uses `auth.uid()` from this
  * session to scope every query automatically.
  *
- * Seam only — not wired into any route yet. See docs/backend-supabase.md.
+ * Used by lib/supabase/require-admin.ts to authenticate the caller (and check
+ * their role) in the admin API routes: /api/invites, /api/users/[id],
+ * /api/users/[id]/status. See docs/backend-supabase.md.
  */
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";

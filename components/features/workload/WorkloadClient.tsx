@@ -22,14 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import {
   DEFAULT_WEEKLY_CAPACITY_HOURS,
@@ -306,106 +298,100 @@ export function WorkloadClient() {
             </ul>
           </div>
 
-          <div className="overflow-x-auto rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-40">Person</TableHead>
-                  <TableHead className="text-center tabular-nums">Open tasks</TableHead>
-                  <TableHead className="text-right tabular-nums">Est. h</TableHead>
-                  <TableHead className="text-right tabular-nums">This wk</TableHead>
-                  <TableHead className="min-w-32">Utilization</TableHead>
-                  <TableHead className="text-center">Due risk</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {rows.map((r) => (
-                  <TableRow key={r.member.id}>
-                    <TableCell>
-                      <div className="font-medium">{r.member.name}</div>
-                      <div className="mt-0.5 flex items-center gap-1.5 text-xs capitalize text-muted-foreground">
-                        {r.member.role}
-                        {r.pending > 0 ? (
-                          <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[0.6rem] font-medium normal-case text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                            {r.pending} pending
-                          </span>
-                        ) : null}
-                      </div>
-                      {r.breakdown ? (
-                        <p className="mt-2 max-w-md text-xs text-muted-foreground">
-                          {r.breakdown}
-                        </p>
+          <ul className="grid gap-3 xl:grid-cols-2">
+            {rows.map((r) => (
+              <li
+                key={r.member.id}
+                className="flex flex-col gap-3 rounded-lg border bg-card/40 p-3"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{r.member.name}</p>
+                    <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs capitalize text-muted-foreground">
+                      {r.member.role}
+                      {r.pending > 0 ? (
+                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[0.6rem] font-medium normal-case text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                          {r.pending} pending
+                        </span>
                       ) : null}
-                      {r.openTasks.length > 0 ? (
-                        <ul className="mt-2 space-y-1 border-t border-border/60 pt-2">
-                          {r.openTasks.slice(0, 4).map((t) => (
-                            <li key={t.id}>
-                              <Link
-                                href={taskHref(t)}
-                                className="text-xs text-primary underline-offset-2 hover:underline"
-                              >
-                                {t.title}
-                              </Link>
-                              <span className="text-muted-foreground">
-                                {" "}
-                                · est {t.estimated_hours ?? 0}h
-                              </span>
-                            </li>
-                          ))}
-                          {r.openTasks.length > 4 ? (
-                            <li className="text-xs text-muted-foreground">
-                              +{r.openTasks.length - 4} more
-                            </li>
-                          ) : null}
-                        </ul>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-center tabular-nums">
-                      {r.openCount}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums font-medium">
-                      {r.openEst}h
-                    </TableCell>
-                    <TableCell
+                    </div>
+                  </div>
+                  {r.overdue > 0 ? (
+                    <Badge variant="destructive" className="shrink-0 tabular-nums">
+                      {r.overdue} overdue
+                    </Badge>
+                  ) : null}
+                </div>
+
+                <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
+                  <span>
+                    <span className="text-muted-foreground">Open </span>
+                    <span className="font-medium tabular-nums">{r.openCount}</span>
+                  </span>
+                  <span>
+                    <span className="text-muted-foreground">Est. </span>
+                    <span className="font-medium tabular-nums">{r.openEst}h</span>
+                  </span>
+                  <span>
+                    <span className="text-muted-foreground">This wk </span>
+                    <span
                       className={cn(
-                        "text-right tabular-nums",
+                        "font-medium tabular-nums",
                         r.loggedWeek > 0
                           ? "text-foreground"
                           : "text-muted-foreground"
                       )}
                     >
                       {r.loggedWeek}h
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex min-w-28 flex-col gap-1">
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                          <div
-                            className={cn(
-                              "h-full rounded-full transition-all",
-                              r.overCap ? "bg-amber-500" : "bg-primary"
-                            )}
-                            style={{ width: `${r.barVisual}%` }}
-                          />
-                        </div>
-                        <span className="text-xs tabular-nums text-muted-foreground">
-                          {r.utilPct}% of {r.weeklyCap}h
-                        </span>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center">
-                      {r.overdue > 0 ? (
-                        <Badge variant="destructive" className="tabular-nums">
-                          {r.overdue} overdue
-                        </Badge>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">—</span>
+                    </span>
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-1">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        r.overCap ? "bg-amber-500" : "bg-primary"
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
+                      style={{ width: `${r.barVisual}%` }}
+                    />
+                  </div>
+                  <span className="text-xs tabular-nums text-muted-foreground">
+                    {r.utilPct}% of {r.weeklyCap}h
+                  </span>
+                </div>
+
+                {r.breakdown ? (
+                  <p className="text-xs text-muted-foreground">{r.breakdown}</p>
+                ) : null}
+
+                {r.openTasks.length > 0 ? (
+                  <ul className="space-y-1 border-t border-border/60 pt-2">
+                    {r.openTasks.slice(0, 4).map((t) => (
+                      <li key={t.id}>
+                        <Link
+                          href={taskHref(t)}
+                          className="text-xs text-primary underline-offset-2 hover:underline"
+                        >
+                          {t.title}
+                        </Link>
+                        <span className="text-muted-foreground">
+                          {" "}
+                          · est {t.estimated_hours ?? 0}h
+                        </span>
+                      </li>
+                    ))}
+                    {r.openTasks.length > 4 ? (
+                      <li className="text-xs text-muted-foreground">
+                        +{r.openTasks.length - 4} more
+                      </li>
+                    ) : null}
+                  </ul>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
     </div>

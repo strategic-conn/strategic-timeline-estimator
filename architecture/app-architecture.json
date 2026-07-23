@@ -1,0 +1,2995 @@
+{
+  "_readme": "Machine-readable architecture map of the Timeline Estimator & PM tool, for the next agent. layers = diagram columns (left->right) with legend colors. nodes[] = the knowledge graph: {id,layer,label,sub,purpose,files[],tables?,notes?,flags?} — files are repo-relative path[:line]. edges[] = structural {from,to,label} dependency links (node ids). flows[] = ordered runtime paths, each step {n,from,to,action,files[]}. invariants[] = non-obvious rules to preserve when editing. permissionsMatrix mirrors Supabase RLS. Regenerate the HTML from this file (same object is inlined there).",
+  "meta": {
+    "title": "Timeline Estimator & PM Tool — Architecture & Flows",
+    "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
+    "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Tailwind 4 / shadcn",
+    "repoRoot": "timeline-estimator-project-management-tool",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (27 migrations).",
+    "dateMapped": "2026-07-22",
+    "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
+    "redirects": [
+      "/tasks -> /projects",
+      "/projects/[id]/tasks -> /projects/[id]",
+      "/projects/[id]/sprints -> /projects/[id]",
+      "/discovery -> /proposals",
+      "/discovery/[id] -> /proposals"
+    ],
+    "droppedTables": [
+      "discovery_projects (added 0010, dropped 0023 -> merged into proposals.discovery jsonb)"
+    ]
+  },
+  "legend": [
+    {
+      "label": "Actors & roles",
+      "color": "#ec4899"
+    },
+    {
+      "label": "Client surfaces (routes)",
+      "color": "#38bdf8"
+    },
+    {
+      "label": "State & permissions",
+      "color": "#a78bfa"
+    },
+    {
+      "label": "Sync bridge & server seam",
+      "color": "#22d3ee"
+    },
+    {
+      "label": "Supabase Auth · fns · RLS",
+      "color": "#34d399"
+    },
+    {
+      "label": "Postgres data",
+      "color": "#f59e0b"
+    },
+    {
+      "label": "Realtime & Storage",
+      "color": "#818cf8"
+    },
+    {
+      "label": "External services",
+      "color": "#94a3b8"
+    }
+  ],
+  "layers": [
+    {
+      "id": "actors",
+      "title": "Actors & roles",
+      "color": "#ec4899"
+    },
+    {
+      "id": "surfaces",
+      "title": "Client surfaces (routes)",
+      "color": "#38bdf8"
+    },
+    {
+      "id": "state",
+      "title": "State & permissions",
+      "color": "#a78bfa"
+    },
+    {
+      "id": "bridge",
+      "title": "Sync bridge & server seam",
+      "color": "#22d3ee"
+    },
+    {
+      "id": "auth",
+      "title": "Supabase Auth · fns · RLS",
+      "color": "#34d399"
+    },
+    {
+      "id": "data",
+      "title": "Postgres data",
+      "color": "#f59e0b"
+    },
+    {
+      "id": "rt",
+      "title": "Realtime & Storage",
+      "color": "#818cf8"
+    },
+    {
+      "id": "external",
+      "title": "External services",
+      "color": "#94a3b8"
+    }
+  ],
+  "nodes": [
+    {
+      "id": "a-admin",
+      "layer": "actors",
+      "label": "Admin",
+      "sub": "role",
+      "purpose": "Full control: team mgmt, invites, offboarding, delete projects, estimator.",
+      "files": [
+        "store/auth-store.ts:8"
+      ]
+    },
+    {
+      "id": "a-manager",
+      "layer": "actors",
+      "label": "Manager",
+      "sub": "role",
+      "purpose": "Create/edit projects & tasks, estimator, edit others' PTO/skills. No team mgmt, no project delete.",
+      "files": [
+        "hooks/usePermissions.ts:23"
+      ]
+    },
+    {
+      "id": "a-member",
+      "layer": "actors",
+      "label": "Member",
+      "sub": "role",
+      "purpose": "Create/edit tasks, log own hours (accepted assignments only), own PTO/skills.",
+      "files": [
+        "hooks/usePermissions.ts:23"
+      ]
+    },
+    {
+      "id": "a-viewer",
+      "layer": "actors",
+      "label": "Viewer",
+      "sub": "role",
+      "purpose": "Read-only across the app; action buttons hidden entirely, not just disabled.",
+      "files": [
+        "hooks/usePermissions.ts:23"
+      ]
+    },
+    {
+      "id": "a-invitee",
+      "layer": "actors",
+      "label": "Invitee",
+      "sub": "pending state",
+      "purpose": "Invited; profile exists with confirmed_at=null; cannot be assigned work until accepted.",
+      "notes": "Not an app role — a pending team-member state (store/team-store.ts:95). Invite is a single-use link; SafeLinks scanners can burn it.",
+      "flags": {
+        "pending": true
+      }
+    },
+    {
+      "id": "s-landing",
+      "layer": "surfaces",
+      "label": "/",
+      "sub": "app/page.tsx",
+      "purpose": "Marketing splash + InviteHashCatcher (forwards Supabase implicit-flow hash to /accept-invite).",
+      "files": [
+        "app/page.tsx",
+        "components/features/auth/invite-hash-catcher.tsx"
+      ]
+    },
+    {
+      "id": "s-login",
+      "layer": "surfaces",
+      "label": "/login",
+      "sub": "(auth)/login",
+      "purpose": "Email/password sign-in; surfaces ?error=invite_invalid. Demo fakes success.",
+      "files": [
+        "app/(auth)/login/page.tsx:63"
+      ]
+    },
+    {
+      "id": "s-register",
+      "layer": "surfaces",
+      "label": "/register",
+      "sub": "(auth)/register",
+      "purpose": "Static invite-only notice — no self-signup.",
+      "files": [
+        "app/(auth)/register/page.tsx"
+      ]
+    },
+    {
+      "id": "s-forgot",
+      "layer": "surfaces",
+      "label": "/forgot-password",
+      "sub": "(auth)",
+      "purpose": "resetPasswordForEmail; always shows success (no account enumeration).",
+      "files": [
+        "app/(auth)/forgot-password/page.tsx"
+      ]
+    },
+    {
+      "id": "s-authconfirm",
+      "layer": "surfaces",
+      "label": "/auth/confirm",
+      "sub": "app/auth/confirm",
+      "purpose": "Verifies one-time email token on button click (SafeLinks-safe), then routes to ?next.",
+      "files": [
+        "app/auth/confirm/page.tsx:55"
+      ]
+    },
+    {
+      "id": "s-acceptinvite",
+      "layer": "surfaces",
+      "label": "/accept-invite",
+      "sub": "(auth)",
+      "purpose": "Set password after invite/recovery session; updateUser({password}) -> /dashboard.",
+      "files": [
+        "app/(auth)/accept-invite/page.tsx:60"
+      ]
+    },
+    {
+      "id": "s-dashlayout",
+      "layer": "surfaces",
+      "label": "Dashboard shell",
+      "sub": "(dashboard)/layout.tsx",
+      "purpose": "Mounts WorkspaceSync, PageAccessGuard, sidebar/header/mobile nav + NotificationBell.",
+      "files": [
+        "app/(dashboard)/layout.tsx:27"
+      ]
+    },
+    {
+      "id": "s-dashboard",
+      "layer": "surfaces",
+      "label": "/dashboard",
+      "sub": "always-on",
+      "purpose": "KPI cards, work due soon, quick actions, activity feed.",
+      "files": [
+        "app/(dashboard)/dashboard/page.tsx"
+      ]
+    },
+    {
+      "id": "s-projects",
+      "layer": "surfaces",
+      "label": "/projects",
+      "sub": "ProjectsPage",
+      "purpose": "Project grid + create dialog (canCreateProject gates create).",
+      "files": [
+        "components/features/projects/ProjectsPage.tsx"
+      ]
+    },
+    {
+      "id": "s-project",
+      "layer": "surfaces",
+      "label": "/projects/[id]",
+      "sub": "ProjectOverviewPage",
+      "purpose": "Sprint list + backlog entry; canEditProject gates sprint create.",
+      "files": [
+        "components/features/sprints/ProjectOverviewPage.tsx"
+      ]
+    },
+    {
+      "id": "s-board",
+      "layer": "surfaces",
+      "label": "/…/sprints/[sid] · /backlog",
+      "sub": "TasksPage",
+      "purpose": "Kanban/list/table board: task CRUD, assignment accept/reject/pass, comments, time tracker.",
+      "files": [
+        "components/features/tasks/TasksPage.tsx"
+      ]
+    },
+    {
+      "id": "s-projactivity",
+      "layer": "surfaces",
+      "label": "/projects/[id]/activity",
+      "sub": "ActivityFeedClient",
+      "purpose": "Project-scoped activity feed.",
+      "files": [
+        "components/features/activity/ActivityFeedClient.tsx"
+      ]
+    },
+    {
+      "id": "s-activity",
+      "layer": "surfaces",
+      "label": "/activity",
+      "sub": "ActivityFeedClient",
+      "purpose": "Workspace-wide activity feed with project/category/user/search filters.",
+      "files": [
+        "app/(dashboard)/activity/page.tsx"
+      ]
+    },
+    {
+      "id": "s-calendar",
+      "layer": "surfaces",
+      "label": "/calendar",
+      "sub": "calendar-client",
+      "purpose": "Month calendar: task due dates, sprint milestones, PTO.",
+      "files": [
+        "app/(dashboard)/calendar/calendar-client.tsx"
+      ]
+    },
+    {
+      "id": "s-gantt",
+      "layer": "surfaces",
+      "label": "/gantt",
+      "sub": "\"Timeline\" · GanttClient",
+      "purpose": "Read-only schedule/timeline; list fallback on mobile.",
+      "files": [
+        "components/features/gantt/GanttClient.tsx"
+      ]
+    },
+    {
+      "id": "s-workload",
+      "layer": "surfaces",
+      "label": "/workload",
+      "sub": "WorkloadClient",
+      "purpose": "Estimated hrs vs weekly capacity (team) + WorkloadMine (personal).",
+      "files": [
+        "components/features/workload/WorkloadClient.tsx",
+        "components/features/workload/WorkloadMine.tsx"
+      ]
+    },
+    {
+      "id": "s-team",
+      "layer": "surfaces",
+      "label": "/team",
+      "sub": "team-client",
+      "purpose": "Members, inline role change, page-access dialog, skills, invites, deactivate/delete (admin only).",
+      "files": [
+        "app/(dashboard)/team/team-client.tsx",
+        "components/features/settings/AdminInvitesSection.tsx"
+      ]
+    },
+    {
+      "id": "s-settings",
+      "layer": "surfaces",
+      "label": "/settings",
+      "sub": "settings-client",
+      "purpose": "Tabs: Profile · Skills · Time off · Workspace(stub) · Security(stub).",
+      "files": [
+        "app/(dashboard)/settings/settings-client.tsx"
+      ]
+    },
+    {
+      "id": "s-proposals",
+      "layer": "surfaces",
+      "label": "/proposals",
+      "sub": "\"Estimator\" · ProposalsListClient",
+      "purpose": "Quote list + create (guided or manual). Gated by canExportProposals.",
+      "files": [
+        "components/features/proposals/ProposalsListClient.tsx:139"
+      ],
+      "flags": {
+        "gated": "admin/manager (canExportProposals)"
+      }
+    },
+    {
+      "id": "s-propeditor",
+      "layer": "surfaces",
+      "label": "/proposals/[id]",
+      "sub": "ProposalEditorClient",
+      "purpose": "5-tab estimator editor (Setup · Scope & risk · Line items · Adjust · Review) + export + Start project.",
+      "files": [
+        "components/features/proposals/ProposalEditorClient.tsx:365"
+      ],
+      "flags": {
+        "gated": "admin/manager (canExportProposals)"
+      }
+    },
+    {
+      "id": "s-reports",
+      "layer": "surfaces",
+      "label": "/reports",
+      "sub": "reports-client",
+      "purpose": "Workspace stats from live stores (team via team-store). In nav config (workspace group) so PageAccessGuard gates it like other pages.",
+      "files": [
+        "app/(dashboard)/reports/reports-client.tsx"
+      ]
+    },
+    {
+      "id": "s-esther",
+      "layer": "surfaces",
+      "label": "/esther",
+      "sub": "coming soon",
+      "purpose": "Coming-soon card. EstherClient + esther-store exist but are NOT wired to this route.",
+      "files": [
+        "app/(dashboard)/esther/page.tsx"
+      ],
+      "flags": {
+        "planned": true
+      }
+    },
+    {
+      "id": "st-projects",
+      "layer": "state",
+      "label": "projects-store",
+      "sub": "timeline-projects",
+      "purpose": "Projects CRUD; optimistic write-through + snapshot rollback; realtime board appliers.",
+      "files": [
+        "store/projects-store.ts"
+      ],
+      "tables": [
+        "projects"
+      ]
+    },
+    {
+      "id": "st-sprints",
+      "layer": "state",
+      "label": "sprints-store",
+      "sub": "timeline-sprints",
+      "purpose": "Sprints CRUD ordered by position; optimistic + rollback; realtime.",
+      "files": [
+        "store/sprints-store.ts"
+      ],
+      "tables": [
+        "sprints"
+      ]
+    },
+    {
+      "id": "st-tasks",
+      "layer": "state",
+      "label": "tasks-store",
+      "sub": "timeline-tasks",
+      "purpose": "Tasks + assignees + comments + reactions + time_entries; assignment lifecycle; logged hours; 7 realtime appliers.",
+      "files": [
+        "store/tasks-store.ts"
+      ],
+      "tables": [
+        "tasks",
+        "task_assignees",
+        "task_comments",
+        "comment_reactions",
+        "time_entries"
+      ]
+    },
+    {
+      "id": "st-team",
+      "layer": "state",
+      "label": "team-store",
+      "sub": "no persist",
+      "purpose": "Read-only profiles directory + invitee pending state; hydrated live from profiles.",
+      "files": [
+        "store/team-store.ts"
+      ],
+      "tables": [
+        "profiles"
+      ]
+    },
+    {
+      "id": "st-notifications",
+      "layer": "state",
+      "label": "notifications-store",
+      "sub": "timeline-notifications",
+      "purpose": "Personal bell. notify() inserts one row per recipient (excludes actor); realtime filtered to recipient.",
+      "files": [
+        "store/notifications-store.ts:122"
+      ],
+      "tables": [
+        "notifications"
+      ]
+    },
+    {
+      "id": "st-activity",
+      "layer": "state",
+      "label": "activity-store",
+      "sub": "timeline-activity",
+      "purpose": "Workspace feed. log() actor-prefixed, optimistic prepend; realtime streams whole workspace.",
+      "files": [
+        "store/activity-store.ts:123"
+      ],
+      "tables": [
+        "activity"
+      ]
+    },
+    {
+      "id": "st-availability",
+      "layer": "state",
+      "label": "availability-store",
+      "sub": "timeline-availability",
+      "purpose": "PTO/availability CRUD; hydrate-only (no realtime).",
+      "files": [
+        "store/availability-store.ts"
+      ],
+      "tables": [
+        "availability_entries"
+      ]
+    },
+    {
+      "id": "st-capacity",
+      "layer": "state",
+      "label": "weekly-capacity-store",
+      "sub": "timeline-weekly-capacity",
+      "purpose": "Weekly hours/member; upsert onConflict profile_id.",
+      "files": [
+        "store/weekly-capacity-store.ts:81"
+      ],
+      "tables": [
+        "weekly_capacity"
+      ]
+    },
+    {
+      "id": "st-skills",
+      "layer": "state",
+      "label": "member-skills-store",
+      "sub": "timeline-member-skills",
+      "purpose": "Skill confidence 1-5; upsert onConflict profile_id,skill; optimistic sort + rollback.",
+      "files": [
+        "store/member-skills-store.ts:84"
+      ],
+      "tables": [
+        "member_skills"
+      ]
+    },
+    {
+      "id": "st-proposals",
+      "layer": "state",
+      "label": "proposal-estimator-store",
+      "sub": "timeline-proposal-estimator",
+      "purpose": "Quotes CRUD; regenerateLineItems; setProposalStatus; convertToProject. Line math: base×tier(1/1.5/2)×qty + compounding roll-up add-ons.",
+      "files": [
+        "store/proposal-estimator-store.ts",
+        "lib/constants/proposal-estimator.ts:78"
+      ],
+      "tables": [
+        "proposals"
+      ]
+    },
+    {
+      "id": "st-rules",
+      "layer": "state",
+      "label": "discovery rules engine",
+      "sub": "lib/discovery",
+      "purpose": "analyzeDiscovery = computeEstimate (Min/Mid/Max per phase) -> computeTimeline (Gantt, 6h/day) -> computeRisk; proposalDraftFromDiscovery bridge. Derived on the fly, never stored.",
+      "files": [
+        "lib/discovery/index.ts:12",
+        "lib/discovery/engine.ts",
+        "lib/discovery/to-proposal.ts:18"
+      ]
+    },
+    {
+      "id": "st-catalog",
+      "layer": "state",
+      "label": "proposal catalog",
+      "sub": "lib/proposal-catalog",
+      "purpose": "Per-platform catalog rows grouped by module; findMissingDependencies. Source: project-csv xlsx.",
+      "files": [
+        "lib/proposal-catalog/index.ts:74",
+        "lib/proposal-catalog/catalog.json"
+      ]
+    },
+    {
+      "id": "st-auth",
+      "layer": "state",
+      "label": "auth-store",
+      "sub": "timeline-auth (demo)",
+      "purpose": "Session mirror: role, authId, page_access. authId gates every live write. Demo default role = manager.",
+      "files": [
+        "store/auth-store.ts"
+      ]
+    },
+    {
+      "id": "st-taskui",
+      "layer": "state",
+      "label": "task UI + timer stores",
+      "sub": "ephemeral",
+      "purpose": "useTasksStore (selectedTaskId/activeView) + useTaskTimerStore (per-task timers -> appendLoggedHours). Not persisted.",
+      "files": [
+        "hooks/useTasks.ts:16",
+        "hooks/useTasks.ts:28"
+      ]
+    },
+    {
+      "id": "st-navdrawer",
+      "layer": "state",
+      "label": "nav-drawer-store",
+      "sub": "ephemeral",
+      "purpose": "Mobile drawer open state. Not persisted.",
+      "files": [
+        "store/nav-drawer-store.ts"
+      ]
+    },
+    {
+      "id": "st-esther",
+      "layer": "state",
+      "label": "esther-store",
+      "sub": "timeline-esther",
+      "purpose": "Local AI-chat messages. Exists but not wired to a live route.",
+      "files": [
+        "store/esther-store.ts"
+      ],
+      "flags": {
+        "planned": true
+      }
+    },
+    {
+      "id": "h-permissions",
+      "layer": "state",
+      "label": "usePermissions",
+      "sub": "hook",
+      "purpose": "Role -> 10 capability flags. UX mirror of RLS — NOT authoritative; keep in lockstep with 0002_rls.sql.",
+      "files": [
+        "hooks/usePermissions.ts:23"
+      ]
+    },
+    {
+      "id": "h-auth",
+      "layer": "state",
+      "label": "useAuth",
+      "sub": "hook",
+      "purpose": "Only hook calling Supabase Auth directly: signIn / signUp / signOut. Exposes isConfigured.",
+      "files": [
+        "hooks/useAuth.ts:20"
+      ]
+    },
+    {
+      "id": "h-navaccess",
+      "layer": "state",
+      "label": "useNavAccess",
+      "sub": "hook",
+      "purpose": "role + page_access -> allowed nav hrefs (ALWAYS_ON: /dashboard, /settings).",
+      "files": [
+        "hooks/useNavAccess.ts:13",
+        "components/layouts/dashboard-nav-config.tsx:113"
+      ]
+    },
+    {
+      "id": "h-timetrack",
+      "layer": "state",
+      "label": "useTimeTrackingAccess",
+      "sub": "hook",
+      "purpose": "Accepted-assignee / admin gate for logging time.",
+      "files": [
+        "hooks/useTimeTrackingAccess.ts:25"
+      ]
+    },
+    {
+      "id": "b-workspacesync",
+      "layer": "bridge",
+      "label": "WorkspaceSync",
+      "sub": "hydrate + realtime hub",
+      "purpose": "On auth, hydrates all synced stores + opens 3 realtime channels. Gated on isSupabaseConfigured && authId; no-op in demo.",
+      "files": [
+        "components/layouts/workspace-sync.tsx:40"
+      ]
+    },
+    {
+      "id": "b-authprovider",
+      "layer": "bridge",
+      "label": "AuthProvider",
+      "sub": "session -> auth-store",
+      "purpose": "Reads profiles, onAuthStateChange -> applyProfile / resetToDemo. Produces the authId everything gates on.",
+      "files": [
+        "components/layouts/auth-provider.tsx:16"
+      ]
+    },
+    {
+      "id": "b-pageguard",
+      "layer": "bridge",
+      "label": "PageAccessGuard",
+      "sub": "client nav guard",
+      "purpose": "Redirects to /dashboard if current path isn't in the user's accessible href set.",
+      "files": [
+        "components/layouts/page-access-guard.tsx"
+      ]
+    },
+    {
+      "id": "b-config",
+      "layer": "bridge",
+      "label": "isSupabaseConfigured",
+      "sub": "lib/supabase/config.ts",
+      "purpose": "THE demo/live switch: both NEXT_PUBLIC_SUPABASE_* present. Branch point in every store & WorkspaceSync.",
+      "files": [
+        "lib/supabase/config.ts:9"
+      ],
+      "flags": {
+        "modeSwitch": true
+      }
+    },
+    {
+      "id": "b-client",
+      "layer": "bridge",
+      "label": "supabase browser client",
+      "sub": "lib/supabase/client.ts",
+      "purpose": "createBrowserClient (anon key), fresh per call. Transport for every synced store + auth pages.",
+      "files": [
+        "lib/supabase/client.ts:16"
+      ]
+    },
+    {
+      "id": "b-server",
+      "layer": "bridge",
+      "label": "supabase server client",
+      "sub": "lib/supabase/server.ts",
+      "purpose": "createServerClient bound to next/headers cookies. Used by require-admin() to authenticate + role-check the admin API routes.",
+      "files": [
+        "lib/supabase/server.ts"
+      ]
+    },
+    {
+      "id": "b-admin",
+      "layer": "bridge",
+      "label": "supabase admin client",
+      "sub": "lib/supabase/admin.ts",
+      "purpose": "Service-role, server-only, RLS-bypass; null without SUPABASE_SERVICE_ROLE_KEY.",
+      "files": [
+        "lib/supabase/admin.ts"
+      ],
+      "flags": {
+        "serviceRole": true
+      }
+    },
+    {
+      "id": "b-requireadmin",
+      "layer": "bridge",
+      "label": "requireAdmin()",
+      "sub": "lib/supabase/require-admin.ts",
+      "purpose": "Auth + role=admin gate for API routes; returns ctx {supabase,admin,user} or ready 401/403/501.",
+      "files": [
+        "lib/supabase/require-admin.ts:20"
+      ]
+    },
+    {
+      "id": "b-middleware",
+      "layer": "bridge",
+      "label": "updateSession",
+      "sub": "lib/supabase/middleware.ts",
+      "purpose": "Session-cookie refresh + route guards (unauth->/login, authed off /login). No-op without env.",
+      "files": [
+        "lib/supabase/middleware.ts:13"
+      ]
+    },
+    {
+      "id": "b-proxy",
+      "layer": "bridge",
+      "label": "proxy.ts (root)",
+      "sub": "Next 16 middleware",
+      "purpose": "Next 16 renamed middleware -> updateSession on every matched request (matcher skips static assets).",
+      "files": [
+        "proxy.ts"
+      ]
+    },
+    {
+      "id": "b-parseerror",
+      "layer": "bridge",
+      "label": "parseSupabaseError",
+      "sub": "lib/supabase/parse-error.ts",
+      "purpose": "Maps auth/RLS/network errors to friendly strings for toasts (incl. invite-only trigger mask).",
+      "files": [
+        "lib/supabase/parse-error.ts:5"
+      ]
+    },
+    {
+      "id": "api-invites",
+      "layer": "bridge",
+      "label": "POST /api/invites",
+      "sub": "service-role",
+      "purpose": "Admin-only: upsert allowed_emails + inviteUserByEmail; self-heals SafeLinks-burned invites (delete unconfirmed + resend).",
+      "files": [
+        "app/api/invites/route.ts:24"
+      ],
+      "flags": {
+        "serviceRole": true
+      }
+    },
+    {
+      "id": "api-status",
+      "layer": "bridge",
+      "label": "POST /api/users/[id]/status",
+      "sub": "service-role",
+      "purpose": "Admin-only: ban/unban + set/clear profiles.deactivated_at. Guards self + last active admin.",
+      "files": [
+        "app/api/users/[id]/status/route.ts:21"
+      ],
+      "flags": {
+        "serviceRole": true
+      }
+    },
+    {
+      "id": "api-delete",
+      "layer": "bridge",
+      "label": "DELETE /api/users/[id]",
+      "sub": "service-role",
+      "purpose": "Admin-only permanent deleteUser (must be pre-deactivated, not last admin). DB anonymizes via set-null FKs.",
+      "files": [
+        "app/api/users/[id]/route.ts:22"
+      ],
+      "flags": {
+        "serviceRole": true
+      }
+    },
+    {
+      "id": "au-gotrue",
+      "layer": "auth",
+      "label": "Supabase Auth (GoTrue)",
+      "sub": "platform",
+      "purpose": "Password / invite email / recovery / sessions. JWT in httpOnly cookies via @supabase/ssr. Also the email sender.",
+      "files": [
+        ".env.example:9"
+      ]
+    },
+    {
+      "id": "au-rls",
+      "layer": "auth",
+      "label": "RLS + current_user_role()",
+      "sub": "0002_rls.sql",
+      "purpose": "Row-Level Security on all 15 tables — the authoritative authorization wall. usePermissions only mirrors it.",
+      "files": [
+        "supabase/migrations/0002_rls.sql:8"
+      ]
+    },
+    {
+      "id": "au-trgnewuser",
+      "layer": "auth",
+      "label": "handle_new_user",
+      "sub": "trigger on auth.users INSERT",
+      "purpose": "Invite-allowlist gate + profile create (invited role, page_access, confirmed_at). Rejects un-invited emails.",
+      "files": [
+        "supabase/migrations/0021_invite_pending_state.sql:25"
+      ]
+    },
+    {
+      "id": "au-trgconfirm",
+      "layer": "auth",
+      "label": "handle_user_confirmed",
+      "sub": "trigger on email confirm",
+      "purpose": "On email_confirmed_at flip: set profiles.confirmed_at, delete allowlist row.",
+      "files": [
+        "supabase/migrations/0021_invite_pending_state.sql:59"
+      ]
+    },
+    {
+      "id": "au-trgrole",
+      "layer": "auth",
+      "label": "prevent_role_self_change",
+      "sub": "trigger BEFORE UPDATE profiles",
+      "purpose": "Blocks non-admin self-change of role / page_access / deactivated_at (skips NULL-role system writes).",
+      "files": [
+        "supabase/migrations/0027_security_phase1.sql:63"
+      ]
+    },
+    {
+      "id": "au-trghours",
+      "layer": "auth",
+      "label": "prevent_unauthorized_hours",
+      "sub": "trigger BEFORE UPDATE tasks",
+      "purpose": "Only accepted assignee / admin may change tasks.logged_hours.",
+      "files": [
+        "supabase/migrations/0018_logged_hours_guard.sql"
+      ]
+    },
+    {
+      "id": "t-profiles",
+      "layer": "data",
+      "label": "profiles",
+      "sub": "0001 +0013/0019/0021",
+      "purpose": "User dir: role, avatar_url, page_access[], deactivated_at, confirmed_at. PK -> auth.users(id) cascade.",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-projects",
+      "layer": "data",
+      "label": "projects",
+      "sub": "0001",
+      "purpose": "owner_id -> profiles (set null @0020). status active/completed/archived.",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-sprints",
+      "layer": "data",
+      "label": "sprints",
+      "sub": "0001",
+      "purpose": "project_id -> projects (cascade). status, start/end, position.",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-tasks",
+      "layer": "data",
+      "label": "tasks",
+      "sub": "0001",
+      "purpose": "project_id -> projects; sprint_id -> sprints (null=backlog); reporter_id -> profiles. logged_hours (trigger-guarded).",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-assignees",
+      "layer": "data",
+      "label": "task_assignees",
+      "sub": "0001 +0016",
+      "purpose": "PK(task_id,profile_id). status pending/accepted/rejected/passed, assigned_by, responded_at, note.",
+      "files": [
+        "supabase/migrations/0016_task_assignment_lifecycle.sql"
+      ]
+    },
+    {
+      "id": "t-comments",
+      "layer": "data",
+      "label": "task_comments",
+      "sub": "0001 +0003",
+      "purpose": "author_id -> profiles (set null @0020); parent_id self; mentions uuid[].",
+      "files": [
+        "supabase/migrations/0003_comment_mentions.sql"
+      ]
+    },
+    {
+      "id": "t-reactions",
+      "layer": "data",
+      "label": "comment_reactions",
+      "sub": "0001",
+      "purpose": "PK(comment_id,profile_id,emoji).",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-availability",
+      "layer": "data",
+      "label": "availability_entries",
+      "sub": "0001",
+      "purpose": "user_id -> profiles. start/end, kind, note.",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-capacity",
+      "layer": "data",
+      "label": "weekly_capacity",
+      "sub": "0001",
+      "purpose": "PK profile_id. hours_per_week check 1-168.",
+      "files": [
+        "supabase/migrations/0001_init.sql"
+      ]
+    },
+    {
+      "id": "t-notifications",
+      "layer": "data",
+      "label": "notifications",
+      "sub": "0001 +0025",
+      "purpose": "recipient_id, actor_id, project_id, text, href, read. Realtime + RLS recipient-only.",
+      "files": [
+        "supabase/migrations/0025_notifications_actor.sql"
+      ]
+    },
+    {
+      "id": "t-activity",
+      "layer": "data",
+      "label": "activity",
+      "sub": "0006",
+      "purpose": "actor_id, project_id, text, href. Realtime whole workspace; read = all authenticated.",
+      "files": [
+        "supabase/migrations/0006_activity_and_targeted_notifications.sql"
+      ]
+    },
+    {
+      "id": "t-proposals",
+      "layer": "data",
+      "label": "proposals",
+      "sub": "0001 +0015/+0022",
+      "purpose": "owner_id, project_id, platform, line_items jsonb, addons jsonb, discovery jsonb, status draft/sent/approved/rejected.",
+      "files": [
+        "supabase/migrations/0022_proposal_discovery.sql"
+      ]
+    },
+    {
+      "id": "t-timeentries",
+      "layer": "data",
+      "label": "time_entries",
+      "sub": "0017",
+      "purpose": "task_id, profile_id, hours>0. Insert RLS: own AND accepted assignment. tasks.logged_hours is the cache.",
+      "files": [
+        "supabase/migrations/0017_time_entries.sql"
+      ]
+    },
+    {
+      "id": "t-skills",
+      "layer": "data",
+      "label": "member_skills",
+      "sub": "0026",
+      "purpose": "PK(profile_id,skill). confidence 1-5. Write = self OR admin/manager.",
+      "files": [
+        "supabase/migrations/0026_member_skills.sql"
+      ]
+    },
+    {
+      "id": "t-allowed",
+      "layer": "data",
+      "label": "allowed_emails",
+      "sub": "0012 +0014",
+      "purpose": "PK email. role, invited_by, page_access. Admin-only. Consumed + retired by handle_new_user / handle_user_confirmed.",
+      "files": [
+        "supabase/migrations/0012_invite_only.sql"
+      ]
+    },
+    {
+      "id": "rt-notif",
+      "layer": "rt",
+      "label": "channel notifications:{authId}",
+      "sub": "filtered",
+      "purpose": "postgres_changes filtered recipient_id=eq.authId -> notifications-store (insert/update/delete).",
+      "files": [
+        "components/layouts/workspace-sync.tsx:88"
+      ]
+    },
+    {
+      "id": "rt-activity",
+      "layer": "rt",
+      "label": "channel activity:workspace",
+      "sub": "unfiltered",
+      "purpose": "activity INSERT for the whole team -> activity-store.",
+      "files": [
+        "components/layouts/workspace-sync.tsx:118"
+      ]
+    },
+    {
+      "id": "rt-board",
+      "layer": "rt",
+      "label": "channel workspace:board",
+      "sub": "event *",
+      "purpose": "projects/sprints/tasks/assignees/comments/reactions changes -> respective stores. Idempotent appliers dedupe own echoes.",
+      "files": [
+        "components/layouts/workspace-sync.tsx:139"
+      ]
+    },
+    {
+      "id": "rt-storage",
+      "layer": "rt",
+      "label": "Storage: avatars bucket",
+      "sub": "0007 +0011",
+      "purpose": "Public bucket, 5MB, image mime; path <uid>/<file>. ProfileForm upload -> profiles.avatar_url.",
+      "files": [
+        "supabase/migrations/0007_avatars_storage.sql"
+      ]
+    },
+    {
+      "id": "x-email",
+      "layer": "external",
+      "label": "Supabase email (GoTrue SMTP)",
+      "sub": "built-in",
+      "purpose": "Sends invite + recovery emails. No Postmark/Resend/SendGrid/SMTP lib anywhere — built-in only.",
+      "files": [
+        ".env.example:9"
+      ]
+    },
+    {
+      "id": "x-jspdf",
+      "layer": "external",
+      "label": "jsPDF + jspdf-autotable",
+      "sub": "client",
+      "purpose": "Client-side PDF export of a quote (dynamic import).",
+      "files": [
+        "lib/utils/proposal-pdf-export.ts:25"
+      ]
+    },
+    {
+      "id": "x-xlsx",
+      "layer": "external",
+      "label": "xlsx (SheetJS)",
+      "sub": "client",
+      "purpose": "Client-side Excel export of a quote (dynamic import). Only file importing xlsx.",
+      "files": [
+        "lib/utils/proposal-excel-export.ts:21"
+      ]
+    },
+    {
+      "id": "x-dompurify",
+      "layer": "external",
+      "label": "DOMPurify",
+      "sub": "client",
+      "purpose": "Sanitizes mention HTML (span-only, class attr) before render.",
+      "files": [
+        "components/features/tasks/TaskCommentSection.tsx:65"
+      ]
+    },
+    {
+      "id": "x-sonner",
+      "layer": "external",
+      "label": "sonner",
+      "sub": "toasts",
+      "purpose": "Toasts for every store's error/success + one-shot Undo path.",
+      "files": [
+        "components/ui/sonner.tsx",
+        "components/layouts/app-providers.tsx:14"
+      ]
+    },
+    {
+      "id": "x-theme",
+      "layer": "external",
+      "label": "next-themes",
+      "sub": "theming",
+      "purpose": "Light/dark theme.",
+      "files": [
+        "components/theme-provider.tsx"
+      ]
+    },
+    {
+      "id": "x-pravatar",
+      "layer": "external",
+      "label": "i.pravatar.cc",
+      "sub": "demo only",
+      "purpose": "Demo-only avatar seeds; not used in live mode.",
+      "files": [
+        "store/auth-store.ts:56"
+      ],
+      "flags": {
+        "demoOnly": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "from": "a-admin",
+      "to": "s-team",
+      "label": "manages team"
+    },
+    {
+      "from": "a-admin",
+      "to": "s-login",
+      "label": ""
+    },
+    {
+      "from": "a-manager",
+      "to": "s-proposals",
+      "label": "estimator"
+    },
+    {
+      "from": "a-manager",
+      "to": "s-projects",
+      "label": ""
+    },
+    {
+      "from": "a-member",
+      "to": "s-board",
+      "label": "does work"
+    },
+    {
+      "from": "a-viewer",
+      "to": "s-dashboard",
+      "label": "read-only"
+    },
+    {
+      "from": "a-invitee",
+      "to": "s-authconfirm",
+      "label": "confirms invite"
+    },
+    {
+      "from": "s-dashboard",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "s-dashboard",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-dashboard",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-dashboard",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-dashboard",
+      "to": "st-activity",
+      "label": ""
+    },
+    {
+      "from": "s-projects",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-projects",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-project",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-project",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-project",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-project",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "st-taskui",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "h-timetrack",
+      "label": ""
+    },
+    {
+      "from": "s-board",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-projactivity",
+      "to": "st-activity",
+      "label": ""
+    },
+    {
+      "from": "s-projactivity",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-activity",
+      "to": "st-activity",
+      "label": ""
+    },
+    {
+      "from": "s-activity",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-activity",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-calendar",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-calendar",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-calendar",
+      "to": "st-availability",
+      "label": ""
+    },
+    {
+      "from": "s-calendar",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-gantt",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-gantt",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-gantt",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-workload",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-workload",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-workload",
+      "to": "st-capacity",
+      "label": ""
+    },
+    {
+      "from": "s-workload",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "s-team",
+      "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "s-team",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-team",
+      "to": "api-invites",
+      "label": ""
+    },
+    {
+      "from": "s-team",
+      "to": "api-status",
+      "label": ""
+    },
+    {
+      "from": "s-team",
+      "to": "api-delete",
+      "label": ""
+    },
+    {
+      "from": "s-settings",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "s-settings",
+      "to": "st-skills",
+      "label": ""
+    },
+    {
+      "from": "s-settings",
+      "to": "st-availability",
+      "label": ""
+    },
+    {
+      "from": "s-settings",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-proposals",
+      "to": "st-proposals",
+      "label": ""
+    },
+    {
+      "from": "s-proposals",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-proposals",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-propeditor",
+      "to": "st-proposals",
+      "label": ""
+    },
+    {
+      "from": "s-propeditor",
+      "to": "st-rules",
+      "label": ""
+    },
+    {
+      "from": "s-propeditor",
+      "to": "st-catalog",
+      "label": ""
+    },
+    {
+      "from": "s-propeditor",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "s-reports",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "s-reports",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "s-reports",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "b-workspacesync",
+      "label": ""
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "b-pageguard",
+      "label": ""
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "st-notifications",
+      "label": ""
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "h-navaccess",
+      "label": ""
+    },
+    {
+      "from": "s-login",
+      "to": "h-auth",
+      "label": ""
+    },
+    {
+      "from": "s-forgot",
+      "to": "b-client",
+      "label": ""
+    },
+    {
+      "from": "s-acceptinvite",
+      "to": "b-client",
+      "label": ""
+    },
+    {
+      "from": "s-authconfirm",
+      "to": "b-client",
+      "label": ""
+    },
+    {
+      "from": "s-landing",
+      "to": "b-client",
+      "label": ""
+    },
+    {
+      "from": "h-permissions",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "h-navaccess",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "h-navaccess",
+      "to": "h-permissions",
+      "label": ""
+    },
+    {
+      "from": "h-timetrack",
+      "to": "st-auth",
+      "label": ""
+    },
+    {
+      "from": "st-projects",
+      "to": "t-projects",
+      "label": ""
+    },
+    {
+      "from": "st-sprints",
+      "to": "t-sprints",
+      "label": ""
+    },
+    {
+      "from": "st-tasks",
+      "to": "t-tasks",
+      "label": ""
+    },
+    {
+      "from": "st-tasks",
+      "to": "t-assignees",
+      "label": ""
+    },
+    {
+      "from": "st-tasks",
+      "to": "t-comments",
+      "label": ""
+    },
+    {
+      "from": "st-tasks",
+      "to": "t-reactions",
+      "label": ""
+    },
+    {
+      "from": "st-tasks",
+      "to": "t-timeentries",
+      "label": ""
+    },
+    {
+      "from": "st-team",
+      "to": "t-profiles",
+      "label": ""
+    },
+    {
+      "from": "st-notifications",
+      "to": "t-notifications",
+      "label": ""
+    },
+    {
+      "from": "st-activity",
+      "to": "t-activity",
+      "label": ""
+    },
+    {
+      "from": "st-availability",
+      "to": "t-availability",
+      "label": ""
+    },
+    {
+      "from": "st-capacity",
+      "to": "t-capacity",
+      "label": ""
+    },
+    {
+      "from": "st-skills",
+      "to": "t-skills",
+      "label": ""
+    },
+    {
+      "from": "st-proposals",
+      "to": "t-proposals",
+      "label": ""
+    },
+    {
+      "from": "st-proposals",
+      "to": "t-projects",
+      "label": "convertToProject"
+    },
+    {
+      "from": "st-proposals",
+      "to": "t-tasks",
+      "label": "seed backlog"
+    },
+    {
+      "from": "st-rules",
+      "to": "st-proposals",
+      "label": "generate lines"
+    },
+    {
+      "from": "st-catalog",
+      "to": "st-proposals",
+      "label": "add catalog lines"
+    },
+    {
+      "from": "b-proxy",
+      "to": "b-middleware",
+      "label": ""
+    },
+    {
+      "from": "b-middleware",
+      "to": "au-gotrue",
+      "label": "getUser / cookie"
+    },
+    {
+      "from": "b-authprovider",
+      "to": "t-profiles",
+      "label": "load profile"
+    },
+    {
+      "from": "b-authprovider",
+      "to": "st-auth",
+      "label": "applyProfile"
+    },
+    {
+      "from": "b-config",
+      "to": "b-workspacesync",
+      "label": "gates"
+    },
+    {
+      "from": "b-config",
+      "to": "b-client",
+      "label": "gates stores"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-projects",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-sprints",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-tasks",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-team",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-notifications",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-activity",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-availability",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-capacity",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-skills",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-proposals",
+      "label": "hydrate"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "rt-notif",
+      "label": ""
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "rt-activity",
+      "label": ""
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "rt-board",
+      "label": ""
+    },
+    {
+      "from": "b-client",
+      "to": "au-rls",
+      "label": "browser writes pass RLS"
+    },
+    {
+      "from": "b-requireadmin",
+      "to": "b-server",
+      "label": ""
+    },
+    {
+      "from": "b-requireadmin",
+      "to": "b-admin",
+      "label": ""
+    },
+    {
+      "from": "api-invites",
+      "to": "b-requireadmin",
+      "label": ""
+    },
+    {
+      "from": "api-invites",
+      "to": "t-allowed",
+      "label": "upsert"
+    },
+    {
+      "from": "api-invites",
+      "to": "au-gotrue",
+      "label": "inviteUserByEmail"
+    },
+    {
+      "from": "api-status",
+      "to": "b-requireadmin",
+      "label": ""
+    },
+    {
+      "from": "api-status",
+      "to": "au-gotrue",
+      "label": "ban/unban"
+    },
+    {
+      "from": "api-status",
+      "to": "t-profiles",
+      "label": "deactivated_at"
+    },
+    {
+      "from": "api-delete",
+      "to": "b-requireadmin",
+      "label": ""
+    },
+    {
+      "from": "api-delete",
+      "to": "au-gotrue",
+      "label": "deleteUser"
+    },
+    {
+      "from": "api-delete",
+      "to": "t-profiles",
+      "label": "cascade/anonymize"
+    },
+    {
+      "from": "b-parseerror",
+      "to": "x-sonner",
+      "label": ""
+    },
+    {
+      "from": "au-gotrue",
+      "to": "au-trgnewuser",
+      "label": "on INSERT"
+    },
+    {
+      "from": "au-gotrue",
+      "to": "au-trgconfirm",
+      "label": "on confirm"
+    },
+    {
+      "from": "au-gotrue",
+      "to": "x-email",
+      "label": "sends mail"
+    },
+    {
+      "from": "au-trgnewuser",
+      "to": "t-profiles",
+      "label": "create"
+    },
+    {
+      "from": "au-trgnewuser",
+      "to": "t-allowed",
+      "label": "check"
+    },
+    {
+      "from": "au-trgconfirm",
+      "to": "t-profiles",
+      "label": ""
+    },
+    {
+      "from": "au-trgconfirm",
+      "to": "t-allowed",
+      "label": "retire"
+    },
+    {
+      "from": "au-trgrole",
+      "to": "t-profiles",
+      "label": ""
+    },
+    {
+      "from": "au-trghours",
+      "to": "t-tasks",
+      "label": ""
+    },
+    {
+      "from": "au-trghours",
+      "to": "t-assignees",
+      "label": "reads"
+    },
+    {
+      "from": "au-rls",
+      "to": "t-profiles",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-projects",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-sprints",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-tasks",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-assignees",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-comments",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-reactions",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-availability",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-capacity",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-notifications",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-activity",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-proposals",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-timeentries",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-skills",
+      "label": ""
+    },
+    {
+      "from": "au-rls",
+      "to": "t-allowed",
+      "label": ""
+    },
+    {
+      "from": "rt-notif",
+      "to": "st-notifications",
+      "label": ""
+    },
+    {
+      "from": "rt-activity",
+      "to": "st-activity",
+      "label": ""
+    },
+    {
+      "from": "rt-board",
+      "to": "st-projects",
+      "label": ""
+    },
+    {
+      "from": "rt-board",
+      "to": "st-sprints",
+      "label": ""
+    },
+    {
+      "from": "rt-board",
+      "to": "st-tasks",
+      "label": ""
+    },
+    {
+      "from": "rt-storage",
+      "to": "t-profiles",
+      "label": "avatar_url"
+    },
+    {
+      "from": "s-propeditor",
+      "to": "x-jspdf",
+      "label": "PDF"
+    },
+    {
+      "from": "s-propeditor",
+      "to": "x-xlsx",
+      "label": "Excel"
+    },
+    {
+      "from": "s-board",
+      "to": "x-dompurify",
+      "label": "sanitize comments"
+    },
+    {
+      "from": "st-auth",
+      "to": "x-pravatar",
+      "label": "demo avatars"
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "st-navdrawer",
+      "label": "mobile menu"
+    },
+    {
+      "from": "s-esther",
+      "to": "st-esther",
+      "label": "chat state"
+    }
+  ],
+  "flows": [
+    {
+      "id": "f-auth",
+      "name": "Sign in (live) + session guard",
+      "actor": "Any role",
+      "summary": "Password login -> httpOnly-cookie session -> profile mirrored to auth-store -> WorkspaceSync hydrates. proxy.ts refreshes the cookie on every request.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-login",
+          "action": "User submits email + password",
+          "files": [
+            "app/(auth)/login/page.tsx:63"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "s-login",
+          "to": "h-auth",
+          "action": "signIn()",
+          "files": [
+            "hooks/useAuth.ts:27"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "h-auth",
+          "to": "au-gotrue",
+          "action": "signInWithPassword -> JWT stored in httpOnly cookies",
+          "files": []
+        },
+        {
+          "n": 4,
+          "from": "s-login",
+          "to": "s-dashboard",
+          "action": "router.push('/dashboard')",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "b-authprovider",
+          "to": "t-profiles",
+          "action": "onAuthStateChange loads the profile row",
+          "files": [
+            "components/layouts/auth-provider.tsx:31"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "b-authprovider",
+          "to": "st-auth",
+          "action": "applyProfile -> role, authId, page_access",
+          "files": []
+        },
+        {
+          "n": 7,
+          "from": "st-auth",
+          "to": "b-workspacesync",
+          "action": "authId set -> hydrate all stores + open realtime",
+          "files": [
+            "components/layouts/workspace-sync.tsx:61"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "b-proxy",
+          "to": "b-middleware",
+          "action": "every request: updateSession rotates cookie; blocks /login when authed",
+          "files": [
+            "proxy.ts",
+            "lib/supabase/middleware.ts:13"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-invite",
+      "name": "Invite -> onboard",
+      "actor": "Admin + Invitee",
+      "summary": "Admin invites -> allowlist row + GoTrue email -> invitee confirms (OTP on click) -> handle_new_user creates the pending profile -> set password.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-admin",
+          "to": "s-team",
+          "action": "AdminInvitesSection: email, role, page_access",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-team",
+          "to": "api-invites",
+          "action": "POST /api/invites",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "api-invites",
+          "to": "b-requireadmin",
+          "action": "auth + role=admin gate",
+          "files": [
+            "lib/supabase/require-admin.ts:20"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "api-invites",
+          "to": "t-allowed",
+          "action": "upsert allowed_emails {email, role, invited_by, page_access}",
+          "files": [
+            "app/api/invites/route.ts:56"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "api-invites",
+          "to": "au-gotrue",
+          "action": "inviteUserByEmail -> creates auth.users row",
+          "files": [
+            "app/api/invites/route.ts:69"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "au-gotrue",
+          "to": "x-email",
+          "action": "GoTrue sends invite email (link -> /auth/confirm)",
+          "files": []
+        },
+        {
+          "n": 7,
+          "from": "au-gotrue",
+          "to": "au-trgnewuser",
+          "action": "trigger on auth.users INSERT",
+          "files": []
+        },
+        {
+          "n": 8,
+          "from": "au-trgnewuser",
+          "to": "t-profiles",
+          "action": "invite-gate + create profile (confirmed_at=null, invited role)",
+          "files": [
+            "supabase/migrations/0021_invite_pending_state.sql:25"
+          ]
+        },
+        {
+          "n": 9,
+          "from": "a-invitee",
+          "to": "s-authconfirm",
+          "action": "clicks link; verifyOtp fires on button click (SafeLinks-safe)",
+          "files": [
+            "app/auth/confirm/page.tsx:55"
+          ]
+        },
+        {
+          "n": 10,
+          "from": "s-authconfirm",
+          "to": "s-acceptinvite",
+          "action": "session established -> redirect",
+          "files": []
+        },
+        {
+          "n": 11,
+          "from": "s-acceptinvite",
+          "to": "au-gotrue",
+          "action": "updateUser({password})",
+          "files": [
+            "app/(auth)/accept-invite/page.tsx:60"
+          ]
+        },
+        {
+          "n": 12,
+          "from": "au-gotrue",
+          "to": "au-trgconfirm",
+          "action": "email confirmed -> set confirmed_at, delete allowlist row",
+          "files": [
+            "supabase/migrations/0021_invite_pending_state.sql:59"
+          ]
+        },
+        {
+          "n": 13,
+          "from": "s-acceptinvite",
+          "to": "s-dashboard",
+          "action": "redirect to /dashboard",
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "f-reset",
+      "name": "Forgot / reset password",
+      "actor": "Any role",
+      "summary": "Recovery email -> implicit-flow hash caught on landing -> set new password.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-forgot",
+          "action": "enter email",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-forgot",
+          "to": "au-gotrue",
+          "action": "resetPasswordForEmail(redirectTo=origin)",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "au-gotrue",
+          "to": "x-email",
+          "action": "recovery email",
+          "files": []
+        },
+        {
+          "n": 4,
+          "from": "a-member",
+          "to": "s-landing",
+          "action": "clicks link; InviteHashCatcher catches type=recovery hash",
+          "files": [
+            "components/features/auth/invite-hash-catcher.tsx"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "s-landing",
+          "to": "s-acceptinvite",
+          "action": "forward to /accept-invite",
+          "files": []
+        },
+        {
+          "n": 6,
+          "from": "s-acceptinvite",
+          "to": "au-gotrue",
+          "action": "updateUser({password}) -> /dashboard",
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "f-project",
+      "name": "Create project -> sprint -> task",
+      "actor": "Manager/Admin",
+      "summary": "Optimistic write-through at each level; realtime board channel echoes to every member.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-projects",
+          "action": "New project (canCreateProject)",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-projects",
+          "to": "st-projects",
+          "action": "createProject (id = crypto.randomUUID() up front)",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "st-projects",
+          "to": "t-projects",
+          "action": "insert; rollback + toast on RLS error",
+          "files": [
+            "store/projects-store.ts:169"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "st-projects",
+          "to": "st-activity",
+          "action": "pushWorkspaceActivity / notifyUsers",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "a-manager",
+          "to": "s-project",
+          "action": "open overview -> add sprint (canEditProject)",
+          "files": []
+        },
+        {
+          "n": 6,
+          "from": "s-project",
+          "to": "st-sprints",
+          "action": "createSprint",
+          "files": []
+        },
+        {
+          "n": 7,
+          "from": "st-sprints",
+          "to": "t-sprints",
+          "action": "insert",
+          "files": [
+            "store/sprints-store.ts:157"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "a-manager",
+          "to": "s-board",
+          "action": "open sprint board -> create task (canCreateTask)",
+          "files": []
+        },
+        {
+          "n": 9,
+          "from": "s-board",
+          "to": "st-tasks",
+          "action": "createTask (reporter_id pinned to auth.uid by RLS)",
+          "files": [
+            "store/tasks-store.ts:713",
+            "supabase/migrations/0027_security_phase1.sql:26"
+          ]
+        },
+        {
+          "n": 10,
+          "from": "st-tasks",
+          "to": "t-assignees",
+          "action": "syncAssigneeDiff (self -> accepted, others -> pending)",
+          "files": [
+            "store/tasks-store.ts:162"
+          ]
+        },
+        {
+          "n": 11,
+          "from": "rt-board",
+          "to": "st-tasks",
+          "action": "realtime echoes the new task to every member's board",
+          "files": [
+            "components/layouts/workspace-sync.tsx:139"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-assign",
+      "name": "Task assignment: accept / reject / pass",
+      "actor": "Member",
+      "summary": "Assignee responds on the task drawer; server pins assigned_by; realtime syncs the board.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-board",
+          "action": "open TaskDetailDrawer",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-board",
+          "to": "st-tasks",
+          "action": "respondToAssignment('accepted'|'rejected') or passAssignment(peer)",
+          "files": [
+            "store/tasks-store.ts:1439",
+            "store/tasks-store.ts:1508"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "st-tasks",
+          "to": "t-assignees",
+          "action": "accept=update status; reject=delete row; pass=delete self + insert peer pending",
+          "files": [
+            "store/tasks-store.ts:1489"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "st-tasks",
+          "to": "st-activity",
+          "action": "'accepted / declined / passed the task'",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "st-tasks",
+          "to": "st-notifications",
+          "action": "notify assigner (and peer on pass)",
+          "files": []
+        },
+        {
+          "n": 6,
+          "from": "au-rls",
+          "to": "t-assignees",
+          "action": "RLS self-or-admin/manager; insert pins assigned_by=auth.uid",
+          "files": [
+            "supabase/migrations/0016_task_assignment_lifecycle.sql:30",
+            "supabase/migrations/0027_security_phase1.sql:44"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "rt-board",
+          "to": "st-tasks",
+          "action": "realtime assignment upsert/delete",
+          "files": [
+            "components/layouts/workspace-sync.tsx:176"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-time",
+      "name": "Log time -> workload",
+      "actor": "Accepted assignee",
+      "summary": "Only an accepted assignee (or admin) can log hours — enforced by RLS AND a trigger. Feeds personal + team workload.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-board",
+          "action": "timer or manual hours",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-board",
+          "to": "h-timetrack",
+          "action": "gate: accepted assignment or admin",
+          "files": [
+            "hooks/useTimeTrackingAccess.ts:25"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "s-board",
+          "to": "st-tasks",
+          "action": "appendLoggedHours(hours)",
+          "files": []
+        },
+        {
+          "n": 4,
+          "from": "st-tasks",
+          "to": "t-tasks",
+          "action": "logged_hours cache += (trigger-guarded)",
+          "files": [
+            "store/tasks-store.ts:1617",
+            "supabase/migrations/0018_logged_hours_guard.sql"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "st-tasks",
+          "to": "t-timeentries",
+          "action": "insert time_entries {task_id, profile_id, hours}",
+          "files": [
+            "store/tasks-store.ts:1631"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "au-rls",
+          "to": "t-timeentries",
+          "action": "insert only if own AND accepted assignment — managers can't log",
+          "files": [
+            "supabase/migrations/0017_time_entries.sql:27"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "t-timeentries",
+          "to": "s-workload",
+          "action": "WorkloadMine (personal) / WorkloadClient (team) read hours vs capacity",
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "f-notify",
+      "name": "Notifications + activity (realtime)",
+      "actor": "System",
+      "summary": "A domain event fans out to the workspace feed + per-recipient bell; realtime pushes both back to clients.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "s-board",
+          "to": "st-tasks",
+          "action": "e.g. add assignee -> notifyAboutTask + notifyAssigneesUpdated",
+          "files": [
+            "store/tasks-store.ts:1406"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "st-tasks",
+          "to": "st-activity",
+          "action": "pushWorkspaceActivity(summary, href, projectId)",
+          "files": [
+            "lib/activity/workspace-push.ts:8"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "st-tasks",
+          "to": "st-notifications",
+          "action": "notifyUsers(recipientIds, text, href) — excludes actor",
+          "files": [
+            "lib/activity/workspace-push.ts:21"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "st-activity",
+          "to": "t-activity",
+          "action": "insert (actor-prefixed); FK-retry drops project_id",
+          "files": [
+            "store/activity-store.ts:152"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "st-notifications",
+          "to": "t-notifications",
+          "action": "insert one row/recipient with actor_id (no self optimistic add)",
+          "files": [
+            "store/notifications-store.ts:158"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "rt-notif",
+          "to": "st-notifications",
+          "action": "realtime filtered recipient_id=eq.authId",
+          "files": [
+            "components/layouts/workspace-sync.tsx:88"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "rt-activity",
+          "to": "st-activity",
+          "action": "realtime whole-workspace insert",
+          "files": [
+            "components/layouts/workspace-sync.tsx:118"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "st-notifications",
+          "to": "s-dashlayout",
+          "action": "NotificationBell unread badge recomputes",
+          "files": [
+            "components/features/notifications/NotificationBell.tsx:38"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-est-guided",
+      "name": "Estimator — guided scope -> approve -> start project",
+      "actor": "Manager/Admin",
+      "summary": "Questionnaire -> rules engine (Min/Mid/Max + timeline + risk) -> generate line items -> approve -> convertToProject seeds a real backlog.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-proposals",
+          "action": "New estimate (method=guided, platform)",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-proposals",
+          "to": "st-proposals",
+          "action": "createProposal({discovery}) — blank DiscoveryProject + applyPlatformToDiscovery",
+          "files": [
+            "components/features/proposals/ProposalsListClient.tsx:105"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "st-proposals",
+          "to": "t-proposals",
+          "action": "insert (line_items:[], status:draft, discovery set)",
+          "files": [
+            "store/proposal-estimator-store.ts:282"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "s-proposals",
+          "to": "s-propeditor",
+          "action": "router.push('/proposals/'+id); auto-open Scope & risk",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "s-propeditor",
+          "to": "st-rules",
+          "action": "analyzeDiscovery: computeEstimate -> computeTimeline -> computeRisk",
+          "files": [
+            "lib/discovery/index.ts:12"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "s-propeditor",
+          "to": "st-proposals",
+          "action": "DiscoveryWizard edits -> setDiscovery (re-derives)",
+          "files": [
+            "components/features/proposals/ProposalEditorClient.tsx:288"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "st-rules",
+          "to": "st-proposals",
+          "action": "Generate line items -> regenerateLineItems -> proposalDraftFromDiscovery (mid hrs, tier basic, add-ons OFF)",
+          "files": [
+            "store/proposal-estimator-store.ts:459",
+            "lib/discovery/to-proposal.ts:18"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "s-propeditor",
+          "to": "st-proposals",
+          "action": "status draft -> sent -> approved (setProposalStatus)",
+          "files": [
+            "store/proposal-estimator-store.ts:494"
+          ]
+        },
+        {
+          "n": 9,
+          "from": "s-propeditor",
+          "to": "st-proposals",
+          "action": "Start project -> convertToProject({name, seedTasks})",
+          "files": [
+            "store/proposal-estimator-store.ts:525"
+          ]
+        },
+        {
+          "n": 10,
+          "from": "st-proposals",
+          "to": "t-projects",
+          "action": "insert project",
+          "files": [
+            "store/proposal-estimator-store.ts:587"
+          ]
+        },
+        {
+          "n": 11,
+          "from": "st-proposals",
+          "to": "t-tasks",
+          "action": "seed backlog tasks from line_items (estimated_hours=li.hours, tags=[phase])",
+          "files": [
+            "store/proposal-estimator-store.ts:607"
+          ]
+        },
+        {
+          "n": 12,
+          "from": "st-proposals",
+          "to": "t-proposals",
+          "action": "set project_id + status approved",
+          "files": [
+            "store/proposal-estimator-store.ts:632"
+          ]
+        },
+        {
+          "n": 13,
+          "from": "s-propeditor",
+          "to": "s-project",
+          "action": "router.push('/projects/'+projectId)",
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "f-est-catalog",
+      "name": "Estimator — catalog -> quote -> export",
+      "actor": "Manager/Admin",
+      "summary": "Import catalog rows (or freehand) -> compounding roll-up add-ons -> PDF/Excel export.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-proposals",
+          "action": "New estimate (method=manual)",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-proposals",
+          "to": "st-proposals",
+          "action": "createProposal (discovery=null, seeds one empty line)",
+          "files": [
+            "store/proposal-estimator-store.ts:296"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "s-propeditor",
+          "to": "st-catalog",
+          "action": "Browse catalog -> select rows",
+          "files": [
+            "components/features/proposals/ProposalCatalogBrowser.tsx:41"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "st-catalog",
+          "to": "st-proposals",
+          "action": "addLineItemsFromCatalog (base_hours from catalog)",
+          "files": [
+            "store/proposal-estimator-store.ts:693"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "st-catalog",
+          "to": "s-propeditor",
+          "action": "DependencyAlert: findMissingDependencies -> 'Add all'",
+          "files": [
+            "lib/proposal-catalog/index.ts:124"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "s-propeditor",
+          "to": "st-proposals",
+          "action": "line math: base×tier(1/1.5/2)×qty; roll-up add-ons compound responsive->design->qa->pm",
+          "files": [
+            "lib/constants/proposal-estimator.ts:103"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "s-propeditor",
+          "to": "x-jspdf",
+          "action": "downloadProposalPdf (jsPDF + autotable)",
+          "files": [
+            "lib/utils/proposal-pdf-export.ts:25"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "s-propeditor",
+          "to": "x-xlsx",
+          "action": "downloadProposalExcel (SheetJS)",
+          "files": [
+            "lib/utils/proposal-excel-export.ts:21"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-pto",
+      "name": "PTO / availability + capacity",
+      "actor": "Self / Manager",
+      "summary": "PTO entries + weekly capacity feed the calendar and workload views. Editing others needs canEditOthersAvailability.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-settings",
+          "action": "Time off tab (or /calendar)",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-settings",
+          "to": "st-availability",
+          "action": "add/edit/delete PTO",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "st-availability",
+          "to": "t-availability",
+          "action": "insert/update/delete",
+          "files": [
+            "store/availability-store.ts:147"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "a-manager",
+          "to": "s-workload",
+          "action": "MemberWeeklyHoursInput sets capacity",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "s-workload",
+          "to": "st-capacity",
+          "action": "upsert weekly_capacity (onConflict profile_id)",
+          "files": [
+            "store/weekly-capacity-store.ts:81"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "au-rls",
+          "to": "t-availability",
+          "action": "self OR admin/manager",
+          "files": [
+            "supabase/migrations/0002_rls.sql:86"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "st-availability",
+          "to": "s-calendar",
+          "action": "calendar shows PTO alongside due dates + milestones",
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "f-skills",
+      "name": "Member skills (star ratings)",
+      "actor": "Self / Manager",
+      "summary": "1-5 confidence per skill; decoupled from role. Write = self OR admin/manager.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-settings",
+          "action": "Skills tab (self) — or admin/manager on /team",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-settings",
+          "to": "st-skills",
+          "action": "setSkill(profileId, skill, 1-5)",
+          "files": [
+            "components/features/skills/MemberSkillsEditor.tsx"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "st-skills",
+          "to": "t-skills",
+          "action": "upsert onConflict profile_id,skill; optimistic sort + rollback",
+          "files": [
+            "store/member-skills-store.ts:84"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "au-rls",
+          "to": "t-skills",
+          "action": "write = self OR admin/manager",
+          "files": [
+            "supabase/migrations/0026_member_skills.sql:28"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-offboard",
+      "name": "Offboard user (deactivate -> hard delete)",
+      "actor": "Admin",
+      "summary": "Two-tier: deactivate (reversible ban + flag) then optional permanent delete (anonymizes owned rows).",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-admin",
+          "to": "s-team",
+          "action": "Deactivate member",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-team",
+          "to": "api-status",
+          "action": "POST /api/users/[id]/status {deactivate:true}",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "api-status",
+          "to": "au-gotrue",
+          "action": "updateUserById ban_duration (revokes sessions)",
+          "files": [
+            "app/api/users/[id]/status/route.ts:64"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "api-status",
+          "to": "t-profiles",
+          "action": "set deactivated_at (guards: not self, not last active admin)",
+          "files": [
+            "app/api/users/[id]/status/route.ts:71"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "a-admin",
+          "to": "s-team",
+          "action": "Permanent delete (requires prior deactivation)",
+          "files": []
+        },
+        {
+          "n": 6,
+          "from": "s-team",
+          "to": "api-delete",
+          "action": "DELETE /api/users/[id]",
+          "files": []
+        },
+        {
+          "n": 7,
+          "from": "api-delete",
+          "to": "au-gotrue",
+          "action": "deleteUser",
+          "files": [
+            "app/api/users/[id]/route.ts:66"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "au-gotrue",
+          "to": "t-profiles",
+          "action": "cascade delete; owner/reporter/author FKs -> NULL 'Former member'",
+          "files": [
+            "supabase/migrations/0020_hard_delete_anonymize.sql"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-avatar",
+      "name": "Avatar upload (Storage)",
+      "actor": "Self",
+      "summary": "Upload to the public avatars bucket (owner-folder policy), then persist the public URL.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-member",
+          "to": "s-settings",
+          "action": "Profile tab -> upload avatar",
+          "files": []
+        },
+        {
+          "n": 2,
+          "from": "s-settings",
+          "to": "rt-storage",
+          "action": "upload to avatars bucket (path <uid>/<file>, 5MB / image mime)",
+          "files": []
+        },
+        {
+          "n": 3,
+          "from": "rt-storage",
+          "to": "t-profiles",
+          "action": "getPublicUrl -> profiles.avatar_url update",
+          "files": []
+        },
+        {
+          "n": 4,
+          "from": "au-rls",
+          "to": "rt-storage",
+          "action": "owner-folder object policies; public read",
+          "files": [
+            "supabase/migrations/0007_avatars_storage.sql",
+            "supabase/migrations/0011_avatar_bucket_limits.sql"
+          ]
+        }
+      ]
+    }
+  ],
+  "invariants": [
+    "RLS is the authoritative authorization wall (0002_rls.sql +); usePermissions() is a UX mirror only — keep the two in lockstep.",
+    "isSupabaseConfigured is the single demo/live switch. No env -> Zustand + localStorage demo with DUMMY_* seeds. Live -> stores start empty + loading, hydrate via WorkspaceSync; localStorage persists EMPTY (partialize) so Supabase stays the source of truth.",
+    "Live writes are optimistic write-through + structuredClone snapshot rollback; demo writes use a one-shot Undo toast (not a stack).",
+    "Live IDs are crypto.randomUUID() generated client-side up front — no temp->real swap.",
+    "Realtime publishes only 8 tables: notifications, activity, projects, sprints, tasks, task_assignees, task_comments, comment_reactions. proposals / time_entries / member_skills / availability_entries / weekly_capacity / profiles / allowed_emails hydrate on load only.",
+    "Guided estimates ship with add-ons OFF (phases already itemize design/QA/PM) to avoid double counting; risk / timeline / Min-Mid-Max are derived by analyzeDiscovery on the fly, never stored.",
+    "Line math: base_hours × tier (basic 1 / advanced 1.5 / custom 2) × qty. Roll-up add-ons compound: responsive -> design -> qa -> pm. requirements_unclear forces every line to Advanced.",
+    "Time logging is server-enforced: only an accepted assignee (or admin) can log hours (time_entries insert RLS + tasks_guard_hours trigger). Managers/coordinators cannot log hours.",
+    "Invites are single-use GET links; email SafeLinks scanners can burn them, so /auth/confirm verifies the OTP only on button click and /api/invites self-heals a burned invite (delete unconfirmed + resend).",
+    "Privileged ops (invite, ban/unban, hard-delete) never run in the browser — only via 3 service-role API routes behind requireAdmin().",
+    "Hard delete anonymizes: owner/reporter/author FKs are ON DELETE SET NULL ('Former member', 0020). Deactivate is a reversible ban + deactivated_at flag.",
+    "page_access is a per-user href allowlist, orthogonal to role, guarded against self-grant (0027). PageAccessGuard only gates paths present in dashboard-nav-config (gateableNavItems) — a route missing from that list is reachable by any authenticated user.",
+    "Next 16: the root middleware file is proxy.ts (renamed from middleware.ts).",
+    "TanStack Query is installed but NOT wired (no QueryClientProvider) — the synced-store bridge covers caching. There is no lib/api and no axios; supabase-js replaces that layer.",
+    "Esther (AI chat): store + EstherClient exist but the /esther route is coming-soon / unwired.",
+    "Email is Supabase built-in GoTrue only — no Postmark/Resend/SendGrid/SMTP dependency anywhere."
+  ],
+  "permissionsMatrix": {
+    "columns": [
+      "Admin",
+      "Manager",
+      "Member",
+      "Viewer"
+    ],
+    "rows": [
+      {
+        "cap": "Create / edit project",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "0002_rls.sql:38"
+      },
+      {
+        "cap": "Delete project",
+        "v": [
+          "Yes",
+          "No",
+          "No",
+          "No"
+        ],
+        "rls": "0002_rls.sql:42"
+      },
+      {
+        "cap": "Create / edit task",
+        "v": [
+          "Yes",
+          "Yes",
+          "Yes",
+          "No"
+        ],
+        "rls": "0002_rls.sql:55 / 0027:26"
+      },
+      {
+        "cap": "Delete task",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "0002_rls.sql:59"
+      },
+      {
+        "cap": "Manage team (invite/deactivate/delete)",
+        "v": [
+          "Yes",
+          "No",
+          "No",
+          "No"
+        ],
+        "rls": "profiles 0002:31 / allowed_emails 0012:21"
+      },
+      {
+        "cap": "Export proposals + Estimator",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "0002_rls.sql:103"
+      },
+      {
+        "cap": "Edit others' PTO / availability",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "availability 0002:86 / capacity 0002:92"
+      },
+      {
+        "cap": "Edit member skills (self always)",
+        "v": [
+          "Yes",
+          "Yes",
+          "self",
+          "self"
+        ],
+        "rls": "0026_member_skills.sql:28"
+      },
+      {
+        "cap": "Log hours (accepted assignee)",
+        "v": [
+          "Yes",
+          "assignee",
+          "assignee",
+          "No"
+        ],
+        "rls": "time_entries 0017:27 / tasks_guard_hours 0018"
+      },
+      {
+        "cap": "View all content",
+        "v": [
+          "Yes",
+          "Yes",
+          "Yes",
+          "Yes"
+        ],
+        "rls": "select: auth.role()='authenticated'"
+      }
+    ]
+  }
+}

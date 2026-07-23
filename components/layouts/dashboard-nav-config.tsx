@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
+  BarChart3,
   CalendarDays,
   Compass,
   FolderKanban,
@@ -40,6 +41,7 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "workspace" },
   { href: "/projects", label: "Projects", icon: FolderKanban, group: "workspace" },
   { href: "/activity", label: "Activity", icon: Activity, group: "workspace" },
+  { href: "/reports", label: "Reports", icon: BarChart3, group: "workspace" },
   // Plan & people
   { href: "/calendar", label: "Calendar", icon: CalendarDays, group: "plan" },
   { href: "/gantt", label: "Timeline", icon: Milestone, group: "plan" },

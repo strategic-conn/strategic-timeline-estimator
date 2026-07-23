@@ -164,7 +164,7 @@ export function TaskCard({
         {...attributes}
       >
         <div className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex items-start justify-between px-1.5">
-          <div className="pointer-events-auto opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="pointer-events-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -181,7 +181,7 @@ export function TaskCard({
               <TooltipContent side="top">Drag to reorder</TooltipContent>
             </Tooltip>
           </div>
-          <div className="pointer-events-auto flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+          <div className="pointer-events-auto flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
             <div
               className="flex items-center"
               onClick={(e) => e.stopPropagation()}

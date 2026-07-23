@@ -24,6 +24,12 @@ export default function DashboardLayout({
 }>) {
   return (
     <div className="relative flex h-svh min-h-0 w-full overflow-hidden bg-background text-foreground print:h-auto print:min-h-0 print:overflow-visible">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-primary-foreground focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-ring"
+      >
+        Skip to content
+      </a>
       <WorkspaceSync />
       <PageAccessGuard />
       <AppAtmosphere variant="app" />
@@ -66,7 +72,11 @@ export default function DashboardLayout({
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader />
 
-        <main className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] print:overflow-visible print:pb-6 sm:px-4 sm:py-6 md:px-5 md:py-6 md:pb-6 lg:px-6">
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] outline-none print:overflow-visible print:pb-6 sm:px-4 sm:py-6 md:px-5 md:py-6 md:pb-6 lg:px-6"
+        >
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
 
