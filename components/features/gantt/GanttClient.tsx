@@ -65,12 +65,19 @@ function formatEnUS(d: Date, pattern: string) {
   return isValid(d) ? format(d, pattern, { locale: enUS }) : "—";
 }
 
-export function GanttClient() {
+export function GanttClient({
+  lockedProjectId,
+}: {
+  /** When set, the chart is locked to this project and the page header/filter is hidden (for embedding on a project page). */
+  lockedProjectId?: string;
+} = {}) {
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
 
-  const [projectId, setProjectId] = React.useState<ProjectFilter>("all");
+  const [projectId, setProjectId] = React.useState<ProjectFilter>(
+    lockedProjectId ?? "all"
+  );
 
   const projectNameMap = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
@@ -126,6 +133,7 @@ export function GanttClient() {
   return (
     <TooltipProvider delayDuration={400}>
       <div className="flex flex-col gap-6">
+        {!lockedProjectId && (
         <WorkspacePageHeader
           eyebrow="Planning"
           title="Timeline"
@@ -161,6 +169,7 @@ export function GanttClient() {
             </div>
           }
         />
+        )}
 
         <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm dark:bg-card/70">
           <CardHeader className="space-y-3 border-b border-border/50 pb-4">

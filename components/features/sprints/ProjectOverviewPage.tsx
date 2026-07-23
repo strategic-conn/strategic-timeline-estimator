@@ -2,9 +2,18 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Activity, ArrowRight, Inbox, Layers, Link2, Plus } from "lucide-react";
+import {
+  Activity,
+  ArrowRight,
+  CalendarRange,
+  Inbox,
+  Layers,
+  Link2,
+  Plus,
+} from "lucide-react";
 import { toast } from "sonner";
 
+import { GanttClient } from "@/components/features/gantt/GanttClient";
 import { SprintCard } from "@/components/features/sprints/SprintCard";
 import { CreateSprintModal } from "@/components/features/sprints/CreateSprintModal";
 import { EditSprintModal } from "@/components/features/sprints/EditSprintModal";
@@ -24,6 +33,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { useProjectsStore } from "@/store/projects-store";
+import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { backlogHref } from "@/lib/constants/sprints";
 import {
@@ -124,7 +134,14 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
   } = useSprints();
 
   const { tasks } = useTasks();
-  const { canEditProject } = usePermissions();
+  const { canEditProject, canExportProposals } = usePermissions();
+  const linkedQuote = useProposalEstimatorStore((s) =>
+    s.proposals.find((p) => p.project_id === projectId)
+  );
+  const regenerateSchedule = useProposalEstimatorStore(
+    (s) => s.regenerateSchedule
+  );
+  const [syncing, setSyncing] = React.useState(false);
   const projectRecord = useProjectsStore((s) =>
     s.projects.find((p) => p.id === projectId)
   );
@@ -331,6 +348,22 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                 <Link2 className="size-4" aria-hidden />
                 Copy project link
               </Button>
+              {linkedQuote && canExportProposals ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
+                  disabled={syncing}
+                  onClick={async () => {
+                    setSyncing(true);
+                    await regenerateSchedule(projectId);
+                    setSyncing(false);
+                  }}
+                >
+                  <CalendarRange className="size-4" aria-hidden />
+                  {syncing ? "Syncing…" : "Sync schedule from estimate"}
+                </Button>
+              ) : null}
               {canEditProject ? (
                 <Button
                   type="button"
@@ -395,6 +428,25 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             })}
           </section>
         )}
+
+        {projectSprints.length > 0 ? (
+          <section className="flex flex-col gap-3">
+            <div className="space-y-1">
+              <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+                <CalendarRange
+                  className="size-4 shrink-0 text-primary"
+                  aria-hidden
+                />
+                Timeline
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Draft schedule from the estimate. Adjust each sprint&apos;s dates
+                (and assign tasks) to shape the plan the team follows.
+              </p>
+            </div>
+            <GanttClient lockedProjectId={projectId} />
+          </section>
+        ) : null}
       </div>
     </>
   );

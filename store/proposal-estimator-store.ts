@@ -10,7 +10,11 @@ import {
   computeLineHours,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
-import { phaseLabelForLineItem } from "@/lib/discovery/from-line-items";
+import {
+  phaseLabelForLineItem,
+  quoteHasWork,
+  resultFromQuote,
+} from "@/lib/discovery/from-line-items";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import { createClient } from "@/lib/supabase/client";
@@ -18,6 +22,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
 import { useProjectsStore } from "@/store/projects-store";
+import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import type { Database, Json } from "@/types/database.types";
 import { CURRENT_USER_ID } from "@/types/task.types";
@@ -29,6 +34,26 @@ import type {
   ProposalStatus,
   ProposalTier,
 } from "@/types/proposal.types";
+
+/**
+ * Draft schedule from a quote's tentative timeline: one sprint per phase, in
+ * order, carrying the estimate's dates. Managers then adjust these into the
+ * real plan (dates, assignees, hours). Empty when there's no work to schedule.
+ */
+function phaseScaffold(quote: ClientQuote) {
+  const result = quote.discovery
+    ? analyzeDiscovery(quote.discovery)
+    : quoteHasWork(quote)
+      ? resultFromQuote(quote)
+      : null;
+  if (!result) return [];
+  return result.timeline.phases.map((ph) => ({
+    label: ph.label,
+    goal: `~${ph.durationDays} business day${ph.durationDays === 1 ? "" : "s"} (from estimate)`,
+    start_date: ph.startDate,
+    end_date: ph.endDate,
+  }));
+}
 
 type ProposalRow = Database["public"]["Tables"]["proposals"]["Row"];
 
@@ -232,6 +257,12 @@ interface ProposalEstimatorState {
     proposalId: string,
     input: { name: string; seedTasks: boolean },
   ) => Promise<string | null>;
+  /**
+   * Re-apply a linked quote's schedule to its EXISTING project: create any
+   * phase sprints and line-item tasks not already present (dedupe by
+   * name/title). Idempotent — safe to re-run after the quote changes.
+   */
+  regenerateSchedule: (projectId: string) => Promise<void>;
   deleteProposal: (id: string) => void;
   addLineItem: (proposalId: string) => void;
   addLineItemsFromCatalog: (proposalId: string, items: CatalogItem[]) => void;
@@ -542,6 +573,22 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             status: "active",
             owner_id: String(useAuthStore.getState().user.id),
           });
+          // Scaffold the tentative timeline as sprints, then slot tasks in.
+          const sprintsStore = useSprintsStore.getState();
+          const phaseSprint = new Map<string, string>();
+          for (const ph of phaseScaffold(quote)) {
+            phaseSprint.set(
+              ph.label,
+              sprintsStore.createSprint({
+                project_id: projectId,
+                name: ph.label,
+                goal: ph.goal,
+                status: "planning",
+                start_date: ph.start_date,
+                end_date: ph.end_date,
+              }),
+            );
+          }
           const tasksStore = useTasksDataStore.getState();
           for (const li of seeds) {
             tasksStore.createTask({
@@ -552,7 +599,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               assignee_ids: [],
               reporter_id: CURRENT_USER_ID,
               project_id: projectId,
-              sprint_id: null,
+              sprint_id: phaseSprint.get(phaseLabelForLineItem(li)) ?? null,
               due_date: undefined,
               estimated_hours: li.hours,
               logged_hours: undefined,
@@ -604,11 +651,44 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // Optimistically add so navigation lands on a populated project.
         useProjectsStore.getState().applyRealtimeUpsert(projRow);
 
+        // Scaffold the tentative timeline as sprints — awaited before tasks so
+        // the task→sprint FK is satisfied. They stream in via realtime.
+        const phaseSprint = new Map<string, string>();
+        const scaffold = phaseScaffold(quote);
+        if (scaffold.length) {
+          const sprintRows = scaffold.map((ph, i) => ({
+            id: crypto.randomUUID(),
+            project_id: projectId,
+            name: ph.label,
+            goal: ph.goal,
+            status: "planning" as const,
+            start_date: ph.start_date,
+            end_date: ph.end_date,
+            position: i,
+          }));
+          const { data: sData, error: sErr } = await supabase
+            .from("sprints")
+            .insert(sprintRows)
+            .select();
+          if (sErr) {
+            toast.error("Project created, but the schedule didn't seed", {
+              description: parseSupabaseError(sErr),
+            });
+          } else {
+            // Optimistically add so the timeline shows without waiting on realtime.
+            const sprintsStore = useSprintsStore.getState();
+            for (const r of sData) {
+              sprintsStore.applyRealtimeUpsert(r);
+              phaseSprint.set(r.name, r.id);
+            }
+          }
+        }
+
         if (seeds.length) {
           const taskRows = seeds.map((li, i) => ({
             id: crypto.randomUUID(),
             project_id: projectId,
-            sprint_id: null,
+            sprint_id: phaseSprint.get(phaseLabelForLineItem(li)) ?? null,
             title: li.title,
             description: null,
             status: "todo" as const,
@@ -620,13 +700,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             tags: [phaseLabelForLineItem(li)],
             position: i,
           }));
-          const { error: tErr } = await supabase.from("tasks").insert(taskRows);
+          const { data: tData, error: tErr } = await supabase
+            .from("tasks")
+            .insert(taskRows)
+            .select();
           if (tErr) {
             toast.error("Project created, but tasks didn't seed", {
               description: parseSupabaseError(tErr),
             });
+          } else {
+            // Optimistically add so the board/backlog isn't empty pre-realtime.
+            const tasksStore = useTasksDataStore.getState();
+            for (const r of tData) tasksStore.applyRealtimeTaskUpsert(r);
           }
-          // Tasks stream in via realtime (WorkspaceSync board channel).
         }
 
         const { error: qErr } = await supabase
@@ -652,6 +738,144 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         }
         toast.success("Project created from proposal");
         return projectId;
+      },
+
+      regenerateSchedule: async (projectId) => {
+        const quote = get().proposals.find((p) => p.project_id === projectId);
+        if (!quote) {
+          toast.error("No estimate is linked to this project.");
+          return;
+        }
+        const scaffold = phaseScaffold(quote);
+        const seeds = quote.line_items.filter((li) => li.title.trim());
+        if (!scaffold.length && !seeds.length) {
+          toast.error("This estimate has no work to schedule yet.");
+          return;
+        }
+
+        const sprintsState = useSprintsStore.getState();
+        const tasksState = useTasksDataStore.getState();
+        // Dedupe against what's already on the project (idempotent re-runs).
+        const sprintByName = new Map(
+          sprintsState.sprints
+            .filter((s) => s.project_id === projectId)
+            .map((s) => [s.name, s.id] as [string, string]),
+        );
+        const existingTitles = new Set(
+          tasksState.tasks
+            .filter((t) => t.project_id === projectId)
+            .map((t) => t.title),
+        );
+        const newPhases = scaffold.filter((ph) => !sprintByName.has(ph.label));
+        const newSeeds = seeds.filter((li) => !existingTitles.has(li.title));
+        if (!newPhases.length && !newSeeds.length) {
+          toast.info("Schedule is already up to date with the estimate.");
+          return;
+        }
+
+        // ── Demo: store methods are already optimistic + synchronous. ──
+        if (!isSupabaseConfigured) {
+          for (const ph of newPhases) {
+            sprintByName.set(
+              ph.label,
+              sprintsState.createSprint({
+                project_id: projectId,
+                name: ph.label,
+                goal: ph.goal,
+                status: "planning",
+                start_date: ph.start_date,
+                end_date: ph.end_date,
+              }),
+            );
+          }
+          for (const li of newSeeds) {
+            tasksState.createTask({
+              title: li.title,
+              description: undefined,
+              status: "todo",
+              priority: "medium",
+              assignee_ids: [],
+              reporter_id: CURRENT_USER_ID,
+              project_id: projectId,
+              sprint_id: sprintByName.get(phaseLabelForLineItem(li)) ?? null,
+              due_date: undefined,
+              estimated_hours: li.hours,
+              logged_hours: undefined,
+              tags: [phaseLabelForLineItem(li)],
+            });
+          }
+          toast.success("Schedule synced from the estimate");
+          return;
+        }
+
+        // ── Live: sprints first (awaited) so the task→sprint FK holds. ──
+        const ownerId = useAuthStore.getState().user.authId;
+        if (!ownerId) {
+          toast.error("You need to be signed in.");
+          return;
+        }
+        const supabase = createClient();
+
+        if (newPhases.length) {
+          const base = sprintsState.sprints.filter(
+            (s) => s.project_id === projectId,
+          ).length;
+          const rows = newPhases.map((ph, i) => ({
+            id: crypto.randomUUID(),
+            project_id: projectId,
+            name: ph.label,
+            goal: ph.goal,
+            status: "planning" as const,
+            start_date: ph.start_date,
+            end_date: ph.end_date,
+            position: base + i,
+          }));
+          const { data, error } = await supabase
+            .from("sprints")
+            .insert(rows)
+            .select();
+          if (error) {
+            toast.error("Couldn't create sprints", {
+              description: parseSupabaseError(error),
+            });
+          } else {
+            for (const r of data) {
+              sprintsState.applyRealtimeUpsert(r);
+              sprintByName.set(r.name, r.id);
+            }
+          }
+        }
+
+        if (newSeeds.length) {
+          const rows = newSeeds.map((li, i) => ({
+            id: crypto.randomUUID(),
+            project_id: projectId,
+            sprint_id: sprintByName.get(phaseLabelForLineItem(li)) ?? null,
+            title: li.title,
+            description: null,
+            status: "todo" as const,
+            priority: "medium" as const,
+            reporter_id: ownerId,
+            due_date: null,
+            estimated_hours: li.hours,
+            logged_hours: null,
+            tags: [phaseLabelForLineItem(li)],
+            position: i,
+          }));
+          const { data, error } = await supabase
+            .from("tasks")
+            .insert(rows)
+            .select();
+          if (error) {
+            toast.error("Couldn't seed tasks", {
+              description: parseSupabaseError(error),
+            });
+          } else {
+            for (const r of data) tasksState.applyRealtimeTaskUpsert(r);
+          }
+        }
+
+        toast.success("Schedule synced from the estimate");
       },
 
       deleteProposal: (id) => {

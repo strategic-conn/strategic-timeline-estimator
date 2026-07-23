@@ -60,7 +60,7 @@ interface SprintsState {
   applyRealtimeUpsert: (row: SprintRow) => void;
   /** Remove a realtime-deleted sprint by id. */
   applyRealtimeDelete: (id: string) => void;
-  createSprint: (payload: CreateSprintInput) => void;
+  createSprint: (payload: CreateSprintInput) => string;
   updateSprint: (id: string, partial: Partial<Sprint>) => void;
   deleteSprint: (id: string) => void;
   setSprintStatus: (id: string, status: SprintStatus) => void;
@@ -136,13 +136,13 @@ export const useSprintsStore = create<SprintsState>()(
             sprintTasksHref(next.project_id, id),
             next.project_id,
           );
-          return;
+          return id;
         }
 
+        // Real id client-side so an immediately-opened sprint board never
+        // routes on a throwaway id (see projects-store for the rationale).
+        const id = crypto.randomUUID();
         void (async () => {
-          // Real id client-side so an immediately-opened sprint board never
-          // routes on a throwaway id (see projects-store for the rationale).
-          const id = crypto.randomUUID();
           const optimistic: Sprint = {
             ...payload,
             id,
@@ -186,6 +186,7 @@ export const useSprintsStore = create<SprintsState>()(
             saved.project_id,
           );
         })();
+        return id;
       },
 
       updateSprint: (id, partial) => {
