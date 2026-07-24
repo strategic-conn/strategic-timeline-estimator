@@ -31,9 +31,13 @@ export async function GET(req: Request) {
   const state = url.searchParams.get("state");
   const cookieStore = await cookies();
   const expected = cookieStore.get("zoho_oauth_state")?.value;
-  if (!code || !state || !expected || state !== expected) {
-    return back("badstate");
-  }
+
+  // Opened directly (no OAuth params) — the usual cause of a "failed" callback.
+  // Not an error: this URL is only ever reached via Zoho's redirect.
+  if (!code && !state) return back("notstarted");
+  // Zoho sent us back, but our CSRF cookie is gone (expired >10min, or blocked).
+  if (!expected) return back("statemissing");
+  if (!code || !state || state !== expected) return back("badstate");
 
   const accountsServer =
     url.searchParams.get("accounts-server") || zohoConfig.accountsDomain;

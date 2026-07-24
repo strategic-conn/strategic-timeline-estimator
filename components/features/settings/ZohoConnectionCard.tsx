@@ -23,6 +23,10 @@ type Status = {
 const REDIRECT_MESSAGES: Record<string, string> = {
   connected: "Zoho CRM connected.",
   denied: "Zoho connection was cancelled.",
+  notstarted:
+    "Use the “Connect Zoho CRM” button below — the callback URL can't be opened directly.",
+  statemissing:
+    "The connection attempt expired. Click “Connect Zoho CRM” and finish within 10 minutes.",
   badstate: "Connection failed a security check — please try again.",
   exchangefailed:
     "Zoho rejected the token exchange — check the client ID/secret and that the redirect URI matches exactly.",
@@ -54,6 +58,7 @@ export function ZohoConnectionCard() {
     const outcome = params.get("zoho");
     if (!outcome) return;
     if (outcome === "connected") toast.success(REDIRECT_MESSAGES[outcome]);
+    else if (outcome === "notstarted") toast.info(REDIRECT_MESSAGES[outcome]);
     else toast.error(REDIRECT_MESSAGES[outcome] ?? "Zoho connection issue.");
     const url = new URL(window.location.href);
     url.searchParams.delete("zoho");
