@@ -1,10 +1,12 @@
 "use client";
 
+import * as React from "react";
 import { Building2, CalendarOff, Lock, Star, User } from "lucide-react";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
 import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
+import { ZohoConnectionCard } from "@/components/features/settings/ZohoConnectionCard";
 import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import {
   Card,
@@ -20,6 +22,14 @@ import { useAuthStore } from "@/store/auth-store";
 
 export function SettingsClient() {
   const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
+  const isAdmin = useAuthStore((s) => s.user.role) === "admin";
+  // Land on Workspace after the Zoho OAuth redirect (?zoho=...).
+  const [defaultTab] = React.useState(() =>
+    typeof window !== "undefined" &&
+    new URLSearchParams(window.location.search).has("zoho")
+      ? "workspace"
+      : "profile",
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -29,7 +39,7 @@ export function SettingsClient() {
         description="Manage your profile and preview where workspace and security settings will live."
       />
 
-      <Tabs defaultValue="profile" className="w-full gap-6">
+      <Tabs defaultValue={defaultTab} className="w-full gap-6">
         <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:justify-center dark:bg-muted/30 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger
             value="profile"
@@ -98,9 +108,11 @@ export function SettingsClient() {
         </TabsContent>
 
         <TabsContent value="workspace" className="mt-0 outline-none">
-          <Card>
-            <CardHeader>
-              <CardTitle>Workspace</CardTitle>
+          <div className="space-y-6">
+            {isAdmin ? <ZohoConnectionCard /> : null}
+            <Card>
+              <CardHeader>
+                <CardTitle>Workspace</CardTitle>
               <CardDescription>
                 Placeholder layout — no API yet. Typical fields: workspace name, default
                 timezone, week start, and notification defaults.
@@ -125,7 +137,8 @@ export function SettingsClient() {
                 above already persist locally for the signed-in demo user.
               </p>
             </CardContent>
-          </Card>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="security" className="mt-0 outline-none">

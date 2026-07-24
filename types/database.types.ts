@@ -681,6 +681,50 @@ export type Database = {
           },
         ]
       }
+      zoho_connection: {
+        Row: {
+          access_token: string | null
+          accounts_server: string
+          api_domain: string
+          connected_at: string
+          connected_by: string | null
+          expires_at: string | null
+          id: boolean
+          refresh_token: string
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          accounts_server?: string
+          api_domain?: string
+          connected_at?: string
+          connected_by?: string | null
+          expires_at?: string | null
+          id?: boolean
+          refresh_token: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          accounts_server?: string
+          api_domain?: string
+          connected_at?: string
+          connected_by?: string | null
+          expires_at?: string | null
+          id?: boolean
+          refresh_token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "zoho_connection_connected_by_fkey"
+            columns: ["connected_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
