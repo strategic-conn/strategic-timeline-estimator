@@ -6,6 +6,7 @@ import {
   Activity,
   ArrowRight,
   CalendarRange,
+  ChevronDown,
   Inbox,
   Layers,
   Link2,
@@ -20,6 +21,12 @@ import { EditSprintModal } from "@/components/features/sprints/EditSprintModal";
 import { DeleteSprintDialog } from "@/components/features/sprints/DeleteSprintDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Card,
   CardContent,
@@ -142,6 +149,11 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     (s) => s.regenerateSchedule
   );
   const [syncing, setSyncing] = React.useState(false);
+  const runSync = async (strategy?: "efficient" | "quick") => {
+    setSyncing(true);
+    await regenerateSchedule(projectId, strategy);
+    setSyncing(false);
+  };
   const projectRecord = useProjectsStore((s) =>
     s.projects.find((p) => p.id === projectId)
   );
@@ -349,20 +361,46 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                 Copy project link
               </Button>
               {linkedQuote && canExportProposals ? (
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
-                  disabled={syncing}
-                  onClick={async () => {
-                    setSyncing(true);
-                    await regenerateSchedule(projectId);
-                    setSyncing(false);
-                  }}
-                >
-                  <CalendarRange className="size-4" aria-hidden />
-                  {syncing ? "Syncing…" : "Sync schedule from estimate"}
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
+                      disabled={syncing}
+                    >
+                      <CalendarRange className="size-4" aria-hidden />
+                      {syncing ? "Syncing…" : "Sync schedule from estimate"}
+                      <ChevronDown className="size-4 opacity-70" aria-hidden />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuItem onSelect={() => void runSync("efficient")}>
+                      <span className="flex flex-col">
+                        <span className="font-medium">Best-fit &amp; auto-assign</span>
+                        <span className="text-xs text-muted-foreground">
+                          Highest-skilled available person per task
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void runSync("quick")}>
+                      <span className="flex flex-col">
+                        <span className="font-medium">Fastest &amp; auto-assign</span>
+                        <span className="text-xs text-muted-foreground">
+                          Spread across qualified devs to finish soonest
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => void runSync(undefined)}>
+                      <span className="flex flex-col">
+                        <span className="font-medium">Dates only</span>
+                        <span className="text-xs text-muted-foreground">
+                          Fill missing sprints/tasks, don&apos;t assign anyone
+                        </span>
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               ) : null}
               {canEditProject ? (
                 <Button

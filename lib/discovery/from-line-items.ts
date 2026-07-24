@@ -38,6 +38,17 @@ export function phaseLabelForLineItem(li: ProposalLineItem): string {
   return PHASE_META.development.label;
 }
 
+/** The delivery-phase id for a line item (for the assignment engine). */
+export function phaseIdForLineItem(li: ProposalLineItem): PhaseId {
+  if (li.module && li.module in PHASE_LABEL_TO_ID) return PHASE_LABEL_TO_ID[li.module];
+  return "development";
+}
+
+/** Reverse of PHASE_META label → id (e.g. a sprint name back to its phase). */
+export function phaseIdFromLabel(label: string): PhaseId | null {
+  return PHASE_LABEL_TO_ID[label] ?? null;
+}
+
 function mkTask(
   id: string,
   phaseId: PhaseId,

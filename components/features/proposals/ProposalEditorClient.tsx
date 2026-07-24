@@ -184,6 +184,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertName, setConvertName] = React.useState("");
   const [convertSeedTasks, setConvertSeedTasks] = React.useState(true);
+  const [convertStrategy, setConvertStrategy] = React.useState<
+    "efficient" | "quick" | "none"
+  >("efficient");
   const [converting, setConverting] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -345,6 +348,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     if (!quote) return;
     setConvertName(quote.title);
     setConvertSeedTasks(true);
+    setConvertStrategy("efficient");
     setConvertOpen(true);
   };
 
@@ -354,6 +358,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     const id = await convertToProject(quote.id, {
       name: convertName,
       seedTasks: convertSeedTasks,
+      strategy:
+        convertSeedTasks && convertStrategy !== "none"
+          ? convertStrategy
+          : undefined,
     });
     setConverting(false);
     if (id) {
@@ -1025,12 +1033,44 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               <span>
                 <span className="font-medium">Create tasks from line items</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {quote.line_items.filter((li) => li.title.trim()).length} backlog
-                  task(s) will be created, each with its estimated hours. You can
-                  organise them into sprints and assign developers afterward.
+                  {quote.line_items.filter((li) => li.title.trim()).length}{" "}
+                  task(s) will be created, each with its estimated hours, and
+                  slotted into phase sprints.
                 </span>
               </span>
             </label>
+            {convertSeedTasks ? (
+              <div className="space-y-1.5">
+                <Label>Auto-assign developers &amp; build the timeline</Label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      ["efficient", "Best-fit"],
+                      ["quick", "Fastest"],
+                      ["none", "Manual"],
+                    ] as const
+                  ).map(([val, label]) => (
+                    <Button
+                      key={val}
+                      type="button"
+                      size="sm"
+                      variant={convertStrategy === val ? "default" : "outline"}
+                      className="h-9"
+                      onClick={() => setConvertStrategy(val)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {convertStrategy === "efficient"
+                    ? "Assigns each dev & QA task to the best-skilled available person; sprint dates follow their capacity."
+                    : convertStrategy === "quick"
+                      ? "Spreads work across every qualified dev to finish soonest."
+                      : "Tasks are created unassigned — you'll assign people yourself."}
+                </p>
+              </div>
+            ) : null}
           </div>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button

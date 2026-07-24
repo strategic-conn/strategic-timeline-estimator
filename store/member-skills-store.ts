@@ -9,6 +9,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { clampConfidence, skillKey, type MemberSkill } from "@/types/skill.types";
+import { DEMO_MEMBER_SKILLS } from "@/lib/dummy/tasks.data";
 
 /** Skills keyed by profile id → list of { skill, confidence }. */
 type SkillMap = Record<string, MemberSkill[]>;
@@ -33,7 +34,7 @@ type MemberSkillsState = {
 export const useMemberSkillsStore = create<MemberSkillsState>()(
   persist(
     (set, get) => ({
-      skills: {},
+      skills: isSupabaseConfigured ? {} : DEMO_MEMBER_SKILLS,
       loading: isSupabaseConfigured,
       loaded: !isSupabaseConfigured,
       error: null,
@@ -131,7 +132,7 @@ export const useMemberSkillsStore = create<MemberSkillsState>()(
     }),
     {
       name: "timeline-member-skills",
-      version: 1,
+      version: 2,
       // Live skills live in Supabase (re-fetched on load); demo persists locally.
       partialize: (s) =>
         isSupabaseConfigured ? { skills: {} } : { skills: s.skills },
@@ -142,7 +143,12 @@ export const useMemberSkillsStore = create<MemberSkillsState>()(
             skills: {},
           } as unknown as MemberSkillsState;
         }
-        return persisted as MemberSkillsState;
+        // Demo: seed the dev roster, but never clobber skills the user edited.
+        const p = persisted as MemberSkillsState | undefined;
+        return {
+          ...(p ?? {}),
+          skills: { ...DEMO_MEMBER_SKILLS, ...(p?.skills ?? {}) },
+        } as unknown as MemberSkillsState;
       },
     },
   ),

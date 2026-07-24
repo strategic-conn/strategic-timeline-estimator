@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
+import { DEMO_WEEKLY_HOURS } from "@/lib/dummy/tasks.data";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
@@ -44,7 +45,7 @@ type WeeklyCapacityState = {
 export const useWeeklyCapacityStore = create<WeeklyCapacityState>()(
   persist(
     (set, get) => ({
-      overrides: {},
+      overrides: isSupabaseConfigured ? {} : DEMO_WEEKLY_HOURS,
       loading: isSupabaseConfigured,
       loaded: !isSupabaseConfigured,
       error: null,
@@ -104,7 +105,7 @@ export const useWeeklyCapacityStore = create<WeeklyCapacityState>()(
     }),
     {
       name: "timeline-weekly-capacity",
-      version: 2,
+      version: 3,
       partialize: (s) =>
         isSupabaseConfigured ? { overrides: {} } : { overrides: s.overrides },
       migrate: (persisted) => {
@@ -114,7 +115,12 @@ export const useWeeklyCapacityStore = create<WeeklyCapacityState>()(
             overrides: {},
           } as unknown as WeeklyCapacityState;
         }
-        return persisted as WeeklyCapacityState;
+        // Demo: seed dev hours, but keep any the user already set.
+        const p = persisted as WeeklyCapacityState | undefined;
+        return {
+          ...(p ?? {}),
+          overrides: { ...DEMO_WEEKLY_HOURS, ...(p?.overrides ?? {}) },
+        } as unknown as WeeklyCapacityState;
       },
     }
   )

@@ -1,13 +1,59 @@
 import type { Task, TeamMember } from "@/types/task.types";
 
+// Demo team = the real dev roster, so the auto-assignment engine can be tested
+// end-to-end without creating accounts. Ids stay "1".."6" so existing demo
+// tasks/projects that reference them keep working. `confirmed_at` marks them as
+// joined (eligible for assignment + active-member pickers).
+const DEMO_JOINED = "2026-01-05T00:00:00.000Z";
 export const TEAM_MEMBERS: TeamMember[] = [
-  { id: "1", name: "Ana Reyes", email: "ana@company.com", role: "admin", avatar_url: "https://i.pravatar.cc/40?u=1", initials: "AR", avatarColor: "#6366f1" },
-  { id: "2", name: "Ben Cruz", email: "ben@company.com", role: "manager", avatar_url: "https://i.pravatar.cc/40?u=2", initials: "BC", avatarColor: "#0ea5e9" },
-  { id: "3", name: "Claire Santos", email: "claire@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=3", initials: "CS", avatarColor: "#f59e0b" },
-  { id: "4", name: "Diego Lim", email: "diego@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=4", initials: "DL", avatarColor: "#10b981" },
-  { id: "5", name: "Eva Torres", email: "eva@company.com", role: "viewer", avatar_url: "https://i.pravatar.cc/40?u=5", initials: "ET", avatarColor: "#ec4899" },
-  { id: "6", name: "Felix Gomez", email: "felix@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=6", initials: "FG", avatarColor: "#8b5cf6" },
+  { id: "1", name: "Daniel", email: "daniel@company.com", role: "admin", avatar_url: "https://i.pravatar.cc/40?u=1", initials: "DA", avatarColor: "#6366f1", confirmed_at: DEMO_JOINED },
+  { id: "2", name: "Francis Jan", email: "francis@company.com", role: "manager", avatar_url: "https://i.pravatar.cc/40?u=2", initials: "FJ", avatarColor: "#0ea5e9", confirmed_at: DEMO_JOINED },
+  { id: "3", name: "Martin", email: "martin@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=3", initials: "MA", avatarColor: "#f59e0b", confirmed_at: DEMO_JOINED },
+  { id: "4", name: "Arvin", email: "arvin@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=4", initials: "AR", avatarColor: "#10b981", confirmed_at: DEMO_JOINED },
+  { id: "5", name: "Ronel", email: "ronel@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=5", initials: "RO", avatarColor: "#ec4899", confirmed_at: DEMO_JOINED },
+  { id: "6", name: "Patrick", email: "patrick@company.com", role: "member", avatar_url: "https://i.pravatar.cc/40?u=6", initials: "PA", avatarColor: "#8b5cf6", confirmed_at: DEMO_JOINED },
 ];
+
+/** Demo skills per member id (used to seed the assignment engine in demo mode). */
+export const DEMO_MEMBER_SKILLS: Record<
+  string,
+  { skill: string; confidence: number }[]
+> = {
+  "1": [ // Daniel
+    { skill: "HTML", confidence: 5 }, { skill: "CSS", confidence: 5 }, { skill: "JavaScript", confidence: 5 },
+    { skill: "WordPress", confidence: 5 }, { skill: "Custom Plugin WordPress", confidence: 3 },
+    { skill: "Shopify", confidence: 5 }, { skill: "Next.js", confidence: 5 }, { skill: "React", confidence: 5 },
+  ],
+  "2": [ // Francis Jan
+    { skill: "HTML", confidence: 5 }, { skill: "CSS", confidence: 5 }, { skill: "JavaScript", confidence: 5 },
+    { skill: "WordPress", confidence: 5 }, { skill: "Custom Plugin WordPress", confidence: 4 },
+    { skill: "Shopify", confidence: 5 }, { skill: "Wix", confidence: 5 },
+  ],
+  "3": [ // Martin — 4h/day
+    { skill: "HTML", confidence: 5 }, { skill: "CSS", confidence: 5 }, { skill: "JavaScript", confidence: 5 },
+    { skill: "WordPress", confidence: 5 }, { skill: "Custom Plugin WordPress", confidence: 5 },
+    { skill: "PHP", confidence: 5 }, { skill: "InMotion Hosting", confidence: 5 },
+    { skill: "Domain Config", confidence: 5 }, { skill: "DNS Config", confidence: 5 },
+    { skill: "Next.js", confidence: 5 }, { skill: "React", confidence: 5 },
+  ],
+  "4": [ // Arvin
+    { skill: "HTML", confidence: 5 }, { skill: "CSS", confidence: 5 }, { skill: "JavaScript", confidence: 5 },
+    { skill: "WordPress", confidence: 4 }, { skill: "Shopify", confidence: 4 }, { skill: "Wix", confidence: 5 },
+  ],
+  "5": [ // Ronel
+    { skill: "HTML", confidence: 5 }, { skill: "CSS", confidence: 5 }, { skill: "JavaScript", confidence: 5 },
+    { skill: "WordPress", confidence: 4 }, { skill: "Shopify", confidence: 4 }, { skill: "Wix", confidence: 5 },
+    { skill: "Quality Assurance", confidence: 5 },
+  ],
+  "6": [ // Patrick
+    { skill: "Quality Assurance", confidence: 5 },
+  ],
+};
+
+/** Demo weekly hours per member id (Martin works 4h/day = 20/wk; rest 8h/day). */
+export const DEMO_WEEKLY_HOURS: Record<string, number> = {
+  "1": 40, "2": 40, "3": 20, "4": 40, "5": 40, "6": 40,
+};
 
 export const ALL_TAGS = ["frontend", "backend", "bug", "design", "devops", "ux", "docs", "refactor", "security", "performance"];
 
