@@ -4,9 +4,22 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { Compass, FileText, Layers, Library, Plus, Trash2 } from "lucide-react";
+import {
+  Briefcase,
+  Compass,
+  FileText,
+  Layers,
+  Library,
+  Plus,
+  Trash2,
+} from "lucide-react";
+import { toast } from "sonner";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import {
+  ZohoDealImport,
+  type ZohoDealResult,
+} from "@/components/features/proposals/ZohoDealImport";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
   AlertDialog,
@@ -70,6 +83,7 @@ export function ProposalsListClient() {
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
 
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [dealImportOpen, setDealImportOpen] = React.useState(false);
   const [method, setMethod] = React.useState<EstimateMethod>("guided");
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
@@ -136,12 +150,50 @@ export function ProposalsListClient() {
     router.push(`/proposals/${id}`);
   };
 
+  /**
+   * Create a quote from a Zoho deal. Only the fields the CRM reliably holds are
+   * copied (title, client, dates); scope/hours are still built here. The deal
+   * link + snapshot are stored so the quote can point back at the CRM record.
+   */
+  const handleImportDeal = (deal: ZohoDealResult) => {
+    const client = deal.account?.trim() || deal.contact?.trim() || undefined;
+    const id = createProposal({
+      title: deal.name?.trim() || "Untitled quote",
+      client_name: client,
+      platform: "react_next",
+      zoho: {
+        deal_id: deal.id,
+        deal_name: deal.name,
+        account: deal.account,
+        contact: deal.contact,
+        owner: deal.owner,
+        closing_date: deal.closingDate,
+        amount: deal.amount,
+        currency: deal.currency,
+        quote_number: deal.quoteNumber,
+        stage: deal.stage,
+        web_url: deal.webUrl,
+        imported_at: new Date().toISOString(),
+      },
+    });
+    toast.success("Estimate started from Zoho", {
+      description: client ? `Client: ${client}` : undefined,
+    });
+    router.push(`/proposals/${id}`);
+  };
+
   if (!canExportProposals) {
     return <ProposalAccessDenied />;
   }
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      <ZohoDealImport
+        open={dealImportOpen}
+        onClose={() => setDealImportOpen(false)}
+        onSelect={handleImportDeal}
+      />
+
       <WorkspacePageHeader
         eyebrow="Commercial"
         title="Estimator"
@@ -151,14 +203,25 @@ export function ProposalsListClient() {
             : " Data stays in this browser until the API is connected."
         }`}
         actions={
-          <Button
-            type="button"
-            className="w-full gap-2 sm:w-auto"
-            onClick={() => setCreateOpen(true)}
-          >
-            <Plus className="size-4" aria-hidden />
-            New estimate
-          </Button>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full gap-2 border-border/60 bg-background/80 sm:w-auto"
+              onClick={() => setDealImportOpen(true)}
+            >
+              <Briefcase className="size-4" aria-hidden />
+              Import from Zoho
+            </Button>
+            <Button
+              type="button"
+              className="w-full gap-2 sm:w-auto"
+              onClick={() => setCreateOpen(true)}
+            >
+              <Plus className="size-4" aria-hidden />
+              New estimate
+            </Button>
+          </div>
         }
       />
 

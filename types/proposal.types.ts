@@ -58,6 +58,30 @@ export interface ProposalAddons {
   qa_pct: number;
 }
 
+/**
+ * Snapshot of the Zoho CRM Deal a quote was imported from. Stored as jsonb on
+ * `proposals.zoho` (migration 0029) so the CRM context (and a link back) is
+ * available without calling Zoho again.
+ */
+export interface ProposalZohoLink {
+  deal_id: string;
+  deal_name?: string | null;
+  /** Company on the deal (Account_Name) — the client being billed. */
+  account?: string | null;
+  /** Primary contact person (Contact_Name). */
+  contact?: string | null;
+  /** Salesperson who owns the deal (Owner). */
+  owner?: string | null;
+  closing_date?: string | null;
+  amount?: number | null;
+  currency?: string | null;
+  quote_number?: string | number | null;
+  stage?: string | null;
+  /** Deep link into the Zoho CRM record. */
+  web_url?: string | null;
+  imported_at: string;
+}
+
 export interface ClientQuote {
   id: string;
   title: string;
@@ -83,6 +107,8 @@ export interface ClientQuote {
    * Advanced (1.5×) for the totals regardless of its own tier (workbook rule).
    */
   requirements_unclear: boolean;
+  /** Set when the quote was imported from a Zoho CRM Deal. */
+  zoho?: ProposalZohoLink | null;
   created_at: string;
   updated_at: string;
 }

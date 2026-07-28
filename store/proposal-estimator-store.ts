@@ -46,6 +46,7 @@ import type {
   ProposalPlatform,
   ProposalStatus,
   ProposalTier,
+  ProposalZohoLink,
 } from "@/types/proposal.types";
 
 /**
@@ -202,6 +203,7 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     addons: { ...DEFAULT_ADDONS, ...(r.addons as unknown as ProposalAddons) },
     requirements_unclear: r.requirements_unclear,
     discovery: (r.discovery as unknown as DiscoveryProject | null) ?? null,
+    zoho: (r.zoho as unknown as ProposalZohoLink | null) ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -313,6 +315,8 @@ export type CreateQuoteInput = {
   platform?: ProposalPlatform;
   /** Guided-scoping answers, when created via the guided (questionnaire) path. */
   discovery?: DiscoveryProject | null;
+  /** Set when the quote is imported from a Zoho CRM Deal. */
+  zoho?: ProposalZohoLink | null;
 };
 
 /** A fully-formed quote draft (e.g. from Esther) imported in one shot, tiers preserved. */
@@ -464,6 +468,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           addons: { ...DEFAULT_ADDONS },
           requirements_unclear: false,
           discovery: input.discovery ?? null,
+          zoho: input.zoho ?? null,
           created_at: now,
           updated_at: now,
         };
@@ -493,6 +498,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               addons: quote.addons as unknown as Json,
               requirements_unclear: quote.requirements_unclear,
               discovery: (quote.discovery ?? null) as unknown as Json,
+              zoho: (quote.zoho ?? null) as unknown as Json,
             });
             if (error) {
               set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));

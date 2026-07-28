@@ -342,6 +342,7 @@ export type Database = {
           status: string
           title: string
           updated_at: string
+          zoho: Json | null
         }
         Insert: {
           addons?: Json
@@ -358,6 +359,7 @@ export type Database = {
           status?: string
           title: string
           updated_at?: string
+          zoho?: Json | null
         }
         Update: {
           addons?: Json
@@ -374,6 +376,7 @@ export type Database = {
           status?: string
           title?: string
           updated_at?: string
+          zoho?: Json | null
         }
         Relationships: [
           {

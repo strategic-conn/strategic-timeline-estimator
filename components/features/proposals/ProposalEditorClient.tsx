@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   ChevronDown,
   Compass,
+  ExternalLink,
   FileDown,
   FileSpreadsheet,
   FolderPlus,
@@ -533,6 +534,42 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     }
                   />
                 </div>
+                {quote.zoho ? (
+                  <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="font-medium text-foreground">
+                        Imported from Zoho CRM
+                      </span>
+                      {quote.zoho.web_url ? (
+                        <a
+                          href={quote.zoho.web_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+                        >
+                          View in Zoho
+                          <ExternalLink className="size-3" aria-hidden />
+                        </a>
+                      ) : null}
+                    </div>
+                    <dl className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-muted-foreground">
+                      {quote.zoho.deal_name ? (
+                        <span>Deal: {quote.zoho.deal_name}</span>
+                      ) : null}
+                      {quote.zoho.stage ? <span>Stage: {quote.zoho.stage}</span> : null}
+                      {quote.zoho.contact ? (
+                        <span>Contact: {quote.zoho.contact}</span>
+                      ) : null}
+                      {quote.zoho.owner ? <span>Rep: {quote.zoho.owner}</span> : null}
+                      {quote.zoho.closing_date ? (
+                        <span>Target close: {quote.zoho.closing_date}</span>
+                      ) : null}
+                      {quote.zoho.quote_number ? (
+                        <span>CRM quote #{quote.zoho.quote_number}</span>
+                      ) : null}
+                    </dl>
+                  </div>
+                ) : null}
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="meta-client">Client</Label>
