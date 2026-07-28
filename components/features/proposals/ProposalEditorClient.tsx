@@ -14,6 +14,7 @@ import {
   Link2,
   Plus,
   Printer,
+  Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
@@ -27,6 +28,7 @@ import { DiscoveryHoursBreakdown } from "@/components/features/discovery/Discove
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { ZohoLeadLookup } from "@/components/features/proposals/ZohoLeadLookup";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
 import { ProposalDependencyAlert } from "@/components/features/proposals/ProposalDependencyAlert";
@@ -188,6 +190,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     "efficient" | "quick" | "none"
   >("efficient");
   const [converting, setConverting] = React.useState(false);
+  const [leadLookupOpen, setLeadLookupOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
@@ -531,7 +534,19 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="meta-client">Client</Label>
+                  <div className="flex items-center justify-between gap-2">
+                    <Label htmlFor="meta-client">Client</Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setLeadLookupOpen(true)}
+                    >
+                      <Search className="size-3.5" aria-hidden />
+                      Find in Zoho
+                    </Button>
+                  </div>
                   <Input
                     id="meta-client"
                     value={quote.client_name ?? ""}
@@ -1003,6 +1018,21 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         platform={quote.platform}
         alreadyAddedIds={alreadyAddedIds}
         onAdd={handleAddFromCatalog}
+      />
+
+      <ZohoLeadLookup
+        open={leadLookupOpen}
+        onClose={() => setLeadLookupOpen(false)}
+        onSelect={(lead) => {
+          // Prefer the company (that's the client being billed); fall back to
+          // the person. Title only fills in if it's still untouched.
+          const client = lead.company?.trim() || lead.name?.trim();
+          if (!client) return;
+          updateProposal(quote.id, { client_name: client });
+          toast.success(`Client set from Zoho — ${client}`, {
+            description: lead.name && lead.company ? `Lead: ${lead.name}` : undefined,
+          });
+        }}
       />
 
       <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
