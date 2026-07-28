@@ -157,7 +157,7 @@ export const useNotificationsStore = create<NotificationsState>()(
             href: href ?? null,
             actor_id: actor ?? null,
           }));
-          let { error } = await supabase
+          const { error } = await supabase
             .from("notifications")
             .insert(rows.map((r) => ({ ...r, project_id: project_id ?? null })));
           if (error) {
