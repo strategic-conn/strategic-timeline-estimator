@@ -29,7 +29,7 @@ import { DiscoveryHoursBreakdown } from "@/components/features/discovery/Discove
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
-import { ZohoLeadLookup } from "@/components/features/proposals/ZohoLeadLookup";
+import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
 import { ProposalDependencyAlert } from "@/components/features/proposals/ProposalDependencyAlert";
@@ -191,7 +191,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     "efficient" | "quick" | "none"
   >("efficient");
   const [converting, setConverting] = React.useState(false);
-  const [leadLookupOpen, setLeadLookupOpen] = React.useState(false);
+  const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
@@ -578,7 +578,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       variant="ghost"
                       size="sm"
                       className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => setLeadLookupOpen(true)}
+                      onClick={() => setClientLookupOpen(true)}
                     >
                       <Search className="size-3.5" aria-hidden />
                       Find in Zoho
@@ -1057,17 +1057,29 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         onAdd={handleAddFromCatalog}
       />
 
-      <ZohoLeadLookup
-        open={leadLookupOpen}
-        onClose={() => setLeadLookupOpen(false)}
-        onSelect={(lead) => {
-          // Prefer the company (that's the client being billed); fall back to
-          // the person. Title only fills in if it's still untouched.
-          const client = lead.company?.trim() || lead.name?.trim();
+      <ZohoAccountLookup
+        open={clientLookupOpen}
+        onClose={() => setClientLookupOpen(false)}
+        onSelect={({ account, contact }) => {
+          const client = account.name?.trim();
           if (!client) return;
-          updateProposal(quote.id, { client_name: client });
+          updateProposal(quote.id, {
+            client_name: client,
+            // Keep any existing deal link; layer the client details on top.
+            zoho: {
+              ...(quote.zoho ?? {}),
+              account_id: account.id,
+              account: account.name,
+              contact_id: contact?.id ?? null,
+              contact: contact?.name ?? null,
+              contact_email: contact?.email ?? null,
+              contact_phone: contact?.phone ?? null,
+              web_url: quote.zoho?.web_url ?? account.webUrl,
+              imported_at: quote.zoho?.imported_at ?? new Date().toISOString(),
+            },
+          });
           toast.success(`Client set from Zoho — ${client}`, {
-            description: lead.name && lead.company ? `Lead: ${lead.name}` : undefined,
+            description: contact?.name ? `Contact: ${contact.name}` : undefined,
           });
         }}
       />

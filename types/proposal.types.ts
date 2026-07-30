@@ -64,13 +64,18 @@ export interface ProposalAddons {
  * available without calling Zoho again.
  */
 export interface ProposalZohoLink {
-  deal_id: string;
+  /** Set when the quote was started from a Deal. */
+  deal_id?: string | null;
   deal_name?: string | null;
-  /** Company on the deal (Account_Name) — the client being billed. */
+  /** Company (Accounts module) — the client being billed. */
+  account_id?: string | null;
   account?: string | null;
-  /** Primary contact person (Contact_Name). */
+  /** Person at that company (Contacts module). An account can have several. */
+  contact_id?: string | null;
   contact?: string | null;
-  /** Salesperson who owns the deal (Owner). */
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  /** Salesperson who owns the record (Owner). */
   owner?: string | null;
   closing_date?: string | null;
   amount?: number | null;

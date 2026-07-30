@@ -42,11 +42,30 @@
 - [ ] `/api/zoho/status` (as admin) → `configured: true, connected: true`.
 - [ ] **Test** button → toasts "Strategic Connection".
 - [ ] **Tomorrow**, hit Test again → still works (proves the ~1h access-token refresh; the most common silent OAuth failure).
-- [ ] **Lead lookup:** Estimator → Setup → **Find in Zoho** → `chapman` → ~23 results incl. Todd Chapman / Myrtle Beach Pelicans.
-- [ ] `myrtle` (company) and `843-918-6023` (phone) both match; `zzzznotareal` → "No leads matched"; 1 char → "Type at least 2 characters".
-- [ ] Pick a lead → Client field fills + toast; reopening the dialog shows an empty box.
-- [ ] **Dialog does not change height** between empty / loading / 25 results / no-match.
-- [ ] Signed in as a **member**, open `/api/zoho/leads/search?q=chapman` → **403** (lead PII is admin/manager only).
+### Client lookup — Accounts → Contacts (Estimator → Setup → "Find in Zoho")
+
+Expected values below were pulled live from the CRM, so they're exact:
+
+- [ ] `openarc` → **OpenArc LLC**; click it → **2 contacts: Mike Carpenter (General Manager, Consulting Services), Joel Reed (CEO)**.
+- [ ] `myrtle` → **19 companies** (Myrtle Beach Regional Economic Development Corporation, Monarch Roofing…).
+- [ ] **Person-name fallback:** `kresimir` or `glorioso` → no company matches by name, so it returns **FinOps Partners** badged **"via Kresimir (Kreso) Marusic" / "via Russell Glorioso"**.
+- [ ] Back arrow returns to the company list; **"Use the company only"** works (no contact chosen).
+- [ ] Picking a contact fills the Client field + toast naming the contact.
+- [ ] **Reload the page — the client must still be there.** (Persisting `proposals.zoho` needs `quoteUpdatePayload()` *and* `updateProposal`'s `Pick<>` to whitelist the column; a miss fails silently.)
+- [ ] **Dialog does not change height** between empty / loading / results / no-match.
+
+### Deal → Estimate import (Estimator → "Import from Zoho")
+
+- [ ] **Proposal Requested** shows exactly **2** deals: *Web Build* (Trade International 2020, LLC, closes Jul 7 2027) and *John Doe Accounting*.
+- [ ] Other stage chips: Discovery **25+**, Negotiation **21** (incl. *Website Edits FlagrantFoul23*, **$3,250**), Verbal Yes **9**.
+- [ ] Free-text search finds a deal by name/company.
+- [ ] Pick one → new quote opens pre-filled (title + client) with an **"Imported from Zoho CRM"** panel showing deal, stage, contact, rep, target close.
+- [ ] **View in Zoho** opens the right CRM record — *this URL is constructed by us, not returned by Zoho, so it's the piece most worth confirming.*
+- [ ] Deals with `Amount: 0` show **no** figure (correct — most real deals have 0).
+
+### Access + connection
+
+- [ ] Signed in as a **member**, open `/api/zoho/accounts?q=openarc` → **403** (CRM data is admin/manager only).
 - [ ] **Disconnect → Connect** round-trip works.
 
 ## 🟢 Mobile pass @ 375px

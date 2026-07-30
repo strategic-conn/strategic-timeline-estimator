@@ -224,6 +224,7 @@ function quoteUpdatePayload(
     addons: q.addons as unknown as Json,
     requirements_unclear: q.requirements_unclear,
     discovery: (q.discovery ?? null) as unknown as Json,
+    zoho: (q.zoho ?? null) as unknown as Json,
     updated_at: q.updated_at,
   };
 }
@@ -371,6 +372,7 @@ interface ProposalEstimatorState {
         | "notes"
         | "platform"
         | "requirements_unclear"
+        | "zoho"
       >
     >,
   ) => void;

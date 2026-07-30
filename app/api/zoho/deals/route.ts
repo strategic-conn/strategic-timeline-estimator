@@ -82,7 +82,13 @@ export async function GET(req: Request) {
 
   const params = new URL(req.url).searchParams;
   const q = (params.get("q") ?? "").trim();
-  const stage = (params.get("stage") ?? "").trim();
+  // Whitelist the stage: it's interpolated into a Zoho `criteria` filter, so an
+  // arbitrary value could reshape the query. (The caller is already an
+  // admin/manager who may read every deal, so this is defence in depth.)
+  const requested = (params.get("stage") ?? "").trim();
+  const stage = (IMPORTABLE_STAGES as readonly string[]).includes(requested)
+    ? requested
+    : "";
 
   // Free text wins over the stage filter; otherwise filter by stage; otherwise
   // fall back to the most recently touched deals.

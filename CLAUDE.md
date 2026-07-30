@@ -154,7 +154,9 @@ docs/                   # data-mapping.md (data shapes) + backend-supabase.md + 
 supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 mentions/realtime/activity/storage/role-guard ·
                         #   0012/0014/0021 invite-only + pending state · 0015/0016/0017 workflow (proposal status, assignment lifecycle, time_entries) ·
                         #   0018 logged-hours guard · 0019/0020 offboarding (deactivate/hard-delete) · 0022 proposals.discovery ·
-                        #   0023 migrate+drop discovery_projects · 0024 page-access heal + README — `npm run db:push`
+                        #   0023 migrate+drop discovery_projects · 0024 page-access heal ·
+                        #   0025 notification actor · 0026 member_skills · 0027 security phase 1 ·
+                        #   0028 zoho_connection · 0029 proposals.zoho + README — `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 ```
 
@@ -248,6 +250,8 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
 | `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
+| `zoho_connection` (OAuth tokens)      | service-role only (RLS: **no policies**) | `lib/zoho/tokens.ts` via `/api/zoho/*` | Wired |
+| `proposals.zoho` (CRM link jsonb)     | select / insert / update   | `proposal-estimator-store` (deal/account/contact link) | Wired |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
 Supabase **Edge Function** → Storage bucket. The client-side jsPDF/xlsx export works today and is unchanged.
@@ -357,6 +361,47 @@ interface ClientQuote {
 
 ---
 
+## Zoho CRM Integration (read-only)
+
+**Connection.** Server-side OAuth2 authorization-code flow. One **admin** connects once
+(Settings → Workspace → Connect Zoho CRM); the refresh token is stored **workspace-wide** in
+`zoho_connection` (migration `0028`, singleton row) and every later call reuses it — no end user
+ever sees a Zoho screen. Routes: `/api/zoho/connect` · `/callback` · `/status` · `/disconnect` · `/org`.
+
+**Token security.** `zoho_connection` has **RLS enabled with NO policies** — anon/authenticated
+cannot touch it; only the service-role key (server routes) can. Tokens must never reach the
+browser; `/api/zoho/status` returns metadata only. `lib/zoho/tokens.ts` exposes `getAccessToken()`
+(auto-refreshes ~1 min before the 1 h expiry) and **`zohoFetch(path)`** — use that for any new call.
+
+**Scopes are read-only** (`ZohoCRM.modules/users/org/settings .READ`) and are **frozen at consent**:
+widening them needs a new `ZOHO_SCOPES` + redeploy + **Disconnect → Connect** re-consent.
+
+**Features consuming CRM data** (both gated admin+manager by `requireZohoReader()` — CRM records are PII):
+
+| Feature | Route | What it does |
+| ------- | ----- | ------------ |
+| **Deal → Estimate import** | `/api/zoho/deals` | Estimator → "Import from Zoho": pick a Deal (by stage — *Proposal Requested* is the quote trigger — or free-text) → creates a pre-filled quote |
+| **Client lookup** | `/api/zoho/accounts` | Setup tab → "Find in Zoho": search **Accounts** (companies), then pick a **Contact** (a company has many). Falls back to searching people when no company matches |
+
+> Use **Accounts + Contacts** (~4.0k / ~3.7k qualified records) for client data — **not Leads**
+> (~122k raw, full of test/spam rows). A Lead converts into Account + Contact (+ Deal).
+
+**The CRM link** lives in **`proposals.zoho`** jsonb (migration `0029`):
+`{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, web_url?, imported_at}`.
+Every field is optional except `imported_at` — a quote may come from a deal, from an account, or both.
+
+> ⚠️ **Adding any column to `proposals` means updating two whitelists** — `quoteUpdatePayload()`
+> and the `Pick<ClientQuote, …>` param type of `updateProposal`. Miss either and the edit updates
+> the store but **silently never persists**.
+
+**Env** (server-only, never `NEXT_PUBLIC_`): `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, optional
+`ZOHO_REDIRECT_URI` / `ZOHO_ACCOUNTS_DOMAIN` / `ZOHO_SCOPES`. The redirect URI must match the Zoho
+API Console entry **exactly**. Zoho quirks worth knowing: search `criteria` supports only
+`equals`/`starts_with` (use `word=` for free text), record counts need **v2.1+**, the callback must
+use the `accounts-server` query param (data-center aware), and bulk export needs `ZohoCRM.bulk.READ`.
+
+---
+
 ## State Management Map
 
 > **Live mode:** each store hydrates from Supabase (via `WorkspaceSync`) and writes through
@@ -396,10 +441,14 @@ interface ClientQuote {
 | Export proposals | Yes   | Yes     | No     | No     |
 | Estimator (scope + client quotes) | Yes | Yes | No | No |
 | Edit others' PTO/availability | Yes | Yes | No | No |
+| Read Zoho CRM data (deals/accounts/contacts) | Yes | Yes | No | No |
+| Connect / disconnect Zoho CRM | Yes | No | No | No |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
 > **Offboarding** (deactivate/reactivate + permanent delete) and **invites** are admin-only, via
 > `/api/users/[id]/status`, `/api/users/[id]`, and `/api/invites` (service-role, server-side).
+> **Zoho** reads are gated server-side by `requireZohoReader()` (admin+manager, since CRM records
+> are PII); connect/disconnect use `requireAdmin()`.
 >
 > Permissions are enforced by **Supabase RLS** (`supabase/migrations/0002_rls.sql`). The UI uses
 > `usePermissions()` to show/hide controls — keep the two in lockstep.

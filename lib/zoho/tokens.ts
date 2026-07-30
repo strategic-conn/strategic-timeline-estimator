@@ -88,7 +88,8 @@ async function refresh(conn: Connection): Promise<string | null> {
   });
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.access_token) {
-    console.error("[zoho] refresh failed", res.status, data);
+    // Log the error code only — never the payload, which can carry tokens.
+    console.error("[zoho] refresh failed", res.status, data?.error ?? "(no error field)");
     return null;
   }
   const expiresAt = new Date(

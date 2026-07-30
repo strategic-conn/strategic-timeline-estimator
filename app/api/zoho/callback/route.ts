@@ -56,15 +56,24 @@ export async function GET(req: Request) {
   });
   const data = await tokenRes.json().catch(() => null);
 
+  // NOTE: never log `data` itself — on the success path it carries live tokens,
+  // and server logs are a lower-trust store. Log the error code / shape only.
   if (!tokenRes.ok || !data?.access_token) {
-    console.error("[zoho callback] token exchange failed", tokenRes.status, data);
+    console.error(
+      "[zoho callback] token exchange failed",
+      tokenRes.status,
+      data?.error ?? "(no error field)",
+    );
     return back("exchangefailed");
   }
   if (!data.refresh_token) {
     // Zoho only returns a refresh_token on first consent. Since we always send
     // prompt=consent this shouldn't happen — surface it rather than store a
     // connection that can't be refreshed.
-    console.error("[zoho callback] no refresh_token returned", data);
+    console.error(
+      "[zoho callback] no refresh_token returned; response fields:",
+      Object.keys(data).join(","),
+    );
     return back("norefresh");
   }
 

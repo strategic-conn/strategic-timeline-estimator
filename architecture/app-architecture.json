@@ -5,7 +5,7 @@
     "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
-    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (28 migrations).",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (29 migrations).",
     "dateMapped": "2026-07-29",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
@@ -505,7 +505,7 @@
       "layer": "state",
       "label": "proposal-estimator-store",
       "sub": "timeline-proposal-estimator",
-      "purpose": "Quotes CRUD; regenerateLineItems; setProposalStatus; convertToProject. Line math: base×tier(1/1.5/2)×qty + compounding roll-up add-ons.",
+      "purpose": "Quotes CRUD; regenerateLineItems; setProposalStatus; convertToProject. Line math: base×tier(1/1.5/2)×qty + compounding roll-up add-ons. Quotes imported from a CRM deal (or with a client picked from Accounts) carry `zoho` (0029): {deal_id?, account_id?, contact_id?, …, web_url}.",
       "files": [
         "store/proposal-estimator-store.ts",
         "lib/constants/proposal-estimator.ts:78"
@@ -952,7 +952,7 @@
       "layer": "data",
       "label": "proposals",
       "sub": "0001 +0015/+0022",
-      "purpose": "owner_id, project_id, platform, line_items jsonb, addons jsonb, discovery jsonb, status draft/sent/approved/rejected.",
+      "purpose": "owner_id, project_id, platform, line_items jsonb, addons jsonb, discovery jsonb, status draft/sent/approved/rejected. `zoho` jsonb (0029) links the quote back to its Zoho Deal / Account / Contact.",
       "files": [
         "supabase/migrations/0022_proposal_discovery.sql"
       ]
@@ -1167,16 +1167,6 @@
       ]
     },
     {
-      "id": "api-zoholeads",
-      "layer": "bridge",
-      "label": "GET /api/zoho/leads/search",
-      "sub": "read-only · nothing stored",
-      "purpose": "Searches ~122k CRM leads via Zoho `word=` search (one query matches name, company AND phone; partials work). Returns max 25 normalized leads. No lead data is persisted locally — the Estimator only copies the chosen client name.",
-      "files": [
-        "app/api/zoho/leads/search/route.ts"
-      ]
-    },
-    {
       "id": "t-zoho",
       "layer": "data",
       "label": "zoho_connection",
@@ -1197,6 +1187,26 @@
       "purpose": "OAuth at {accounts_server}/oauth/v2/token; REST at {api_domain}/crm/v2. Granted scopes are READ-only: ZohoCRM.modules.READ, users.READ, org.READ, settings.READ. Org: Strategic Connection (~122k Leads, ~923 Deals).",
       "files": [
         "lib/zoho/tokens.ts"
+      ]
+    },
+    {
+      "id": "api-zohodeals",
+      "layer": "bridge",
+      "label": "GET /api/zoho/deals",
+      "sub": "read-only",
+      "purpose": "Lists CRM Deals for the Estimator's import picker, by stage (`criteria=(Stage:equals:…)`) or free text (`word=`), else most-recently-modified. Builds a deep link per deal from the org id (cached per instance) since Zoho returns no record URL. Real deals often have Amount=0 and Service_Interested_in=null, so those are surfaced as optional.",
+      "files": [
+        "app/api/zoho/deals/route.ts"
+      ]
+    },
+    {
+      "id": "api-zohoaccounts",
+      "layer": "bridge",
+      "label": "GET /api/zoho/accounts",
+      "sub": "companies + their people",
+      "purpose": "Two modes: `?q=` searches Accounts (companies, ~4.0k) and — when nothing matches — falls back to searching Contacts and returns THEIR companies tagged `viaContact`; `?contactsOf=<id>` lists a company's people via /crm/v2/Accounts/{id}/Contacts. Replaced the Leads lookup: Accounts/Contacts are the qualified records, Leads (~122k) are raw and noisy.",
+      "files": [
+        "app/api/zoho/accounts/route.ts"
       ]
     }
   ],
@@ -2072,17 +2082,32 @@
       "label": "Zoho-oauthtoken REST calls"
     },
     {
-      "from": "s-propeditor",
-      "to": "api-zoholeads",
-      "label": "Find in Zoho (debounced)"
+      "from": "s-proposals",
+      "to": "api-zohodeals",
+      "label": "Import from Zoho (deal picker)"
     },
     {
-      "from": "api-zoholeads",
+      "from": "api-zohodeals",
+      "to": "b-zohoguard",
+      "label": "admin/manager gate"
+    },
+    {
+      "from": "api-zohodeals",
+      "to": "b-zohotokens",
+      "label": "zohoFetch"
+    },
+    {
+      "from": "s-propeditor",
+      "to": "api-zohoaccounts",
+      "label": "Find in Zoho (client)"
+    },
+    {
+      "from": "api-zohoaccounts",
       "to": "b-zohoguard",
       "label": "admin/manager gate (PII)"
     },
     {
-      "from": "api-zoholeads",
+      "from": "api-zohoaccounts",
       "to": "b-zohotokens",
       "label": "zohoFetch"
     }
@@ -3198,67 +3223,132 @@
       ]
     },
     {
-      "id": "f-zoho-leads",
-      "name": "Zoho lead lookup (Estimator)",
+      "id": "f-zoho-deal",
+      "name": "Zoho deal -> pre-filled estimate",
       "actor": "Manager/Admin",
-      "summary": "Search ~122k CRM leads live from the quote's Setup tab and fill the client. Read-only: nothing is copied into the app except the chosen client name.",
+      "summary": "The CRM's 'Proposal Requested' stage means a client wants a quote. Import that deal to start an estimate pre-filled with its client and dates, linked back to the CRM record.",
       "steps": [
         {
           "n": 1,
           "from": "a-manager",
-          "to": "s-propeditor",
-          "action": "Setup tab -> 'Find in Zoho' -> type 2+ chars (400ms debounce = 1 API credit)",
+          "to": "s-proposals",
+          "action": "Estimator -> 'Import from Zoho' -> pick a stage (Proposal Requested / Discovery / Negotiation / Verbal Yes) or search",
           "files": [
-            "components/features/proposals/ZohoLeadLookup.tsx"
+            "components/features/proposals/ZohoDealImport.tsx"
           ]
         },
         {
           "n": 2,
-          "from": "s-propeditor",
-          "to": "api-zoholeads",
-          "action": "GET /api/zoho/leads/search?q=",
+          "from": "s-proposals",
+          "to": "api-zohodeals",
+          "action": "GET /api/zoho/deals?stage= | ?q=",
           "files": [
-            "app/api/zoho/leads/search/route.ts"
+            "app/api/zoho/deals/route.ts"
           ]
         },
         {
           "n": 3,
-          "from": "api-zoholeads",
-          "to": "b-zohoguard",
-          "action": "requireZohoReader() — admin/manager only (PII)",
-          "files": [
-            "lib/zoho/guard.ts"
-          ]
-        },
-        {
-          "n": 4,
-          "from": "api-zoholeads",
+          "from": "api-zohodeals",
           "to": "b-zohotokens",
-          "action": "zohoFetch() — access token auto-refreshed if stale",
+          "action": "zohoFetch -> /crm/v2/Deals/search + /crm/v2/org (deep link)",
           "files": [
             "lib/zoho/tokens.ts"
           ]
         },
         {
-          "n": 5,
+          "n": 4,
           "from": "b-zohotokens",
           "to": "x-zoho",
-          "action": "GET /crm/v2/Leads/search?word=<q> (matches name, company, phone) — 204 = no match",
+          "action": "Deal_Name, Stage, Account_Name{}, Contact_Name{}, Owner{}, Closing_Date, Quote_number",
           "files": []
         },
         {
+          "n": 5,
+          "from": "s-proposals",
+          "to": "st-proposals",
+          "action": "createProposal({title, client_name, zoho:{deal_id,…}}) — scope/hours are still built by hand",
+          "files": [
+            "components/features/proposals/ProposalsListClient.tsx"
+          ]
+        },
+        {
           "n": 6,
-          "from": "api-zoholeads",
-          "to": "s-propeditor",
-          "action": "<=25 normalized leads {name, company, phone, email, status}",
+          "from": "st-proposals",
+          "to": "t-proposals",
+          "action": "insert incl. `zoho` jsonb",
           "files": []
         },
         {
           "n": 7,
+          "from": "st-proposals",
+          "to": "s-propeditor",
+          "action": "router.push -> editor shows 'Imported from Zoho CRM' + View in Zoho link",
+          "files": [
+            "components/features/proposals/ProposalEditorClient.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-zoho-client",
+      "name": "Pick a client from Zoho (Accounts -> Contacts)",
+      "actor": "Manager/Admin",
+      "summary": "Two-step client picker over the qualified CRM records: find the company, then the person (a company can have several). Replaced the Leads lookup.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-propeditor",
+          "action": "Setup tab -> 'Find in Zoho' next to Client",
+          "files": [
+            "components/features/proposals/ZohoAccountLookup.tsx"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "s-propeditor",
+          "to": "api-zohoaccounts",
+          "action": "GET /api/zoho/accounts?q= (debounced 400ms)",
+          "files": [
+            "app/api/zoho/accounts/route.ts"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "api-zohoaccounts",
+          "to": "x-zoho",
+          "action": "Accounts/search?word=; if 0 -> Contacts/search?word= and surface their companies 'via <person>'",
+          "files": []
+        },
+        {
+          "n": 4,
+          "from": "s-propeditor",
+          "to": "api-zohoaccounts",
+          "action": "pick a company -> GET ?contactsOf=<accountId>",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "api-zohoaccounts",
+          "to": "x-zoho",
+          "action": "/crm/v2/Accounts/{id}/Contacts -> Full_Name, Email, Phone, Title",
+          "files": []
+        },
+        {
+          "n": 6,
           "from": "s-propeditor",
           "to": "st-proposals",
-          "action": "updateProposal({client_name: company || name}) — only the name is kept",
+          "action": "updateProposal({client_name, zoho:{account_id, contact_id, …}}) — 'company only' is allowed",
           "files": []
+        },
+        {
+          "n": 7,
+          "from": "st-proposals",
+          "to": "t-proposals",
+          "action": "persist via quoteUpdatePayload() (must whitelist `zoho`)",
+          "files": [
+            "store/proposal-estimator-store.ts"
+          ]
         }
       ]
     }
@@ -3285,7 +3375,9 @@
     "The assignment engine never assigns a task to a dev lacking the matched skill. skillTiers() returns tiers best-first and the FIRST tier with an eligible dev wins, so specialists beat generalists. Phases with no dev-skill mapping (design/discovery/content/SEO) stay unassigned but still reserve time. Only confirmed+active profiles WITH skills are eligible — an unseeded workspace assigns everything to the one skilled user.",
     "zoho_connection (0028) has RLS ENABLED WITH NO POLICIES on purpose: only the service-role key may read/write it. Verified — anon SELECT returns 0 rows, INSERT 401, UPDATE/DELETE report 204 but match 0 rows. Zoho tokens must never reach the browser; /api/zoho/status returns metadata only.",
     "Zoho scopes are frozen into the token at consent time (currently READ-only: modules/users/org/settings). Widening them requires editing ZOHO_SCOPES, redeploying, AND a Disconnect -> Connect re-consent — an existing refresh token cannot gain scope.",
-    "Zoho API quirks that cost time: search `criteria` supports only equals/starts_with (`contains` -> 400 INVALID_QUERY), so single-box search uses `word=`; record counts need v2.1+ (`/actions/count` 400s on v2); the callback must use the `accounts-server` query param, not a hardcoded DC; bulk read needs a separate ZohoCRM.bulk.READ scope."
+    "Zoho API quirks that cost time: search `criteria` supports only equals/starts_with (`contains` -> 400 INVALID_QUERY), so single-box search uses `word=` (Accounts, Contacts and Deals all); record counts need v2.1+ (`/actions/count` 400s on v2); the callback must use the `accounts-server` query param, not a hardcoded DC; bulk read needs a separate ZohoCRM.bulk.READ scope.",
+    "proposals.zoho (0029) is written through TWO whitelists — `quoteUpdatePayload()` and the `Pick<ClientQuote,…>` param type of `updateProposal`. Miss either and the edit updates the store but silently never persists. Same trap applies to any future column on proposals.",
+    "CRM client data comes from Accounts (companies, ~4.0k) + Contacts (people, ~3.7k), NOT Leads (~122k raw/unqualified, full of test+spam rows). A Lead converts into Account+Contact(+Deal); the qualified records are the ones worth showing. An account can have many contacts, so the picker is two-step."
   ],
   "permissionsMatrix": {
     "columns": [
