@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  ArrowRight,
   ChevronDown,
   Compass,
   ExternalLink,
@@ -29,6 +30,7 @@ import { DiscoveryHoursBreakdown } from "@/components/features/discovery/Discove
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
@@ -108,7 +110,10 @@ import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
-import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import {
+  useProposalEstimatorStore,
+  type SchedulePreview,
+} from "@/store/proposal-estimator-store";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import type {
   ClientQuote,
@@ -183,6 +188,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     (s) => s.regenerateLineItems,
   );
   const convertToProject = useProposalEstimatorStore((s) => s.convertToProject);
+  const previewConversion = useProposalEstimatorStore(
+    (s) => s.previewConversion,
+  );
 
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertName, setConvertName] = React.useState("");
@@ -191,6 +199,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     "efficient" | "quick" | "none"
   >("efficient");
   const [converting, setConverting] = React.useState(false);
+  /** Non-null once the plan has been computed for review (step 2 of the dialog). */
+  const [convertPreview, setConvertPreview] =
+    React.useState<SchedulePreview | null>(null);
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -353,7 +364,25 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     setConvertName(quote.title);
     setConvertSeedTasks(true);
     setConvertStrategy("efficient");
+    setConvertPreview(null);
     setConvertOpen(true);
+  };
+
+  const strategyArg = () =>
+    convertSeedTasks && convertStrategy !== "none" ? convertStrategy : undefined;
+
+  /** Step 1 → 2: compute the plan for review. Writes nothing. */
+  const handlePreview = () => {
+    if (!quote) return;
+    const p = previewConversion(quote.id, {
+      seedTasks: convertSeedTasks,
+      strategy: strategyArg(),
+    });
+    if (!p) {
+      toast.error("Couldn't build a preview for this estimate.");
+      return;
+    }
+    setConvertPreview(p);
   };
 
   const handleConvert = async () => {
@@ -362,14 +391,14 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     const id = await convertToProject(quote.id, {
       name: convertName,
       seedTasks: convertSeedTasks,
-      strategy:
-        convertSeedTasks && convertStrategy !== "none"
-          ? convertStrategy
-          : undefined,
+      strategy: strategyArg(),
+      // Persist exactly what was reviewed rather than recomputing.
+      preview: convertPreview,
     });
     setConverting(false);
     if (id) {
       setConvertOpen(false);
+      setConvertPreview(null);
       router.push(`/projects/${id}`);
     }
   };
@@ -1085,14 +1114,31 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       />
 
       <Dialog open={convertOpen} onOpenChange={setConvertOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent
+          className={cn(
+            convertPreview
+              ? "max-h-[85dvh] overflow-y-auto sm:max-w-xl"
+              : "sm:max-w-md",
+          )}
+        >
           <DialogHeader>
-            <DialogTitle>Start a project from this proposal</DialogTitle>
+            <DialogTitle>
+              {convertPreview
+                ? "Review the schedule"
+                : "Start a project from this proposal"}
+            </DialogTitle>
             <DialogDescription>
-              Creates a new project a coordinator can plan and staff. The proposal
-              stays linked to it.
+              {convertPreview
+                ? "Nothing has been created yet. This is exactly what will be saved when you confirm."
+                : "Creates a new project a coordinator can plan and staff. The proposal stays linked to it."}
             </DialogDescription>
           </DialogHeader>
+
+          {convertPreview ? (
+            <div className="py-1">
+              <SchedulePreviewPanel preview={convertPreview} />
+            </div>
+          ) : (
           <div className="space-y-4 py-1">
             <div className="space-y-1.5">
               <Label htmlFor="convert-name">Project name</Label>
@@ -1151,24 +1197,39 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               </div>
             ) : null}
           </div>
+          )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
-              onClick={() => setConvertOpen(false)}
+              onClick={() =>
+                convertPreview ? setConvertPreview(null) : setConvertOpen(false)
+              }
               disabled={converting}
             >
-              Cancel
+              {convertPreview ? "Back" : "Cancel"}
             </Button>
-            <Button
-              type="button"
-              onClick={() => void handleConvert()}
-              disabled={converting || !convertName.trim()}
-              className="gap-1.5"
-            >
-              <FolderPlus className="size-4" aria-hidden />
-              {converting ? "Creating…" : "Create project"}
-            </Button>
+            {convertPreview ? (
+              <Button
+                type="button"
+                onClick={() => void handleConvert()}
+                disabled={converting || !convertName.trim()}
+                className="gap-1.5"
+              >
+                <FolderPlus className="size-4" aria-hidden />
+                {converting ? "Creating…" : "Confirm & create"}
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                onClick={handlePreview}
+                disabled={!convertName.trim()}
+                className="gap-1.5"
+              >
+                Review schedule
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

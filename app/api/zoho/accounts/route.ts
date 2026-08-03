@@ -21,6 +21,13 @@ import { zohoFetch } from "@/lib/zoho/tokens";
 const ACCOUNT_FIELDS = "Account_Name,Phone,Website,Billing_City,Owner";
 const CONTACT_FIELDS = "Full_Name,Email,Phone,Title,Account_Name";
 
+export type ZohoAccountDeal = {
+  id: string;
+  name: string | null;
+  stage: string | null;
+  amount: number | null;
+};
+
 export type ZohoAccount = {
   id: string;
   name: string | null;
@@ -31,6 +38,8 @@ export type ZohoAccount = {
   /** Set when this company was found via one of its people, not by its own name. */
   viaContact?: string | null;
   webUrl: string | null;
+  /** Prior/current deals with this company — "have we worked with them before?". */
+  deals?: ZohoAccountDeal[];
 };
 
 export type ZohoContact = {
@@ -59,6 +68,44 @@ async function orgId(): Promise<string | null> {
 
 const named = (v: unknown) => (v as { name?: string } | null)?.name ?? null;
 const namedId = (v: unknown) => (v as { id?: string } | null)?.id ?? null;
+
+/**
+ * Deals for many accounts in ONE request.
+ *
+ * `Account_Name:in:<id,id,…>` is verified to work on the Deals module, which
+ * matters: fetching per-account would be 25 API calls per search instead of 1.
+ * Deals are supplementary — any failure here returns an empty map so the
+ * company list still renders.
+ */
+async function dealsByAccount(
+  accountIds: string[],
+): Promise<Record<string, ZohoAccountDeal[]>> {
+  const out: Record<string, ZohoAccountDeal[]> = {};
+  if (!accountIds.length) return out;
+  try {
+    const criteria = `((Account_Name:in:${accountIds.join(",")}))`;
+    const res = await zohoFetch(
+      `/crm/v2/Deals/search?criteria=${encodeURIComponent(criteria)}&fields=Deal_Name,Stage,Amount,Account_Name&per_page=200`,
+    );
+    // 204 = none of these companies has a deal; that's a normal answer.
+    if (!res.ok) return out;
+    const data = await res.json().catch(() => null);
+    for (const d of data?.data ?? []) {
+      const accId = namedId((d as Record<string, unknown>).Account_Name);
+      if (!accId) continue;
+      const amount = (d as Record<string, unknown>).Amount as number | null;
+      (out[accId] ??= []).push({
+        id: String((d as Record<string, unknown>).id),
+        name: ((d as Record<string, unknown>).Deal_Name as string) ?? null,
+        stage: ((d as Record<string, unknown>).Stage as string) ?? null,
+        amount: typeof amount === "number" && amount > 0 ? amount : null,
+      });
+    }
+  } catch (e) {
+    console.error("[zoho accounts] related deals lookup failed", e);
+  }
+  return out;
+}
 
 export async function GET(req: Request) {
   const gate = await requireZohoReader();
@@ -148,6 +195,13 @@ export async function GET(req: Request) {
           });
         }
       }
+    }
+
+    // One batched lookup for every company on screen (see dealsByAccount).
+    const deals = await dealsByAccount(accounts.map((a) => a.id));
+    for (const a of accounts) {
+      const list = deals[a.id];
+      if (list?.length) a.deals = list;
     }
 
     return NextResponse.json({ accounts });

@@ -141,6 +141,97 @@ function planSeeds(
   return { byLineItem, sprintDates };
 }
 
+/** One planned task, shaped for display in the preview step. */
+export interface SchedulePreviewTask {
+  lineId: string;
+  title: string;
+  hours: number;
+  /** Delivery phase label — also the sprint this task lands in. */
+  phase: string;
+  assigneeName: string | null;
+  startDate: string | null;
+  endDate: string | null;
+  /** Why this person (skill + stars + hours/day), or why nobody. */
+  reason: string;
+}
+
+/**
+ * What "Start project" / "Sync schedule" WOULD create, computed without writing
+ * anything. `plan` is carried through to the confirm step and persisted verbatim,
+ * so what gets saved is exactly what was reviewed — never a silent recompute
+ * against roster data that changed mid-review.
+ */
+export interface SchedulePreview {
+  sprints: { label: string; start: string; end: string }[];
+  tasks: SchedulePreviewTask[];
+  assignedCount: number;
+  unassignedCount: number;
+  /** Latest planned end date across all tasks. */
+  finishDate: string | null;
+  /** Internal — the exact plan to persist on confirm. */
+  plan: SeedPlan | null;
+}
+
+function toPreview(
+  seeds: ProposalLineItem[],
+  scaffold: ScaffoldPhase[],
+  plan: SeedPlan | null,
+): SchedulePreview {
+  const sprints = scaffold.map((ph) => {
+    const d = plan?.sprintDates.get(ph.label);
+    return {
+      label: ph.label,
+      start: d?.start ?? ph.start_date,
+      end: d?.end ?? ph.end_date,
+    };
+  });
+  const tasks: SchedulePreviewTask[] = seeds.map((li) => {
+    const p = plan?.byLineItem.get(li.id);
+    return {
+      lineId: li.id,
+      title: li.title,
+      hours: li.hours,
+      phase: phaseLabelForLineItem(li),
+      assigneeName: p?.assigneeName ?? null,
+      startDate: p?.startDate ?? null,
+      endDate: p?.endDate ?? null,
+      reason: p?.reason ?? "",
+    };
+  });
+  const assignedCount = tasks.filter((t) => t.assigneeName).length;
+  let finishDate: string | null = null;
+  for (const t of tasks) {
+    if (t.endDate && (!finishDate || t.endDate > finishDate)) finishDate = t.endDate;
+  }
+  return {
+    sprints,
+    tasks,
+    assignedCount,
+    unassignedCount: tasks.length - assignedCount,
+    finishDate,
+    plan,
+  };
+}
+
+/**
+ * Sprint dates for a phase at WRITE time, preferring (in order): the dates the
+ * user actually reviewed, then the freshly-computed plan, then the estimate's
+ * tentative scaffold. Preferring the preview closes the last gap in the
+ * "what you saw is what gets saved" guarantee — the scaffold is recomputed at
+ * write time and could otherwise shift (e.g. crossing midnight) for a phase
+ * that has no assignable tasks.
+ */
+function makeSprintDateResolver(
+  preview: SchedulePreview | null | undefined,
+  plan: SeedPlan | null,
+) {
+  const reviewed = preview
+    ? new Map(preview.sprints.map((s) => [s.label, { start: s.start, end: s.end }]))
+    : null;
+  return (ph: ScaffoldPhase) =>
+    reviewed?.get(ph.label) ?? plan?.sprintDates.get(ph.label);
+}
+
 /**
  * Insert pending `task_assignees` for the planned tasks (live mode) and add
  * them to the store optimistically. `taskRows[i]` corresponds to `seeds[i]`.
@@ -186,6 +277,36 @@ async function seedAssignments(
       note: null,
     });
   }
+}
+
+/**
+ * What a re-sync would still need to create for a project: the phases with no
+ * sprint yet and the line items with no task yet. Shared by `previewSchedule`
+ * and `regenerateSchedule` so the preview can never disagree with the write.
+ */
+function pendingScheduleWork(projectId: string, quote: ClientQuote) {
+  const scaffold = phaseScaffold(quote);
+  const seeds = quote.line_items.filter((li) => li.title.trim());
+  const sprintByName = new Map(
+    useSprintsStore
+      .getState()
+      .sprints.filter((s) => s.project_id === projectId)
+      .map((s) => [s.name, s.id] as [string, string]),
+  );
+  const existingTitles = new Set(
+    useTasksDataStore
+      .getState()
+      .tasks.filter((t) => t.project_id === projectId)
+      .map((t) => t.title),
+  );
+  return {
+    scaffold,
+    seeds,
+    sprintByName,
+    existingTitles,
+    newPhases: scaffold.filter((ph) => !sprintByName.has(ph.label)),
+    newSeeds: seeds.filter((li) => !existingTitles.has(li.title)),
+  };
 }
 
 type ProposalRow = Database["public"]["Tables"]["proposals"]["Row"];
@@ -391,9 +512,29 @@ interface ProposalEstimatorState {
    * optionally seeds backlog tasks from the line items, and links the proposal.
    * Returns the new project id (or null on failure).
    */
+  /**
+   * Compute what convertToProject WOULD create — sprints, tasks, assignees and
+   * dates — without writing anything. Feed the result back into
+   * `convertToProject({ preview })` to persist exactly what was reviewed.
+   */
+  previewConversion: (
+    proposalId: string,
+    input: { seedTasks: boolean; strategy?: PlanStrategy },
+  ) => SchedulePreview | null;
+  /** Same, for re-syncing an existing project's schedule (only the MISSING parts). */
+  previewSchedule: (
+    projectId: string,
+    strategy?: PlanStrategy,
+  ) => SchedulePreview | null;
   convertToProject: (
     proposalId: string,
-    input: { name: string; seedTasks: boolean; strategy?: PlanStrategy },
+    input: {
+      name: string;
+      seedTasks: boolean;
+      strategy?: PlanStrategy;
+      /** A reviewed preview — persisted verbatim instead of recomputing. */
+      preview?: SchedulePreview | null;
+    },
   ) => Promise<string | null>;
   /**
    * Re-apply a linked quote's schedule to its EXISTING project: create any
@@ -404,6 +545,8 @@ interface ProposalEstimatorState {
   regenerateSchedule: (
     projectId: string,
     strategy?: PlanStrategy,
+    /** A reviewed preview — persisted verbatim instead of recomputing. */
+    preview?: SchedulePreview | null,
   ) => Promise<void>;
   deleteProposal: (id: string) => void;
   addLineItem: (proposalId: string) => void;
@@ -697,6 +840,37 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         })();
       },
 
+      previewConversion: (proposalId, input) => {
+        const quote = get().proposals.find((p) => p.id === proposalId);
+        if (!quote) return null;
+        const seeds = input.seedTasks
+          ? quote.line_items.filter((li) => li.title.trim())
+          : [];
+        const scaffold = phaseScaffold(quote);
+        const plan =
+          input.strategy && seeds.length
+            ? planSeeds(quote, seeds, input.strategy, scaffold)
+            : null;
+        return toPreview(seeds, scaffold, plan);
+      },
+
+      previewSchedule: (projectId, strategy) => {
+        const quote = get().proposals.find((p) => p.project_id === projectId);
+        if (!quote) return null;
+        const { scaffold, newPhases, newSeeds } = pendingScheduleWork(
+          projectId,
+          quote,
+        );
+        if (!newPhases.length && !newSeeds.length) {
+          return toPreview([], [], null); // nothing to do — caller shows "up to date"
+        }
+        const plan =
+          strategy && newSeeds.length
+            ? planSeeds(quote, newSeeds, strategy, scaffold)
+            : null;
+        return toPreview(newSeeds, newPhases, plan);
+      },
+
       convertToProject: async (proposalId, input) => {
         const quote = get().proposals.find((p) => p.id === proposalId);
         if (!quote) return null;
@@ -710,11 +884,16 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           : [];
         // Resource-aware plan (dev/QA assignees + capacity-based dates) when a
         // strategy is chosen; null keeps the plain phase-scaffold behaviour.
+        // A reviewed preview wins: persist exactly what the user approved rather
+        // than recomputing against roster data that may have changed since.
         const scaffold = phaseScaffold(quote);
         const plan =
-          input.strategy && seeds.length
-            ? planSeeds(quote, seeds, input.strategy, scaffold)
-            : null;
+          input.preview !== undefined
+            ? (input.preview?.plan ?? null)
+            : input.strategy && seeds.length
+              ? planSeeds(quote, seeds, input.strategy, scaffold)
+              : null;
+        const sprintDatesFor = makeSprintDateResolver(input.preview, plan);
 
         // ── Demo: synchronous store calls (no FK ordering to worry about). ──
         if (!isSupabaseConfigured) {
@@ -728,7 +907,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const sprintsStore = useSprintsStore.getState();
           const phaseSprint = new Map<string, string>();
           for (const ph of scaffold) {
-            const d = plan?.sprintDates.get(ph.label);
+            const d = sprintDatesFor(ph);
             phaseSprint.set(
               ph.label,
               sprintsStore.createSprint({
@@ -809,7 +988,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const phaseSprint = new Map<string, string>();
         if (scaffold.length) {
           const sprintRows = scaffold.map((ph, i) => {
-            const d = plan?.sprintDates.get(ph.label);
+            const d = sprintDatesFor(ph);
             return {
               id: crypto.randomUUID(),
               project_id: projectId,
@@ -896,47 +1075,37 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         return projectId;
       },
 
-      regenerateSchedule: async (projectId, strategy) => {
+      regenerateSchedule: async (projectId, strategy, preview) => {
         const quote = get().proposals.find((p) => p.project_id === projectId);
         if (!quote) {
           toast.error("No estimate is linked to this project.");
           return;
         }
-        const scaffold = phaseScaffold(quote);
-        const seeds = quote.line_items.filter((li) => li.title.trim());
+        const { scaffold, seeds, sprintByName, newPhases, newSeeds } =
+          pendingScheduleWork(projectId, quote);
         if (!scaffold.length && !seeds.length) {
           toast.error("This estimate has no work to schedule yet.");
           return;
         }
-
-        const sprintsState = useSprintsStore.getState();
-        const tasksState = useTasksDataStore.getState();
-        // Dedupe against what's already on the project (idempotent re-runs).
-        const sprintByName = new Map(
-          sprintsState.sprints
-            .filter((s) => s.project_id === projectId)
-            .map((s) => [s.name, s.id] as [string, string]),
-        );
-        const existingTitles = new Set(
-          tasksState.tasks
-            .filter((t) => t.project_id === projectId)
-            .map((t) => t.title),
-        );
-        const newPhases = scaffold.filter((ph) => !sprintByName.has(ph.label));
-        const newSeeds = seeds.filter((li) => !existingTitles.has(li.title));
         if (!newPhases.length && !newSeeds.length) {
           toast.info("Schedule is already up to date with the estimate.");
           return;
         }
+        const sprintsState = useSprintsStore.getState();
+        const tasksState = useTasksDataStore.getState();
+        // A reviewed preview wins over recomputing (see convertToProject).
         const plan =
-          strategy && newSeeds.length
-            ? planSeeds(quote, newSeeds, strategy, scaffold)
-            : null;
+          preview !== undefined
+            ? (preview?.plan ?? null)
+            : strategy && newSeeds.length
+              ? planSeeds(quote, newSeeds, strategy, scaffold)
+              : null;
+        const sprintDatesFor = makeSprintDateResolver(preview, plan);
 
         // ── Demo: store methods are already optimistic + synchronous. ──
         if (!isSupabaseConfigured) {
           for (const ph of newPhases) {
-            const d = plan?.sprintDates.get(ph.label);
+            const d = sprintDatesFor(ph);
             sprintByName.set(
               ph.label,
               sprintsState.createSprint({
@@ -983,7 +1152,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             (s) => s.project_id === projectId,
           ).length;
           const rows = newPhases.map((ph, i) => {
-            const d = plan?.sprintDates.get(ph.label);
+            const d = sprintDatesFor(ph);
             return {
               id: crypto.randomUUID(),
               project_id: projectId,

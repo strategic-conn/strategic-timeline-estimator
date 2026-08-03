@@ -26,6 +26,10 @@
 
 - [ ] **Guided:** new estimate → Shopify → questionnaire does NOT re-ask platform / e-commerce / hosting → **Generate line items** → Timeline shows.
 - [ ] **Catalog:** browse catalog dialog → add items → tentative Timeline appears → Review exports PDF + Excel.
+- [ ] **Preview step:** "Start project" now shows **Review schedule** first — sprints, each task's assignee and dates, and an amber warning for unassigned work. **Nothing is created at this point** (cancel → check the project doesn't exist).
+- [ ] **Back** returns to the options step; changing strategy and re-previewing shows a *different* plan.
+- [ ] **Confirm & create** saves **exactly** what the preview showed — spot-check 2 assignees + sprint dates against the preview.
+- [ ] **Sync schedule** (existing project) shows the same preview, listing only what's **missing**; "already up to date" still short-circuits with a toast and no dialog.
 - [ ] **Start project → Manual:** creates project + phase sprints + tasks, **unassigned**.
 - [ ] **Start project → Best-fit:** each dev/QA task gets an assignee; go-live/hosting work lands on the InMotion-skilled dev; QA lands on a QA-skilled dev.
 - [ ] **Start project → Fastest:** work is spread across *more* devs than Best-fit; finish date is the same or earlier.
@@ -42,13 +46,24 @@
 - [ ] `/api/zoho/status` (as admin) → `configured: true, connected: true`.
 - [ ] **Test** button → toasts "Strategic Connection".
 - [ ] **Tomorrow**, hit Test again → still works (proves the ~1h access-token refresh; the most common silent OAuth failure).
-### Client lookup — Accounts → Contacts (Estimator → Setup → "Find in Zoho")
+### Client lookup — Accounts → Contacts
+
+Available in **two** places — test both: the **New estimate** dialog's Client field, and the
+**editor → Setup tab**'s Client field. Same dialog, same behaviour.
+
+- [ ] **New estimate → Find in Zoho** → pick a company → name fills in and a "**Linked to Zoho**" line appears under the field.
+- [ ] Typing over a picked client **clears** the "Linked to Zoho" line (a hand-typed name must never keep a stale CRM link).
+- [ ] Create the estimate → open it → Setup tab shows the imported-from-Zoho panel; **reload** → still there.
+
 
 Expected values below were pulled live from the CRM, so they're exact:
 
 - [ ] `openarc` → **OpenArc LLC**; click it → **2 contacts: Mike Carpenter (General Manager, Consulting Services), Joel Reed (CEO)**.
 - [ ] `myrtle` → **19 companies** (Myrtle Beach Regional Economic Development Corporation, Monarch Roofing…).
 - [ ] **Person-name fallback:** `kresimir` or `glorioso` → no company matches by name, so it returns **FinOps Partners** badged **"via Kresimir (Kreso) Marusic" / "via Russell Glorioso"**.
+- [ ] **Prior deals (Phase 1):** `openarc` → **OpenArc LLC** shows a "**1 prior deal — Classic Plus Calling Campaign (Proposal Sent)**" line under its details.
+- [ ] Companies with no deals show **no** deal line at all (e.g. most `myrtle` results) — not "0 deals".
+- [ ] Search feels responsive (~1.4s: the company search plus one batched deal lookup, which must stay **one** call regardless of result count).
 - [ ] Back arrow returns to the company list; **"Use the company only"** works (no contact chosen).
 - [ ] Picking a contact fills the Client field + toast naming the contact.
 - [ ] **Reload the page — the client must still be there.** (Persisting `proposals.zoho` needs `quoteUpdatePayload()` *and* `updateProposal`'s `Pick<>` to whitelist the column; a miss fails silently.)

@@ -40,7 +40,19 @@ import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { useProjectsStore } from "@/store/projects-store";
-import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import {
+  useProposalEstimatorStore,
+  type SchedulePreview,
+} from "@/store/proposal-estimator-store";
+import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { backlogHref } from "@/lib/constants/sprints";
 import {
@@ -148,11 +160,37 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
   const regenerateSchedule = useProposalEstimatorStore(
     (s) => s.regenerateSchedule
   );
+  const previewSchedule = useProposalEstimatorStore((s) => s.previewSchedule);
   const [syncing, setSyncing] = React.useState(false);
-  const runSync = async (strategy?: "efficient" | "quick") => {
+  /** Set once a sync plan has been computed for review (nothing written yet). */
+  const [syncPreview, setSyncPreview] = React.useState<SchedulePreview | null>(
+    null,
+  );
+  const [syncStrategy, setSyncStrategy] = React.useState<
+    "efficient" | "quick" | undefined
+  >(undefined);
+
+  /** Compute + show the plan; the actual write waits for confirmation. */
+  const openSyncPreview = (strategy?: "efficient" | "quick") => {
+    const p = previewSchedule(projectId, strategy);
+    if (!p) {
+      toast.error("No estimate is linked to this project.");
+      return;
+    }
+    if (!p.sprints.length && !p.tasks.length) {
+      toast.info("Schedule is already up to date with the estimate.");
+      return;
+    }
+    setSyncStrategy(strategy);
+    setSyncPreview(p);
+  };
+
+  const confirmSync = async () => {
     setSyncing(true);
-    await regenerateSchedule(projectId, strategy);
+    // Persist exactly what was reviewed.
+    await regenerateSchedule(projectId, syncStrategy, syncPreview);
     setSyncing(false);
+    setSyncPreview(null);
   };
   const projectRecord = useProjectsStore((s) =>
     s.projects.find((p) => p.id === projectId)
@@ -318,6 +356,42 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
         onConfirm={handleDeleteSprint}
       />
 
+      <Dialog
+        open={syncPreview != null}
+        onOpenChange={(v) => !v && setSyncPreview(null)}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Review the schedule</DialogTitle>
+            <DialogDescription>
+              Nothing has been created yet. This is exactly what will be added to
+              this project when you confirm — existing sprints and tasks are left
+              untouched.
+            </DialogDescription>
+          </DialogHeader>
+          {syncPreview ? <SchedulePreviewPanel preview={syncPreview} /> : null}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSyncPreview(null)}
+              disabled={syncing}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void confirmSync()}
+              disabled={syncing}
+              className="gap-1.5"
+            >
+              <CalendarRange className="size-4" aria-hidden />
+              {syncing ? "Applying…" : "Confirm & apply"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <div className="flex flex-col gap-6">
         <WorkspacePageHeader
           eyebrow={projectLabel}
@@ -375,7 +449,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-72">
-                    <DropdownMenuItem onSelect={() => void runSync("efficient")}>
+                    <DropdownMenuItem onSelect={() => openSyncPreview("efficient")}>
                       <span className="flex flex-col">
                         <span className="font-medium">Best-fit &amp; auto-assign</span>
                         <span className="text-xs text-muted-foreground">
@@ -383,7 +457,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                         </span>
                       </span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void runSync("quick")}>
+                    <DropdownMenuItem onSelect={() => openSyncPreview("quick")}>
                       <span className="flex flex-col">
                         <span className="font-medium">Fastest &amp; auto-assign</span>
                         <span className="text-xs text-muted-foreground">
@@ -391,7 +465,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                         </span>
                       </span>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onSelect={() => void runSync(undefined)}>
+                    <DropdownMenuItem onSelect={() => openSyncPreview(undefined)}>
                       <span className="flex flex-col">
                         <span className="font-medium">Dates only</span>
                         <span className="text-xs text-muted-foreground">

@@ -505,7 +505,7 @@
       "layer": "state",
       "label": "proposal-estimator-store",
       "sub": "timeline-proposal-estimator",
-      "purpose": "Quotes CRUD; regenerateLineItems; setProposalStatus; convertToProject. Line math: base×tier(1/1.5/2)×qty + compounding roll-up add-ons. Quotes imported from a CRM deal (or with a client picked from Accounts) carry `zoho` (0029): {deal_id?, account_id?, contact_id?, …, web_url}.",
+      "purpose": "Quotes CRUD; regenerateLineItems; setProposalStatus; convertToProject. Line math: base×tier(1/1.5/2)×qty + compounding roll-up add-ons. Quotes imported from a CRM deal (or with a client picked from Accounts) carry `zoho` (0029): {deal_id?, account_id?, contact_id?, …, web_url}. previewConversion()/previewSchedule() compute the plan without writing; convertToProject/regenerateSchedule accept that reviewed preview and persist it verbatim.",
       "files": [
         "store/proposal-estimator-store.ts",
         "lib/constants/proposal-estimator.ts:78"
@@ -1204,7 +1204,7 @@
       "layer": "bridge",
       "label": "GET /api/zoho/accounts",
       "sub": "companies + their people",
-      "purpose": "Two modes: `?q=` searches Accounts (companies, ~4.0k) and — when nothing matches — falls back to searching Contacts and returns THEIR companies tagged `viaContact`; `?contactsOf=<id>` lists a company's people via /crm/v2/Accounts/{id}/Contacts. Replaced the Leads lookup: Accounts/Contacts are the qualified records, Leads (~122k) are raw and noisy.",
+      "purpose": "Three things: `?q=` searches Accounts (companies, ~4.0k) and — when nothing matches — falls back to searching Contacts and returns THEIR companies tagged `viaContact`; `?contactsOf=<id>` lists a company's people via /crm/v2/Accounts/{id}/Contacts; and every company list is enriched with that company's prior Deals via ONE batched `Account_Name:in:<ids>` query (verified: 25 ids in a single ~540ms call — per-account lookups would have been 25 calls). Deal enrichment is best-effort: a failure returns no deals rather than breaking the company list. Replaced the Leads lookup: Accounts/Contacts are the qualified records, Leads (~122k) are raw and noisy.",
       "files": [
         "app/api/zoho/accounts/route.ts"
       ]
@@ -2110,6 +2110,11 @@
       "from": "api-zohoaccounts",
       "to": "b-zohotokens",
       "label": "zohoFetch"
+    },
+    {
+      "from": "s-proposals",
+      "to": "api-zohoaccounts",
+      "label": "Find in Zoho (new-estimate dialog)"
     }
   ],
   "flows": [
@@ -3080,7 +3085,7 @@
       "id": "f-autoassign",
       "name": "Approved quote -> scheduled project (auto-assign)",
       "actor": "Manager/Admin",
-      "summary": "Start project turns the estimate's tentative timeline into real sprints, seeds the line items as tasks, and (optionally) picks a developer for each dev/QA task from skills + capacity + PTO. The project's timeline IS its sprints.",
+      "summary": "Start project opens a two-step dialog: options -> reviewed schedule preview -> confirm. Only on confirm does it turn the estimate's tentative timeline into real sprints, seed line items as tasks, and assign each dev/QA task from skills + capacity + PTO. The project's timeline IS its sprints.",
       "steps": [
         {
           "n": 1,
@@ -3120,34 +3125,44 @@
         },
         {
           "n": 5,
+          "from": "s-propeditor",
+          "to": "st-proposals",
+          "action": "previewConversion() -> SchedulePreview (sprints, per-task assignee + dates). WRITES NOTHING; user reviews it, then Confirm passes it back so the persisted plan is EXACTLY what was shown (never recomputed).",
+          "files": [
+            "components/features/proposals/SchedulePreviewPanel.tsx",
+            "store/proposal-estimator-store.ts"
+          ]
+        },
+        {
+          "n": 6,
           "from": "st-proposals",
           "to": "t-projects",
           "action": "insert project (optimistic upsert into store)",
           "files": []
         },
         {
-          "n": 6,
+          "n": 7,
           "from": "st-proposals",
           "to": "t-sprints",
           "action": "insert one sprint per estimate phase — AWAITED before tasks (FK)",
           "files": []
         },
         {
-          "n": 7,
+          "n": 8,
           "from": "st-proposals",
           "to": "t-tasks",
           "action": "insert tasks with sprint_id + due_date from the plan",
           "files": []
         },
         {
-          "n": 8,
+          "n": 9,
           "from": "st-proposals",
           "to": "t-assignees",
           "action": "insert task_assignees status=pending (dev accepts / rejects / passes)",
           "files": []
         },
         {
-          "n": 9,
+          "n": 10,
           "from": "st-proposals",
           "to": "s-project",
           "action": "Timeline section renders the project-scoped Gantt; manager adjusts sprint dates + assignees",
@@ -3293,15 +3308,16 @@
       "id": "f-zoho-client",
       "name": "Pick a client from Zoho (Accounts -> Contacts)",
       "actor": "Manager/Admin",
-      "summary": "Two-step client picker over the qualified CRM records: find the company, then the person (a company can have several). Replaced the Leads lookup.",
+      "summary": "Two-step client picker over the qualified CRM records: find the company (with its prior-deal history shown inline), then the person (a company can have several). Replaced the Leads lookup.",
       "steps": [
         {
           "n": 1,
           "from": "a-manager",
           "to": "s-propeditor",
-          "action": "Setup tab -> 'Find in Zoho' next to Client",
+          "action": "\"Find in Zoho\" on the Client field — from EITHER the New-estimate dialog (s-proposals) or the editor Setup tab (s-propeditor)",
           "files": [
-            "components/features/proposals/ZohoAccountLookup.tsx"
+            "components/features/proposals/ZohoAccountLookup.tsx",
+            "components/features/proposals/ProposalsListClient.tsx"
           ]
         },
         {
@@ -3322,27 +3338,36 @@
         },
         {
           "n": 4,
+          "from": "api-zohoaccounts",
+          "to": "x-zoho",
+          "action": "enrich: ONE batched Deals/search?criteria=((Account_Name:in:<all ids>)) -> prior deals per company (best-effort; failure = no deals shown)",
+          "files": [
+            "app/api/zoho/accounts/route.ts"
+          ]
+        },
+        {
+          "n": 5,
           "from": "s-propeditor",
           "to": "api-zohoaccounts",
           "action": "pick a company -> GET ?contactsOf=<accountId>",
           "files": []
         },
         {
-          "n": 5,
+          "n": 6,
           "from": "api-zohoaccounts",
           "to": "x-zoho",
           "action": "/crm/v2/Accounts/{id}/Contacts -> Full_Name, Email, Phone, Title",
           "files": []
         },
         {
-          "n": 6,
+          "n": 7,
           "from": "s-propeditor",
           "to": "st-proposals",
           "action": "updateProposal({client_name, zoho:{account_id, contact_id, …}}) — 'company only' is allowed",
           "files": []
         },
         {
-          "n": 7,
+          "n": 8,
           "from": "st-proposals",
           "to": "t-proposals",
           "action": "persist via quoteUpdatePayload() (must whitelist `zoho`)",

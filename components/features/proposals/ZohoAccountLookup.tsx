@@ -2,6 +2,7 @@
 
 import {
   ArrowLeft,
+  Briefcase,
   Building2,
   Globe,
   Loader2,
@@ -25,6 +26,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 
+export type ZohoAccountDealSummary = {
+  id: string;
+  name: string | null;
+  stage: string | null;
+  amount: number | null;
+};
+
 export type ZohoAccountResult = {
   id: string;
   name: string | null;
@@ -34,6 +42,7 @@ export type ZohoAccountResult = {
   owner: string | null;
   viaContact?: string | null;
   webUrl: string | null;
+  deals?: ZohoAccountDealSummary[];
 };
 
 export type ZohoContactResult = {
@@ -333,6 +342,29 @@ export function ZohoAccountLookup({
                         </span>
                       ) : null}
                     </div>
+                    {/* Prior CRM history — "have we worked with them before?" */}
+                    {a.deals?.length ? (
+                      <div className="mt-2 flex min-w-0 items-start gap-1.5 border-t border-border/50 pt-2 text-xs">
+                        <Briefcase
+                          className="mt-0.5 size-3 shrink-0 text-muted-foreground"
+                          aria-hidden
+                        />
+                        <span className="min-w-0">
+                          <span className="font-medium text-foreground/80">
+                            {a.deals.length} prior{" "}
+                            {a.deals.length === 1 ? "deal" : "deals"}
+                          </span>
+                          <span className="text-muted-foreground">
+                            {" — "}
+                            <span className="truncate">{a.deals[0].name}</span>
+                            {a.deals[0].stage ? ` (${a.deals[0].stage})` : null}
+                            {a.deals.length > 1
+                              ? ` +${a.deals.length - 1} more`
+                              : null}
+                          </span>
+                        </span>
+                      </div>
+                    ) : null}
                   </button>
                 </li>
               ))}

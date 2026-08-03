@@ -10,12 +10,15 @@ import {
   FileText,
   Layers,
   Library,
+  Link2,
   Plus,
+  Search,
   Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import {
   ZohoDealImport,
   type ZohoDealResult,
@@ -69,7 +72,11 @@ import {
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { DiscoveryProject } from "@/types/discovery.types";
-import type { ClientQuote, ProposalPlatform } from "@/types/proposal.types";
+import type {
+  ClientQuote,
+  ProposalPlatform,
+  ProposalZohoLink,
+} from "@/types/proposal.types";
 
 type EstimateMethod = "guided" | "manual";
 
@@ -84,6 +91,9 @@ export function ProposalsListClient() {
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [dealImportOpen, setDealImportOpen] = React.useState(false);
+  const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
+  /** CRM link captured when the client is picked from Zoho (null = typed by hand). */
+  const [newZoho, setNewZoho] = React.useState<ProposalZohoLink | null>(null);
   const [method, setMethod] = React.useState<EstimateMethod>("guided");
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
@@ -140,6 +150,8 @@ export function ProposalsListClient() {
         newProjectId && newProjectId !== "__none__" ? newProjectId : null,
       platform: newPlatform,
       discovery,
+      // Only set when the client was picked from Zoho (typing clears it).
+      zoho: newZoho,
     });
     setCreateOpen(false);
     setMethod("guided");
@@ -147,6 +159,7 @@ export function ProposalsListClient() {
     setNewClient("");
     setNewProjectId("__none__");
     setNewPlatform("react_next");
+    setNewZoho(null);
     router.push(`/proposals/${id}`);
   };
 
@@ -192,6 +205,26 @@ export function ProposalsListClient() {
         open={dealImportOpen}
         onClose={() => setDealImportOpen(false)}
         onSelect={handleImportDeal}
+      />
+
+      <ZohoAccountLookup
+        open={clientLookupOpen}
+        onClose={() => setClientLookupOpen(false)}
+        onSelect={({ account, contact }) => {
+          const client = account.name?.trim();
+          if (!client) return;
+          setNewClient(client);
+          setNewZoho({
+            account_id: account.id,
+            account: account.name,
+            contact_id: contact?.id ?? null,
+            contact: contact?.name ?? null,
+            contact_email: contact?.email ?? null,
+            contact_phone: contact?.phone ?? null,
+            web_url: account.webUrl,
+            imported_at: new Date().toISOString(),
+          });
+        }}
       />
 
       <WorkspacePageHeader
@@ -384,13 +417,37 @@ export function ProposalsListClient() {
               />
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="quote-client">Client (optional)</Label>
+              <div className="flex items-center justify-between gap-2">
+                <Label htmlFor="quote-client">Client (optional)</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setClientLookupOpen(true)}
+                >
+                  <Search className="size-3.5" aria-hidden />
+                  Find in Zoho
+                </Button>
+              </div>
               <Input
                 id="quote-client"
                 value={newClient}
-                onChange={(e) => setNewClient(e.target.value)}
+                onChange={(e) => {
+                  setNewClient(e.target.value);
+                  // Typing over a picked client breaks the CRM link — drop it
+                  // rather than keep a link that no longer matches the name.
+                  setNewZoho(null);
+                }}
                 placeholder="Organization name"
               />
+              {newZoho ? (
+                <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                  <Link2 className="size-3 shrink-0" aria-hidden />
+                  Linked to Zoho
+                  {newZoho.contact ? ` · ${newZoho.contact}` : ""}
+                </p>
+              ) : null}
             </div>
             <div className="grid gap-2">
               <Label>Internal project (optional)</Label>
