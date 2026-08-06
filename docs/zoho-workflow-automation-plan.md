@@ -89,12 +89,20 @@ that's also the moment we push to Zoho and move the linked Deal to **"Proposal S
 status changes are conceptually the same event, so one action drives both. Alternative: a separate
 "Push to Zoho" button, decoupled from the internal status field.
 
-**4.2 — Exact OAuth scope for the PDF attachment.**
+**4.2 — Exact OAuth scope for the PDF attachment. ✅ Resolved 2026-08-08.**
 Confirmed **not** covered by the current read-only scope (`POST .../Deals/1/Attachments` → `401
-OAUTH_SCOPE_MISMATCH`, tested live). The exact scope string needed (likely something under
-`ZohoCRM.modules.deals.{CREATE|UPDATE}`, but Zoho's attachment permissions aren't fully confirmed from
-here) **must be verified against Zoho's own API docs at implementation time** — this plan deliberately
-does not guess a scope name with false confidence.
+OAUTH_SCOPE_MISMATCH`, tested live). Cross-checked against Zoho's own v8 API docs (their
+"Upload an Attachment" page + their Scopes reference — not guessed):
+
+- Deal field/stage updates → `ZohoCRM.modules.deals.UPDATE`
+- Uploading the attachment → **both** `ZohoCRM.modules.deals.CREATE` (the module's own write scope —
+  Zoho requires this pairing even though we're not creating a new Deal) **and**
+  `ZohoCRM.modules.attachments.CREATE`
+
+Deliberately **no `.DELETE` or `.ALL` requested anywhere** — narrowest useful scope per this repo's
+existing Zoho philosophy. **Staged in `.env.local`/`.env.example`, not yet live** — the deployed
+connection keeps its current read-only grant until someone with Zoho CRM edit rights on Deals does
+Disconnect → Connect (§5).
 
 **4.3 — Which CRM context to surface, and where (§3.7).**
 Verified readable with zero new scope: an Account's related **Deals**, **Notes**, and **Activities

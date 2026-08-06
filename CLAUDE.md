@@ -373,8 +373,13 @@ cannot touch it; only the service-role key (server routes) can. Tokens must neve
 browser; `/api/zoho/status` returns metadata only. `lib/zoho/tokens.ts` exposes `getAccessToken()`
 (auto-refreshes ~1 min before the 1 h expiry) and **`zohoFetch(path)`** — use that for any new call.
 
-**Scopes are read-only** (`ZohoCRM.modules/users/org/settings .READ`) and are **frozen at consent**:
-widening them needs a new `ZOHO_SCOPES` + redeploy + **Disconnect → Connect** re-consent.
+**Scopes are frozen at consent** — a live connection keeps whatever it was granted until someone
+Disconnects and Connects again; changing `ZOHO_SCOPES` only affects the *next* consent screen. The
+**deployed** connection is currently read-only (`ZohoCRM.modules/users/org/settings .READ`). A wider
+set for Phase 3 (`docs/zoho-workflow-automation-plan.md`) — `modules.deals.CREATE`/`.UPDATE` +
+`modules.attachments.CREATE`, verified against Zoho's own API docs, no `.DELETE`/`.ALL` — is **staged
+in `.env.local`/`.env.example` only**; it takes effect on Vercel only after that env var is added
+there **and** someone with Zoho CRM edit rights on Deals does Disconnect → Connect.
 
 **Features consuming CRM data** (both gated admin+manager by `requireZohoReader()` — CRM records are PII):
 

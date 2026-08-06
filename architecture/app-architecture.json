@@ -1184,7 +1184,7 @@
       "layer": "external",
       "label": "Zoho CRM",
       "sub": "accounts.zoho.com · zohoapis.com",
-      "purpose": "OAuth at {accounts_server}/oauth/v2/token; REST at {api_domain}/crm/v2. Granted scopes are READ-only: ZohoCRM.modules.READ, users.READ, org.READ, settings.READ. Org: Strategic Connection (~122k Leads, ~923 Deals).",
+      "purpose": "OAuth at {accounts_server}/oauth/v2/token; REST at {api_domain}/crm/v2. Granted scopes (live) are READ-only: ZohoCRM.modules.READ, users.READ, org.READ, settings.READ. Org: Strategic Connection (~122k Leads, ~923 Deals). Phase 3 write scopes (deals.CREATE/UPDATE + attachments.CREATE, verified against Zoho's own docs, no DELETE/ALL) are STAGED in .env.local/.env.example only — inert until a Vercel env update + Disconnect→Connect re-consent by someone with Zoho CRM edit rights.",
       "files": [
         "lib/zoho/tokens.ts"
       ]
