@@ -46,14 +46,18 @@ export function SidebarUserCard() {
   return (
     <div
       className={cn(
-        "flex items-center gap-2 rounded-xl border border-border/60 bg-card/60 p-2",
+        // Icon rail (md): stack avatar over sign-out. From lg: the full card.
+        "flex flex-col items-center gap-1.5 rounded-xl border border-border/60 bg-card/60 p-1.5",
+        "lg:flex-row lg:gap-2 lg:p-2",
         "shadow-sm shadow-primary/[0.03] backdrop-blur-sm dark:bg-card/40"
       )}
     >
       <Link
         href="/settings"
+        title={`${user.name} — account & settings`}
         className={cn(
-          "flex min-w-0 flex-1 items-center gap-2.5 rounded-md px-1 py-0.5 transition-colors",
+          "flex min-w-0 items-center justify-center rounded-md px-1 py-0.5 transition-colors",
+          "lg:flex-1 lg:justify-start lg:gap-2.5",
           "hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           onSettings && "bg-muted/60"
         )}
@@ -63,7 +67,7 @@ export function SidebarUserCard() {
           {user.avatar_url ? <AvatarImage src={user.avatar_url} alt="" /> : null}
           <AvatarFallback>{user.initials}</AvatarFallback>
         </Avatar>
-        <div className="min-w-0 text-left">
+        <div className="hidden min-w-0 text-left lg:block">
           <div className="truncate text-sm font-medium leading-tight">
             {user.name}
           </div>
@@ -75,7 +79,10 @@ export function SidebarUserCard() {
 
       {isConfigured ? (
         <div className="flex shrink-0 items-center gap-1">
-          <Badge variant="secondary" className="h-7 px-2 text-xs capitalize">
+          <Badge
+            variant="secondary"
+            className="hidden h-7 px-2 text-xs capitalize lg:inline-flex"
+          >
             {user.role}
           </Badge>
           <AlertDialog>
@@ -111,7 +118,7 @@ export function SidebarUserCard() {
         <Select value={user.role} onValueChange={(v) => setRole(v as UserRole)}>
           <SelectTrigger
             size="sm"
-            className="h-8 w-[min(7.5rem,38%)] min-w-27 shrink-0 justify-between gap-1 px-2 text-xs capitalize"
+            className="hidden h-8 w-[min(7.5rem,38%)] min-w-27 shrink-0 justify-between gap-1 px-2 text-xs capitalize lg:flex"
             aria-label="Demo role (permissions preview)"
           >
             <SelectValue placeholder="Role" />

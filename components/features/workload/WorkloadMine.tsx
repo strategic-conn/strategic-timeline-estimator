@@ -128,7 +128,8 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
         </div>
       ) : null}
 
-      <section className="grid gap-3 sm:grid-cols-4">
+      {/* 2-up on phones/tablet; 4 across only once there's real width. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card size="sm">
           <CardHeader className="gap-1">
             <CardDescription>Open tasks</CardDescription>

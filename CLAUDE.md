@@ -568,6 +568,16 @@ if (!tasks.length) {
 5. **Mobile is not an afterthought.** Check every page on 375px width before calling it done.
    Gantt/Calendar fallback to list view on mobile.
 
+   **Three layout tiers, not two** — `md` (768px) is *iPad portrait*, not a desktop:
+   - `< md` — no sidebar, bottom tab bar + drawer
+   - `md–lg` — **64px icon rail** (`w-16`, labels/group headings/wordmark hidden, `title` tooltips
+     keep icons identifiable). Gives ~664px of content on iPad portrait; a full `w-56` sidebar there
+     left only ~504px — *narrower than the same device with no sidebar at all*.
+   - `lg+` — full sidebar with labels (`lg:w-56`, `xl:w-64`)
+
+   So gate multi-column grids on **`lg:`**, not `sm:`/`md:` — `sm:grid-cols-3` fires at 640px but the
+   *content area* on a tablet is far narrower than the viewport suggests.
+
 6. **Confirm before destroy.** Every delete, archive, or destructive action needs a
    ConfirmDialog that names exactly what will be affected.
 

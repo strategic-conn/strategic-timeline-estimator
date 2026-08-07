@@ -83,6 +83,19 @@ Expected values below were pulled live from the CRM, so they're exact:
 - [ ] Signed in as a **member**, open `/api/zoho/accounts?q=openarc` → **403** (CRM data is admin/manager only).
 - [ ] **Disconnect → Connect** round-trip works.
 
+## 📱 Tablet pass @ 768px + 1024px (iPad portrait / landscape)
+
+- [ ] **768px (iPad portrait):** sidebar is a **narrow icon rail** — no text labels, no group headings, no wordmark; hovering/long-pressing an icon shows its name.
+- [ ] Active page is still visibly highlighted on the rail.
+- [ ] Bottom tab bar is **gone** at 768px (rail replaces it) and **back** below 768px.
+- [ ] User avatar sits at the bottom of the rail and opens Settings; sign-out still reachable.
+- [ ] **1024px (landscape):** full sidebar with labels returns — nothing stuck in rail mode.
+- [ ] Timeline/Gantt: bars have usable width at 768px (name pane must not dominate).
+- [ ] Workload stat cards: 2-up at 768px, 3–4 across only at 1024px+.
+- [ ] Calendar month grid readable at 768px, **and at 1024px** — the day-detail panel must sit *below* the month (not beside it) until ~1280px, or day cells get squeezed to ~58px.
+- [ ] No page scrolls sideways at 768px or 1024px.
+- [ ] Spot-check the rest at 768px — Dashboard, Projects, Project overview, Board, Team, Settings, Activity, Reports, Estimator list + editor. All audited as safe; these are confirmation only.
+
 ## 🟢 Mobile pass @ 375px
 
 - [ ] Estimator: Line items (collapsible), Questionnaire, Catalog dialog, Review (no sideways scroll), Timeline (zoom + clickable bars).

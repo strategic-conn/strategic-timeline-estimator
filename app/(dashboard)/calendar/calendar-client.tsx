@@ -215,7 +215,10 @@ export function CalendarClient() {
         }
       />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
+      {/* Split only at xl: at lg (iPad landscape) a 320px side panel would leave
+          ~408px for 7 day-columns (~58px each) — narrower than portrait, where
+          the panel stacks and the month gets the full width. */}
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <Card>
           <CardContent className="p-2 sm:p-4">
             <div className="grid grid-cols-7">

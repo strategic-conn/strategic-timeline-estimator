@@ -27,7 +27,8 @@ export function DashboardSidebarNav() {
           key={group.group}
           className={cn("flex flex-col gap-1", idx === 0 && "mt-0")}
         >
-          <p className="px-2.5 pb-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">
+          {/* Group headings are labels — nothing to show on the icon rail. */}
+          <p className="hidden px-2.5 pb-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 lg:block">
             {group.label}
           </p>
           {group.items.map((item) => {
@@ -35,12 +36,17 @@ export function DashboardSidebarNav() {
               return (
                 <div
                   key={item.href}
-                  className="flex cursor-not-allowed items-center gap-2.5 rounded-xl px-2.5 py-2 opacity-50"
+                  className="flex cursor-not-allowed items-center justify-center rounded-xl py-2 opacity-50 lg:justify-start lg:gap-2.5 lg:px-2.5"
                   title={`${item.label} — coming soon`}
                 >
                   <item.icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <span className="flex-1 text-sm text-muted-foreground">{item.label}</span>
-                  <Badge variant="secondary" className="h-4 px-1 text-[0.6rem] leading-none">
+                  <span className="hidden flex-1 text-sm text-muted-foreground lg:inline">
+                    {item.label}
+                  </span>
+                  <Badge
+                    variant="secondary"
+                    className="hidden h-4 px-1 text-[0.6rem] leading-none lg:inline-flex"
+                  >
                     Soon
                   </Badge>
                 </div>
@@ -53,14 +59,19 @@ export function DashboardSidebarNav() {
                 key={item.href}
                 variant="ghost"
                 className={cn(
-                  "justify-start gap-2.5 rounded-xl px-2.5 transition-colors",
+                  "justify-center gap-0 rounded-xl px-0 transition-colors lg:justify-start lg:gap-2.5 lg:px-2.5",
                   active
                     ? "border border-primary/20 bg-primary/10 font-medium text-foreground shadow-sm hover:bg-primary/12 hover:text-foreground"
                     : "text-muted-foreground hover:bg-sidebar-accent/80 hover:text-foreground"
                 )}
                 asChild
               >
-                <Link href={item.href} aria-current={active ? "page" : undefined}>
+                <Link
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  // Native tooltip so the rail's icons stay identifiable.
+                  title={item.label}
+                >
                   <item.icon
                     className={cn(
                       "size-4 shrink-0",
@@ -68,7 +79,7 @@ export function DashboardSidebarNav() {
                     )}
                     aria-hidden="true"
                   />
-                  {item.label}
+                  <span className="hidden lg:inline">{item.label}</span>
                 </Link>
               </Button>
             );

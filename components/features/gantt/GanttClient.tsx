@@ -40,8 +40,11 @@ const ROW_PX = 52;
 const HEADER_ROW_PX = 44;
 
 /** Narrower task column on phones so the timeline stays usable; wider at sm+ breakpoints. */
+// The chart is the point, so the name pane stays lean until there's real width:
+// on tablet (md) the content area is ~664px, where a 208px pane left too little
+// room for the bars — hold at 176px until lg.
 const TASK_PANE_CLASSES =
-  "w-[41%] max-w-[11.25rem] min-w-[9rem] shrink-0 sm:min-w-0 sm:max-w-none sm:w-44 md:w-52 lg:w-56 xl:w-64";
+  "w-[41%] max-w-[11.25rem] min-w-[9rem] shrink-0 sm:min-w-0 sm:max-w-none sm:w-44 lg:w-56 xl:w-64";
 
 const BAR_BG: Record<TaskStatus, string> = {
   todo: "bg-slate-500/90 dark:bg-slate-400/85",

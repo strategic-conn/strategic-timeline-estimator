@@ -222,7 +222,8 @@ export function WorkloadClient() {
         </div>
       )}
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      {/* 3-across only once there's room — on the tablet rail it'd be ~200px/card. */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <Card size="sm">
           <CardHeader className="gap-1">
             <CardDescription>People with open work</CardDescription>

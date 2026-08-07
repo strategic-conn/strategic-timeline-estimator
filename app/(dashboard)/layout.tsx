@@ -34,16 +34,20 @@ export default function DashboardLayout({
       <PageAccessGuard />
       <AppAtmosphere variant="app" />
 
-      <aside className="relative z-10 hidden h-svh min-h-0 w-56 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-3 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl sm:p-4 print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex xl:w-64">
-        <div className="flex shrink-0 items-start justify-between gap-2">
+      {/* Tablet (md) shows a 64px icon rail; labels appear from lg up. Keeps nav
+          always visible on iPad without eating 29% of the viewport. */}
+      <aside className="relative z-10 hidden h-svh min-h-0 w-16 shrink-0 flex-col border-r border-border/60 bg-sidebar/90 p-2 shadow-[4px_0_24px_-18px_rgba(0,0,0,0.12)] backdrop-blur-xl print:hidden dark:shadow-[4px_0_24px_-18px_rgba(0,0,0,0.45)] md:flex lg:w-56 lg:p-4 xl:w-64">
+        <div className="flex shrink-0 items-start justify-center gap-2 lg:justify-between">
           <Link
             href="/dashboard"
-            className="group flex min-w-0 flex-1 items-start gap-2.5 rounded-lg outline-none transition-colors hover:bg-sidebar-accent/50 focus-visible:ring-2 focus-visible:ring-ring"
+            title="Timeline Estimator"
+            className="group flex min-w-0 items-start gap-2.5 rounded-lg outline-none transition-colors hover:bg-sidebar-accent/50 focus-visible:ring-2 focus-visible:ring-ring lg:flex-1"
           >
             <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/12 text-primary transition-colors group-hover:bg-primary/18">
               <LayoutDashboard className="size-4" aria-hidden />
             </span>
-            <span className="min-w-0 py-0.5">
+            {/* Wordmark + env badge are rail-hidden; the icon alone identifies it. */}
+            <span className="hidden min-w-0 py-0.5 lg:block">
               <span className="block truncate text-sm font-semibold leading-tight">
                 Timeline Estimator
               </span>
@@ -52,19 +56,22 @@ export default function DashboardLayout({
               </span>
             </span>
           </Link>
-          <Badge variant="outline" className="shrink-0 font-mono text-[0.65rem]">
+          <Badge
+            variant="outline"
+            className="hidden shrink-0 font-mono text-[0.65rem] lg:inline-flex"
+          >
             {isSupabaseConfigured ? "Live" : "Demo"}
           </Badge>
         </div>
 
-        <Separator className="my-4 shrink-0 bg-border/60" />
+        <Separator className="my-3 shrink-0 bg-border/60 lg:my-4" />
 
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
           <DashboardSidebarNav />
         </div>
 
-        <div className="shrink-0 pt-4">
-          <Separator className="mb-4 bg-border/60" />
+        <div className="shrink-0 pt-3 lg:pt-4">
+          <Separator className="mb-3 bg-border/60 lg:mb-4" />
           <SidebarUserCard />
         </div>
       </aside>
