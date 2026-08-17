@@ -9,6 +9,19 @@ import { createClient } from "@/lib/supabase/server";
  * limited to admin + manager — the same tier that can use the Estimator
  * (`canExportProposals`). Members/viewers get 403.
  */
+/**
+ * Gate for WRITING to the CRM (stage moves, attachments).
+ *
+ * Same admin+manager tier as reading today, but deliberately a separate named
+ * gate: writes mutate a production CRM (~900 real deals), so the surface should
+ * be greppable and tightenable without touching every read route.
+ */
+export async function requireZohoWriter(): Promise<
+  { userId: string } | { error: NextResponse }
+> {
+  return requireZohoReader();
+}
+
 export async function requireZohoReader(): Promise<
   { userId: string } | { error: NextResponse }
 > {

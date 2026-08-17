@@ -18,14 +18,20 @@ type DocWithAutoTable = {
   lastAutoTable?: { finalY: number };
 };
 
+/** The filename used for both the download and the Zoho attachment. */
+export function proposalPdfFilename(quote: ClientQuote): string {
+  return `${safeFilenamePart(quote.title)}-${format(new Date(quote.updated_at), "yyyy-MM-dd")}.pdf`;
+}
+
 /**
- * Builds a downloadable .pdf in the browser (no print dialog).
- * Uses the same fields as the on-screen quote preview.
+ * Builds the quote PDF and hands back the jsPDF doc, so callers can either
+ * download it or take the bytes (e.g. to attach to a Zoho Deal). Kept private —
+ * `downloadProposalPdf` / `buildProposalPdfBlob` are the two entry points.
  */
-export async function downloadProposalPdf(
+async function buildProposalPdfDoc(
   quote: ClientQuote,
   projectName: string | null | undefined,
-): Promise<void> {
+) {
   const [{ default: jsPDF }, autoTableMod] = await Promise.all([
     import("jspdf"),
     import("jspdf-autotable"),
@@ -195,6 +201,30 @@ export async function downloadProposalPdf(
     doc.text(noteLines, margin, y);
   }
 
-  const fname = `${safeFilenamePart(quote.title)}-${format(new Date(quote.updated_at), "yyyy-MM-dd")}.pdf`;
-  doc.save(fname);
+  return doc;
+}
+
+/**
+ * Builds a downloadable .pdf in the browser (no print dialog).
+ * Uses the same fields as the on-screen quote preview.
+ */
+export async function downloadProposalPdf(
+  quote: ClientQuote,
+  projectName: string | null | undefined,
+): Promise<void> {
+  const doc = await buildProposalPdfDoc(quote, projectName);
+  doc.save(proposalPdfFilename(quote));
+}
+
+/**
+ * Same PDF, returned as bytes instead of downloaded — used to attach the
+ * proposal to its Zoho Deal. jsPDF only runs in the browser, so the file is
+ * built client-side and POSTed to the server route, which forwards it to Zoho.
+ */
+export async function buildProposalPdfBlob(
+  quote: ClientQuote,
+  projectName: string | null | undefined,
+): Promise<Blob> {
+  const doc = await buildProposalPdfDoc(quote, projectName);
+  return doc.output("blob");
 }

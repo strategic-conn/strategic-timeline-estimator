@@ -77,11 +77,18 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 - [ ] **View in Zoho** opens the right CRM record — *this URL is constructed by us, not returned by Zoho, so it's the piece most worth confirming.*
 - [ ] Deals with `Amount: 0` show **no** figure (correct — most real deals have 0, and we now know `Amount` is a Zoho formula field, not a plain one — see the tech-debt note at the bottom).
 
-> **Phase 3 (write-back) has no UI yet** — nothing to click-test here until it's built. What's already
-> confirmed by direct API testing (not the app): Stage moves work, PDF attachment works, `Amount` and
-> `Quote_number` are **not** writable on this org (Zoho-computed fields), and duplicate attachment
-> uploads are **not** deduped by Zoho — our own idempotency guard has to do that. See
-> `docs/zoho-workflow-automation-plan.md` §Phase 3.
+### Push to Zoho (Phase 3 — writes to the production CRM)
+
+> ⚠️ **This is the only feature that modifies your real CRM.** Test it against the dedicated test
+> deal (`3805132000161523001`, "TEST — DO NOT TOUCH"), not a live client deal.
+
+- [ ] The **Push to Zoho** button only appears on quotes **linked to a Zoho deal** (import one, or set the client from Zoho first).
+- [ ] Click it → toast confirms; in Zoho the deal's stage is now **"Proposal Sent"** and the proposal **PDF is attached**.
+- [ ] ⭐ **Idempotency:** the button now reads **"Pushed to Zoho"** and is **disabled**. Reload — still disabled. *(Zoho does NOT dedupe attachments, so a second push would create a duplicate file.)*
+- [ ] Hovering the disabled button shows when it was pushed.
+- [ ] A quote with **no** CRM link shows no button at all.
+- [ ] As a **member**, `POST /api/zoho/deals/<id>/push` → **403**.
+- [ ] Confirm in Zoho that **Amount and Quote_number are unchanged** — by design, we never write them (formula / autonumber fields).
 
 ## 📱 Tablet pass @ 768px + 1024px (iPad portrait / landscape)
 

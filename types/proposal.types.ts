@@ -85,6 +85,15 @@ export interface ProposalZohoLink {
   /** Deep link into the Zoho CRM record. */
   web_url?: string | null;
   imported_at: string;
+  /**
+   * Set once this quote has been pushed to its Zoho deal (stage move + PDF).
+   * Acts as the idempotency guard — Zoho does NOT dedupe attachments, so a
+   * re-push would create a second copy. Written server-side by
+   * `POST /api/zoho/deals/[id]/push`.
+   */
+  pushed_at?: string | null;
+  /** The CRM stage this app set on that push. */
+  pushed_stage?: string | null;
 }
 
 export interface ClientQuote {

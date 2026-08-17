@@ -21,6 +21,7 @@ import {
   Sparkles,
   Trash2,
   TriangleAlert,
+  Upload,
   Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -108,7 +109,11 @@ import type { DiscoveryFieldId } from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
-import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
+import {
+  buildProposalPdfBlob,
+  downloadProposalPdf,
+  proposalPdfFilename,
+} from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
 import {
   useProposalEstimatorStore,
@@ -191,6 +196,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const previewConversion = useProposalEstimatorStore(
     (s) => s.previewConversion,
   );
+  const hydrateProposals = useProposalEstimatorStore(
+    (s) => s.hydrateFromSupabase,
+  );
 
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertName, setConvertName] = React.useState("");
@@ -203,6 +211,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [convertPreview, setConvertPreview] =
     React.useState<SchedulePreview | null>(null);
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
+  const [pushing, setPushing] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
@@ -359,6 +368,58 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     }
   };
 
+  /**
+   * Push this quote to its linked Zoho deal: move the stage to "Proposal Sent"
+   * and attach the PDF. The PDF is built here because jsPDF is browser-only —
+   * the bytes are POSTed to the route, which forwards them to Zoho.
+   */
+  const handlePushToZoho = async () => {
+    if (!quote?.zoho?.deal_id) return;
+    setPushing(true);
+    try {
+      const blob = await buildProposalPdfBlob(quote, projectName);
+      const form = new FormData();
+      form.append("proposalId", quote.id);
+      form.append("file", blob, proposalPdfFilename(quote));
+
+      const res = await fetch(
+        `/api/zoho/deals/${encodeURIComponent(quote.zoho.deal_id)}/push`,
+        { method: "POST", body: form },
+      );
+      const data = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        toast.error("Couldn't push to Zoho", {
+          description: data?.error ?? `Request failed (${res.status}).`,
+        });
+        return;
+      }
+      if (data?.alreadyPushed) {
+        toast.info("Already pushed to Zoho", {
+          description: "This quote was pushed before — not sending it again.",
+        });
+      } else {
+        toast.success("Pushed to Zoho", {
+          description: data?.attachmentUploaded
+            ? "Deal moved to Proposal Sent and the PDF was attached."
+            : "Deal moved to Proposal Sent.",
+        });
+      }
+      // Surface any partial failure (e.g. stage moved but attachment failed).
+      for (const w of (data?.warnings ?? []) as string[]) {
+        toast.warning(w);
+      }
+      // Reflect pushed_at locally so the button disables without a reload.
+      await hydrateProposals();
+    } catch (e) {
+      toast.error("Couldn't push to Zoho", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setPushing(false);
+    }
+  };
+
   const openConvert = () => {
     if (!quote) return;
     setConvertName(quote.title);
@@ -455,6 +516,30 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   ))}
                 </SelectContent>
               </Select>
+
+              {/* Only for quotes linked to a CRM deal. Explicit click — nothing
+                  reaches the production CRM automatically. */}
+              {quote.zoho?.deal_id ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  disabled={pushing || Boolean(quote.zoho.pushed_at)}
+                  onClick={() => void handlePushToZoho()}
+                  title={
+                    quote.zoho.pushed_at
+                      ? `Already pushed ${new Date(quote.zoho.pushed_at).toLocaleString()}`
+                      : "Move the linked Zoho deal to Proposal Sent and attach the PDF"
+                  }
+                >
+                  <Upload className="size-4" aria-hidden />
+                  {quote.zoho.pushed_at
+                    ? "Pushed to Zoho"
+                    : pushing
+                      ? "Pushing…"
+                      : "Push to Zoho"}
+                </Button>
+              ) : null}
 
               {quote.project_id ? (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>

@@ -128,11 +128,15 @@ export async function zohoFetch(path: string, init?: RequestInit): Promise<Respo
   const token = await getAccessToken();
   if (!token) throw new Error("Couldn't obtain a Zoho access token.");
   const base = conn.api_domain || "https://www.zohoapis.com";
+  // File uploads must keep fetch's own multipart Content-Type (it carries the
+  // boundary) — forcing application/json here would corrupt the request body.
+  const isMultipart =
+    typeof FormData !== "undefined" && init?.body instanceof FormData;
   return fetch(`${base}${path}`, {
     ...init,
     headers: {
       Authorization: `Zoho-oauthtoken ${token}`,
-      "Content-Type": "application/json",
+      ...(isMultipart ? {} : { "Content-Type": "application/json" }),
       ...(init?.headers ?? {}),
     },
   });

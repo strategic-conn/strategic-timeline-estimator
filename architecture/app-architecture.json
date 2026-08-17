@@ -1208,6 +1208,20 @@
       "files": [
         "app/api/zoho/accounts/route.ts"
       ]
+    },
+    {
+      "id": "api-zohopush",
+      "layer": "bridge",
+      "label": "POST /api/zoho/deals/[id]/push",
+      "sub": "WRITE — admin+manager",
+      "purpose": "Phase 3 write-back. Moves the linked Deal to \"Proposal Sent\" and attaches the proposal PDF. Gated by requireZohoWriter(). Writes ONLY Stage — Amount is a Zoho formula field (write succeeds then recalculates back ~1s) and Quote_number is a system autonumber; both verified unsettable on this org. Idempotent via proposals.zoho.pushed_at, checked AND written server-side because Zoho does not dedupe attachments. Stage move is fatal-on-failure; the attachment is best-effort and reports a warning.",
+      "files": [
+        "app/api/zoho/deals/[id]/push/route.ts",
+        "lib/zoho/guard.ts"
+      ],
+      "tables": [
+        "proposals"
+      ]
     }
   ],
   "edges": [
@@ -2115,6 +2129,26 @@
       "from": "s-proposals",
       "to": "api-zohoaccounts",
       "label": "Find in Zoho (new-estimate dialog)"
+    },
+    {
+      "from": "s-propeditor",
+      "to": "api-zohopush",
+      "label": "Push to Zoho (explicit click)"
+    },
+    {
+      "from": "api-zohopush",
+      "to": "b-zohotokens",
+      "label": "zohoFetch (PUT stage + multipart attach)"
+    },
+    {
+      "from": "api-zohopush",
+      "to": "t-proposals",
+      "label": "records pushed_at (idempotency)"
+    },
+    {
+      "from": "api-zohopush",
+      "to": "x-zoho",
+      "label": "Deal stage + attachment"
     }
   ],
   "flows": [
@@ -3376,6 +3410,71 @@
           ]
         }
       ]
+    },
+    {
+      "id": "f-zoho-push",
+      "name": "Push a quote to its Zoho deal (write-back)",
+      "actor": "Manager/Admin",
+      "summary": "The only path that mutates the production CRM. Explicit button, never automatic: moves the linked Deal to Proposal Sent and attaches the PDF, once.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-propeditor",
+          "action": "Click \"Push to Zoho\" (shown only when quote.zoho.deal_id exists, disabled once pushed)",
+          "files": [
+            "components/features/proposals/ProposalEditorClient.tsx"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "s-propeditor",
+          "to": "s-propeditor",
+          "action": "buildProposalPdfBlob() — jsPDF is browser-only, so the PDF is built client-side and POSTed as multipart",
+          "files": [
+            "lib/utils/proposal-pdf-export.ts"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "s-propeditor",
+          "to": "api-zohopush",
+          "action": "POST multipart {proposalId, file}",
+          "files": [
+            "app/api/zoho/deals/[id]/push/route.ts"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "api-zohopush",
+          "to": "t-proposals",
+          "action": "read proposals.zoho — if pushed_at set, stop (idempotency guard, server-side so a double-click cannot race)",
+          "files": []
+        },
+        {
+          "n": 5,
+          "from": "api-zohopush",
+          "to": "x-zoho",
+          "action": "PUT /Deals/{id} {Stage:\"Proposal Sent\"} — fatal if it fails",
+          "files": []
+        },
+        {
+          "n": 6,
+          "from": "api-zohopush",
+          "to": "x-zoho",
+          "action": "POST /Deals/{id}/Attachments (multipart; zohoFetch skips its JSON Content-Type so the boundary survives) — best-effort, warns on failure",
+          "files": [
+            "lib/zoho/tokens.ts"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "api-zohopush",
+          "to": "t-proposals",
+          "action": "write pushed_at + pushed_stage so the button disables and a retry cannot duplicate the attachment",
+          "files": []
+        }
+      ]
     }
   ],
   "invariants": [
@@ -3402,7 +3501,9 @@
     "Zoho scopes are frozen into the token at consent time (currently READ-only: modules/users/org/settings). Widening them requires editing ZOHO_SCOPES, redeploying, AND a Disconnect -> Connect re-consent — an existing refresh token cannot gain scope.",
     "Zoho API quirks that cost time: search `criteria` supports only equals/starts_with (`contains` -> 400 INVALID_QUERY), so single-box search uses `word=` (Accounts, Contacts and Deals all); record counts need v2.1+ (`/actions/count` 400s on v2); the callback must use the `accounts-server` query param, not a hardcoded DC; bulk read needs a separate ZohoCRM.bulk.READ scope.",
     "proposals.zoho (0029) is written through TWO whitelists — `quoteUpdatePayload()` and the `Pick<ClientQuote,…>` param type of `updateProposal`. Miss either and the edit updates the store but silently never persists. Same trap applies to any future column on proposals.",
-    "CRM client data comes from Accounts (companies, ~4.0k) + Contacts (people, ~3.7k), NOT Leads (~122k raw/unqualified, full of test+spam rows). A Lead converts into Account+Contact(+Deal); the qualified records are the ones worth showing. An account can have many contacts, so the picker is two-step."
+    "CRM client data comes from Accounts (companies, ~4.0k) + Contacts (people, ~3.7k), NOT Leads (~122k raw/unqualified, full of test+spam rows). A Lead converts into Account+Contact(+Deal); the qualified records are the ones worth showing. An account can have many contacts, so the picker is two-step.",
+    "Zoho write-back writes ONLY Deal.Stage. Amount is a formula field and Quote_number a system autonumber on this org — both accept a write, report SUCCESS, then keep/restore their computed value. Never re-add them to the push payload without re-testing against a real Deal.",
+    "Zoho does NOT dedupe attachments — the same filename uploaded twice creates two records. proposals.zoho.pushed_at is the guard and MUST be checked and written server-side (a client-side check races on double-click)."
   ],
   "permissionsMatrix": {
     "columns": [
@@ -3531,6 +3632,16 @@
           "No"
         ],
         "rls": "lib/zoho/guard.ts: requireZohoReader()"
+      },
+      {
+        "cap": "Push a quote to Zoho (writes CRM)",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "lib/zoho/guard.ts: requireZohoWriter()"
       }
     ]
   }
