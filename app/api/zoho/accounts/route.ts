@@ -70,6 +70,18 @@ const named = (v: unknown) => (v as { name?: string } | null)?.name ?? null;
 const namedId = (v: unknown) => (v as { id?: string } | null)?.id ?? null;
 
 /**
+ * Zoho answers **204 with an empty body** when a search matches nothing — and
+ * `Response.ok` is TRUE for 204, so a bare `res.json()` throws "Unexpected end
+ * of JSON input". Always read Zoho responses through this.
+ */
+async function readJson(
+  res: Response,
+): Promise<Record<string, unknown> | null> {
+  if (res.status === 204) return null;
+  return (await res.json().catch(() => null)) as Record<string, unknown> | null;
+}
+
+/**
  * Deals for many accounts in ONE request.
  *
  * `Account_Name:in:<id,id,…>` is verified to work on the Deals module, which
@@ -89,8 +101,8 @@ async function dealsByAccount(
     );
     // 204 = none of these companies has a deal; that's a normal answer.
     if (!res.ok) return out;
-    const data = await res.json().catch(() => null);
-    for (const d of data?.data ?? []) {
+    const data = await readJson(res);
+    for (const d of ((data?.data as Record<string, unknown>[]) ?? [])) {
       const accId = namedId((d as Record<string, unknown>).Account_Name);
       if (!accId) continue;
       const amount = (d as Record<string, unknown>).Amount as number | null;
@@ -127,8 +139,10 @@ export async function GET(req: Request) {
         console.error("[zoho contacts]", res.status, body.slice(0, 200));
         return NextResponse.json({ error: "Zoho request failed." }, { status: 502 });
       }
-      const data = await res.json();
-      const contacts: ZohoContact[] = (data?.data ?? []).map(
+      const data = await readJson(res);
+      const contacts: ZohoContact[] = (
+        (data?.data as Record<string, unknown>[]) ?? []
+      ).map(
         (x: Record<string, unknown>) => ({
           id: String(x.id),
           name: (x.Full_Name as string) ?? null,
@@ -154,8 +168,10 @@ export async function GET(req: Request) {
 
     const res = await zohoFetch(path);
     let rows: Record<string, unknown>[] = [];
-    if (res.ok) rows = (await res.json())?.data ?? [];
-    else if (res.status !== 204) {
+    if (res.ok) {
+      // 204 = no company matched; leave rows empty so the fallback below runs.
+      rows = ((await readJson(res))?.data as Record<string, unknown>[]) ?? [];
+    } else {
       const body = await res.text();
       console.error("[zoho accounts]", res.status, body.slice(0, 200));
       return NextResponse.json({ error: "Zoho request failed." }, { status: 502 });
@@ -177,9 +193,9 @@ export async function GET(req: Request) {
         `/crm/v2/Contacts/search?word=${encodeURIComponent(q)}&fields=${CONTACT_FIELDS}&per_page=25`,
       );
       if (cres.ok) {
-        const cdata = await cres.json();
+        const cdata = await readJson(cres);
         const seen = new Set<string>();
-        for (const x of cdata?.data ?? []) {
+        for (const x of ((cdata?.data as Record<string, unknown>[]) ?? [])) {
           const accId = namedId(x.Account_Name);
           if (!accId || seen.has(accId)) continue;
           seen.add(accId);

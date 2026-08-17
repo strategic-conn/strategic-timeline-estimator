@@ -49,14 +49,19 @@
 ### Client lookup — Accounts → Contacts
 
 Available in **two** places — test both: the **New estimate** dialog's Client field, and the
-**editor → Setup tab**'s Client field. Expected values are pulled live from the CRM, so they're exact:
+**editor → Setup tab**'s Client field.
+
+> ⚠️ **These are live CRM values — they drift.** Re-verified 2026-08-17; counts/names below changed
+> from the previous run (e.g. `myrtle` 19→20, OpenArc gained a third contact, its deal was renamed
+> and moved to Closed Won). Treat *shape* as the pass criterion, not exact counts — a differing
+> number is likely real CRM activity, not a bug.
 
 - [ ] **New estimate → Find in Zoho** → pick a company → name fills in and a "**Linked to Zoho**" line appears under the field.
 - [ ] Typing over a picked client **clears** the "Linked to Zoho" line (a hand-typed name must never keep a stale CRM link).
-- [ ] `openarc` → **OpenArc LLC**; click it → **2 contacts: Mike Carpenter (General Manager, Consulting Services), Joel Reed (CEO)**.
-- [ ] `myrtle` → **19 companies** (Myrtle Beach Regional Economic Development Corporation, Monarch Roofing…).
+- [ ] `openarc` → **OpenArc LLC**; click it → **3 contacts: Mark Williams (Lead Client partner), Mike Carpenter (General Manager, Consulting Services), Joel Reed (CEO)**.
+- [ ] `myrtle` → **~20 companies** (first: Myrtle Beach Pelicans).
 - [ ] **Person-name fallback:** `kresimir` or `glorioso` → no company matches by name, so it returns **FinOps Partners** badged **"via Kresimir (Kreso) Marusic" / "via Russell Glorioso"**.
-- [ ] **Prior deals:** `openarc` → OpenArc LLC shows a "**1 prior deal — Classic Plus Calling Campaign (Proposal Sent)**" line; companies with none show **no** deal line at all (not "0 deals").
+- [ ] **Prior deals:** `openarc` → OpenArc LLC shows a "**1 prior deal — Classic Calling Campaign (Closed Won)**" line; companies with none show **no** deal line at all (not "0 deals").
 - [ ] Search feels responsive (~1.4s — company search + one batched deal lookup, which must stay **one call** regardless of result count).
 - [ ] Back arrow returns to the company list; **"Use the company only"** works (no contact chosen).
 - [ ] Picking a contact fills the Client field + toast naming the contact.
@@ -65,8 +70,8 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 
 ### Deal → Estimate import ("Import from Zoho")
 
-- [ ] **Proposal Requested** shows exactly **2** deals: *Web Build* (Trade International 2020, LLC, closes Jul 7 2027) and *John Doe Accounting*.
-- [ ] Other stage chips: Discovery **25+**, Negotiation **21** (incl. *Website Edits FlagrantFoul23*, **$3,250**), Verbal Yes **9**.
+- [ ] **Proposal Requested** shows **2** deals: *Web Build* (Trade International 2020, LLC) and *John Doe Accounting*.
+- [ ] Other stage chips (live counts as of 2026-08-17 — expect drift): Discovery **25+**, Negotiation **15** (incl. *Website Edits FlagrantFoul23*), Verbal Yes **9** (incl. *Soleil Tans*).
 - [ ] Free-text search finds a deal by name/company.
 - [ ] Pick one → new quote opens pre-filled (title + client) with an **"Imported from Zoho CRM"** panel showing deal, stage, contact, rep, target close.
 - [ ] **View in Zoho** opens the right CRM record — *this URL is constructed by us, not returned by Zoho, so it's the piece most worth confirming.*
