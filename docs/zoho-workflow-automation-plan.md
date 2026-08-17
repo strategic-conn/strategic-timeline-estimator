@@ -67,7 +67,7 @@ No new database tables anywhere in this plan. Phase 3 adds one new key inside th
 | # | Decision | Chosen | Why |
 | - | --- | --- | --- |
 | 3.1 | Deal-won → project trigger | **Manual button** (existing "Start project") | Zero new infrastructure (no webhook receiver, no cron); the coordinator is already a human checkpoint |
-| 3.2 | What "proposal uploaded to Deal" writes | **Update the existing linked Deal's fields + stage** (not create a new Deal, not fields-only) | Only quotes with a Zoho link are affected; matches "Update existing Deal" + "Yes, attach the PDF" answers combined |
+| 3.2 | What "proposal uploaded to Deal" writes | **Update the existing linked Deal's `Stage` + attach the PDF** (not create a new Deal). ~~Amount/Quote_number~~ dropped — confirmed by live-testing on 2026-08-17 that both are Zoho-computed fields on this org (formula / autonumber) and cannot be set via the API | Only quotes with a Zoho link are affected; matches "Update existing Deal" + "Yes, attach the PDF" answers, corrected once field metadata + real writes proved Amount/Quote_number aren't user-writable here |
 | 3.3 | Sprint-splitting model | **Keep phase-based** (not a user-entered sprint count) | Already built, already dated by the resource-aware scheduler; no engine change needed |
 | 3.4 | Sales vs. approver permission split | **Keep as-is** — both are the `manager` role (matches `workflow-revamp-plan.md` D1) | No new role, no RLS changes |
 | 3.5 | Chat-based "Esther" (brief → estimate) | **Stays shelved** | Out of scope for this plan; Sales keeps using Guided/Catalog |
@@ -194,15 +194,33 @@ attachment. That's a materially different risk tier, so Phase 3 should get:
   self-check-tested (`lib/assignment/plan.check.ts`).
 
 ### Phase 3 — Zoho write-back (the real new capability)
-- **Prerequisite:** widen `ZOHO_SCOPES`, redeploy, Disconnect → Connect re-consent by someone with CRM
-  edit rights (§5). Confirm the exact attachment scope against Zoho's docs (§4.2) before writing code.
+- **✅ Prerequisite done (2026-08-17):** `ZOHO_SCOPES` widened, redeployed, re-consented by Abby
+  DeGuzman (confirmed via `Created_By`/`Modified_By` on a live test write — she's the one whose Zoho
+  account holds CRM edit rights). Live connection now genuinely authorized, not just token-scoped —
+  verified with real writes (not fake-ID probes) against a dedicated test Deal
+  (`3805132000161523001`, "TEST — DO NOT TOUCH (Timeline Estimator QA)").
+- **⚠️ Scope correction from live testing (2026-08-17) — Amount and Quote_number are NOT writable:**
+  checked this org's field metadata directly. `Amount` is a **formula** field — a direct write returns
+  `SUCCESS` but Zoho recalculates it back to its computed value within ~1 second (proved with a 12s
+  poll: `9999 → 0`, no products linked so it resolves to 0). `Quote_number` is a **system autonumber**
+  field — Zoho always assigns its own sequential value regardless of what's sent. Neither is a
+  permissions problem; both are how this Zoho org's Deal layout is configured. **Only `Stage` is
+  genuinely writable** (confirmed stable across every re-read). Pushing a dollar amount back to Zoho
+  would need linking real Products/line-items to the Deal — a materially bigger feature, out of scope
+  here unless specifically requested.
+- **✅ Idempotency confirmed necessary, not just cautious:** uploading the same filename twice created
+  **two separate attachments** — Zoho does not dedupe. The `pushed_at` guard (§6) is required, not a
+  nice-to-have.
+- **✅ Error shape confirmed parseable:** a malformed field type returns a clean structured error
+  (`{code: "INVALID_DATA", details: {expected_data_type: "currency", api_name: "Amount"}}`).
 - **Backend:** a new `/api/zoho/deals/[id]/push` (or similar) route, gated the same way every other
   Zoho route is (`requireZohoReader` → probably needs a stricter `requireZohoWriter`, admin+manager
-  still, since this now mutates production CRM data). Writes `Amount`, `Quote_number`, `Stage`, and
-  uploads the PDF via the Attachments endpoint. Idempotent per §6.
+  still, since this now mutates production CRM data). Writes **`Stage` only** + uploads the PDF via
+  the Attachments endpoint. Idempotent per §6.
 - **Frontend:** wire the push into the existing status control (§4.1) — when a coordinator marks a
   quote "sent" and it has a linked Zoho Deal (`quote.zoho.deal_id` already exists from the import
-  flow), fire the push; surface success/failure inline (not just a toast that can be missed).
+  flow), fire the push; surface success/failure inline (not just a toast that can be missed). Drop any
+  "amount pushed to Zoho" messaging from the UI copy — it isn't happening.
 - **Risk:** the only phase with real production risk — see §6. Ship last, test hardest.
 
 ---
