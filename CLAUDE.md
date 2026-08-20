@@ -158,6 +158,11 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0025 notification actor · 0026 member_skills · 0027 security phase 1 ·
                         #   0028 zoho_connection · 0029 proposals.zoho + README — `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
+e2e/                    # Playwright suite — `npm run test:e2e` (see e2e/README.md).
+                        #   Runs against LIVE Supabase+Zoho, so: everything it creates is
+                        #   prefixed "[E2E]" and deleted in teardown, it never touches
+                        #   pre-existing data, and the Zoho PUSH is never automated.
+                        #   Login uses a dedicated bot account (`npm run e2e:seed-user`).
 ```
 
 > **Data layer:** live Supabase (`lib/supabase/` + `supabase/migrations/`) via the synced-store

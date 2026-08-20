@@ -1,0 +1,66 @@
+# End-to-end tests (Playwright)
+
+Runs against the **live** stack (real Supabase + Zoho), because that's what we
+actually ship. The safety rules below are what make that acceptable.
+
+```bash
+npm run test:e2e            # everything (~1.2 min)
+npm run test:e2e -- --project=desktop      # one viewport
+npm run test:e2e -- smoke                  # one suite
+npm run test:e2e:ui         # interactive runner
+npm run test:e2e:report     # open the last HTML report
+```
+
+## Safety rules
+
+These are not conventions — they're the reason it's safe to point this at
+production:
+
+1. **Everything created is prefixed `[E2E]`.** `e2eName()` in `helpers.ts` is the
+   only way tests name things.
+2. **Cleanup deletes only prefixed rows**, and runs in `afterAll` even when a
+   test fails. It refuses to run if the prefix is missing or shorter than 4
+   chars, so it can never turn into a broad delete.
+3. **Tests never touch pre-existing data** — no editing or deleting anything a
+   human made.
+4. **The Zoho _push_ is never automated.** It writes to a CRM with ~900 real
+   deals and permanently marks a quote as pushed. Zoho *reads* are fine to test.
+5. **Serial only** (`workers: 1`). Parallel runs would fight over shared live data.
+
+## Login
+
+A dedicated account, not a human's:
+
+```bash
+npm run e2e:seed-user     # create or reset e2e.bot@example.com
+```
+
+It prints credentials to put in `.env.local` (gitignored) as `E2E_EMAIL` /
+`E2E_PASSWORD`. `auth.setup.ts` signs in once and saves the session to
+`e2e/.auth/user.json`; every other project reuses it. Delete the account any
+time via Team → deactivate → delete.
+
+## Suites
+
+| File | What it covers | Writes? |
+| --- | --- | --- |
+| `auth.setup.ts` | Signs in once, saves the session | no |
+| `smoke.spec.ts` | All 10 routes render, no console errors, no sideways scroll | no |
+| `responsive.spec.ts` | The three layout tiers + calendar/timeline width | no |
+| `create-project.spec.ts` | Create a project → appears instantly → survives reload | **yes** (cleaned up) |
+
+Smoke and responsive run at **1280 / 768 / 375**. The write test runs **once**,
+on desktop — it exercises data flow, not layout, so repeating it per viewport
+would just triple the writes.
+
+## Gotchas worth knowing
+
+- **Wait for hydration before touching a form.** Until React hydrates, a form is
+  plain HTML and clicking submit does a native GET — which sent the login
+  password into the URL the first time. `auth.setup.ts` waits for React's
+  `__react*` keys on the form, and asserts the URL never contains `password=`.
+- **Expected headings aren't nav labels.** `/dashboard` renders "Welcome back,
+  <name>" and `/workload` renders "Resource allocation" for a manager.
+- **On the icon rail, nav links stay visible** (they're the icons) and keep their
+  accessible name via `title`. To assert labels are hidden, check the sidebar's
+  rendered `innerText`, not the link's visibility.

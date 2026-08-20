@@ -1,5 +1,15 @@
 # QA Checklist — click-through verification
 
+> 🤖 **Some of this is now automated.** `npm run test:e2e` (Playwright, ~1.2 min)
+> covers: all 10 routes rendering with no console errors and no sideways scroll,
+> the three responsive tiers (1280 / 768 / 375), calendar + timeline width, and
+> one create-project write flow with automatic cleanup. Run it first — it clears
+> the mechanical checks so a human pass can focus on the flows below that
+> genuinely need eyes and judgement. See [e2e/README.md](../e2e/README.md).
+>
+> Deliberately **not** automated: the Zoho **push** (writes to a real CRM and
+> permanently marks a quote), invites/offboarding, and anything destructive.
+
 > **Fresh full pass re-run 2026-08-17** (not just spot-checks on new work): `tsc --noEmit` clean ·
 > `next build` clean · migrations `0001–0029` applied on the remote, no schema drift · assignment
 > engine self-check **48/48** · ESLint **18 errors / 22 warnings — all pre-existing** (see bottom) ·
