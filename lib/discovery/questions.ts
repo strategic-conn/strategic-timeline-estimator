@@ -456,6 +456,42 @@ export function countUnanswered(p: DiscoveryProject): number {
   return count;
 }
 
+/**
+ * How much substantive detail the questionnaire actually carries.
+ *
+ * Deliberately excludes toggles: one left `false` is indistinguishable from one
+ * answered "no", so counting them would inflate the figure (39 of the 63
+ * questions are toggles). Only *visible* questions count, so conditionals that
+ * don't apply — hosting on a hosted platform, say — never read as gaps.
+ *
+ * Drives the "this estimate is mostly defaults" warning next to Generate: the
+ * engine always produces a full estimate, filling anything unanswered with
+ * defaults, which is easy to mistake for output that ignored your input.
+ */
+export function discoveryCoverage(p: DiscoveryProject): {
+  answered: number;
+  total: number;
+  /** Required, visible fields still blank (also feeds the risk score). */
+  missingRequired: number;
+  /** 0–1; `1` when there is nothing to fill in. */
+  ratio: number;
+} {
+  let answered = 0;
+  let total = 0;
+  for (const q of DISCOVERY_QUESTIONS) {
+    if (q.type === "toggle") continue;
+    if (!isQuestionVisible(q, p)) continue;
+    total += 1;
+    if (!isBlank(p[q.id], q.type)) answered += 1;
+  }
+  return {
+    answered,
+    total,
+    missingRequired: countUnanswered(p),
+    ratio: total === 0 ? 1 : answered / total,
+  };
+}
+
 /** Per-section count of blank required fields, for wizard progress markers. */
 export function unansweredBySection(p: DiscoveryProject): Record<number, number> {
   const out: Record<number, number> = {};

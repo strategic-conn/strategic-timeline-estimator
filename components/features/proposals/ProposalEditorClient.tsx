@@ -105,7 +105,10 @@ import {
   tentativeProject,
 } from "@/lib/discovery/from-line-items";
 import { applyPlatformToDiscovery } from "@/lib/discovery/platform-sync";
-import type { DiscoveryFieldId } from "@/lib/discovery/questions";
+import {
+  discoveryCoverage,
+  type DiscoveryFieldId,
+} from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
@@ -195,6 +198,16 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const convertToProject = useProposalEstimatorStore((s) => s.convertToProject);
   const previewConversion = useProposalEstimatorStore(
     (s) => s.previewConversion,
+  );
+  /** How much of the questionnaire is actually answered (null = catalog quote). */
+  const coverage = React.useMemo(
+    () => (quote?.discovery ? discoveryCoverage(quote.discovery) : null),
+    [quote?.discovery],
+  );
+  // Amber on either signal: a blank *required* field is the concrete gap, while
+  // low overall coverage means the number is mostly assumptions.
+  const coverageThin = Boolean(
+    coverage && (coverage.missingRequired > 0 || coverage.ratio < 0.5),
   );
   const hydrateProposals = useProposalEstimatorStore(
     (s) => s.hydrateFromSupabase,
@@ -836,6 +849,52 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       ) : null}
                     </div>
                   </CardContent>
+
+                  {/* The engine always returns a complete estimate, filling any
+                      unanswered question with a default — which reads as "it
+                      ignored my input". Say plainly how much is actually yours. */}
+                  {coverage ? (
+                    <CardContent className="pt-0">
+                      <p
+                        className={cn(
+                          "flex items-start gap-2 rounded-lg border p-2.5 text-xs",
+                          coverageThin
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300"
+                            : "border-border/60 bg-muted/20 text-muted-foreground",
+                        )}
+                      >
+                        {coverageThin ? (
+                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                        ) : null}
+                        <span>
+                          {/* Lead with the required gaps — they're the specific,
+                              fixable thing, and they also drive the risk score. */}
+                          {coverage.missingRequired > 0 ? (
+                            <>
+                              <span className="font-medium">
+                                {coverage.missingRequired} required question
+                                {coverage.missingRequired === 1 ? "" : "s"} still blank
+                              </span>
+                              {" — the estimate covers them with industry defaults. "}
+                            </>
+                          ) : null}
+                          <span
+                            className={coverage.missingRequired > 0 ? "" : "font-medium"}
+                          >
+                            {coverage.answered} of {coverage.total} details filled in
+                          </span>
+                          {coverage.missingRequired === 0 && coverageThin ? (
+                            <>
+                              {" "}— the rest fall back to defaults, so treat this as a
+                              ballpark.
+                            </>
+                          ) : (
+                            <>.</>
+                          )}
+                        </span>
+                      </p>
+                    </CardContent>
+                  ) : null}
                 </Card>
 
                 <Tabs
