@@ -1194,7 +1194,7 @@
       "layer": "bridge",
       "label": "GET /api/zoho/deals",
       "sub": "read-only",
-      "purpose": "Lists CRM Deals for the Estimator's import picker, by stage (`criteria=(Stage:equals:…)`) or free text (`word=`), else most-recently-modified. Builds a deep link per deal from the org id (cached per instance) since Zoho returns no record URL. Real deals often have Amount=0 and Service_Interested_in=null, so those are surfaced as optional.",
+      "purpose": "Lists CRM Deals for the Estimator's import picker, by stage (`criteria=(Stage:equals:…)`) or free text (`word=`), else most-recently-modified. Builds a deep link per deal from the org id (cached per instance) since Zoho returns no record URL. Real deals often have Amount=0 and Service_Interested_in=null, so those are surfaced as optional. Also backs \"Link a Zoho deal\" in the quote editor: a quote created by hand has no deal to push to (the client alone is not enough — a company can have many deals), so the same picker attaches an existing deal to the current quote instead of creating a new one. Creating deals from the app was considered and rejected: every money field on Deals in this org is a formula (verified — a Deal_Amount write reports SUCCESS then reverts to 0), so app-created deals would be permanently $0 and owned by the connection identity rather than the real salesperson.",
       "files": [
         "app/api/zoho/deals/route.ts"
       ]
@@ -2155,6 +2155,11 @@
       "from": "s-project",
       "to": "api-zohopush",
       "label": "Mark complete in Zoho"
+    },
+    {
+      "from": "s-propeditor",
+      "to": "api-zohodeals",
+      "label": "Link a Zoho deal"
     }
   ],
   "flows": [
@@ -3519,7 +3524,8 @@
     "CRM client data comes from Accounts (companies, ~4.0k) + Contacts (people, ~3.7k), NOT Leads (~122k raw/unqualified, full of test+spam rows). A Lead converts into Account+Contact(+Deal); the qualified records are the ones worth showing. An account can have many contacts, so the picker is two-step.",
     "Zoho write-back writes ONLY Deal.Stage. Amount is a formula field and Quote_number a system autonumber on this org — both accept a write, report SUCCESS, then keep/restore their computed value. Never re-add them to the push payload without re-testing against a real Deal.",
     "Zoho does NOT dedupe attachments — the same filename uploaded twice creates two records. The guard is proposals.zoho.pushes (stage -> timestamp), checked and written SERVER-side; it is per-stage so a deal can advance more than once, but no single stage can be pushed twice. Read it via zohoPushes(), which folds in the legacy pushed_at/pushed_stage fields.",
-    "Zoho stages the app may set are whitelisted in lib/zoho/push-state.ts (Proposal Sent, Project Completed). Closed Won / Closed Lost are deliberately excluded: \"approved\" here means the team agreed to start work, not that a client signed, so revenue stages stay a human sales decision."
+    "Zoho stages the app may set are whitelisted in lib/zoho/push-state.ts (Proposal Sent, Project Completed). Closed Won / Closed Lost are deliberately excluded: \"approved\" here means the team agreed to start work, not that a client signed, so revenue stages stay a human sales decision.",
+    "The app never CREATES Zoho deals, by choice. Every money field on Deals in this org is formula-driven (Amount, Deal_Amount, Total, Deposit* — all verified unsettable), so an app-created deal would sit in the pipeline permanently at $0 and owned by the OAuth identity. Quotes made by hand attach an EXISTING deal instead (\"Link a Zoho deal\")."
   ],
   "permissionsMatrix": {
     "columns": [

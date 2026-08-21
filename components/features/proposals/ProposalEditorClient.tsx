@@ -33,6 +33,7 @@ import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
+import { ZohoDealImport } from "@/components/features/proposals/ZohoDealImport";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
 import { ProposalDependencyAlert } from "@/components/features/proposals/ProposalDependencyAlert";
@@ -229,6 +230,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [convertPreview, setConvertPreview] =
     React.useState<SchedulePreview | null>(null);
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
+  const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -667,11 +669,32 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     }
                   />
                 </div>
+                {/* No deal linked → offer to attach one. Pushing to Zoho needs a
+                    specific deal as its target; the client alone isn't enough,
+                    since a company can have many deals. */}
+                {!quote.zoho?.deal_id ? (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/60 p-3 text-xs">
+                    <span className="text-muted-foreground">
+                      Not linked to a Zoho deal — link one to push this quote to
+                      the CRM.
+                    </span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 gap-1.5 text-xs"
+                      onClick={() => setDealLinkOpen(true)}
+                    >
+                      <Link2 className="size-3.5" aria-hidden />
+                      Link a Zoho deal
+                    </Button>
+                  </div>
+                ) : null}
                 {quote.zoho ? (
                   <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium text-foreground">
-                        Imported from Zoho CRM
+                        {quote.zoho.deal_id ? "Linked to Zoho CRM" : "Client from Zoho CRM"}
                       </span>
                       {quote.zoho.web_url ? (
                         <a
@@ -1234,6 +1257,41 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         platform={quote.platform}
         alreadyAddedIds={alreadyAddedIds}
         onAdd={handleAddFromCatalog}
+      />
+
+      {/* Same picker the Estimator list uses to import — here it attaches the
+          chosen deal to THIS quote instead of creating a new one. */}
+      <ZohoDealImport
+        open={dealLinkOpen}
+        onClose={() => setDealLinkOpen(false)}
+        onSelect={(deal) => {
+          updateProposal(quote.id, {
+            // Keep whatever client details are already set; layer the deal on top.
+            zoho: {
+              ...(quote.zoho ?? {}),
+              deal_id: deal.id,
+              deal_name: deal.name,
+              stage: deal.stage,
+              closing_date: deal.closingDate,
+              amount: deal.amount,
+              currency: deal.currency,
+              quote_number: deal.quoteNumber,
+              owner: deal.owner,
+              contact: quote.zoho?.contact ?? deal.contact,
+              account: quote.zoho?.account ?? deal.account,
+              web_url: deal.webUrl,
+              imported_at: quote.zoho?.imported_at ?? new Date().toISOString(),
+            },
+            // Only fill the client if it's still empty — never overwrite a name
+            // someone chose deliberately.
+            ...(quote.client_name?.trim()
+              ? {}
+              : { client_name: deal.account ?? deal.name ?? undefined }),
+          });
+          toast.success("Linked to Zoho deal", {
+            description: deal.name ?? undefined,
+          });
+        }}
       />
 
       <ZohoAccountLookup
