@@ -11,6 +11,7 @@ import {
   Layers,
   Link2,
   Plus,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -54,6 +55,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { PUSHABLE_STAGES, zohoPushes } from "@/lib/zoho/push-state";
 import { backlogHref } from "@/lib/constants/sprints";
 import {
   backlogShareUrl,
@@ -161,6 +163,9 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     (s) => s.regenerateSchedule
   );
   const previewSchedule = useProposalEstimatorStore((s) => s.previewSchedule);
+  const hydrateProposals = useProposalEstimatorStore(
+    (s) => s.hydrateFromSupabase,
+  );
   const [syncing, setSyncing] = React.useState(false);
   /** Set once a sync plan has been computed for review (nothing written yet). */
   const [syncPreview, setSyncPreview] = React.useState<SchedulePreview | null>(
@@ -183,6 +188,53 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     }
     setSyncStrategy(strategy);
     setSyncPreview(p);
+  };
+
+  /**
+   * Tell the CRM the work is finished — the final step of the workflow diagram.
+   * Explicit, like the proposal push: marking a project complete shouldn't
+   * change a CRM record as a side effect.
+   */
+  const [pushingDone, setPushingDone] = React.useState(false);
+  const completionPushedAt =
+    zohoPushes(linkedQuote?.zoho)[PUSHABLE_STAGES.projectCompleted] ?? null;
+
+  const pushCompletion = async () => {
+    const dealId = linkedQuote?.zoho?.deal_id;
+    if (!dealId || !linkedQuote) return;
+    setPushingDone(true);
+    try {
+      const form = new FormData();
+      form.append("proposalId", linkedQuote.id);
+      form.append("stage", PUSHABLE_STAGES.projectCompleted);
+      const res = await fetch(
+        `/api/zoho/deals/${encodeURIComponent(dealId)}/push`,
+        { method: "POST", body: form },
+      );
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error("Couldn't update Zoho", {
+          description: data?.error ?? `Request failed (${res.status}).`,
+        });
+        return;
+      }
+      if (data?.alreadyPushed) {
+        toast.info("Zoho already knows", {
+          description: "This project was already marked complete in the CRM.",
+        });
+      } else {
+        toast.success("Zoho updated", {
+          description: 'The deal moved to "Project Completed".',
+        });
+      }
+      await hydrateProposals();
+    } catch (e) {
+      toast.error("Couldn't update Zoho", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setPushingDone(false);
+    }
   };
 
   const confirmSync = async () => {
@@ -434,6 +486,32 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                 <Link2 className="size-4" aria-hidden />
                 Copy project link
               </Button>
+              {/* Closes the loop: only for a CRM-linked project that's actually
+                  finished. Hidden otherwise rather than shown disabled. */}
+              {linkedQuote?.zoho?.deal_id &&
+              canExportProposals &&
+              projectRecord?.status === "completed" ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
+                  disabled={pushingDone || Boolean(completionPushedAt)}
+                  onClick={() => void pushCompletion()}
+                  title={
+                    completionPushedAt
+                      ? `Zoho notified ${new Date(completionPushedAt).toLocaleString()}`
+                      : 'Move the linked Zoho deal to "Project Completed"'
+                  }
+                >
+                  <Upload className="size-4" aria-hidden />
+                  {completionPushedAt
+                    ? "Zoho notified"
+                    : pushingDone
+                      ? "Updating Zoho…"
+                      : "Mark complete in Zoho"}
+                </Button>
+              ) : null}
+
               {linkedQuote && canExportProposals ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

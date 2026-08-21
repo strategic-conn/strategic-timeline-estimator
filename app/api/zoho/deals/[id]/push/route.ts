@@ -21,8 +21,7 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  *    two records. Hence the server-side `pushed_at` guard below.
  */
 
-/** The one stage this app is allowed to set (decision: "sent" → Proposal Sent). */
-const TARGET_STAGE = "Proposal Sent";
+import { PUSHABLE_STAGES, isPushableStage, zohoPushes } from "@/lib/zoho/push-state";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -57,6 +56,17 @@ export async function POST(
     return NextResponse.json({ error: "Missing proposalId." }, { status: 400 });
   }
 
+  // Whitelisted so a crafted request can't drive the deal to an arbitrary stage
+  // (e.g. Closed Won, which is sales' call, not this app's).
+  const requested = String(form.get("stage") ?? PUSHABLE_STAGES.proposalSent);
+  if (!isPushableStage(requested)) {
+    return NextResponse.json(
+      { error: `"${requested}" is not a stage this app may set.` },
+      { status: 400 },
+    );
+  }
+  const targetStage = requested;
+
   const supabase = db();
 
   // ── Idempotency, enforced server-side so a double-click can't race past it ──
@@ -76,12 +86,16 @@ export async function POST(
       { status: 409 },
     );
   }
-  if (zoho.pushed_at) {
+  // Per-stage guard: the deal legitimately advances more than once, but each
+  // stage may only be pushed a single time (a re-push would duplicate the PDF).
+  const pushes = zohoPushes(zoho as never);
+  if (pushes[targetStage]) {
     return NextResponse.json(
       {
         alreadyPushed: true,
-        pushedAt: zoho.pushed_at,
-        message: "This quote was already pushed to Zoho.",
+        stage: targetStage,
+        pushedAt: pushes[targetStage],
+        message: `Already pushed "${targetStage}" for this quote.`,
       },
       { status: 200 },
     );
@@ -97,7 +111,7 @@ export async function POST(
   try {
     const res = await zohoFetch(`/crm/v2/Deals/${encodeURIComponent(dealId)}`, {
       method: "PUT",
-      body: JSON.stringify({ data: [{ Stage: TARGET_STAGE }] }),
+      body: JSON.stringify({ data: [{ Stage: targetStage }] }),
     });
     const body = await res.json().catch(() => null);
     const row = body?.data?.[0];
@@ -146,7 +160,8 @@ export async function POST(
         "The deal stage was updated, but the PDF couldn't be attached.",
       );
     }
-  } else {
+  } else if (targetStage === PUSHABLE_STAGES.proposalSent) {
+    // Only the proposal push is meant to carry a file; a completion push isn't.
     result.warnings.push("No PDF was supplied, so nothing was attached.");
   }
 
@@ -157,8 +172,10 @@ export async function POST(
       zoho: {
         ...zoho,
         deal_id: dealId,
+        pushes: { ...pushes, [targetStage]: new Date().toISOString() },
+        // Legacy mirrors, so anything still reading these keeps working.
         pushed_at: new Date().toISOString(),
-        pushed_stage: TARGET_STAGE,
+        pushed_stage: targetStage,
       },
     })
     .eq("id", proposalId);

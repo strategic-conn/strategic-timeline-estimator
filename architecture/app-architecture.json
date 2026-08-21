@@ -1214,9 +1214,10 @@
       "layer": "bridge",
       "label": "POST /api/zoho/deals/[id]/push",
       "sub": "WRITE — admin+manager",
-      "purpose": "Phase 3 write-back. Moves the linked Deal to \"Proposal Sent\" and attaches the proposal PDF. Gated by requireZohoWriter(). Writes ONLY Stage — Amount is a Zoho formula field (write succeeds then recalculates back ~1s) and Quote_number is a system autonumber; both verified unsettable on this org. Idempotent via proposals.zoho.pushed_at, checked AND written server-side because Zoho does not dedupe attachments. Stage move is fatal-on-failure; the attachment is best-effort and reports a warning.",
+      "purpose": "The app's only CRM writes, both explicit buttons. Quote editor -> Deal \"Proposal Sent\" + proposal PDF; project page (once status=completed) -> Deal \"Project Completed\", no attachment. Target stage is WHITELISTED in lib/zoho/push-state.ts so a crafted request can't set Closed Won/Lost — revenue stages stay sales' call. Writes ONLY Stage (Amount is a Zoho formula field, Quote_number a system autonumber; both verified unsettable). Idempotent PER STAGE via proposals.zoho.pushes (stage -> timestamp), checked+written server-side because Zoho does not dedupe attachments. Stage move is fatal-on-failure; the attachment is best-effort and warns.",
       "files": [
         "app/api/zoho/deals/[id]/push/route.ts",
+        "lib/zoho/push-state.ts",
         "lib/zoho/guard.ts"
       ],
       "tables": [
@@ -2149,6 +2150,11 @@
       "from": "api-zohopush",
       "to": "x-zoho",
       "label": "Deal stage + attachment"
+    },
+    {
+      "from": "s-project",
+      "to": "api-zohopush",
+      "label": "Mark complete in Zoho"
     }
   ],
   "flows": [
@@ -3413,9 +3419,9 @@
     },
     {
       "id": "f-zoho-push",
-      "name": "Push a quote to its Zoho deal (write-back)",
+      "name": "Push to Zoho — proposal sent, then project completed",
       "actor": "Manager/Admin",
-      "summary": "The only path that mutates the production CRM. Explicit button, never automatic: moves the linked Deal to Proposal Sent and attaches the PDF, once.",
+      "summary": "The two points where the app writes to the CRM, closing the workflow diagram end to end. Both explicit; each stage can only be pushed once.",
       "steps": [
         {
           "n": 1,
@@ -3473,6 +3479,15 @@
           "to": "t-proposals",
           "action": "write pushed_at + pushed_stage so the button disables and a retry cannot duplicate the attachment",
           "files": []
+        },
+        {
+          "n": 8,
+          "from": "s-project",
+          "to": "api-zohopush",
+          "action": "Later: project marked completed -> \"Mark complete in Zoho\" -> Deal moves to \"Project Completed\" (no attachment). Allowed even though \"Proposal Sent\" was already pushed, because the guard is per-stage.",
+          "files": [
+            "components/features/sprints/ProjectOverviewPage.tsx"
+          ]
         }
       ]
     }
@@ -3503,7 +3518,8 @@
     "proposals.zoho (0029) is written through TWO whitelists — `quoteUpdatePayload()` and the `Pick<ClientQuote,…>` param type of `updateProposal`. Miss either and the edit updates the store but silently never persists. Same trap applies to any future column on proposals.",
     "CRM client data comes from Accounts (companies, ~4.0k) + Contacts (people, ~3.7k), NOT Leads (~122k raw/unqualified, full of test+spam rows). A Lead converts into Account+Contact(+Deal); the qualified records are the ones worth showing. An account can have many contacts, so the picker is two-step.",
     "Zoho write-back writes ONLY Deal.Stage. Amount is a formula field and Quote_number a system autonumber on this org — both accept a write, report SUCCESS, then keep/restore their computed value. Never re-add them to the push payload without re-testing against a real Deal.",
-    "Zoho does NOT dedupe attachments — the same filename uploaded twice creates two records. proposals.zoho.pushed_at is the guard and MUST be checked and written server-side (a client-side check races on double-click)."
+    "Zoho does NOT dedupe attachments — the same filename uploaded twice creates two records. The guard is proposals.zoho.pushes (stage -> timestamp), checked and written SERVER-side; it is per-stage so a deal can advance more than once, but no single stage can be pushed twice. Read it via zohoPushes(), which folds in the legacy pushed_at/pushed_stage fields.",
+    "Zoho stages the app may set are whitelisted in lib/zoho/push-state.ts (Proposal Sent, Project Completed). Closed Won / Closed Lost are deliberately excluded: \"approved\" here means the team agreed to start work, not that a client signed, so revenue stages stay a human sales decision."
   ],
   "permissionsMatrix": {
     "columns": [

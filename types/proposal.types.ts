@@ -86,13 +86,20 @@ export interface ProposalZohoLink {
   web_url?: string | null;
   imported_at: string;
   /**
-   * Set once this quote has been pushed to its Zoho deal (stage move + PDF).
-   * Acts as the idempotency guard — Zoho does NOT dedupe attachments, so a
-   * re-push would create a second copy. Written server-side by
-   * `POST /api/zoho/deals/[id]/push`.
+   * CRM stage → when this app pushed it, e.g.
+   * `{ "Proposal Sent": "2026-08-…", "Project Completed": "2026-09-…" }`.
+   *
+   * Per-stage rather than a single flag, because the deal advances more than
+   * once over its life. It's the idempotency guard: Zoho does NOT dedupe
+   * attachments, so re-pushing a stage would duplicate its file. Written
+   * server-side by `POST /api/zoho/deals/[id]/push`.
+   *
+   * Read it via `zohoPushes()` — that folds in the legacy fields below.
    */
+  pushes?: Record<string, string> | null;
+  /** @deprecated Superseded by `pushes`; kept so quotes pushed before it still read correctly. */
   pushed_at?: string | null;
-  /** The CRM stage this app set on that push. */
+  /** @deprecated Superseded by `pushes`. */
   pushed_stage?: string | null;
 }
 

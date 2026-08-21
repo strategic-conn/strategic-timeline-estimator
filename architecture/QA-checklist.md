@@ -100,6 +100,14 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 - [ ] As a **member**, `POST /api/zoho/deals/<id>/push` → **403**.
 - [ ] Confirm in Zoho that **Amount and Quote_number are unchanged** — by design, we never write them (formula / autonumber fields).
 
+### Closing the loop — "Mark complete in Zoho"
+
+- [ ] The button is **hidden** on a project whose status isn't `completed`.
+- [ ] Set the project to **completed** → the button appears (CRM-linked projects only).
+- [ ] Click it → the deal moves to **"Project Completed"** in Zoho, and **no new attachment** is added.
+- [ ] ⭐ **Per-stage guard:** this must work *even though* the quote was already pushed as "Proposal Sent" — the two stages are tracked separately. Then the button reads "Zoho notified" and disables.
+- [ ] The quote editor's own "Push to Zoho" button is **unaffected** by the completion push (still shows its own state).
+
 ## 📱 Tablet pass @ 768px + 1024px (iPad portrait / landscape)
 
 - [ ] **768px (iPad portrait):** sidebar is a **narrow icon rail** — no text labels, no group headings, no wordmark; hovering/long-pressing an icon shows its name.

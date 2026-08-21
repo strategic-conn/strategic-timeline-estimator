@@ -110,6 +110,7 @@ import {
   type DiscoveryFieldId,
 } from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { PUSHABLE_STAGES, zohoPushes } from "@/lib/zoho/push-state";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import {
@@ -212,6 +213,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const hydrateProposals = useProposalEstimatorStore(
     (s) => s.hydrateFromSupabase,
   );
+  /** When the proposal stage was pushed (per-stage, so a later completion push
+   *  doesn't wrongly disable this button). */
+  const proposalPushed =
+    zohoPushes(quote?.zoho)[PUSHABLE_STAGES.proposalSent] ?? null;
 
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertName, setConvertName] = React.useState("");
@@ -393,6 +398,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       const blob = await buildProposalPdfBlob(quote, projectName);
       const form = new FormData();
       form.append("proposalId", quote.id);
+      form.append("stage", PUSHABLE_STAGES.proposalSent);
       form.append("file", blob, proposalPdfFilename(quote));
 
       const res = await fetch(
@@ -537,16 +543,16 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   variant="outline"
                   size="sm"
                   className="gap-1.5"
-                  disabled={pushing || Boolean(quote.zoho.pushed_at)}
+                  disabled={pushing || Boolean(proposalPushed)}
                   onClick={() => void handlePushToZoho()}
                   title={
-                    quote.zoho.pushed_at
-                      ? `Already pushed ${new Date(quote.zoho.pushed_at).toLocaleString()}`
+                    proposalPushed
+                      ? `Already pushed ${new Date(proposalPushed).toLocaleString()}`
                       : "Move the linked Zoho deal to Proposal Sent and attach the PDF"
                   }
                 >
                   <Upload className="size-4" aria-hidden />
-                  {quote.zoho.pushed_at
+                  {proposalPushed
                     ? "Pushed to Zoho"
                     : pushing
                       ? "Pushing…"
