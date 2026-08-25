@@ -6,10 +6,8 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Briefcase,
-  Compass,
   FileText,
   Layers,
-  Library,
   Link2,
   Plus,
   Search,
@@ -60,13 +58,12 @@ import {
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import { priceForHours } from "@/lib/constants/proposal-estimator";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { PUSHABLE_STAGES, requestStagePush } from "@/lib/zoho/push-state";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
-import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
-import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
@@ -74,14 +71,11 @@ import {
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
-import type { DiscoveryProject } from "@/types/discovery.types";
 import type {
   ClientQuote,
   ProposalPlatform,
   ProposalZohoLink,
 } from "@/types/proposal.types";
-
-type EstimateMethod = "guided" | "manual";
 
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
@@ -100,7 +94,6 @@ export function ProposalsListClient() {
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   /** CRM link captured when the client is picked from Zoho (null = typed by hand). */
   const [newZoho, setNewZoho] = React.useState<ProposalZohoLink | null>(null);
-  const [method, setMethod] = React.useState<EstimateMethod>("guided");
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
   const [newProjectId, setNewProjectId] = React.useState<string>("__none__");
@@ -130,35 +123,20 @@ export function ProposalsListClient() {
   const submitCreate = () => {
     const title = newTitle.trim();
     if (!title) return;
-    // Guided estimates carry a blank scoping questionnaire; the editor opens on
-    // its Scope & risk tab and generates line items from the answers.
-    let discovery: DiscoveryProject | null = null;
-    if (method === "guided") {
-      const now = new Date().toISOString();
-      // Mirror the chosen platform onto the questionnaire + apply implied answers
-      // (e.g. Shopify ⇒ e-commerce) so platform-derived questions aren't re-asked.
-      discovery = syncDiscoveryToQuote(
-        {
-          ...createEmptyDiscoveryProject(),
-          id: crypto.randomUUID(),
-          created_at: now,
-          updated_at: now,
-        },
-        { title, client_name: newClient.trim(), platform: newPlatform },
-      );
-    }
+    // No scope-method choice here: guided and catalog produce the same document,
+    // both tabs exist on every estimate, and "Start guided scoping" (editor,
+    // Scope & risk) attaches the questionnaire whenever it's wanted. Asking up
+    // front only picked a landing tab, at the moment the user knew least.
     const id = createProposal({
       title,
       client_name: newClient.trim() || undefined,
       project_id:
         newProjectId && newProjectId !== "__none__" ? newProjectId : null,
       platform: newPlatform,
-      discovery,
       // Only set when the client was picked from Zoho (typing clears it).
       zoho: newZoho,
     });
     setCreateOpen(false);
-    setMethod("guided");
     setNewTitle("");
     setNewClient("");
     setNewProjectId("__none__");
@@ -344,6 +322,9 @@ export function ProposalsListClient() {
                         <Badge variant="secondary" className="tabular-nums">
                           {totals.grandHours} h
                         </Badge>
+                        <Badge variant="secondary" className="tabular-nums">
+                          {priceForHours(totals.grandHours)}
+                        </Badge>
                         <Badge
                           className={cn(
                             "font-normal",
@@ -401,47 +382,6 @@ export function ProposalsListClient() {
             <DialogTitle>New estimate</DialogTitle>
           </DialogHeader>
           <div className="grid gap-4 py-2">
-            <div className="grid gap-2">
-              <Label>How do you want to scope it?</Label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setMethod("guided")}
-                  className={cn(
-                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                    method === "guided"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border hover:bg-muted/40",
-                  )}
-                >
-                  <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <Compass className="size-4 text-primary" aria-hidden />
-                    Guided
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Answer a questionnaire → hours, timeline &amp; risk
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setMethod("manual")}
-                  className={cn(
-                    "flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
-                    method === "manual"
-                      ? "border-primary bg-primary/5 ring-1 ring-primary"
-                      : "border-border hover:bg-muted/40",
-                  )}
-                >
-                  <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <Library className="size-4 text-primary" aria-hidden />
-                    Catalog / manual
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    Pick catalog rows or add freehand lines
-                  </span>
-                </button>
-              </div>
-            </div>
             <div className="grid gap-2">
               <Label htmlFor="quote-title">Estimate title</Label>
               <Input

@@ -8,6 +8,11 @@ import {
   quoteTotals,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
+import {
+  HOURLY_RATE,
+  formatAmount,
+  priceForHours,
+} from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import { cn } from "@/lib/utils";
@@ -163,6 +168,17 @@ export function ProposalPdfPreviewMock({
             value={totals.grandHours}
             strong
           />
+          <div className="col-span-2 mt-2 flex items-baseline justify-between gap-4 border-t border-slate-300 pt-2">
+            <dt className="font-semibold text-slate-800">
+              Price
+              <span className="ml-1.5 text-xs font-normal text-slate-500">
+                at {formatAmount(HOURLY_RATE)}/h
+              </span>
+            </dt>
+            <dd className="text-lg font-semibold tabular-nums text-slate-900">
+              {priceForHours(totals.grandHours)}
+            </dd>
+          </div>
         </dl>
       </section>
 

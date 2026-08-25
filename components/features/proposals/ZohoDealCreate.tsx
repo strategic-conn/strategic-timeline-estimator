@@ -15,7 +15,11 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import {
+  priceForHours,
+  quoteTotals,
+  splitHours,
+} from "@/lib/constants/proposal-estimator";
 import { cn } from "@/lib/utils";
 import {
   buildProposalPdfBlob,
@@ -69,13 +73,16 @@ export function ZohoDealCreate({
 
   const accountId = quote.zoho?.account_id ?? null;
   const attaches = stage === PUSHABLE_STAGES.proposalSent;
+  const totals = quoteTotals(quote);
+  const products = quote.zoho?.products ?? [];
+  // Same derivation the Setup tab shows, so the review can't disagree with it.
+  const shares = splitHours(totals.grandHours, products.length);
   const canSubmit = Boolean(accountId && name.trim() && closingDate) && !busy;
 
   const submit = async () => {
     if (!canSubmit || !accountId) return;
     setBusy(true);
     try {
-      const totals = quoteTotals(quote);
       const form = new FormData();
       form.append("proposalId", quote.id);
       form.append("name", name.trim());
@@ -86,14 +93,19 @@ export function ZohoDealCreate({
       // Until the "Packages" subform's API name is known, the picked products
       // ride along in Description — a standard field, so no guessing — which at
       // least puts them on the deal where sales will look.
-      const products = quote.zoho?.products ?? [];
+      // The reviewer just saw hours, price and the per-product split, so the
+      // deal should carry the same figures — names alone would lose the point.
       const summary = [
-        quote.notes?.trim() ||
-          `Estimate: ${totals.grandHours} h across ${quote.line_items.length} line item${
-            quote.line_items.length === 1 ? "" : "s"
-          }.`,
+        quote.notes?.trim(),
+        `Estimate: ${totals.grandHours} h across ${quote.line_items.length} line item${
+          quote.line_items.length === 1 ? "" : "s"
+        } — ${priceForHours(totals.grandHours)}.`,
         products.length
-          ? `Products: ${products.map((p) => p.name).join(", ")}`
+          ? `Products:\n${products
+              .map(
+                (p, i) => `  - ${p.name}: ${shares[i]} h, ${priceForHours(shares[i])}`,
+              )
+              .join("\n")}`
           : null,
       ]
         .filter(Boolean)
@@ -187,6 +199,52 @@ export function ZohoDealCreate({
               onChange={(e) => setClosingDate(e.target.value)}
               className="max-w-52"
             />
+          </div>
+
+          <div className="grid gap-2">
+            <Label>What goes with it</Label>
+            <div className="rounded-lg border border-border/60 text-sm">
+              <div className="flex items-baseline justify-between gap-4 px-3 py-2">
+                <span className="text-muted-foreground">Estimate</span>
+                <span className="tabular-nums">
+                  <span className="font-medium">{priceForHours(totals.grandHours)}</span>
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    {totals.grandHours} h
+                  </span>
+                </span>
+              </div>
+              {products.length ? (
+                <ul className="border-t border-border/50">
+                  {products.map((p, i) => (
+                    <li
+                      key={p.id}
+                      className="flex items-baseline justify-between gap-4 px-3 py-1.5 text-xs"
+                    >
+                      <span className="min-w-0 truncate">
+                        {p.name}
+                        {p.tag ?? p.category ? (
+                          <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+                            {p.tag ?? p.category}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {shares[i]} h · {priceForHours(shares[i])}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="border-t border-border/50 px-3 py-2 text-xs text-muted-foreground">
+                  No products picked — add them on the Setup tab if this deal
+                  should name what it sells.
+                </p>
+              )}
+              <p className="border-t border-border/50 px-3 py-1.5 text-[0.7rem] text-muted-foreground">
+                Products and the estimate total go in the deal&apos;s Description
+                for now; Amount is computed by Zoho from its own Packages rows.
+              </p>
+            </div>
           </div>
 
           <div className="grid gap-2">

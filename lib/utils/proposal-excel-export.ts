@@ -1,6 +1,8 @@
 import { format } from "date-fns";
 
 import {
+  HOURLY_RATE,
+  amountForHours,
   effectiveTier,
   lineEffectiveHours,
   quoteTotals,
@@ -43,7 +45,9 @@ export async function downloadProposalExcel(
     ],
     ["Last updated", format(new Date(quote.updated_at), "yyyy-MM-dd")],
     [],
-    ["#", "Module", "Description", "Category", "Tier", "Base h", "Qty", "Hours", "Depends on"],
+    ["Rate ($/h)", HOURLY_RATE],
+    [],
+    ["#", "Module", "Description", "Category", "Tier", "Base h", "Qty", "Hours", "Amount ($)", "Depends on"],
   ];
 
   quote.line_items.forEach((li, i) => {
@@ -56,6 +60,7 @@ export async function downloadProposalExcel(
       li.base_hours,
       li.quantity,
       lineEffectiveHours(li, quote.requirements_unclear),
+      amountForHours(lineEffectiveHours(li, quote.requirements_unclear)),
       li.depends_on
         .map((d) => `#${idIndex.get(d) ?? "?"}`)
         .join(", "),
@@ -63,7 +68,17 @@ export async function downloadProposalExcel(
   });
 
   rows.push([]);
-  rows.push(["", "", "", "", "", "", "Dev hours", totals.devHours]);
+  rows.push([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Dev hours",
+    totals.devHours,
+    amountForHours(totals.devHours),
+  ]);
   if (quote.addons.responsive_enabled)
     rows.push([
       "",
@@ -74,6 +89,7 @@ export async function downloadProposalExcel(
       "",
       `Responsive (${quote.addons.responsive_pct}%)`,
       totals.responsiveHours,
+      amountForHours(totals.responsiveHours),
     ]);
   if (quote.addons.design_enabled)
     rows.push([
@@ -85,6 +101,7 @@ export async function downloadProposalExcel(
       "",
       `Design (${quote.addons.design_pct}%)`,
       totals.designHours,
+      amountForHours(totals.designHours),
     ]);
   if (quote.addons.qa_enabled)
     rows.push([
@@ -96,6 +113,7 @@ export async function downloadProposalExcel(
       "",
       `QA (${quote.addons.qa_pct}%)`,
       totals.qaHours,
+      amountForHours(totals.qaHours),
     ]);
   if (quote.addons.pm_enabled)
     rows.push([
@@ -107,8 +125,19 @@ export async function downloadProposalExcel(
       "",
       `PM (${quote.addons.pm_pct}%)`,
       totals.pmHours,
+      amountForHours(totals.pmHours),
     ]);
-  rows.push(["", "", "", "", "", "", "Total hours", totals.grandHours]);
+  rows.push([
+    "",
+    "",
+    "",
+    "",
+    "",
+    "",
+    "Total",
+    totals.grandHours,
+    amountForHours(totals.grandHours),
+  ]);
 
   if (quote.notes?.trim()) {
     rows.push([]);

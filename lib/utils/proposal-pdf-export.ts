@@ -1,8 +1,12 @@
 import { format } from "date-fns";
 
 import {
+  HOURLY_RATE,
+  amountForHours,
   effectiveTier,
+  formatAmount,
   lineEffectiveHours,
+  priceForHours,
   quoteTotals,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
@@ -94,11 +98,12 @@ async function buildProposalPdfDoc(
     tierLabel(effectiveTier(li.tier, quote.requirements_unclear)),
     String(li.quantity),
     String(lineEffectiveHours(li, quote.requirements_unclear)),
+    priceForHours(lineEffectiveHours(li, quote.requirements_unclear)),
   ]);
 
   autoTable(doc, {
     startY: y,
-    head: [["#", "Description", "Module", "Category", "Tier", "Qty", "Hours"]],
+    head: [["#", "Description", "Module", "Category", "Tier", "Qty", "Hours", "Amount"]],
     body,
     theme: "striped",
     headStyles: {
@@ -114,7 +119,8 @@ async function buildProposalPdfDoc(
       3: { cellWidth: 24 },
       4: { cellWidth: 18 },
       5: { cellWidth: 10, halign: "right" },
-      6: { cellWidth: 16, halign: "right" },
+      6: { cellWidth: 14, halign: "right" },
+      7: { cellWidth: 22, halign: "right" },
     },
     margin: { left: margin, right: margin },
   });
@@ -122,39 +128,50 @@ async function buildProposalPdfDoc(
   y = (doc as DocWithAutoTable).lastAutoTable?.finalY ?? y;
   y += 8;
 
-  const summaryRows: string[][] = [["Dev hours", String(totals.devHours)]];
+  const summaryRows: string[][] = [
+    ["Dev hours", String(totals.devHours), priceForHours(totals.devHours)],
+  ];
   if (quote.addons.responsive_enabled)
     summaryRows.push([
       `Responsive (${quote.addons.responsive_pct}%)`,
       String(totals.responsiveHours),
+      priceForHours(totals.responsiveHours),
     ]);
   if (quote.addons.design_enabled)
     summaryRows.push([
       `Design (${quote.addons.design_pct}%)`,
       String(totals.designHours),
+      priceForHours(totals.designHours),
     ]);
   if (quote.addons.qa_enabled)
     summaryRows.push([
       `QA (${quote.addons.qa_pct}%)`,
       String(totals.qaHours),
+      priceForHours(totals.qaHours),
     ]);
   if (quote.addons.pm_enabled)
     summaryRows.push([
       `PM (${quote.addons.pm_pct}%)`,
       String(totals.pmHours),
+      priceForHours(totals.pmHours),
     ]);
-  summaryRows.push(["Total estimated hours", String(totals.grandHours)]);
+  summaryRows.push([
+    "Total",
+    `${totals.grandHours} h`,
+    formatAmount(amountForHours(totals.grandHours)),
+  ]);
 
   autoTable(doc, {
     startY: y,
-    head: [["Roll-up", "Hours"]],
+    head: [["Roll-up", "Hours", `Amount @ ${formatAmount(HOURLY_RATE)}/h`]],
     body: summaryRows,
     theme: "plain",
     headStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
     styles: { fontSize: 9, cellPadding: 2 },
     columnStyles: {
       0: { cellWidth: "auto" },
-      1: { cellWidth: 30, halign: "right", fontStyle: "bold" },
+      1: { cellWidth: 22, halign: "right" },
+      2: { cellWidth: 30, halign: "right", fontStyle: "bold" },
     },
     margin: { left: margin, right: margin },
   });

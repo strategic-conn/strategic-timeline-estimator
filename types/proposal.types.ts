@@ -72,6 +72,7 @@ export interface ZohoProductLink {
   category?: string | null;
   /** The org's own category field (ONBOARDING / SEO / …), when it has one. */
   tag?: string | null;
+  /** Catalogue price from Zoho — reference only; the quote is priced by hours. */
   unit_price?: number | null;
 }
 

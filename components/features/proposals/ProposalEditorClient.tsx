@@ -85,10 +85,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import {
+  HOURLY_RATE,
   TIER_OPTIONS,
+  formatAmount,
+  priceForHours,
   lineEffectiveHours,
   quoteDevHours,
   quoteTotals,
+  splitHours,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import {
@@ -142,6 +146,7 @@ import type {
   ProposalPlatform,
   ProposalStatus,
   ProposalTier,
+  ZohoProductLink,
 } from "@/types/proposal.types";
 
 type ProposalEditorClientProps = {
@@ -597,7 +602,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   Total
                 </span>
                 <span className="tabular-nums text-lg font-semibold">
-                  {totals.grandHours} h
+                  {priceForHours(totals.grandHours)}
+                </span>
+                <span className="tabular-nums text-[0.7rem] text-muted-foreground">
+                  {totals.grandHours} h @ {formatAmount(HOURLY_RATE)}/h
                 </span>
               </div>
               <DropdownMenu>
@@ -692,29 +700,18 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/60 p-3 text-xs">
                     <span className="text-muted-foreground">
                       Not linked to a Zoho deal — link an existing one, or open a
-                      new deal in the CRM from this estimate.
+                      new deal from the Review tab once the estimate is ready.
                     </span>
-                    <div className="flex shrink-0 flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-7 gap-1.5 text-xs"
-                        onClick={() => setDealLinkOpen(true)}
-                      >
-                        <Link2 className="size-3.5" aria-hidden />
-                        Link a Zoho deal
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        className="h-7 gap-1.5 text-xs"
-                        onClick={() => setDealCreateOpen(true)}
-                      >
-                        <Briefcase className="size-3.5" aria-hidden />
-                        Create deal in Zoho
-                      </Button>
-                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 shrink-0 gap-1.5 text-xs"
+                      onClick={() => setDealLinkOpen(true)}
+                    >
+                      <Link2 className="size-3.5" aria-hidden />
+                      Link a Zoho deal
+                    </Button>
                   </div>
                 ) : null}
                 {quote.zoho ? (
@@ -788,42 +785,15 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     </Button>
                   </div>
                   {quote.zoho?.products?.length ? (
-                    <ul className="flex flex-wrap gap-1.5">
-                      {quote.zoho.products.map((p) => (
-                        <li key={p.id}>
-                          <Badge
-                            variant="outline"
-                            className="gap-1.5 py-1 pr-1 font-normal"
-                            title={[p.tag, p.category].filter(Boolean).join(" · ")}
-                          >
-                            <span className="font-medium">{p.name}</span>
-                            {p.tag ?? p.category ? (
-                              <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                                {p.tag ?? p.category}
-                              </span>
-                            ) : null}
-                            {/* Drop one without reopening the picker. */}
-                            <button
-                              type="button"
-                              aria-label={`Remove ${p.name}`}
-                              className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                              onClick={() =>
-                                updateProposal(quote.id, {
-                                  zoho: {
-                                    ...quote.zoho!,
-                                    products: (quote.zoho?.products ?? []).filter(
-                                      (x) => x.id !== p.id,
-                                    ),
-                                  },
-                                })
-                              }
-                            >
-                              <X className="size-3" aria-hidden />
-                            </button>
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
+                    <ProductAllocation
+                      products={quote.zoho.products}
+                      totalHours={totals.grandHours}
+                      onChange={(products) =>
+                        updateProposal(quote.id, {
+                          zoho: { ...quote.zoho!, products },
+                        })
+                      }
+                    />
                   ) : (
                     <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
                       No products picked. Add as many as this deal sells — these
@@ -1339,9 +1309,27 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <FileSpreadsheet className="size-3.5" aria-hidden />
                   Excel
                 </Button>
+                {!quote.zoho?.deal_id ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={!quote.zoho?.account_id}
+                    title={
+                      quote.zoho?.account_id
+                        ? `Open a deal on ${quote.zoho.account ?? "the linked account"}`
+                        : "Link the client to a Zoho account first — “Find in Zoho” on Setup"
+                    }
+                    onClick={() => setDealCreateOpen(true)}
+                  >
+                    <Briefcase className="size-3.5" aria-hidden />
+                    Create deal in Zoho
+                  </Button>
+                ) : null}
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
+
           </TabsContent>
         </Tabs>
       </div>
@@ -1623,7 +1611,99 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
         value={totals.grandHours}
         strong
       />
+      <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-border/60 pt-2">
+        <dt className="text-sm font-medium">
+          Price
+          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
+            at {formatAmount(HOURLY_RATE)}/h
+          </span>
+        </dt>
+        <dd className="tabular-nums text-base font-semibold">
+          {priceForHours(totals.grandHours)}
+        </dd>
+      </div>
     </dl>
+  );
+}
+
+/**
+ * How the estimate's hours land on each product — the rows that become the CRM's
+ * Packages subform, priced at hours x HOURLY_RATE.
+ *
+ * Read-only on purpose: the hours come from the estimator, so there is nothing
+ * to type and nothing that can drift out of step with the line items. Splitting
+ * evenly across products is a stated assumption, shown rather than hidden.
+ */
+function ProductAllocation({
+  products,
+  totalHours,
+  onChange,
+}: {
+  products: ZohoProductLink[];
+  totalHours: number;
+  onChange: (products: ZohoProductLink[]) => void;
+}) {
+  const shares = splitHours(totalHours, products.length);
+
+  return (
+    <div className="overflow-hidden rounded-lg border border-border/60">
+      <table className="w-full text-xs">
+        <thead className="bg-muted/40 text-muted-foreground">
+          <tr>
+            <th className="px-2.5 py-1.5 text-left font-medium">Product</th>
+            <th className="w-16 px-2 py-1.5 text-right font-medium">Hours</th>
+            <th className="w-24 px-2 py-1.5 text-right font-medium">Price</th>
+            <th className="w-8" />
+          </tr>
+        </thead>
+        <tbody>
+          {products.map((p, i) => (
+            <tr key={p.id} className="border-t border-border/50">
+              <td className="px-2.5 py-1.5">
+                <span className="font-medium">{p.name}</span>
+                {p.tag ?? p.category ? (
+                  <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+                    {p.tag ?? p.category}
+                  </span>
+                ) : null}
+              </td>
+              <td className="px-2 py-1.5 text-right tabular-nums">
+                {shares[i]}
+              </td>
+              <td className="px-2 py-1.5 text-right tabular-nums">
+                {priceForHours(shares[i])}
+              </td>
+              <td className="pr-1.5">
+                <button
+                  type="button"
+                  aria-label={`Remove ${p.name}`}
+                  className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                  onClick={() => onChange(products.filter((x) => x.id !== p.id))}
+                >
+                  <X className="size-3" aria-hidden />
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-border/60 bg-muted/20">
+            <td className="px-2.5 py-1.5 text-muted-foreground">
+              {products.length > 1
+                ? "From the estimate, split evenly"
+                : "From the estimate"}
+            </td>
+            <td className="px-2 py-1.5 text-right font-medium tabular-nums">
+              {totalHours} h
+            </td>
+            <td className="px-2 py-1.5 text-right font-medium tabular-nums">
+              {priceForHours(totalHours)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   );
 }
 

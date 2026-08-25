@@ -69,6 +69,64 @@ export const DEFAULT_ADDONS: ProposalAddons = {
   qa_pct: 20,
 };
 
+/**
+ * Billing rate, in dollars per hour. The estimator computes effort, and effort
+ * is what gets sold — so every price in the app, its exports, and anything
+ * pushed to the CRM is hours x this number.
+ *
+ * ponytail: one constant, on purpose. A per-client rate would need a column on
+ * `proposals` (plus BOTH update whitelists — see CLAUDE.md), a field in the
+ * editor, and a rule for which rate an existing quote keeps when the default
+ * moves. Nobody has asked for a second rate yet. Change it here and every
+ * quote, export and push follows.
+ */
+export const HOURLY_RATE = 100;
+
+/** Dollar amount for a number of hours, at the current rate. */
+export function amountForHours(hours: number): number {
+  if (!Number.isFinite(hours) || hours <= 0) return 0;
+  // Hours carry two decimals (roundHours), so round the money rather than
+  // letting fractions of a cent reach a client-facing document.
+  return Math.round(hours * HOURLY_RATE);
+}
+
+const MONEY = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+
+/** Formatted for display and documents, e.g. "$12,400". */
+export function formatAmount(amount: number): string {
+  return MONEY.format(Number.isFinite(amount) ? amount : 0);
+}
+
+/** Shorthand: hours straight to a formatted price. */
+export function priceForHours(hours: number): string {
+  return formatAmount(amountForHours(hours));
+}
+
+/**
+ * Share the estimate's hours across the products it sells.
+ *
+ * Derived, never typed: the estimator already computed the hours, so asking a
+ * coordinator to re-enter them per product is duplicate data entry that can only
+ * disagree with itself. The split is even, with any rounding drift put on the
+ * first share so the parts always sum to exactly `total`.
+ *
+ * ponytail: even split. Weighting by each product's catalogue `unit_price` would
+ * be defensible when every product has one, but half of this org's catalogue
+ * doesn't — and a weighted number is no less of a guess, just a harder one to
+ * explain on a quote.
+ */
+export function splitHours(total: number, parts: number): number[] {
+  if (parts <= 0) return [];
+  const each = roundHours(total / parts);
+  const out = new Array<number>(parts).fill(each);
+  out[0] = roundHours(each + (total - each * parts));
+  return out;
+}
+
 export function roundHours(n: number): number {
   if (!Number.isFinite(n)) return 0;
   return Math.round(n * 100) / 100;
