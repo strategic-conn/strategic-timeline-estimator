@@ -251,3 +251,161 @@ it explicitly says "read-only") and a new permission row if `requireZohoWriter` 
 
 _Written 2026-08-01 — planning doc, no code yet. Confirm §4 before Phase 1; confirm the Phase 3
 prerequisite (who will re-consent) before Phase 3. Maintainer: Frontend Dev._
+
+---
+
+## Addendum — Discovery advance on import (2026-08-25)
+
+Step 1 of the PDF flow ("requirements intake") had no CRM footprint: a coordinator
+could import a *Proposal Requested* deal and scope it for days while sales still
+saw it sitting in the request stage. Importing a deal into an estimate — or
+linking one to an existing estimate — now advances it to **Discovery**.
+
+Design points, in the same spirit as the Phase 3 push:
+
+- **Forward-only.** `AUTO_ADVANCE_FROM` (in `lib/zoho/push-state.ts`) names the
+  only stage an import may advance *from*: `Proposal Requested`. The route reads
+  the deal's live `Stage` first, so a deal at Negotiation / Verbal Yes / Proposal
+  Sent — or in a stage this app doesn't know about — is **left where sales put
+  it** and the outcome is reported to the user. Regressing a live pipeline is
+  worse than not moving a deal at all.
+- **Not silent.** The import toast always says what happened in the CRM: moved,
+  left at its current stage, or failed. Only `Stage` is written — no attachment.
+- **Explicit buttons are unguarded.** "Push to Zoho" and "Mark complete in Zoho"
+  keep their old behaviour: a human clicking a labelled button *is* the
+  authorisation, so they don't need a predecessor whitelist.
+- **Stage is now stored back.** Every push, and every skip that managed to read
+  Zoho, records `zoho.stage` + `zoho.stage_synced_at`. `ZohoStageBadge` renders
+  that on the Estimator list and the editor's Setup panel, with the sync time in
+  its tooltip — sales can still move a deal without telling us, so the badge
+  says *as of when* rather than pretending to be live.
+- **One retry on 404.** `createProposal` returns its id optimistically and
+  INSERTs in the background, so a push fired straight after an import can beat
+  the row. The route reads the quote *before* it touches Zoho, so a 404 means
+  nothing reached the CRM and a single retry is safe.
+
+Not built: reading the org's own Stage picklist order (`settings.READ`) to derive
+the pipeline sequence instead of the static predecessor list. Worth doing if the
+pipeline gains stages before Discovery — see the `ponytail:` note on
+`AUTO_ADVANCE_FROM`.
+
+### Stage refresh on view (same date)
+
+The badge was a snapshot: only this app's own writes updated it, so a stage
+changed by **sales inside Zoho** never reached the UI. `GET
+/api/zoho/deals/stages?ids=…` re-reads the linked deals and
+`useZohoStageRefresh` calls it when the Estimator list or an estimate opens —
+one batched call per view, quiet on failure (a background CRM read is not worth
+a toast on a page opened to do something else).
+
+- **Stored only on change.** An unchanged stage writes nothing: `updateProposal`
+  bumps `updated_at`, which would reshuffle a list sorted by it just because
+  someone looked. So `stage_synced_at` means *last confirmed change*, which
+  under-states freshness rather than over-stating it.
+- **Why N GETs.** `criteria` doesn't support `id`, and COQL (`/crm/v3/coql`,
+  which does) needs `ZohoCRM.coql.READ` — a new scope means Disconnect →
+  Connect on a live connection. Capped at 25 ids, 5 at a time.
+- **Still not realtime.** Between views the badge can be stale. True push needs
+  the Notifications API: `ZohoCRM.notifications.ALL`, a public verified
+  callback, and channel subscriptions that expire and must be renewed on a
+  schedule — real infrastructure for a label. Revisit if the app ever *behaves*
+  on live stage rather than displaying it.
+
+### Creating a Deal from an estimate (same date)
+
+Import covers *deal → estimate*. The other direction — a coordinator quotes work
+that has no CRM record yet — now exists as `POST /api/zoho/deals`, surfaced in
+the editor's Setup tab as **"Create deal in Zoho"** beside "Link a Zoho deal".
+
+- **Duplicate-proof, because it has to be.** No DELETE scope is requested
+  anywhere, so a duplicate Deal in a ~900-deal CRM is a manual cleanup. The
+  route refuses a quote that already carries `deal_id`, then claims the row with
+  a compare-and-set on `zoho.creating_at` *before* calling Zoho — two concurrent
+  submits can't both create. A claim older than 2 minutes is treated as a
+  crashed request and stolen; the claim is released if Zoho refuses.
+- **Never creates an Account.** Zoho's Deal layout hangs off a company, and
+  guessing at one across ~4k accounts is how duplicates start. The dialog blocks
+  until the quote has `zoho.account_id` from "Find in Zoho".
+- **Stage decides the attachment.** `Discovery` = a scoping placeholder, nothing
+  attached. `Proposal Sent` = the quote is going out, so the PDF goes with it and
+  the push is recorded in `pushes`, since Zoho does not dedupe attachments.
+- **Zoho's own error is passed through.** A `MANDATORY_NOT_FOUND` names the field
+  this org's layout requires — that message reaches the toast verbatim, because
+  it's the only way to discover a required field without live-probing the org.
+- **Ordering.** The deal is created first, then linked to the quote. If the link
+  write fails the user is warned rather than the create being rolled back —
+  losing a link is recoverable, a duplicate deal is not.
+
+**Blocked on consent, not code:** this needs `ZohoCRM.modules.deals.CREATE`. It's
+staged in `.env.local`/`.env.example`, but scopes freeze at consent, so the live
+connection 401s (the route says so in plain words) until the env var is on Vercel
+**and** an admin with Zoho edit rights on Deals does Disconnect → Connect.
+
+### Products on an estimate (same date)
+
+The Setup tab can now pick from the CRM's **Products** module — live, via
+`GET /api/zoho/products`. No new scope: `ZohoCRM.modules.READ` already covers
+Products, so this needs no re-consent, and a product added in Zoho shows up
+without a redeploy. A CSV export was offered as the source and deliberately not
+used: it goes stale the day it's exported, and this org's export carries
+multi-line descriptions and mojibake that a parser would have to fight.
+
+- **Two category fields, both real.** The standard `Product_Category`
+  (Creative / Phone / Sysdev / Block of Hours / Software) and the org's own
+  `CATEGORY` (ONBOARDING / SOCIAL MEDIA / SEO / WEBSITE DESIGN / …). The picker
+  groups by the custom one because that's how a person looks for a product, and
+  shows the standard one as a chip.
+- **No hardcoded custom API name.** Records come back unfiltered and
+  `lib/zoho/products.ts` finds the category-ish field case-insensitively,
+  explicitly excluding `Product_Category`. That's why the mapping lives in `lib/`
+  rather than the route — the field-picking rules are the part that could
+  silently grab the wrong column, so they're the part with assertions.
+- **Inactive products are dropped**; retired catalogue entries stay in the CRM
+  but shouldn't be sellable from an estimate.
+
+**Open: writing them onto the Deal.** The CRM screenshot shows a `Packages`
+subform (S.NO / Product / Description / Unit Price / Program Fee / Discount),
+which is custom — its API name and its per-row field names aren't knowable from
+here, and guessing at a subform write on a production Deal is exactly the kind of
+thing this plan refuses to do. Until that's confirmed (one
+`GET /crm/v2/settings/fields?module=Deals` would answer it, and `settings.READ`
+is already granted), the picked product names are written into the new deal's
+standard `Description` field so they at least land where sales looks.
+
+### Scope policy: one broad consent, a narrow allowlist (2026-08-25)
+
+Re-consent is expensive here in a way that isn't obvious from the code: it needs
+an admin who also holds Zoho edit rights on the target module, so every shipped
+integration was costing a round trip to a supervisor. Requesting scopes feature
+by feature optimised the wrong thing — it made the *approval* small while making
+approvals *frequent*, and each one is a person deciding under time pressure.
+
+So the grant is now broad and asked for once: read plus create/update across
+modules, attachments read/create, `settings.READ`, `users.READ`, `org.READ`,
+`coql.READ`, `bulk.READ`, `notifications.ALL`. That covers every integration
+this plan has contemplated — deal writes, the Packages subform once its API name
+is known, webhook channels for live stage updates, batched COQL reads to replace
+the N+1 in the stage refresh — with no further approvals.
+
+**What is still refused, permanently:**
+
+- **Any `.DELETE` scope.** A deleted CRM record has no undo, and nothing this app
+  does requires removing one.
+- **`ZohoCRM.modules.ALL`** — the literal reading of "full access", and the
+  reason not to use it: `.ALL` includes DELETE.
+- **`ZohoCRM.settings.ALL`** — the app reads layouts and picklists to discover
+  field names; it has no business rewriting them.
+
+`notifications.ALL` is the one `.ALL` requested, and is a different kind of
+thing: it governs webhook *channels*, whose lifecycle genuinely includes delete
+(unsubscribing). No CRM record is reachable through it.
+
+**The trade only works because of the allowlist.** A broad grant with no
+in-process limit would mean "this app may do anything to the CRM, and the only
+record of what it actually does is spread across a dozen routes".
+`lib/zoho/write-allowlist.ts` inverts that: `zohoFetch` throws on any non-GET
+that isn't explicitly listed, before the request is made. Three writes are
+permitted today. The list is short enough to read, lives next to its assertions
+(which pin that creating an Account, writing settings, or DELETEing anything is
+refused), and a new write can't be added by accident — only by editing it, in a
+diff someone reviews.

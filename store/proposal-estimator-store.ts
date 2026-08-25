@@ -25,6 +25,7 @@ import {
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
+import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import type { DiscoveryProject, PhaseId } from "@/types/discovery.types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -735,15 +736,16 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
 
       updateProposal: (id, partial) => {
         set((s) => ({
-          proposals: s.proposals.map((p) =>
-            p.id === id
-              ? {
-                  ...p,
-                  ...partial,
-                  updated_at: new Date().toISOString(),
-                }
-              : p,
-          ),
+          proposals: s.proposals.map((p) => {
+            if (p.id !== id) return p;
+            const next = { ...p, ...partial, updated_at: new Date().toISOString() };
+            // The questionnaire never re-asks what Setup knows (title, client,
+            // platform + what the platform implies) — mirror it here so every
+            // caller stays in sync, not just the Setup tab.
+            return next.discovery
+              ? { ...next, discovery: syncDiscoveryToQuote(next.discovery, next) }
+              : next;
+          }),
         }));
         persistQuoteDoc(id, get);
       },

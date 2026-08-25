@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
+  Briefcase,
+  Package,
   ArrowRight,
   ChevronDown,
   Compass,
@@ -20,6 +22,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   Trash2,
+  X,
   TriangleAlert,
   Upload,
   Wand2,
@@ -105,13 +108,21 @@ import {
   resultFromQuote,
   tentativeProject,
 } from "@/lib/discovery/from-line-items";
-import { applyPlatformToDiscovery } from "@/lib/discovery/platform-sync";
+import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import {
   discoveryCoverage,
   type DiscoveryFieldId,
 } from "@/lib/discovery/questions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { PUSHABLE_STAGES, zohoPushes } from "@/lib/zoho/push-state";
+import {
+  PUSHABLE_STAGES,
+  requestStagePush,
+  zohoPushes,
+} from "@/lib/zoho/push-state";
+import { ZohoDealCreate } from "@/components/features/proposals/ZohoDealCreate";
+import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPicker";
+import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
+import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import {
@@ -183,6 +194,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     s.proposals.find((p) => p.id === proposalId),
   );
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
+  // Re-check this quote's deal stage on open, so the badge reflects Zoho
+  // rather than whatever it said when the deal was imported.
+  useZohoStageRefresh(React.useMemo(() => (quote ? [quote] : []), [quote]));
   const updateAddons = useProposalEstimatorStore((s) => s.updateAddons);
   const addLineItem = useProposalEstimatorStore((s) => s.addLineItem);
   const addLineItemsFromCatalog = useProposalEstimatorStore(
@@ -232,6 +246,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
+  const [dealCreateOpen, setDealCreateOpen] = React.useState(false);
+  const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
@@ -329,7 +345,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       created_at: now,
       updated_at: now,
     };
-    setDiscovery(quote.id, blank);
+    setDiscovery(quote.id, syncDiscoveryToQuote(blank, quote));
   }, [quote, setDiscovery]);
 
   const handleScopeChange = React.useCallback(
@@ -675,19 +691,30 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 {!quote.zoho?.deal_id ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/60 p-3 text-xs">
                     <span className="text-muted-foreground">
-                      Not linked to a Zoho deal — link one to push this quote to
-                      the CRM.
+                      Not linked to a Zoho deal — link an existing one, or open a
+                      new deal in the CRM from this estimate.
                     </span>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-7 shrink-0 gap-1.5 text-xs"
-                      onClick={() => setDealLinkOpen(true)}
-                    >
-                      <Link2 className="size-3.5" aria-hidden />
-                      Link a Zoho deal
-                    </Button>
+                    <div className="flex shrink-0 flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => setDealLinkOpen(true)}
+                      >
+                        <Link2 className="size-3.5" aria-hidden />
+                        Link a Zoho deal
+                      </Button>
+                      <Button
+                        type="button"
+                        size="sm"
+                        className="h-7 gap-1.5 text-xs"
+                        onClick={() => setDealCreateOpen(true)}
+                      >
+                        <Briefcase className="size-3.5" aria-hidden />
+                        Create deal in Zoho
+                      </Button>
+                    </div>
                   </div>
                 ) : null}
                 {quote.zoho ? (
@@ -712,7 +739,15 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       {quote.zoho.deal_name ? (
                         <span>Deal: {quote.zoho.deal_name}</span>
                       ) : null}
-                      {quote.zoho.stage ? <span>Stage: {quote.zoho.stage}</span> : null}
+                      {quote.zoho.stage ? (
+                        <ZohoStageBadge
+                          stage={quote.zoho.stage}
+                          syncedAt={
+                            quote.zoho.stage_synced_at ?? quote.zoho.imported_at
+                          }
+                          className="h-5 py-0"
+                        />
+                      ) : null}
                       {quote.zoho.contact ? (
                         <span>Contact: {quote.zoho.contact}</span>
                       ) : null}
@@ -726,6 +761,77 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     </dl>
                   </div>
                 ) : null}
+                {/* What we're selling, straight from the CRM's Products module.
+                    Kept on the quote for now — writing it onto the Deal needs the
+                    API name of this org's "Packages" subform. */}
+                <div className="grid gap-2 sm:col-span-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Label>
+                      Products
+                      {quote.zoho?.products?.length ? (
+                        <span className="ml-1.5 font-normal tabular-nums text-muted-foreground">
+                          {quote.zoho.products.length}
+                        </span>
+                      ) : null}
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                      onClick={() => setProductsOpen(true)}
+                    >
+                      <Package className="size-3.5" aria-hidden />
+                      {quote.zoho?.products?.length
+                        ? "Add or remove products"
+                        : "Add products from Zoho"}
+                    </Button>
+                  </div>
+                  {quote.zoho?.products?.length ? (
+                    <ul className="flex flex-wrap gap-1.5">
+                      {quote.zoho.products.map((p) => (
+                        <li key={p.id}>
+                          <Badge
+                            variant="outline"
+                            className="gap-1.5 py-1 pr-1 font-normal"
+                            title={[p.tag, p.category].filter(Boolean).join(" · ")}
+                          >
+                            <span className="font-medium">{p.name}</span>
+                            {p.tag ?? p.category ? (
+                              <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
+                                {p.tag ?? p.category}
+                              </span>
+                            ) : null}
+                            {/* Drop one without reopening the picker. */}
+                            <button
+                              type="button"
+                              aria-label={`Remove ${p.name}`}
+                              className="rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                              onClick={() =>
+                                updateProposal(quote.id, {
+                                  zoho: {
+                                    ...quote.zoho!,
+                                    products: (quote.zoho?.products ?? []).filter(
+                                      (x) => x.id !== p.id,
+                                    ),
+                                  },
+                                })
+                              }
+                            >
+                              <X className="size-3" aria-hidden />
+                            </button>
+                          </Badge>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-lg border border-dashed border-border/60 p-3 text-xs text-muted-foreground">
+                      No products picked. Add as many as this deal sells — these
+                      are the CRM catalogue items, separate from the line items
+                      below, which are the work.
+                    </p>
+                  )}
+                </div>
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between gap-2">
                     <Label htmlFor="meta-client">Client</Label>
@@ -780,14 +886,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     value={quote.platform}
                     onValueChange={(v) => {
                       const platform = v as ProposalPlatform;
+                      // The store mirrors the change onto the questionnaire.
                       updateProposal(quote.id, { platform });
-                      // Keep the guided questionnaire aligned to the platform.
-                      if (quote.discovery) {
-                        setDiscovery(
-                          quote.id,
-                          applyPlatformToDiscovery(quote.discovery, platform),
-                        );
-                      }
                     }}
                   >
                     <SelectTrigger className="w-full">
@@ -1261,6 +1361,28 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
       {/* Same picker the Estimator list uses to import — here it attaches the
           chosen deal to THIS quote instead of creating a new one. */}
+      <ZohoProductPicker
+        open={productsOpen}
+        onClose={() => setProductsOpen(false)}
+        selected={quote.zoho?.products ?? []}
+        onSave={(products) =>
+          updateProposal(quote.id, {
+            zoho: {
+              ...(quote.zoho ?? { imported_at: new Date().toISOString() }),
+              products,
+            },
+          })
+        }
+      />
+
+      <ZohoDealCreate
+        open={dealCreateOpen}
+        onClose={() => setDealCreateOpen(false)}
+        quote={quote}
+        projectName={projectName}
+        onCreated={hydrateProposals}
+      />
+
       <ZohoDealImport
         open={dealLinkOpen}
         onClose={() => setDealLinkOpen(false)}
@@ -1291,6 +1413,28 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
           toast.success("Linked to Zoho deal", {
             description: deal.name ?? undefined,
           });
+          // Linking a deal to a live estimate is the same act as importing one:
+          // scoping starts now, so the CRM should say Discovery. Forward-only,
+          // enforced server-side.
+          void (async () => {
+            if (!isSupabaseConfigured) return;
+            const res = await requestStagePush(deal.id, {
+              proposalId: quote.id,
+              stage: PUSHABLE_STAGES.discovery,
+            });
+            if (res.error) {
+              toast.warning("Linked, but Zoho wasn't updated", {
+                description: res.error,
+              });
+            } else if (res.moved) {
+              toast.success(`Zoho deal moved to ${PUSHABLE_STAGES.discovery}`);
+              await hydrateProposals();
+            } else if (res.skipped && res.currentStage) {
+              toast.info(`Zoho deal left at ${res.currentStage}`, {
+                description: "Linking only advances a deal, never moves it back.",
+              });
+            }
+          })();
         }}
       />
 

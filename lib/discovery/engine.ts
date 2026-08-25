@@ -9,7 +9,9 @@ import {
   PAYMENT_GATEWAY_OPTIONS,
   PHASE_META,
   PHASE_ORDER,
+  REGULATED_TYPE_OPTIONS,
   optionLabel,
+  productCountLabel,
 } from "@/lib/discovery/constants";
 import type {
   DiscoveryProject,
@@ -197,14 +199,14 @@ export function computeEstimate(p: DiscoveryProject): Estimate {
         name: "Large product catalog",
         min: 6,
         max: 10,
-        note: `${num(p.product_count)} products`,
+        note: `${productCountLabel(p.product_count)} products`,
       });
     if (p.payment_gateway && p.payment_gateway !== "stripe")
       development.push({
         name: "Payment gateway integration",
         min: 3,
         max: 6,
-        note: optionLabel(PAYMENT_GATEWAY_OPTIONS, p.payment_gateway),
+        note: optionLabel(PAYMENT_GATEWAY_OPTIONS, p.payment_gateway, p.payment_gateway_other),
       });
     if (p.has_product_variations)
       development.push({ name: "Product variations", min: 4, max: 8 });
@@ -214,14 +216,18 @@ export function computeEstimate(p: DiscoveryProject): Estimate {
       name: "CRM integration",
       min: 8,
       max: 12,
-      note: p.crm_platform ? optionLabel(CRM_OPTIONS, p.crm_platform) : undefined,
+      note: p.crm_platform
+        ? optionLabel(CRM_OPTIONS, p.crm_platform, p.crm_platform_other)
+        : undefined,
     });
   if (p.has_email_integration)
     development.push({
       name: "Email marketing integration",
       min: 4,
       max: 8,
-      note: p.email_platform ? optionLabel(EMAIL_OPTIONS, p.email_platform) : undefined,
+      note: p.email_platform
+        ? optionLabel(EMAIL_OPTIONS, p.email_platform, p.email_platform_other)
+        : undefined,
     });
   if (p.has_internal_system_integration)
     development.push({
@@ -326,18 +332,27 @@ function buildAssumptions(p: DiscoveryProject): string[] {
   const a: string[] = [];
   if (p.platform) a.push(`Platform: ${p.platform}`);
   if (p.hosting_environment)
-    a.push(`Hosting: ${optionLabel(HOSTING_OPTIONS, p.hosting_environment)}`);
+    a.push(
+      `Hosting: ${optionLabel(HOSTING_OPTIONS, p.hosting_environment, p.hosting_environment_other)}`,
+    );
   if (p.is_redesign) a.push(`Redesign audit of ${p.current_url || "current site"} included`);
-  if (p.regulated_industry) a.push(`Regulated industry: ${p.regulated_type || "compliance review included"}`);
+  if (p.regulated_industry)
+    a.push(
+      `Regulated industry: ${optionLabel(REGULATED_TYPE_OPTIONS, p.regulated_type, p.regulated_type_other) || "compliance review included"}`,
+    );
   if (p.multi_language) a.push(`${num(p.language_count, 2)} languages`);
   if (p.has_ecommerce)
     a.push(
-      `E-commerce: ${num(p.product_count)} products, ${optionLabel(PAYMENT_GATEWAY_OPTIONS, p.payment_gateway) || "gateway TBD"}${p.has_product_variations ? ", with variations" : ""}`,
+      `E-commerce: ${productCountLabel(p.product_count) || "count TBD"} products, ${optionLabel(PAYMENT_GATEWAY_OPTIONS, p.payment_gateway, p.payment_gateway_other) || "gateway TBD"}${p.has_product_variations ? ", with variations" : ""}`,
     );
   if (p.has_crm_integration)
-    a.push(`CRM integration: ${optionLabel(CRM_OPTIONS, p.crm_platform) || "platform TBD"}`);
+    a.push(
+      `CRM integration: ${optionLabel(CRM_OPTIONS, p.crm_platform, p.crm_platform_other) || "platform TBD"}`,
+    );
   if (p.has_email_integration)
-    a.push(`Email marketing: ${optionLabel(EMAIL_OPTIONS, p.email_platform) || "platform TBD"}`);
+    a.push(
+      `Email marketing: ${optionLabel(EMAIL_OPTIONS, p.email_platform, p.email_platform_other) || "platform TBD"}`,
+    );
   if (p.has_internal_system_integration)
     a.push("Internal system integration (scope undefined — high uncertainty)");
   if (num(p.migration_page_count) > 0)

@@ -1,23 +1,38 @@
 /**
- * Keeps the guided questionnaire aligned to the estimate's platform (the single
- * source of truth, `quote.platform`). The questionnaire's own `platform` field
- * just mirrors it, and platform-implied answers are derived instead of re-asked:
- *   • Shopify ⇒ e-commerce (forces has_ecommerce, defaults goal to E-Commerce)
- *   • Hosted platforms (Shopify/Wix/Squarespace) ⇒ hosting is the platform
- * Visibility rules in questions.ts read `p.platform` (now a ProposalPlatform
- * value) via these helpers, so no new machinery is needed.
+ * Keeps the guided questionnaire aligned to the estimate. The quote (Setup tab)
+ * is the single source of truth: anything Setup already knows is *derived* onto
+ * the answers and hidden from the questionnaire, never asked a second time.
+ *
+ *   • quote.title / client_name → questionnaire name / client_name
+ *   • quote.platform            → the PLATFORM_IMPLIES row below
+ *
+ * PLATFORM_IMPLIES drives both halves — every key it sets is forced onto the
+ * answers here and hidden by questions.ts (via `isImplied`), so a new
+ * implication is one line in one place.
  */
 import { HOSTING_OPTIONS, type Option } from "@/lib/discovery/constants";
 import type { DiscoveryProject } from "@/types/discovery.types";
 
-/** Platforms that are inherently e-commerce (e-commerce is implied, not asked). */
-export function isEcommercePlatform(platform: string): boolean {
-  return platform === "shopify";
-}
+/**
+ * Answers the platform already gives us. These WIN over stored answers: the
+ * matching question is hidden, so a stale value could never be corrected by
+ * hand (e.g. goal set to Lead Gen on WordPress, then switched to Shopify).
+ */
+export const PLATFORM_IMPLIES: Record<string, Partial<DiscoveryProject>> = {
+  // Shopify is e-commerce by definition, and hosts the store itself.
+  shopify: {
+    has_ecommerce: true,
+    primary_goal: "ecommerce",
+    hosting_environment: "shopify",
+  },
+  // Hosted SaaS builders: hosting is the platform.
+  wix: { hosting_environment: "other" },
+  squarespace: { hosting_environment: "other" },
+};
 
-/** Hosted SaaS platforms where hosting = the platform (don't ask hosting). */
-export function isHostedPlatform(platform: string): boolean {
-  return platform === "shopify" || platform === "wix" || platform === "squarespace";
+/** True when the platform already answers this question — derive it, don't ask. */
+export function isImplied(id: keyof DiscoveryProject, platform: string): boolean {
+  return id in (PLATFORM_IMPLIES[platform] ?? {});
 }
 
 // Hosting options that fit any self-hosted stack.
@@ -26,8 +41,8 @@ const UNIVERSAL_HOSTING = ["azure", "cloudflare", "client_host", "other"];
 /**
  * Hosting options compatible with the selected platform. Drops platform-specific
  * hosts that don't apply (e.g. Shopify hosting on a WordPress site, WP Engine on
- * a non-WordPress site). Hosted platforms hide the field entirely (see
- * questions.ts), so this only matters for WordPress / PHP / React / Custom.
+ * a non-WordPress site). Hosted platforms hide the field entirely, so this only
+ * matters for WordPress / PHP / React / Custom.
  */
 export function hostingOptionsFor(platform: string): Option[] {
   const universal = HOSTING_OPTIONS.filter((o) =>
@@ -40,23 +55,26 @@ export function hostingOptionsFor(platform: string): Option[] {
   return universal;
 }
 
+/** The parts of a quote the questionnaire mirrors instead of asking for. */
+export type QuoteScopeSource = {
+  title: string;
+  client_name?: string | null;
+  platform: string;
+};
+
 /**
- * Mirror the estimate platform onto the questionnaire and apply platform-implied
- * answers. Never clobbers an explicit goal; forces only what the platform truly
- * dictates. Idempotent — safe to call on create and on every platform change.
+ * Mirror the estimate onto its questionnaire. Idempotent — safe to call on
+ * create and after every Setup edit (the store calls it on `updateProposal`).
  */
-export function applyPlatformToDiscovery(
+export function syncDiscoveryToQuote(
   d: DiscoveryProject,
-  platform: string,
+  quote: QuoteScopeSource,
 ): DiscoveryProject {
-  const next: DiscoveryProject = { ...d, platform };
-  if (isEcommercePlatform(platform)) {
-    next.has_ecommerce = true;
-    if (!next.primary_goal) next.primary_goal = "ecommerce";
-  }
-  if (isHostedPlatform(platform)) {
-    // Display-only in the engine; set a sensible value since the field is hidden.
-    next.hosting_environment = platform === "shopify" ? "shopify" : "other";
-  }
-  return next;
+  return {
+    ...d,
+    name: quote.title,
+    client_name: quote.client_name ?? "",
+    platform: quote.platform,
+    ...PLATFORM_IMPLIES[quote.platform],
+  };
 }

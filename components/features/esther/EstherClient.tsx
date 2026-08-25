@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/card";
 import { usePermissions } from "@/hooks/usePermissions";
 import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
+import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import { discoveryFromEstherAnalysis } from "@/lib/discovery/from-esther";
 import { analyzeBrief, classifyMessage } from "@/lib/esther/engine";
 import { ESTHER_SAMPLE_BRIEF } from "@/lib/esther/sample";
@@ -206,13 +207,20 @@ export function EstherClient() {
       // Guided scoping now lives inside an estimate — seed a proposal with the
       // discovery answers and open it on the Scope & risk tab.
       const now = new Date().toISOString();
-      const discovery: DiscoveryProject = {
-        ...createEmptyDiscoveryProject(),
-        ...discoveryFromEstherAnalysis(analysis),
-        id: crypto.randomUUID(),
-        created_at: now,
-        updated_at: now,
-      };
+      const discovery: DiscoveryProject = syncDiscoveryToQuote(
+        {
+          ...createEmptyDiscoveryProject(),
+          ...discoveryFromEstherAnalysis(analysis),
+          id: crypto.randomUUID(),
+          created_at: now,
+          updated_at: now,
+        },
+        {
+          title: analysis.suggestedTitle,
+          client_name: analysis.clientName,
+          platform: analysis.platform,
+        },
+      );
       const id = createProposal({
         title: analysis.suggestedTitle,
         client_name: analysis.clientName,

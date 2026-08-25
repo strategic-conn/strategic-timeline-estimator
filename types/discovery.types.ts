@@ -1,7 +1,7 @@
 /**
  * Discovery Estimator — a rules-based scoping tool merged in from the SC Estimator spec.
  *
- * A completed 8-section Discovery Wizard (64 fields) feeds a deterministic engine
+ * A completed 8-section Discovery Wizard (67 asked fields — each dropdown offering "Other" carries a `*_other` free-text companion, shown only when "Other" is picked; name/client/platform + platform-implied answers are mirrored from the estimate) feeds a deterministic engine
  * (lib/discovery/*) that produces Min/Mid/Max hours per phase + task, a calendar
  * timeline with milestones, and a risk score. Frontend-only (Zustand + localStorage);
  * the engine is the seam a backend/AI fills later. Sibling to the catalog-based
@@ -16,10 +16,13 @@ export interface DiscoveryProject {
   name: string;
   client_name: string;
   primary_goal: string;
+  /** Free text when `primary_goal` is "other". */
+  primary_goal_other: string;
   is_redesign: boolean;
   current_url: string;
   regulated_industry: boolean;
   regulated_type: string;
+  regulated_type_other: string;
 
   // Section 2 — Scope & Structure
   total_pages: number | null;
@@ -36,6 +39,7 @@ export interface DiscoveryProject {
   has_ecommerce: boolean;
   product_count: number | null;
   payment_gateway: string;
+  payment_gateway_other: string;
   has_product_variations: boolean;
 
   // Section 3 — Design & Brand
@@ -59,10 +63,13 @@ export interface DiscoveryProject {
 
   // Section 5 — Technical Requirements & Integrations
   hosting_environment: string;
+  hosting_environment_other: string;
   has_crm_integration: boolean;
   crm_platform: string;
+  crm_platform_other: string;
   has_email_integration: boolean;
   email_platform: string;
+  email_platform_other: string;
   has_internal_system_integration: boolean;
   needs_analytics: boolean;
   needs_live_chat: boolean;

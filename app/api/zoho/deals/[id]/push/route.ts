@@ -21,7 +21,12 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  *    two records. Hence the server-side `pushed_at` guard below.
  */
 
-import { PUSHABLE_STAGES, isPushableStage, zohoPushes } from "@/lib/zoho/push-state";
+import {
+  AUTO_ADVANCE_FROM,
+  PUSHABLE_STAGES,
+  isPushableStage,
+  zohoPushes,
+} from "@/lib/zoho/push-state";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -30,6 +35,37 @@ function db() {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/**
+ * Merge fields into `proposals.zoho`. Used by the skip paths too: whatever Zoho
+ * reports as the live stage is worth storing even when nothing was pushed, so
+ * the stage badge stops showing the value from import time. Returns an error
+ * object only when the write failed.
+ */
+async function recordStage(
+  supabase: ReturnType<typeof db>,
+  proposalId: string,
+  zoho: Record<string, unknown>,
+  patch: { stage: string; dealId?: string; pushes?: Record<string, string> },
+): Promise<{ message: string } | null> {
+  const next: Record<string, unknown> = {
+    ...zoho,
+    stage: patch.stage,
+    stage_synced_at: new Date().toISOString(),
+  };
+  if (patch.dealId) next.deal_id = patch.dealId;
+  if (patch.pushes) {
+    next.pushes = patch.pushes;
+    // Legacy mirrors, so anything still reading these keeps working.
+    next.pushed_at = new Date().toISOString();
+    next.pushed_stage = patch.stage;
+  }
+  const { error } = await supabase
+    .from("proposals")
+    .update({ zoho: next })
+    .eq("id", proposalId);
+  return error ? { message: error.message } : null;
 }
 
 export async function POST(
@@ -101,6 +137,44 @@ export async function POST(
     );
   }
 
+  // ── Never regress the pipeline ──
+  // Stages this app sets as a side effect (Discovery, on import) may only move a
+  // deal FORWARD, so read the live stage first: one already at Negotiation or
+  // Verbal Yes must stay where sales put it, and so must one in a stage this app
+  // doesn't know. Explicit-button stages skip this — the click is the intent.
+  const allowedFrom = AUTO_ADVANCE_FROM[targetStage];
+  if (allowedFrom) {
+    let currentStage: string | null = null;
+    try {
+      const res = await zohoFetch(
+        `/crm/v2/Deals/${encodeURIComponent(dealId)}?fields=Stage`,
+      );
+      const body = await res.json().catch(() => null);
+      currentStage = (body?.data?.[0]?.Stage as string) ?? null;
+    } catch (e) {
+      console.error("[zoho push] couldn't read current stage", e);
+    }
+    if (!currentStage || !allowedFrom.includes(currentStage)) {
+      // Not an error: importing a deal that's further along is normal. Record
+      // what Zoho actually says, so the app stops showing a stale stage.
+      if (currentStage) {
+        await recordStage(supabase, proposalId, zoho, { stage: currentStage });
+      }
+      return NextResponse.json({
+        skipped: true,
+        stageUpdated: false,
+        currentStage,
+        message: !currentStage
+          ? "Couldn't read the deal's current stage, so it was left untouched."
+          : currentStage === targetStage
+            ? `Deal is already at "${currentStage}".`
+            : `Left at "${currentStage}" — an import only advances a deal from ${allowedFrom
+                .map((s) => `"${s}"`)
+                .join(" or ")}.`,
+      });
+    }
+  }
+
   const result: {
     stageUpdated: boolean;
     attachmentUploaded: boolean;
@@ -166,19 +240,11 @@ export async function POST(
   }
 
   // ── 3. Record the push so a retry can't duplicate the attachment ──
-  const { error: writeErr } = await supabase
-    .from("proposals")
-    .update({
-      zoho: {
-        ...zoho,
-        deal_id: dealId,
-        pushes: { ...pushes, [targetStage]: new Date().toISOString() },
-        // Legacy mirrors, so anything still reading these keeps working.
-        pushed_at: new Date().toISOString(),
-        pushed_stage: targetStage,
-      },
-    })
-    .eq("id", proposalId);
+  const writeErr = await recordStage(supabase, proposalId, zoho, {
+    stage: targetStage,
+    dealId,
+    pushes: { ...pushes, [targetStage]: new Date().toISOString() },
+  });
   if (writeErr) {
     console.error("[zoho push] couldn't record pushed_at", writeErr);
     result.warnings.push(

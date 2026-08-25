@@ -8,6 +8,7 @@ import {
   quoteTotals,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
+import { primaryGoalLabel } from "@/lib/discovery/constants";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import { cn } from "@/lib/utils";
 import type { ClientQuote } from "@/types/proposal.types";
@@ -25,6 +26,10 @@ export function ProposalPdfPreviewMock({
 }: ProposalPdfPreviewMockProps) {
   const totals = quoteTotals(quote);
   const dateStr = format(new Date(quote.updated_at), "MMMM d, yyyy");
+  const goal = primaryGoalLabel(
+    quote.discovery?.primary_goal ?? "",
+    quote.discovery?.primary_goal_other,
+  );
   const idIndex = new Map(quote.line_items.map((li, i) => [li.id, i + 1]));
 
   return (
@@ -58,6 +63,12 @@ export function ProposalPdfPreviewMock({
             <dt className="text-slate-500">Platform</dt>
             <dd className="font-medium">{platformLabel(quote.platform)}</dd>
           </div>
+          {goal ? (
+            <div>
+              <dt className="text-slate-500">Primary goal</dt>
+              <dd className="font-medium">{goal}</dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-slate-500">Date</dt>
             <dd className="font-medium">{dateStr}</dd>

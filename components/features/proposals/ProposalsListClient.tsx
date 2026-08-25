@@ -61,16 +61,19 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
+import { PUSHABLE_STAGES, requestStagePush } from "@/lib/zoho/push-state";
+import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
-import { applyPlatformToDiscovery } from "@/lib/discovery/platform-sync";
+import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import {
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
 } from "@/lib/proposal-catalog";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import type {
   ClientQuote,
@@ -88,6 +91,9 @@ export function ProposalsListClient() {
   const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
+  // Sales can move a deal in Zoho without telling us — re-check the linked ones
+  // whenever the list is opened, in a single batched read.
+  useZohoStageRefresh(proposals);
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [dealImportOpen, setDealImportOpen] = React.useState(false);
@@ -131,16 +137,14 @@ export function ProposalsListClient() {
       const now = new Date().toISOString();
       // Mirror the chosen platform onto the questionnaire + apply implied answers
       // (e.g. Shopify ⇒ e-commerce) so platform-derived questions aren't re-asked.
-      discovery = applyPlatformToDiscovery(
+      discovery = syncDiscoveryToQuote(
         {
           ...createEmptyDiscoveryProject(),
           id: crypto.randomUUID(),
-          name: title,
-          client_name: newClient.trim(),
           created_at: now,
           updated_at: now,
         },
-        newPlatform,
+        { title, client_name: newClient.trim(), platform: newPlatform },
       );
     }
     const id = createProposal({
@@ -161,6 +165,30 @@ export function ProposalsListClient() {
     setNewPlatform("react_next");
     setNewZoho(null);
     router.push(`/proposals/${id}`);
+  };
+
+  /**
+   * Move the linked deal to Discovery. Fire-and-forget: the estimate already
+   * exists locally and navigation shouldn't wait on the CRM, but the outcome is
+   * always surfaced — a silent CRM write is worse than a slow one.
+   */
+  const advanceToDiscovery = async (dealId: string, proposalId: string) => {
+    if (!isSupabaseConfigured) return;
+    const res = await requestStagePush(dealId, {
+      proposalId,
+      stage: PUSHABLE_STAGES.discovery,
+    });
+    if (res.error) {
+      toast.warning("Estimate created, but Zoho wasn't updated", {
+        description: res.error,
+      });
+    } else if (res.moved) {
+      toast.success(`Zoho deal moved to ${PUSHABLE_STAGES.discovery}`);
+    } else if (res.skipped && res.currentStage) {
+      toast.info(`Zoho deal left at ${res.currentStage}`, {
+        description: "An import only advances a deal, never moves it back.",
+      });
+    }
   };
 
   /**
@@ -192,6 +220,10 @@ export function ProposalsListClient() {
     toast.success("Estimate started from Zoho", {
       description: client ? `Client: ${client}` : undefined,
     });
+    // Importing a deal IS the start of discovery, so say so in the CRM. The
+    // route only ever advances a deal forward, so a deal further along is left
+    // where sales put it — hence the two outcomes reported here.
+    void advanceToDiscovery(deal.id, id);
     router.push(`/proposals/${id}`);
   };
 
@@ -320,6 +352,10 @@ export function ProposalsListClient() {
                         >
                           {PROPOSAL_STATUS_META[q.status ?? "draft"].label}
                         </Badge>
+                        <ZohoStageBadge
+                          stage={q.zoho?.stage}
+                          syncedAt={q.zoho?.stage_synced_at ?? q.zoho?.imported_at}
+                        />
                       </div>
                       <CardDescription className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
                         {q.client_name ? (

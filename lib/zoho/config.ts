@@ -11,8 +11,20 @@ import "server-only";
  * and reuse — so this works for any DC (.com/.eu/.in/.com.au/.jp/.ca).
  */
 const DEFAULT_ACCOUNTS = "https://accounts.zoho.com";
-// Read-only CRM by default. Widen via ZOHO_SCOPES (comma-separated) if you need
-// to write back — e.g. add "ZohoCRM.modules.CREATE".
+// Read-only CRM by default — a fresh install can't write to anyone's CRM by
+// accident. Widen via ZOHO_SCOPES (comma-separated); .env.example carries the
+// full set this project asks for in production.
+//
+// Scopes freeze at consent, so the deployed value is whatever was on the screen
+// the day someone clicked Accept — changing this only affects the NEXT consent.
+// That's why the production set is deliberately broad (create/update across the
+// CRM, notifications, coql, bulk): one approval, no re-consent every time a
+// feature ships. What the app may actually change is enforced in code by
+// lib/zoho/write-allowlist.ts, NOT by the scope string.
+//
+// Never requested, at any tier: any .DELETE, and .ALL on records or settings.
+// A deleted CRM record has no undo, and settings.ALL would let this app rewrite
+// layouts and picklists it only needs to read.
 const DEFAULT_SCOPES = [
   "ZohoCRM.modules.READ",
   "ZohoCRM.users.READ",

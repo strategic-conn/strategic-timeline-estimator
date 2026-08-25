@@ -23,8 +23,10 @@ production:
    chars, so it can never turn into a broad delete.
 3. **Tests never touch pre-existing data** — no editing or deleting anything a
    human made.
-4. **The Zoho _push_ is never automated.** It writes to a CRM with ~900 real
-   deals and permanently marks a quote as pushed. Zoho *reads* are fine to test.
+4. **No automated Zoho _writes_.** That means the push buttons **and** the
+   "Import from Zoho" / "link a deal" flows, which now advance the deal to
+   *Discovery*. Writes hit a CRM with ~900 real deals and permanently mark a
+   quote as pushed. Zoho *reads* are fine to test.
 5. **Serial only** (`workers: 1`). Parallel runs would fight over shared live data.
 
 ## Login

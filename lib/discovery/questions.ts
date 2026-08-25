@@ -5,14 +5,11 @@ import {
   HOSTING_OPTIONS,
   PAYMENT_GATEWAY_OPTIONS,
   PRIMARY_GOAL_OPTIONS,
+  PRODUCT_COUNT_BANDS,
   REGULATED_TYPE_OPTIONS,
   type Option,
 } from "@/lib/discovery/constants";
-import {
-  hostingOptionsFor,
-  isEcommercePlatform,
-  isHostedPlatform,
-} from "@/lib/discovery/platform-sync";
+import { hostingOptionsFor, isImplied } from "@/lib/discovery/platform-sync";
 import type { DiscoveryProject } from "@/types/discovery.types";
 
 export type FieldType =
@@ -22,6 +19,8 @@ export type FieldType =
   | "number"
   | "toggle"
   | "dropdown"
+  /** Dropdown of numeric bands; stores the band's lower bound as a number. */
+  | "range"
   | "date";
 
 export type DiscoveryFieldId = keyof Omit<
@@ -107,19 +106,45 @@ export const DISCOVERY_SECTIONS: {
   },
 ];
 
+/**
+ * Free-text companion for a dropdown that offers "Other" — shown (and required)
+ * only when "Other" is picked, so the specific answer is captured instead of
+ * being flattened to a useless "Other". `optionLabel` reads it back.
+ */
+function otherField(
+  id: DiscoveryFieldId,
+  source: DiscoveryFieldId,
+  section: number,
+  label: string,
+): DiscoveryQuestion {
+  // Only when the dropdown itself is on screen: a hidden parent can still hold
+  // "other" (CRM toggled back off, or hosting force-set to "other" on Wix), and
+  // that must not surface a required field for a question nobody is asking.
+  const when = (p: DiscoveryProject) => {
+    if (p[source] !== "other") return false;
+    const parent = DISCOVERY_QUESTIONS.find((q) => q.id === source);
+    return parent ? isQuestionVisible(parent, p) : true;
+  };
+  return { id, section, label, type: "text", visibleWhen: when, requiredWhen: when };
+}
+
 export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   // ── Section 1 ──────────────────────────────────────────────────────────
-  { id: "name", section: 1, label: "Project Name", type: "text", required: true },
-  { id: "client_name", section: 1, label: "Client Name", type: "text", required: true },
+  // NOTE: project + client name are not asked here — they are the estimate title
+  // and client (Setup tab), mirrored on every edit by syncDiscoveryToQuote.
   {
     id: "primary_goal",
     section: 1,
     label: "Primary Business Goal",
     type: "dropdown",
     options: PRIMARY_GOAL_OPTIONS,
-    required: true,
-    impact: "Informs strategy phase framing",
+    // Not required: it drives no hours and no risk — it is client context printed
+    // on the quote, so a blank one must not inflate the risk score.
+    impact: "Printed on the quote; does not change hours",
+    // Implied by e-commerce platforms (Shopify ⇒ E-Commerce) — set, not asked.
+    visibleWhen: (p) => !isImplied("primary_goal", p.platform),
   },
+  otherField("primary_goal_other", "primary_goal", 1, "Other goal — please specify"),
   {
     id: "is_redesign",
     section: 1,
@@ -153,6 +178,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     visibleWhen: (p) => p.regulated_industry,
     requiredWhen: (p) => p.regulated_industry,
   },
+  otherField("regulated_type_other", "regulated_type", 1, "Other industry — please specify"),
 
   // ── Section 2 ──────────────────────────────────────────────────────────
   {
@@ -225,14 +251,14 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     type: "toggle",
     impact: "+20–40 hrs base scope",
     // Implied for e-commerce platforms (e.g. Shopify) — set from the platform.
-    visibleWhen: (p) => !isEcommercePlatform(p.platform),
+    visibleWhen: (p) => !isImplied("has_ecommerce", p.platform),
   },
   {
     id: "product_count",
     section: 2,
     label: "Number of Products / SKUs",
-    type: "number",
-    min: 1,
+    type: "range",
+    options: PRODUCT_COUNT_BANDS,
     visibleWhen: (p) => p.has_ecommerce,
     requiredWhen: (p) => p.has_ecommerce,
     impact: "50+ products adds +6–10 hrs",
@@ -247,6 +273,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     requiredWhen: (p) => p.has_ecommerce,
     impact: "Non-Stripe adds +3–6 hrs",
   },
+  otherField("payment_gateway_other", "payment_gateway", 2, "Other gateway — please specify"),
   {
     id: "has_product_variations",
     section: 2,
@@ -264,7 +291,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   { id: "needs_custom_illustrations", section: 3, label: "Custom Illustrations Required?", type: "toggle", impact: "+12–20 hrs Design" },
   { id: "needs_animations", section: 3, label: "Animations / Parallax Effects?", type: "toggle", impact: "+8–14 hrs Design (motion)" },
   // NOTE: platform is no longer asked here — it's the estimate's platform
-  // (Setup tab), mirrored onto `discovery.platform` via applyPlatformToDiscovery.
+  // (Setup tab), mirrored onto `discovery.platform` via syncDiscoveryToQuote.
   {
     id: "design_revision_rounds",
     section: 3,
@@ -324,8 +351,9 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     required: true,
     impact: "Affects setup time noted in dev",
     // Hosted platforms (Shopify/Wix/Squarespace) host the site — set, not asked.
-    visibleWhen: (p) => !isHostedPlatform(p.platform),
+    visibleWhen: (p) => !isImplied("hosting_environment", p.platform),
   },
+  otherField("hosting_environment_other", "hosting_environment", 5, "Other host — please specify"),
   { id: "has_crm_integration", section: 5, label: "CRM Integration?", type: "toggle", impact: "+8–12 hrs Development" },
   {
     id: "crm_platform",
@@ -336,6 +364,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     visibleWhen: (p) => p.has_crm_integration,
     requiredWhen: (p) => p.has_crm_integration,
   },
+  otherField("crm_platform_other", "crm_platform", 5, "Other CRM — please specify"),
   { id: "has_email_integration", section: 5, label: "Email Marketing Integration?", type: "toggle", impact: "+4–8 hrs Development" },
   {
     id: "email_platform",
@@ -346,6 +375,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     visibleWhen: (p) => p.has_email_integration,
     requiredWhen: (p) => p.has_email_integration,
   },
+  otherField("email_platform_other", "email_platform", 5, "Other email platform — please specify"),
   {
     id: "has_internal_system_integration",
     section: 5,
@@ -430,7 +460,7 @@ export function isBlank(
   type: FieldType,
 ): boolean {
   if (type === "toggle") return false;
-  if (type === "number") {
+  if (type === "number" || type === "range") {
     return value === null || value === undefined || Number(value) <= 0;
   }
   return value === null || value === undefined || String(value).trim() === "";

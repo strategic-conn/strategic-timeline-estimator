@@ -349,7 +349,7 @@ interface ClientQuote {
 
 **Two ways to scope one work list (both produce `line_items`):**
 
-- **Guided** — answer the questionnaire (the former Discovery wizard, ~64 fields). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
+- **Guided** — answer the questionnaire (the former Discovery wizard, 67 fields — anything the Setup tab already knows is mirrored by `syncDiscoveryToQuote`, never re-asked: title/client, and what the platform implies, e.g. Shopify ⇒ e-commerce + goal + hosting). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). Primary Business Goal is context only — not required, drives no hours or risk, printed on the PDF/Excel/preview meta block. The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
 **Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). A freshly-created guided estimate opens on Scope & risk; a "Generate from scope" prompt appears on Line items until it's built.
@@ -378,27 +378,36 @@ cannot touch it; only the service-role key (server routes) can. Tokens must neve
 browser; `/api/zoho/status` returns metadata only. `lib/zoho/tokens.ts` exposes `getAccessToken()`
 (auto-refreshes ~1 min before the 1 h expiry) and **`zohoFetch(path)`** — use that for any new call.
 
-**Scopes are frozen at consent** — a live connection keeps whatever it was granted until someone
-Disconnects and Connects again; changing `ZOHO_SCOPES` only affects the *next* consent screen. The
-**deployed** connection is currently read-only (`ZohoCRM.modules/users/org/settings .READ`). A wider
-set for Phase 3 (`docs/zoho-workflow-automation-plan.md`) — `modules.deals.CREATE`/`.UPDATE` +
-`modules.attachments.CREATE`, verified against Zoho's own API docs, no `.DELETE`/`.ALL` — is **staged
-in `.env.local`/`.env.example` only**; it takes effect on Vercel only after that env var is added
-there **and** someone with Zoho CRM edit rights on Deals does Disconnect → Connect.
+**Scopes are frozen at consent** — a live connection keeps whatever it was granted
+until someone Disconnects and Connects again; changing `ZOHO_SCOPES` only affects the *next*
+consent screen. Because re-consent needs an admin **with Zoho edit rights on the module**, the
+production set (in `.env.example`) is deliberately **broad and requested once**: read +
+create/update across modules, attachments, `coql`, `bulk`, `notifications.ALL`. **Never
+requested at any tier: any `.DELETE`, `modules.ALL`, or `settings.ALL`** — a deleted CRM record
+has no undo, and `.ALL` implies DELETE. (`notifications.ALL` is the exception and is safe: it
+covers webhook *channels*, not records.)
+
+> ⚠️ The scope string is **not** what limits this app. **`lib/zoho/write-allowlist.ts`** is:
+> `zohoFetch` refuses any non-GET that isn't on it, before the request leaves the process.
+> Today that's exactly three writes — create a deal, move a deal's stage, attach a file to a
+> deal. Adding a write means adding a line there, which is the point: it shows up in review.
 
 **Features consuming CRM data** (both gated admin+manager by `requireZohoReader()` — CRM records are PII):
 
 | Feature | Route | What it does |
 | ------- | ----- | ------------ |
-| **Deal → Estimate import** | `/api/zoho/deals` | Estimator → "Import from Zoho": pick a Deal (by stage — *Proposal Requested* is the quote trigger — or free-text) → creates a pre-filled quote |
+| **Deal → Estimate import** | `/api/zoho/deals` | Estimator → "Import from Zoho": pick a Deal (by stage — *Proposal Requested* is the quote trigger — or free-text) → creates a pre-filled quote, **and advances the Deal to "Discovery"** (see the push row: scoping starts here, so the CRM says so). Linking a deal to an existing quote from the editor does the same |
+| **Stage refresh** | `/api/zoho/deals/stages` | Opening the Estimator list or an estimate re-reads the linked Deals' `Stage` in one batched call (`useZohoStageRefresh`) and stores it only when it actually changed — writing every view would bump `updated_at` and reshuffle the list. This is what keeps `ZohoStageBadge` honest when **sales** moves a deal; there is no push/webhook (that needs `ZohoCRM.notifications.ALL` + re-consent + a channel-renewal cron). Zoho has no by-ids read on our scopes, so it fans out over single-record GETs, capped at 25 |
+| **Products** | `/api/zoho/products` | Estimator → Setup → "Add from Zoho": the live **Products** module behind category filter pills (same pattern as the deal picker), multi-select, stored on the quote as `zoho.products`. Covered by the existing `ZohoCRM.modules.READ` — no new scope, no CSV snapshot. Records are fetched **without** a `fields` filter because this org files products under two things: the standard `Product_Category` (Creative/Sysdev/Phone/…) **and** a custom `CATEGORY` field (ONBOARDING/SEO/…), whose API name can't be assumed — `lib/zoho/products.ts` picks both out case-insensitively and groups by the custom one first. **Not written onto the Deal** yet: the "Packages" subform's API name is unknown, so for now the picked names ride along in the new deal's `Description` |
 | **Client lookup** | `/api/zoho/accounts` | "Find in Zoho" on the Client field — available in **both** the New-estimate dialog and the editor's Setup tab. Search **Accounts** (companies), then pick a **Contact** (a company has many). Falls back to searching people when no company matches. Each company shows its **prior deals** — enriched with ONE batched `Account_Name:in:<ids>` query (never per-account: that would be 25 calls per search) |
-| **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | Two explicit buttons, never automatic — the app's only writes. **Quote editor → "Push to Zoho"**: Deal → **"Proposal Sent"** + attaches the proposal PDF. **Project page → "Mark complete in Zoho"** (shown only once the project's status is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Only `Stage` is written** — `Amount` is a Zoho *formula* field (a write "succeeds" then recalculates back within ~1s) and `Quote_number` is a system *autonumber*; verified live, neither is settable. Stages are **whitelisted** (`lib/zoho/push-state.ts`) so a crafted request can't set e.g. Closed Won — revenue stages stay sales' call. **Idempotent per stage**: `proposals.zoho.pushes` (`stage → timestamp`) is checked+written server-side, since Zoho does **not** dedupe attachments (same filename twice = two records). Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields |
+| **Create deal** (write) | `POST /api/zoho/deals` | The inverse of import: a hand-made estimate opens a **new** Deal (editor Setup → "Create deal in Zoho"). Writes `Deal_Name`, `Stage`, `Closing_Date`, `Account_Name`, optional `Contact_Name` + `Description` — never `Amount`/`Quote_number`. **Requires an existing Account** (`zoho.account_id` via "Find in Zoho"); this app never creates a company. Stage is limited to `Discovery` or `Proposal Sent`, and **only Proposal Sent attaches the PDF**, recorded in `pushes` so the push button can't attach it twice. **Duplicate-proof**: refuses a quote that already has `deal_id`, and claims the row with a compare-and-set (`zoho.creating_at`, 2-min TTL) before calling Zoho — there is no DELETE scope, so a duplicate deal is a manual cleanup. Needs `ZohoCRM.modules.deals.CREATE`, so it 401s until someone does Disconnect → Connect with the wider scopes |
+| **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | The app's only writes: **two explicit buttons plus one on import**. **Import / link a deal** → **"Discovery"**, no attachment. **Quote editor → "Push to Zoho"**: Deal → **"Proposal Sent"** + attaches the proposal PDF. **Project page → "Mark complete in Zoho"** (only once the project is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Only `Stage` is written** — `Amount` is a Zoho *formula* field (a write "succeeds" then recalculates back within ~1s) and `Quote_number` is a system *autonumber*; verified live, neither is settable. Stages are **whitelisted** (`lib/zoho/push-state.ts`) so a crafted request can't set e.g. Closed Won — revenue stages stay sales' call. **Forward-only for side-effect stages**: `AUTO_ADVANCE_FROM` lists the only stages an import may advance *from* (`Proposal Requested`), so a deal at Negotiation / Verbal Yes / Proposal Sent — or in a stage this app doesn't know — is read and left alone, never dragged backwards. An explicit button skips that check; the click is the intent. **Idempotent per stage**: `proposals.zoho.pushes` (`stage → timestamp`) is checked+written server-side, since Zoho does **not** dedupe attachments (same filename twice = two records). Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields. Every push (and every skip) records the live `stage` + `stage_synced_at`, which is what `ZohoStageBadge` renders on the Estimator list and the editor's Setup panel |
 
 > Use **Accounts + Contacts** (~4.0k / ~3.7k qualified records) for client data — **not Leads**
 > (~122k raw, full of test/spam rows). A Lead converts into Account + Contact (+ Deal).
 
 **The CRM link** lives in **`proposals.zoho`** jsonb (migration `0029`):
-`{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, web_url?, imported_at}`.
+`{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, stage_synced_at?, web_url?, imported_at}`.
 Every field is optional except `imported_at` — a quote may come from a deal, from an account, or both.
 
 > ⚠️ **Adding any column to `proposals` means updating two whitelists** — `quoteUpdatePayload()`

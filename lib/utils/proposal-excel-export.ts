@@ -6,6 +6,7 @@ import {
   quoteTotals,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
+import { primaryGoalLabel } from "@/lib/discovery/constants";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -33,6 +34,13 @@ export async function downloadProposalExcel(
     ["Client", quote.client_name ?? ""],
     ["Project", projectName ?? ""],
     ["Platform", platformLabel(quote.platform)],
+    [
+      "Primary goal",
+      primaryGoalLabel(
+        quote.discovery?.primary_goal ?? "",
+        quote.discovery?.primary_goal_other,
+      ),
+    ],
     ["Last updated", format(new Date(quote.updated_at), "yyyy-MM-dd")],
     [],
     ["#", "Module", "Description", "Category", "Tier", "Base h", "Qty", "Hours", "Depends on"],

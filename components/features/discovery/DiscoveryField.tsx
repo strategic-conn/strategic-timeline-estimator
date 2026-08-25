@@ -37,6 +37,20 @@ export function DiscoveryField({
   const required = isQuestionRequired(question, project);
   const warn = question.warnWhen?.(project) ?? false;
   const fieldId = `disc-${question.id}`;
+  const options = question.optionsFor
+    ? question.optionsFor(project)
+    : question.options ?? [];
+  // A "range" stores its band's lower bound. Snap any other number (an exact
+  // count typed before the bands existed, or one seeded from a brief) to the
+  // band containing it, so the Select still shows the right selection.
+  const selected =
+    question.type === "range"
+      ? typeof value === "number"
+        ? [...options].reverse().find((o) => Number(o.value) <= value)?.value
+        : undefined
+      : typeof value === "string" && value
+        ? value
+        : undefined;
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -58,19 +72,18 @@ export function DiscoveryField({
           onChange={(v) => onChange(question.id, v)}
           id={fieldId}
         />
-      ) : question.type === "dropdown" ? (
+      ) : question.type === "dropdown" || question.type === "range" ? (
         <Select
-          value={typeof value === "string" && value ? value : undefined}
-          onValueChange={(v) => onChange(question.id, v)}
+          value={selected}
+          onValueChange={(v) =>
+            onChange(question.id, question.type === "range" ? Number(v) : v)
+          }
         >
           <SelectTrigger id={fieldId} className="w-full">
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>
-            {(question.optionsFor
-              ? question.optionsFor(project)
-              : question.options ?? []
-            ).map((o) => (
+            {options.map((o) => (
               <SelectItem key={o.value} value={o.value}>
                 {o.label}
               </SelectItem>

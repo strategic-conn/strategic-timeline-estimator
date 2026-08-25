@@ -2,6 +2,8 @@ import "server-only";
 
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
+import { assertWriteAllowed } from "@/lib/zoho/write-allowlist";
+
 import { zohoConfig } from "@/lib/zoho/config";
 
 /**
@@ -121,8 +123,14 @@ export async function getAccessToken(): Promise<string | null> {
 /**
  * Call the Zoho CRM API against the connection's stored api_domain with a valid
  * bearer token. Returns the raw Response — callers parse + handle status.
+ *
+ * Mutating calls are checked against `WRITE_ALLOWLIST` first and throw before
+ * anything leaves the process. The OAuth grant is broad so that new integrations
+ * don't need an admin to re-consent; this is what keeps that from meaning "the
+ * app may do anything to the CRM".
  */
 export async function zohoFetch(path: string, init?: RequestInit): Promise<Response> {
+  assertWriteAllowed(init?.method ?? "GET", path);
   const conn = await getConnection();
   if (!conn) throw new Error("Zoho is not connected.");
   const token = await getAccessToken();

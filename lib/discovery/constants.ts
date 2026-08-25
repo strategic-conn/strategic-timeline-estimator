@@ -182,6 +182,12 @@ export const PRIMARY_GOAL_OPTIONS: Option[] = [
   { value: "other", label: "Other" },
 ];
 
+/** Human label for a stored `primary_goal`; "" when unset or unknown. */
+export function primaryGoalLabel(value: string, other?: string): string {
+  if (!PRIMARY_GOAL_OPTIONS.some((o) => o.value === value)) return "";
+  return optionLabel(PRIMARY_GOAL_OPTIONS, value, other);
+}
+
 export const REGULATED_TYPE_OPTIONS: Option[] = [
   { value: "healthcare", label: "Healthcare" },
   { value: "finance", label: "Finance" },
@@ -196,18 +202,34 @@ export const FORM_COMPLEXITY_OPTIONS: Option[] = [
   { value: "conditional", label: "Conditional Logic" },
 ];
 
+/**
+ * Product-catalog size bands. The stored value is the band's LOWER BOUND, kept a
+ * number so the engine's numeric rules (50+ adds catalog hours) and any legacy
+ * exact count still work untouched — no migration, nothing to re-key.
+ */
+export const PRODUCT_COUNT_BANDS: Option[] = [
+  { value: "1", label: "1–49" },
+  { value: "50", label: "50–199" },
+  { value: "200", label: "200–999" },
+  { value: "1000", label: "1,000+" },
+];
+
+/**
+ * Band label for a stored count; "" when unset. Any number — a band bound, or an
+ * exact count typed before the bands existed — resolves to the band holding it.
+ */
+export function productCountLabel(count: number | null | undefined): string {
+  if (count === null || count === undefined || Number.isNaN(count)) return "";
+  return (
+    [...PRODUCT_COUNT_BANDS].reverse().find((b) => Number(b.value) <= count)
+      ?.label ?? ""
+  );
+}
+
 export const PAYMENT_GATEWAY_OPTIONS: Option[] = [
   { value: "stripe", label: "Stripe" },
   { value: "paypal", label: "PayPal" },
   { value: "square", label: "Square" },
-  { value: "other", label: "Other" },
-];
-
-export const DISCOVERY_PLATFORM_OPTIONS: Option[] = [
-  { value: "wordpress", label: "WordPress" },
-  { value: "webflow", label: "Webflow" },
-  { value: "shopify", label: "Shopify" },
-  { value: "custom", label: "Custom" },
   { value: "other", label: "Other" },
 ];
 
@@ -234,7 +256,17 @@ export const EMAIL_OPTIONS: Option[] = [
   { value: "other", label: "Other" },
 ];
 
-export function optionLabel(options: Option[], value: string): string {
+/**
+ * Human label for a stored dropdown value. Pass the field's "…_other" free text
+ * and an "other" selection resolves to what the coordinator typed, so estimate
+ * assumptions and notes read "Pipedrive" instead of a useless "Other".
+ */
+export function optionLabel(
+  options: Option[],
+  value: string,
+  other?: string,
+): string {
+  if (value === "other" && other?.trim()) return other.trim();
   return options.find((o) => o.value === value)?.label ?? value;
 }
 
@@ -247,10 +279,12 @@ export function createEmptyDiscoveryProject(): Omit<
     name: "",
     client_name: "",
     primary_goal: "",
+    primary_goal_other: "",
     is_redesign: false,
     current_url: "",
     regulated_industry: false,
     regulated_type: "",
+    regulated_type_other: "",
 
     total_pages: null,
     unique_templates: null,
@@ -266,6 +300,7 @@ export function createEmptyDiscoveryProject(): Omit<
     has_ecommerce: false,
     product_count: null,
     payment_gateway: "",
+    payment_gateway_other: "",
     has_product_variations: false,
 
     has_brand_guide: false,
@@ -286,10 +321,13 @@ export function createEmptyDiscoveryProject(): Omit<
     migration_page_count: null,
 
     hosting_environment: "",
+    hosting_environment_other: "",
     has_crm_integration: false,
     crm_platform: "",
+    crm_platform_other: "",
     has_email_integration: false,
     email_platform: "",
+    email_platform_other: "",
     has_internal_system_integration: false,
     needs_analytics: false,
     needs_live_chat: false,

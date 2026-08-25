@@ -63,6 +63,18 @@ export interface ProposalAddons {
  * `proposals.zoho` (migration 0029) so the CRM context (and a link back) is
  * available without calling Zoho again.
  */
+/** A Zoho Products record picked for an estimate (and, later, for its Deal). */
+export interface ZohoProductLink {
+  id: string;
+  name: string;
+  code?: string | null;
+  /** Standard `Product_Category` picklist (Creative / Sysdev / …). */
+  category?: string | null;
+  /** The org's own category field (ONBOARDING / SEO / …), when it has one. */
+  tag?: string | null;
+  unit_price?: number | null;
+}
+
 export interface ProposalZohoLink {
   /** Set when the quote was started from a Deal. */
   deal_id?: string | null;
@@ -81,7 +93,25 @@ export interface ProposalZohoLink {
   amount?: number | null;
   currency?: string | null;
   quote_number?: string | number | null;
+  /** Deal stage as of the last time this app read or wrote it in Zoho. */
   stage?: string | null;
+  /** When `stage` was last confirmed against Zoho (absent = as of import). */
+  stage_synced_at?: string | null;
+  /**
+   * Products this estimate is selling, chosen from the CRM's Products module.
+   * Stored on the quote, not (yet) written onto the Deal — that needs the API
+   * name of this org's "Packages" subform.
+   */
+  products?: ZohoProductLink[] | null;
+  /** Set when THIS app opened the deal (POST /api/zoho/deals), not imported it. */
+  created_in_zoho_at?: string | null;
+  /**
+   * Server-side claim marker while a deal is being created — the compare-and-set
+   * that stops two concurrent requests opening two deals. Cleared on both the
+   * success and failure paths; a value older than 2 min is treated as a crashed
+   * request and stolen.
+   */
+  creating_at?: string | null;
   /** Deep link into the Zoho CRM record. */
   web_url?: string | null;
   imported_at: string;
