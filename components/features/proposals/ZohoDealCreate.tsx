@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  amountForHours,
   priceForHours,
   quoteTotals,
   splitHours,
@@ -111,6 +112,19 @@ export function ZohoDealCreate({
         .filter(Boolean)
         .join("\n");
       form.append("description", summary);
+      // The same rows the dialog just showed — hours and price per product —
+      // so the CRM's Packages table matches the review exactly.
+      form.append(
+        "products",
+        JSON.stringify(
+          products.map((p, i) => ({
+            id: p.id,
+            name: p.name,
+            hours: shares[i],
+            amount: amountForHours(shares[i]),
+          })),
+        ),
+      );
       // The PDF is only meaningful for a deal opened at Proposal Sent, and jsPDF
       // is browser-only, so the bytes are built here and posted to the route.
       if (attaches) {
@@ -126,10 +140,14 @@ export function ZohoDealCreate({
         });
         return;
       }
+      const done = [
+        data?.packagesWritten
+          ? `${data.packagesWritten} product row${data.packagesWritten === 1 ? "" : "s"} added`
+          : null,
+        data?.attachmentUploaded ? "PDF attached" : null,
+      ].filter(Boolean);
       toast.success(`Deal created in Zoho at ${data?.stage ?? stage}`, {
-        description: data?.attachmentUploaded
-          ? "The proposal PDF was attached."
-          : undefined,
+        description: done.length ? done.join(" · ") : undefined,
       });
       for (const w of (data?.warnings ?? []) as string[]) toast.warning(w);
       await onCreated();
@@ -241,8 +259,8 @@ export function ZohoDealCreate({
                 </p>
               )}
               <p className="border-t border-border/50 px-3 py-1.5 text-[0.7rem] text-muted-foreground">
-                Products and the estimate total go in the deal&apos;s Description
-                for now; Amount is computed by Zoho from its own Packages rows.
+                Products are written as rows in the deal&apos;s Packages table,
+                priced from the estimate, and repeated in the Description.
               </p>
             </div>
           </div>

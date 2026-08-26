@@ -21,6 +21,8 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  *    two records. Hence the server-side `pushed_at` guard below.
  */
 
+import { applyEstimateToDeal } from "@/lib/zoho/deal-estimate-sync";
+import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import {
   AUTO_ADVANCE_FROM,
   PUSHABLE_STAGES,
@@ -208,7 +210,26 @@ export async function POST(
     );
   }
 
-  // ── 2. Attach the PDF (best-effort: the stage move already succeeded) ──
+  // ── 2. Carry the estimate's content across, for deals that came FROM Zoho ──
+  // An imported deal only ever got a stage move, so its Packages table stayed
+  // empty and its Amount stayed 0. Same shared write as "Create deal", which
+  // skips anything the deal already has — sales may have filled those rows by
+  // hand, and a subform write replaces all of them.
+  if (targetStage === PUSHABLE_STAGES.proposalSent) {
+    let products: ReturnType<typeof parsePackageInput> = [];
+    try {
+      products = parsePackageInput(JSON.parse(String(form.get("products") ?? "[]")));
+    } catch {
+      products = [];
+    }
+    const description = String(form.get("description") ?? "").slice(0, 2000);
+    if (products.length || description) {
+      const sync = await applyEstimateToDeal(dealId, { products, description });
+      result.warnings.push(...sync.warnings);
+    }
+  }
+
+  // ── 3. Attach the PDF (best-effort: the stage move already succeeded) ──
   if (file && file instanceof File && file.size > 0) {
     try {
       const upload = new FormData();
@@ -239,7 +260,7 @@ export async function POST(
     result.warnings.push("No PDF was supplied, so nothing was attached.");
   }
 
-  // ── 3. Record the push so a retry can't duplicate the attachment ──
+  // ── 4. Record the push so a retry can't duplicate the attachment ──
   const writeErr = await recordStage(supabase, proposalId, zoho, {
     stage: targetStage,
     dealId,

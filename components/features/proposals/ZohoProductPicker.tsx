@@ -64,13 +64,23 @@ export function ZohoProductPicker({
   const [category, setCategory] = React.useState<string>(ALL);
   const [chosen, setChosen] = React.useState<Record<string, ZohoProductLink>>({});
   const listRef = React.useRef<HTMLDivElement>(null);
+  // Latest saved selection, read only when the dialog opens.
+  const selectedOnOpen = React.useRef(selected);
+  React.useEffect(() => {
+    selectedOnOpen.current = selected;
+  }, [selected]);
 
+  // Seed the draft when the dialog OPENS, and only then. `selected` comes from
+  // the store via `?? []`, so its identity changes on every parent render —
+  // depending on it would wipe in-progress picks whenever anything else in the
+  // editor re-rendered (a realtime echo from a teammate, a background stage
+  // refresh, a toast).
   React.useEffect(() => {
     if (!open) return;
     setQ("");
     setCategory(ALL);
-    setChosen(Object.fromEntries(selected.map((p) => [p.id, p])));
-  }, [open, selected]);
+    setChosen(Object.fromEntries(selectedOnOpen.current.map((x) => [x.id, x])));
+  }, [open]);
 
   React.useEffect(() => {
     if (!open) return;

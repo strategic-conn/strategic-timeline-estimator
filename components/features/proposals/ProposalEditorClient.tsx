@@ -87,6 +87,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import {
   HOURLY_RATE,
   TIER_OPTIONS,
+  amountForHours,
   formatAmount,
   priceForHours,
   lineEffectiveHours,
@@ -423,6 +424,34 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       form.append("proposalId", quote.id);
       form.append("stage", PUSHABLE_STAGES.proposalSent);
       form.append("file", blob, proposalPdfFilename(quote));
+      // An imported deal never received the estimate's content — only its stage
+      // moved. Send the same priced rows "Create deal" would; the route skips
+      // anything the deal already has rather than overwriting sales' work.
+      const products = quote.zoho?.products ?? [];
+      const t = quoteTotals(quote);
+      const shares = splitHours(t.grandHours, products.length);
+      form.append(
+        "products",
+        JSON.stringify(
+          products.map((p, i) => ({
+            id: p.id,
+            name: p.name,
+            hours: shares[i],
+            amount: amountForHours(shares[i]),
+          })),
+        ),
+      );
+      form.append(
+        "description",
+        [
+          quote.notes?.trim(),
+          `Estimate: ${t.grandHours} h across ${quote.line_items.length} line item${
+            quote.line_items.length === 1 ? "" : "s"
+          } — ${priceForHours(t.grandHours)}.`,
+        ]
+          .filter(Boolean)
+          .join("\n"),
+      );
 
       const res = await fetch(
         `/api/zoho/deals/${encodeURIComponent(quote.zoho.deal_id)}/push`,

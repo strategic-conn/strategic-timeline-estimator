@@ -124,8 +124,9 @@ const FIELDS_WE_SEND = [
 async function dealLayout(): Promise<{
   requiredFields: { apiName: string; label: string; type: string; covered: boolean }[];
   subforms: { apiName: string; label: string; rowFields: { apiName: string; label: string; type: string }[] }[];
+  productRelatedLists: { apiName: string; label: string; module: string }[];
 }> {
-  const empty = { requiredFields: [], subforms: [] };
+  const empty = { requiredFields: [], subforms: [], productRelatedLists: [] };
   try {
     const res = await zohoFetch("/crm/v2/settings/fields?module=Deals");
     if (!res.ok) return empty;
@@ -167,7 +168,32 @@ async function dealLayout(): Promise<{
         rowFields,
       });
     }
-    return { requiredFields, subforms: out };
+    // The other way to hang products off a Deal: the standard related list,
+    // written with PUT /crm/v2/Deals/{id}/{related_list}. Whether this org has
+    // one is a per-org question, so ask rather than assume.
+    let productRelatedLists: { apiName: string; label: string; module: string }[] = [];
+    try {
+      const rl = await zohoFetch("/crm/v2/settings/related_lists?module=Deals");
+      if (rl.ok) {
+        const rlData = await rl.json().catch(() => null);
+        productRelatedLists = ((rlData?.related_lists ?? []) as Record<string, unknown>[])
+          .map((r) => ({
+            apiName: String(r.api_name ?? ""),
+            label: String(r.display_label ?? ""),
+            module: String(r.module ?? ""),
+          }))
+          .filter(
+            (r) =>
+              /product|package/i.test(r.module) ||
+              /product|package/i.test(r.apiName) ||
+              /product|package/i.test(r.label),
+          );
+      }
+    } catch (e) {
+      console.error("[zoho health] related lists", e);
+    }
+
+    return { requiredFields, subforms: out, productRelatedLists };
   } catch {
     return empty;
   }
@@ -255,6 +281,8 @@ export async function GET() {
     dealRequiredFields: layout.requiredFields,
     /** Custom subforms on Deals — what a Packages write would need. */
     dealSubforms: layout.subforms,
+    /** Product-ish related lists on Deals — the other route to attaching them. */
+    dealProductRelatedLists: layout.productRelatedLists,
     missingRequiredFields: layout.requiredFields
       .filter((f) => !f.covered)
       .map((f) => `${f.label} (${f.apiName})`),

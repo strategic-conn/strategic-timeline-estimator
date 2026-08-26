@@ -4,6 +4,8 @@ import { NextResponse } from "next/server";
 
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 
+import { applyEstimateToDeal } from "@/lib/zoho/deal-estimate-sync";
+import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import { requireZohoReader, requireZohoWriter } from "@/lib/zoho/guard";
 import { PUSHABLE_STAGES } from "@/lib/zoho/push-state";
 import { zohoFetch } from "@/lib/zoho/tokens";
@@ -211,6 +213,13 @@ export async function POST(req: Request) {
   const contactId = str("contactId");
   const description = str("description").slice(0, 2000);
   const file = form.get("file");
+  // Priced product rows, exactly as the review dialog displayed them.
+  let products: ReturnType<typeof parsePackageInput> = [];
+  try {
+    products = parsePackageInput(JSON.parse(str("products") || "[]"));
+  } catch {
+    products = [];
+  }
 
   if (!proposalId || !name) {
     return NextResponse.json(
@@ -340,8 +349,15 @@ export async function POST(req: Request) {
     );
   }
 
-  // ── Attach the PDF (only meaningful once the proposal is going out) ──
-  const warnings: string[] = [];
+  // ── Write the products into the Deal's Packages subform ──
+  // A separate PUT rather than part of the create: if the layout resolves wrong,
+  // the deal still exists and only the rows are missing — where folding it into
+  // the insert would fail the whole create and leave a claimed, dealless quote.
+  // Description went in with the insert, so only the product rows are left.
+  const sync = await applyEstimateToDeal(dealId, { products });
+  const warnings: string[] = [...sync.warnings];
+  const packagesWritten = sync.packagesWritten;
+
   let attachmentUploaded = false;
   if (
     stage === PUSHABLE_STAGES.proposalSent &&
@@ -399,14 +415,25 @@ export async function POST(req: Request) {
     nextZoho.pushed_at = now;
     nextZoho.pushed_stage = stage;
   }
-  const { error: linkErr } = await supabase
+  // Retried once, because this is the worst failure in the route: the deal
+  // EXISTS in Zoho now, and a quote that didn't record its `deal_id` looks
+  // unlinked — so the next click would happily create a second deal, and there
+  // is no DELETE scope to clean that up. A transient write is worth one retry.
+  let linkErr = (await supabase
     .from("proposals")
     .update({ zoho: nextZoho })
-    .eq("id", proposalId);
+    .eq("id", proposalId)).error;
+  if (linkErr) {
+    await new Promise((r) => setTimeout(r, 400));
+    linkErr = (await supabase
+      .from("proposals")
+      .update({ zoho: nextZoho })
+      .eq("id", proposalId)).error;
+  }
   if (linkErr) {
     console.error("[zoho create] couldn't link the new deal", linkErr);
     warnings.push(
-      `Deal ${dealId} was created in Zoho, but this quote couldn't be linked to it.`,
+      `Deal ${dealId} was created in Zoho, but this quote couldn't be linked to it. Link it from Setup — creating another would duplicate it.`,
     );
   }
 
@@ -414,6 +441,7 @@ export async function POST(req: Request) {
     dealId,
     stage,
     attachmentUploaded,
+    packagesWritten,
     webUrl: nextZoho.web_url,
     warnings,
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
   CalendarClock,
@@ -118,6 +118,24 @@ export default function DashboardPage() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const activity = useActivityStore((s) => s.items);
 
+  /**
+   * "Now", read after mount instead of during render.
+   *
+   * Reading the clock while rendering makes the component impure: React may
+   * re-render at any moment and get a different answer, and because this is a
+   * client component it renders on the server too — where "today" can already
+   * be tomorrow for the browser. Read once into state instead, so every date on
+   * this page is measured against the same instant and a re-render can't change
+   * the answer underneath it.
+   */
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    // A dashboard left open overnight would otherwise keep calling yesterday
+    // "Today". Once a minute is far finer than a date label needs.
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const activeProjects = useMemo(
     () => projects.filter((p) => p.status === "active"),
     [projects]
@@ -129,7 +147,7 @@ export default function DashboardPage() {
   );
 
   const userDueSoonTasks = useMemo(() => {
-    const todayYmd = calendarYmd(new Date());
+    const todayYmd = calendarYmd(new Date(now));
     return tasks
       .filter((t) => {
         if (t.status === "done") return false;
@@ -147,7 +165,7 @@ export default function DashboardPage() {
         if (da !== db) return da - db;
         return STATUS_FOCUS_RANK[a.status] - STATUS_FOCUS_RANK[b.status];
       });
-  }, [tasks, userId]);
+  }, [tasks, userId, now]);
 
   const dueSoonTasks = useMemo(() => userDueSoonTasks.slice(0, 8), [userDueSoonTasks]);
 
@@ -170,11 +188,11 @@ export default function DashboardPage() {
       .sort((a, b) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime());
     if (!upcoming.length) return "—";
     const d = new Date(upcoming[0].end_date);
-    const diff = Math.ceil((d.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+    const diff = Math.ceil((d.getTime() - now) / (1000 * 60 * 60 * 24));
     if (diff <= 0) return "Today";
     if (diff <= 7) return d.toLocaleDateString(undefined, { weekday: "short" });
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-  }, [sprints]);
+  }, [sprints, now]);
 
   const kpis = [
     { label: "Active projects", value: activeProjects.length, icon: Flame },
