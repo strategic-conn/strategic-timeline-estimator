@@ -76,6 +76,28 @@ export interface ZohoProductLink {
   unit_price?: number | null;
 }
 
+/**
+ * The estimate's link into PBS (the billing system).
+ *
+ * `client_id` is a PBS-internal numeric id — NOT the Zoho account id. The two
+ * systems share no identifiers, and PBS has no clients endpoint, so the id is
+ * picked in the estimator from a list derived from PO history.
+ */
+export interface ProposalPbsLink {
+  client_id?: string | null;
+  /** Three-letter client code, kept for display so the UI needn't re-derive it. */
+  client_code?: string | null;
+  po_id?: number | string | null;
+  po_no?: string | null;
+  /** When THIS app created the PO. */
+  created_at?: string | null;
+  /**
+   * Server-side claim while a PO is being created — the compare-and-set that
+   * stops two submits creating two POs. PBS has no delete endpoint.
+   */
+  creating_at?: string | null;
+}
+
 export interface ProposalZohoLink {
   /** Set when the quote was started from a Deal. */
   deal_id?: string | null;
@@ -161,6 +183,8 @@ export interface ClientQuote {
   requirements_unclear: boolean;
   /** Set when the quote was imported from a Zoho CRM Deal. */
   zoho?: ProposalZohoLink | null;
+  /** Which PBS client this bills to, and the PO once it exists. */
+  pbs?: ProposalPbsLink | null;
   created_at: string;
   updated_at: string;
 }

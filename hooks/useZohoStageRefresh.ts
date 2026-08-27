@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { toast } from "sonner";
 
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
@@ -21,6 +22,8 @@ const STAGE_TTL_MS = 5 * 60 * 1000;
  */
 const checkedAt = new Map<string, number>();
 
+type Pair = { proposalId: string; dealId: string };
+
 /**
  * Refresh the stored Zoho stage for the quotes on screen.
  *
@@ -30,11 +33,13 @@ const checkedAt = new Map<string, number>();
  * cheaper, and far less machinery, than webhooks (a new consent scope plus a
  * channel-renewal cron).
  *
- * Deliberately quiet: a CRM read failing in the background is not worth a toast
- * on top of a page the user opened to do something else.
+ * The automatic pass is deliberately quiet: a CRM read failing in the background
+ * is not worth a toast on a page opened to do something else. `refresh()` is the
+ * opposite — someone asked, so it ignores the throttle and always reports.
  */
-export function useZohoStageRefresh(quotes: ClientQuote[]): void {
+export function useZohoStageRefresh(quotes: ClientQuote[]) {
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
+  const [refreshing, setRefreshing] = React.useState(false);
 
   // Every linked quote, as a stable string. Keying the effect on the ids rather
   // than the array keeps it from re-running on every render, and leaves render
@@ -44,58 +49,90 @@ export function useZohoStageRefresh(quotes: ClientQuote[]): void {
     .map((q) => `${q.id}:${q.zoho!.deal_id}`)
     .join(",");
 
-  React.useEffect(() => {
-    if (!isSupabaseConfigured || !key) return;
+  /** Returns how many stored stages actually changed, or null if nothing ran. */
+  const run = React.useCallback(
+    async (force: boolean, signal?: AbortSignal): Promise<number | null> => {
+      if (!isSupabaseConfigured || !key) return null;
+      const pairs: Pair[] = key.split(",").map((s) => {
+        const [proposalId, dealId] = s.split(":");
+        return { proposalId, dealId };
+      });
+      // The route spends one Zoho call per deal (no by-ids read on our scopes),
+      // so the automatic pass skips anything checked recently. A manual refresh
+      // is an explicit ask and ignores that.
+      const now = Date.now();
+      const due = force
+        ? pairs
+        : pairs.filter(
+            ({ dealId }) => now - (checkedAt.get(dealId) ?? 0) > STAGE_TTL_MS,
+          );
+      if (!due.length) return 0;
 
-    const pairs = key.split(",").map((s) => {
-      const [proposalId, dealId] = s.split(":");
-      return { proposalId, dealId };
-    });
-    // The route spends one Zoho call per deal (no by-ids read on our scopes),
-    // so re-reading all 25 every time someone opens the list would burn API
-    // credit to re-learn what it already knows.
-    const now = Date.now();
-    const due = pairs.filter(
-      ({ dealId }) => now - (checkedAt.get(dealId) ?? 0) > STAGE_TTL_MS,
-    );
-    if (!due.length) return;
-
-    const ctl = new AbortController();
-    void (async () => {
-      try {
-        const ids = [...new Set(due.map((p) => p.dealId))].join(",");
-        const res = await fetch(
-          `/api/zoho/deals/stages?ids=${encodeURIComponent(ids)}`,
-          { signal: ctl.signal },
-        );
-        if (!res.ok) return;
-        const data = (await res.json()) as {
-          stages?: Record<string, string | null>;
-          checkedAt?: string;
-        };
-        const stages = data.stages ?? {};
-        const syncedAt = data.checkedAt ?? new Date().toISOString();
-        // Mark every id we asked about, including ones whose stage was
-        // unchanged — that is the whole point of the throttle.
-        for (const { dealId } of due) checkedAt.set(dealId, Date.now());
-
-        const quotesNow = useProposalEstimatorStore.getState().proposals;
-        for (const { proposalId, dealId } of due) {
-          const live = stages[dealId];
-          if (!live) continue;
-          const quote = quotesNow.find((q) => q.id === proposalId);
-          // Persist only on an actual change: writing every check would bump
-          // `updated_at` and reshuffle a list sorted by it, just for looking.
-          if (!quote?.zoho || quote.zoho.stage === live) continue;
-          updateProposal(proposalId, {
-            zoho: { ...quote.zoho, stage: live, stage_synced_at: syncedAt },
-          });
-        }
-      } catch {
-        // Aborted, offline, or Zoho is down — the stored stage still shows.
+      const ids = [...new Set(due.map((p) => p.dealId))].join(",");
+      const res = await fetch(
+        `/api/zoho/deals/stages?ids=${encodeURIComponent(ids)}`,
+        { signal },
+      );
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? `Couldn't reach Zoho (${res.status}).`);
       }
-    })();
+      const data = (await res.json()) as {
+        stages?: Record<string, string | null>;
+        checkedAt?: string;
+      };
+      const stages = data.stages ?? {};
+      const syncedAt = data.checkedAt ?? new Date().toISOString();
+      // Mark every id we asked about, including ones whose stage was unchanged
+      // — that is the whole point of the throttle.
+      for (const { dealId } of due) checkedAt.set(dealId, Date.now());
 
+      const quotesNow = useProposalEstimatorStore.getState().proposals;
+      let changed = 0;
+      for (const { proposalId, dealId } of due) {
+        const live = stages[dealId];
+        if (!live) continue;
+        const quote = quotesNow.find((q) => q.id === proposalId);
+        // Persist only on an actual change: writing every check would bump
+        // `updated_at` and reshuffle a list sorted by it, just for looking.
+        if (!quote?.zoho || quote.zoho.stage === live) continue;
+        updateProposal(proposalId, {
+          zoho: { ...quote.zoho, stage: live, stage_synced_at: syncedAt },
+        });
+        changed += 1;
+      }
+      return changed;
+    },
+    [key, updateProposal],
+  );
+
+  React.useEffect(() => {
+    const ctl = new AbortController();
+    void run(false, ctl.signal).catch(() => {
+      // Aborted, offline, or Zoho is down — the stored stage still shows.
+    });
     return () => ctl.abort();
-  }, [key, updateProposal]);
+  }, [run]);
+
+  /** Manual re-check: ignores the throttle and always says what happened. */
+  const refresh = React.useCallback(async () => {
+    setRefreshing(true);
+    try {
+      const changed = await run(true);
+      if (changed === null) return;
+      toast.success(
+        changed
+          ? `${changed} deal stage${changed === 1 ? "" : "s"} updated`
+          : "Deal stages are up to date",
+      );
+    } catch (e) {
+      toast.error("Couldn't refresh from Zoho", {
+        description: e instanceof Error ? e.message : "Unexpected error.",
+      });
+    } finally {
+      setRefreshing(false);
+    }
+  }, [run]);
+
+  return { refreshing, refresh, linkedCount: key ? key.split(",").length : 0 };
 }

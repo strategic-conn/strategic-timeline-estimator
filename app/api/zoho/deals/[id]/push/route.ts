@@ -22,6 +22,11 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  */
 
 import { applyEstimateToDeal } from "@/lib/zoho/deal-estimate-sync";
+import {
+  dealTakenMessage,
+  findSiblingPushedStage,
+  type DealHolder,
+} from "@/lib/zoho/deal-exclusivity";
 import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import {
   AUTO_ADVANCE_FROM,
@@ -136,6 +141,29 @@ export async function POST(
         message: `Already pushed "${targetStage}" for this quote.`,
       },
       { status: 200 },
+    );
+  }
+
+  // ── One estimate per deal, enforced on the DEAL not the quote ──
+  // The guard above reads this proposal's own `pushes`, so a second estimate
+  // sharing the deal would look like a first push: stage moved again, a second
+  // PDF attached (Zoho does not dedupe), and the Packages write skipped because
+  // rows already exist. Ask about the deal instead.
+  const { data: siblings } = await supabase
+    .from("proposals")
+    .select("id, title, status, zoho, pbs")
+    .neq("id", proposalId)
+    .filter("zoho->>deal_id", "eq", dealId);
+  const clash = findSiblingPushedStage(
+    (siblings ?? []) as unknown as DealHolder[],
+    targetStage,
+  );
+  if (clash) {
+    return NextResponse.json(
+      {
+        error: `"${targetStage}" was already pushed to this deal by another estimate. ${dealTakenMessage(clash)}`,
+      },
+      { status: 409 },
     );
   }
 

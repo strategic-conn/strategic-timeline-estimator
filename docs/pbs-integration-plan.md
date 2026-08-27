@@ -292,11 +292,65 @@ one click will sometimes half-succeed, and neither can be rolled back. So:
 Still required before it can run: `PBS_APP_ID` and `PBS_APP_SECRET` in the
 server environment, and `npm run db:push` for the migration.
 
-**Phase 2 — client mapping.** Whichever of §2 lands. Storage first, so Phase 3
-has something to read.
+**Phase 2 — client mapping. ✅ Built (2026-08-27).** Option (2) from §2, upgraded
+by the derivation: no one types a numeric id.
 
-**Phase 3 — create the PO.** `POST /api/pbs/pos`, the claim, the `proposals.pbs`
-column, and the line in the send dialog.
+- `lib/pbs/clients.ts` — `clientsFromPos()`, folding PO history into one entry
+  per client. A client's code is its **majority** prefix, so one mis-keyed PO
+  number can't rename it.
+- `GET /api/pbs/clients` — admin+manager (`lib/pbs/guard.ts`), 10-minute cache,
+  and it refuses to cache an empty list: no clients is far more likely a bad read
+  than a billing system with no customers, and caching it would hide the fault.
+- `supabase/migrations/0031_proposal_pbs_link.sql` — `proposals.pbs` jsonb,
+  mirroring `proposals.zoho`. **Both** persistence whitelists updated.
+- `hooks/usePbsClients.ts` — lazy, single-flight, module-cached. The list loads
+  on the Select's first open, not on every estimate anyone views.
+- Setup tab → **Billing client (PBS)**, listing codes with their PO counts,
+  busiest first.
+
+**Remembered per client, without a mapping table.** When an estimate has no PBS
+client but an earlier estimate for the same Zoho account does, the picker offers
+it in one click. The quotes already in the store carry the answer, so no second
+table and nothing to keep in sync. Offered rather than auto-filled on purpose: a
+wrong billing client is a PO on the wrong account, and PBS has no delete
+endpoint.
+
+Requires `npm run db:push` (migration 0031) and `npm run db:types`.
+
+**Phase 3 — create the PO. ✅ Built (2026-08-27).**
+
+- `POST /api/pbs/pos` — admin+manager. Refuses a quote that already has a
+  `po_no`, claims the row with a compare-and-set before calling PBS, releases
+  the claim if PBS refuses, and retries the link write once (a created PO that
+  failed to record itself reads as "no PO yet" to the next click).
+- `lib/pbs/directory.ts` — one cached read shared by the picker and PO creation,
+  so a PO is filed under exactly the template the UI displayed.
+- Send dialog — a checkbox line, `Also create a PO in PBS for MBA`, or a plain
+  statement when there's no billing client or a PO already exists.
+
+**Project templates are resolved per client.** `PBS_PROJECT_TEMPLATE_ID` wins
+when set, but it is optional and unset by default, because the live data says
+templates are client-scoped: across 500 POs and nine templates, **no template is
+used by two clients**.
+
+| Client | Templates |
+| --- | --- |
+| 20 (MBA) | 25 ×183, 16 ×154, 18 ×99 |
+| 33 (MSP) | 37 ×31 |
+| 32 (STR) | 33 ×22 |
+| 12 (TIM) | 20 ×5, 22 ×4, 35 ×1 |
+| 30 (ABY) | 30 ×1 |
+
+So a single global id would file POs under another client's template. Instead
+each client's own most-used template is chosen, and a client with no PO history
+is **refused** rather than given someone else's — there is no delete endpoint to
+undo that. Set the env var only if PBS confirms templates are global, or if a
+dedicated "Web Estimator" template is created for all of them.
+
+**Ordering: Zoho first, PBS second**, as designed in §5. A PBS failure reports
+"Sent to Zoho, but PBS didn't create the PO" rather than implying the whole send
+failed, and leaves the retry to the user — by then the Zoho half is idempotent
+and the PO half is guarded by `po_no`.
 
 **Not planned:** reading POs back (`fetch-all-po`) to show status in the
 estimator. Cheap to add once Phase 1 exists, but nothing in the current workflow

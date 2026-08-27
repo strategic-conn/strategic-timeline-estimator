@@ -412,6 +412,18 @@ covers webhook *channels*, not records.)
 > Use **Accounts + Contacts** (~4.0k / ~3.7k qualified records) for client data — **not Leads**
 > (~122k raw, full of test/spam rows). A Lead converts into Account + Contact (+ Deal).
 
+> ⚠️ **One active estimate per deal** (`lib/zoho/deal-exclusivity.ts`). Two quotes
+> sharing a `deal_id` breaks quietly: the push guard reads *that quote's* own
+> `pushes`, so the second one pushes as if it were the first — the stage moves
+> again, a **second PDF is attached** (Zoho doesn't dedupe), and the Packages
+> write is skipped because rows exist, leaving one estimate's pricing beside
+> another's PDF. Enforced in three places: import/link is blocked in the UI, the
+> push route asks whether **any** quote on that deal already pushed the stage,
+> and PO creation refuses if a sibling on the same deal is already billed.
+> *Active* excludes `rejected`, so replacing a dead estimate is still allowed —
+> but a rejected quote that already pushed still blocks a re-push, since
+> rejecting it doesn't remove the PDF from the deal.
+
 **The CRM link** lives in **`proposals.zoho`** jsonb (migration `0029`):
 `{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, stage_synced_at?, web_url?, imported_at}`.
 Every field is optional except `imported_at` — a quote may come from a deal, from an account, or both.
@@ -425,6 +437,67 @@ Every field is optional except `imported_at` — a quote may come from a deal, f
 API Console entry **exactly**. Zoho quirks worth knowing: search `criteria` supports only
 `equals`/`starts_with` (use `word=` for free text), record counts need **v2.1+**, the callback must
 use the `accounts-server` query param (data-center aware), and bulk export needs `ZohoCRM.bulk.READ`.
+
+---
+
+## PBS Billing Integration (create a PO from an estimate)
+
+**What it is.** A second external system: PBS (`https://pbsserver.com/api`) is the
+billing app. When an estimate is sent to Zoho, it can also open a **purchase
+order** there. Full design + live API findings: [docs/pbs-integration-plan.md](docs/pbs-integration-plan.md).
+
+**Auth.** Machine-to-machine, no consent screen. `PBS_APP_ID` / `PBS_APP_SECRET`
+(server-only) mint a 1-hour access token, cached in `pbs_connection` (migration
+`0030`, RLS enabled with **no policies** — service-role only, like
+`zoho_connection`). **`/refresh` is never called**: rotation kills the old token
+instantly with no reuse window, while minting is unconditional and non-revoking,
+so an expiring token is simply re-minted. The table is a cache, not a source of
+truth.
+
+> ⚠️ Three things the PBS reference doc gets wrong, all verified live:
+> the base path is **`/api`**, not `/pbs/api` (which answers **HTTP 200** with an
+> HTML login redirect); **`Authorization: Bearer` is rejected**; and the reads
+> accept POST — so every call sends credentials in the **JSON body**, keeping
+> tokens out of URLs and logs. Success is the parsed `status` field, **never** the
+> HTTP status.
+
+| Feature | Route | What it does |
+| ------- | ----- | ------------ |
+| **Health** | `/api/pbs/health` | Admin-only, read-only. Token + reads + the derived client list |
+| **Clients** | `/api/pbs/clients` | The billing clients, **derived from PO history** — PBS has no clients endpoint (nine paths probed, all 404). A PO number's first 3 letters are the client's code |
+| **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id`; PBS generates the PO number |
+
+**Endpoint allowlist.** `lib/pbs/endpoints.ts` is deny-by-default —
+`pbsFetch` refuses anything unlisted. `register` (creates an app permanently),
+`refresh` and `token` are deliberately unreachable through it.
+
+**Project templates are per client.** Across 500 POs and nine templates, **no
+template is used by two clients**, so a global default would file POs under
+another client's template. Each PO uses its client's own most-used template
+(`lib/pbs/directory.ts`); a client with no PO history is **refused** rather than
+given someone else's. `PBS_PROJECT_TEMPLATE_ID` overrides this and is optional.
+
+**The PO is a shell** — name, client, template. The API accepts nothing else:
+`rate_per_hour` is pinned to `0.0000` server-side and there is no line-item or
+amount field, so the estimate's figures stay in this app and in Zoho.
+
+> ⚠️ **PBS has no delete endpoint.** A duplicate PO is a manual cleanup in a live
+> billing system, so `POST /api/pbs/pos` refuses a quote that already has a
+> `po_no`, claims the row with a compare-and-set (`pbs.creating_at`, 2-min TTL)
+> before calling PBS, releases the claim on failure, and retries the link write
+> once. **Adding a column to `proposals` means updating two whitelists** —
+> `quoteUpdatePayload()` and the `Pick<ClientQuote, …>` on `updateProposal`.
+
+**Storage:** `proposals.pbs` jsonb (migration `0031`) —
+`{client_id, client_code, po_id, po_no, created_at, creating_at}`. The billing
+client is chosen on the editor's **Setup** tab; when an earlier estimate for the
+same Zoho account already has one, the picker offers it in one click (no mapping
+table — the loaded quotes carry the answer).
+
+**Ordering with Zoho:** the send dialog runs **Zoho first, PBS second**. Zoho's
+writes are idempotent per stage; creating a PO is not and cannot be undone, so
+the non-idempotent call goes last and any earlier failure can be retried safely.
+Each system reports separately — "Sent to Zoho, but PBS didn't create the PO".
 
 ---
 

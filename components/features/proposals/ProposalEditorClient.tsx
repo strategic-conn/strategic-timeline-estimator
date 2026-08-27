@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Package,
   ArrowRight,
   ChevronDown,
   Compass,
@@ -15,16 +14,18 @@ import {
   FolderPlus,
   Library,
   Link2,
+  Package,
   Plus,
   Printer,
+  RefreshCw,
   Search,
   SlidersHorizontal,
   Sparkles,
   Trash2,
-  X,
   TriangleAlert,
   Upload,
   Wand2,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -125,6 +126,11 @@ import {
 import { ZohoSendDialog } from "@/components/features/proposals/ZohoSendDialog";
 import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPicker";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
+import {
+  dealTakenMessage,
+  findActiveDealHolder,
+} from "@/lib/zoho/deal-exclusivity";
+import { usePbsClients } from "@/hooks/usePbsClients";
 import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
@@ -196,7 +202,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
   // Re-check this quote's deal stage on open, so the badge reflects Zoho
   // rather than whatever it said when the deal was imported.
-  useZohoStageRefresh(React.useMemo(() => (quote ? [quote] : []), [quote]));
+  const zohoStages = useZohoStageRefresh(
+    React.useMemo(() => (quote ? [quote] : []), [quote]),
+  );
   const updateAddons = useProposalEstimatorStore((s) => s.updateAddons);
   const addLineItem = useProposalEstimatorStore((s) => s.addLineItem);
   const addLineItemsFromCatalog = useProposalEstimatorStore(
@@ -246,6 +254,32 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
   const [sendOpen, setSendOpen] = React.useState(false);
+  const pbsClients = usePbsClients();
+  const allQuotes = useProposalEstimatorStore((s) => s.proposals);
+  /**
+   * The PBS client an earlier estimate for this same Zoho account billed to.
+   *
+   * This is the "remembered per client" behaviour, without a mapping table: the
+   * quotes already loaded in the store carry the answer. Offered as one click
+   * rather than filled in silently — a wrong billing client is a PO on the wrong
+   * account, and PBS has no delete endpoint, so the choice stays deliberate.
+   */
+  const pbsSuggestion = React.useMemo(() => {
+    const account = quote?.zoho?.account_id;
+    if (!account || quote?.pbs?.client_id) return null;
+    const sibling = allQuotes.find(
+      (q) =>
+        q.id !== quote?.id &&
+        q.zoho?.account_id === account &&
+        q.pbs?.client_id,
+    );
+    return sibling?.pbs
+      ? {
+          client_id: sibling.pbs.client_id,
+          client_code: sibling.pbs.client_code,
+        }
+      : null;
+  }, [allQuotes, quote]);
   const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -601,7 +635,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   browse in Scope.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-4 pb-5 sm:grid-cols-2">
+              <CardContent className="grid items-start gap-4 pb-5 sm:grid-cols-2">
                 <div className="grid gap-2 sm:col-span-2">
                   <Label htmlFor="meta-title">Quote title</Label>
                   <Input
@@ -656,13 +690,33 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                         <span>Deal: {quote.zoho.deal_name}</span>
                       ) : null}
                       {quote.zoho.stage ? (
-                        <ZohoStageBadge
-                          stage={quote.zoho.stage}
-                          syncedAt={
-                            quote.zoho.stage_synced_at ?? quote.zoho.imported_at
-                          }
-                          className="h-5 py-0"
-                        />
+                        <span className="inline-flex items-center gap-1">
+                          <ZohoStageBadge
+                            stage={quote.zoho.stage}
+                            syncedAt={
+                              quote.zoho.stage_synced_at ?? quote.zoho.imported_at
+                            }
+                            className="h-5 py-0"
+                          />
+                          {/* The badge is a snapshot — this re-reads it without
+                              reloading the page. */}
+                          <button
+                            type="button"
+                            aria-label="Refresh the deal stage from Zoho"
+                            title="Refresh the deal stage from Zoho"
+                            disabled={zohoStages.refreshing}
+                            onClick={() => void zohoStages.refresh()}
+                            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                          >
+                            <RefreshCw
+                              className={cn(
+                                "size-3",
+                                zohoStages.refreshing && "animate-spin",
+                              )}
+                              aria-hidden
+                            />
+                          </button>
+                        </span>
                       ) : null}
                       {quote.zoho.contact ? (
                         <span>Contact: {quote.zoho.contact}</span>
@@ -721,8 +775,89 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     </p>
                   )}
                 </div>
+                {/* Which PBS client this estimate bills to. PBS ids are its own
+                    (nothing to do with Zoho's), and PBS has no clients endpoint,
+                    so the list is derived from PO history. */}
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between gap-2">
+                  {/* h-8 on every label row in this grid — a row carrying an
+                      action button is otherwise taller than a bare label, and
+                      the controls below them stop lining up. */}
+                  <div className="flex h-8 items-center">
+                    <Label>Billing client (PBS)</Label>
+                  </div>
+                  <Select
+                    value={quote.pbs?.client_id ?? "__none__"}
+                    onOpenChange={(open) => open && pbsClients.load()}
+                    onValueChange={(v) =>
+                      updateProposal(quote.id, {
+                        pbs:
+                          v === "__none__"
+                            ? { ...(quote.pbs ?? {}), client_id: null, client_code: null }
+                            : {
+                                ...(quote.pbs ?? {}),
+                                client_id: v,
+                                client_code:
+                                  pbsClients.clients.find((c) => c.clientId === v)
+                                    ?.code ?? null,
+                              },
+                      })
+                    }
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Not set" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">Not set</SelectItem>
+                      {quote.pbs?.client_id &&
+                      !pbsClients.clients.some(
+                        (c) => c.clientId === quote.pbs?.client_id,
+                      ) ? (
+                        <SelectItem value={quote.pbs.client_id}>
+                          {quote.pbs.client_code ?? `Client ${quote.pbs.client_id}`}
+                        </SelectItem>
+                      ) : null}
+                      {pbsClients.loading ? (
+                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                          Loading…
+                        </div>
+                      ) : null}
+                      {pbsClients.error ? (
+                        <div className="px-2 py-1.5 text-xs text-destructive">
+                          {pbsClients.error}
+                        </div>
+                      ) : null}
+                      {pbsClients.clients.map((c) => (
+                        <SelectItem key={c.clientId} value={c.clientId}>
+                          {c.code || `Client ${c.clientId}`}
+                          <span className="ml-1.5 text-xs text-muted-foreground">
+                            {c.poCount} PO{c.poCount === 1 ? "" : "s"}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {pbsSuggestion ? (
+                    <button
+                      type="button"
+                      className="w-fit text-xs font-medium text-primary underline-offset-2 hover:underline"
+                      onClick={() =>
+                        updateProposal(quote.id, {
+                          pbs: { ...(quote.pbs ?? {}), ...pbsSuggestion },
+                        })
+                      }
+                    >
+                      Earlier estimates for this client billed to{" "}
+                      {pbsSuggestion.client_code ?? pbsSuggestion.client_id} — use it
+                    </button>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      Codes come from existing PO numbers. Needed before a PO can
+                      be created.
+                    </p>
+                  )}
+                </div>
+                <div className="grid gap-2">
+                  <div className="flex h-8 items-center justify-between gap-2">
                     <Label htmlFor="meta-client">Client</Label>
                     <Button
                       type="button"
@@ -747,7 +882,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   />
                 </div>
                 <div className="grid gap-2">
-                  <Label>Internal project</Label>
+                  <div className="flex h-8 items-center">
+                    <Label>Internal project</Label>
+                  </div>
                   <Select
                     value={quote.project_id ?? "__none__"}
                     onValueChange={(v) =>
@@ -769,8 +906,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-2 sm:col-span-2">
-                  <Label>Platform</Label>
+                <div className="grid gap-2">
+                  <div className="flex h-8 items-center">
+                    <Label>Platform</Label>
+                  </div>
                   <Select
                     value={quote.platform}
                     onValueChange={(v) => {
@@ -1300,6 +1439,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         open={dealLinkOpen}
         onClose={() => setDealLinkOpen(false)}
         onSelect={(deal) => {
+          const holder = findActiveDealHolder(allQuotes, deal.id, quote.id);
+          if (holder) {
+            toast.error("That deal already has an estimate", {
+              description: dealTakenMessage(holder),
+            });
+            return;
+          }
           updateProposal(quote.id, {
             // Keep whatever client details are already set; layer the deal on top.
             zoho: {
@@ -1571,8 +1717,8 @@ function ProductAllocation({
   const shares = splitHours(totalHours, products.length);
 
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60">
-      <table className="w-full text-xs">
+    <div className="overflow-x-auto rounded-lg border border-border/60">
+      <table className="w-full min-w-[22rem] text-xs">
         <thead className="bg-muted/40 text-muted-foreground">
           <tr>
             <th className="px-2.5 py-1.5 text-left font-medium">Product</th>

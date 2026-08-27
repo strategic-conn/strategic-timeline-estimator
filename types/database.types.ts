@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.15"
+    PostgrestVersion: "14.17"
   }
   public: {
     Tables: {
@@ -249,6 +249,30 @@ export type Database = {
           },
         ]
       }
+      pbs_connection: {
+        Row: {
+          access_token: string
+          app_id: string
+          expires_at: string
+          id: boolean
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          app_id: string
+          expires_at: string
+          id?: boolean
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          app_id?: string
+          expires_at?: string
+          id?: boolean
+          updated_at?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -336,6 +360,7 @@ export type Database = {
           line_items: Json
           notes: string | null
           owner_id: string | null
+          pbs: Json | null
           platform: string
           project_id: string | null
           requirements_unclear: boolean
@@ -353,6 +378,7 @@ export type Database = {
           line_items?: Json
           notes?: string | null
           owner_id?: string | null
+          pbs?: Json | null
           platform: string
           project_id?: string | null
           requirements_unclear?: boolean
@@ -370,6 +396,7 @@ export type Database = {
           line_items?: Json
           notes?: string | null
           owner_id?: string | null
+          pbs?: Json | null
           platform?: string
           project_id?: string | null
           requirements_unclear?: boolean

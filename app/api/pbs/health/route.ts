@@ -3,6 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { isPbsConfigured, pbsConfig } from "@/lib/pbs/config";
+import { getPbsDirectory } from "@/lib/pbs/directory";
 import { pbsFetch } from "@/lib/pbs/tokens";
 import { requireAdmin } from "@/lib/supabase/require-admin";
 
@@ -19,13 +20,6 @@ import { requireAdmin } from "@/lib/supabase/require-admin";
  * letters are its client's code, so existing POs reveal every `client_id` this
  * app could file against.
  */
-type PoRow = {
-  po_no?: string;
-  client_id?: number | string;
-  project_template_id?: number | string;
-  create_by?: string;
-};
-
 export async function GET() {
   const gate = await requireAdmin();
   if ("error" in gate) return gate.error;
@@ -69,42 +63,19 @@ export async function GET() {
     });
   }
 
-  // 2. Read POs, and mine them for the client ids Phase 2 will offer.
-  const clients = new Map<
-    string,
-    { clientId: string; code: string; poCount: number; templates: Set<string> }
-  >();
-  let poRead = false;
+  // 2. The client directory — the SAME derivation and cache the picker and PO
+  //    creation use, so this page can't report clients or templates that differ
+  //    from the ones a PO would actually be filed under.
+  let clients: Awaited<ReturnType<typeof getPbsDirectory>>["clients"] = [];
   try {
-    // 500 is enough to see every client that has ever been billed; `limit` is
-    // unvalidated server-side, so we bound it rather than trusting a default.
-    const res = await pbsFetch<{ count?: number; po?: PoRow[] }>("fetch-all-po", {
-      limit: 500,
-    });
-    poRead = res.ok;
-    const rows = res.body?.data?.po ?? [];
-    for (const r of rows) {
-      const clientId = String(r.client_id ?? "");
-      if (!clientId) continue;
-      const code = String(r.po_no ?? "").slice(0, 3);
-      const entry = clients.get(clientId) ?? {
-        clientId,
-        code,
-        poCount: 0,
-        templates: new Set<string>(),
-      };
-      entry.poCount += 1;
-      if (r.project_template_id != null) {
-        entry.templates.add(String(r.project_template_id));
-      }
-      clients.set(clientId, entry);
-    }
+    const dir = await getPbsDirectory();
+    clients = dir.clients;
     checks.push({
       what: "List purchase orders",
-      ok: res.ok,
-      detail: res.ok
-        ? `${rows.length} read, ${clients.size} distinct client${clients.size === 1 ? "" : "s"}`
-        : (res.error ?? "failed"),
+      ok: true,
+      detail: `${dir.derivedFrom} read, ${clients.length} distinct client${
+        clients.length === 1 ? "" : "s"
+      }${dir.cached ? " (cached)" : ""}`,
     });
   } catch (e) {
     checks.push({
@@ -122,11 +93,7 @@ export async function GET() {
     ready: failed.length === 0,
     checks,
     /** Derived from PO history — PBS has no clients endpoint (see the plan). */
-    clients: poRead
-      ? [...clients.values()]
-          .map((c) => ({ ...c, templates: [...c.templates] }))
-          .sort((a, b) => b.poCount - a.poCount)
-      : [],
+    clients,
     projectTemplateId: pbsConfig.projectTemplateId || null,
     summary: failed.length
       ? `Failing: ${failed.map((c) => c.what).join(", ")}.`

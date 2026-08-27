@@ -347,6 +347,7 @@ function quoteUpdatePayload(
     requirements_unclear: q.requirements_unclear,
     discovery: (q.discovery ?? null) as unknown as Json,
     zoho: (q.zoho ?? null) as unknown as Json,
+    pbs: (q.pbs ?? null) as unknown as Json,
     updated_at: q.updated_at,
   };
 }
@@ -495,6 +496,7 @@ interface ProposalEstimatorState {
         | "platform"
         | "requirements_unclear"
         | "zoho"
+        | "pbs"
       >
     >,
   ) => void;

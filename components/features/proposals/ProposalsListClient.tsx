@@ -10,6 +10,7 @@ import {
   Layers,
   Link2,
   Plus,
+  RefreshCw,
   Search,
   Trash2,
 } from "lucide-react";
@@ -59,6 +60,10 @@ import {
 import { usePermissions } from "@/hooks/usePermissions";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
 import { priceForHours } from "@/lib/constants/proposal-estimator";
+import {
+  dealTakenMessage,
+  findActiveDealHolder,
+} from "@/lib/zoho/deal-exclusivity";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { PUSHABLE_STAGES, requestStagePush } from "@/lib/zoho/push-state";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
@@ -87,7 +92,7 @@ export function ProposalsListClient() {
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
   // Sales can move a deal in Zoho without telling us — re-check the linked ones
   // whenever the list is opened, in a single batched read.
-  useZohoStageRefresh(proposals);
+  const zohoStages = useZohoStageRefresh(proposals);
 
   const [createOpen, setCreateOpen] = React.useState(false);
   const [dealImportOpen, setDealImportOpen] = React.useState(false);
@@ -175,6 +180,16 @@ export function ProposalsListClient() {
    * link + snapshot are stored so the quote can point back at the CRM record.
    */
   const handleImportDeal = (deal: ZohoDealResult) => {
+    // One active estimate per deal: a second one would push the same deal
+    // again, attaching a duplicate PDF and leaving the other estimate's pricing
+    // in the Packages table.
+    const holder = findActiveDealHolder(proposals, deal.id);
+    if (holder) {
+      toast.error("That deal already has an estimate", {
+        description: dealTakenMessage(holder),
+      });
+      return;
+    }
     const client = deal.account?.trim() || deal.contact?.trim() || undefined;
     const id = createProposal({
       title: deal.name?.trim() || "Untitled quote",
@@ -247,6 +262,26 @@ export function ProposalsListClient() {
         }`}
         actions={
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            {/* Sales can move a deal in Zoho at any time; this re-reads the
+                linked ones without reloading the page. */}
+            {zohoStages.linkedCount ? (
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full gap-2 border-border/60 bg-background/80 sm:w-auto"
+                disabled={zohoStages.refreshing}
+                onClick={() => void zohoStages.refresh()}
+                title={`Re-read ${zohoStages.linkedCount} linked deal${
+                  zohoStages.linkedCount === 1 ? "" : "s"
+                } from Zoho`}
+              >
+                <RefreshCw
+                  className={cn("size-4", zohoStages.refreshing && "animate-spin")}
+                  aria-hidden
+                />
+                {zohoStages.refreshing ? "Refreshing…" : "Refresh Zoho"}
+              </Button>
+            ) : null}
             <Button
               type="button"
               variant="outline"
