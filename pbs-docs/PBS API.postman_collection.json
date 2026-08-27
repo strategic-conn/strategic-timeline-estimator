@@ -1,0 +1,264 @@
+{
+  "info": {
+    "_postman_id": "64cd02ac-5b32-4352-a9d9-525bbe98a827",
+    "name": "PBS API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "8122866"
+  },
+  "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Register new Application",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"name\": \"Sample App\",\r\n  \"description\": \"App for issuing API tokens\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "text"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://pbsserver.com/api/register",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "register"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Generate Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"app_id\": \"app_b0b211bedf853bba\",\r\n  \"app_secret\": \"322a7848f0fcf5840d3cb6b824ba00160a6b25ad89c81b61\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://pbsserver.com/api/token",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "token"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\r\n  \"refresh_token\": \"{{supabase_service_role_api_key_06xg}}\"\r\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "https://pbsserver.com/api/refresh",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "refresh"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get App Details",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://pbsserver.com/api/fetch?app_id=app_b0b211bedf853bba&access_token={{access_token}}",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "fetch"
+              ],
+              "query": [
+                {
+                  "key": "app_id",
+                  "value": "app_b0b211bedf853bba"
+                },
+                {
+                  "key": "access_token",
+                  "value": "{{access_token}}"
+                }
+              ]
+            }
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "POs",
+      "item": [
+        {
+          "name": "Fetch all POs",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://pbsserver.com/api/fetch-all-po?app_id=app_b0b211bedf853bba&access_token={{access_token}}&limit=5&date_from=2025-01-01&date_to=2025-01-31",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "fetch-all-po"
+              ],
+              "query": [
+                {
+                  "key": "app_id",
+                  "value": "app_b0b211bedf853bba"
+                },
+                {
+                  "key": "access_token",
+                  "value": "{{access_token}}"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                },
+                {
+                  "key": "date_from",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "date_to",
+                  "value": "2025-01-31"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Fetch by po_no",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "https://pbsserver.com/api/po?app_id=app_b0b211bedf853bba&access_token={{access_token}}&po_no=MBA007177",
+              "protocol": "https",
+              "host": [
+                "pbsserver",
+                "com"
+              ],
+              "path": [
+                "api",
+                "po"
+              ],
+              "query": [
+                {
+                  "key": "app_id",
+                  "value": "app_b0b211bedf853bba"
+                },
+                {
+                  "key": "access_token",
+                  "value": "{{access_token}}"
+                },
+                {
+                  "key": "po_no",
+                  "value": "MBA007177"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "New Request",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": ""
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "access_token",
+      "secret": true
+    },
+    {
+      "key": "refresh_token",
+      "secret": true
+    }
+  ]
+}

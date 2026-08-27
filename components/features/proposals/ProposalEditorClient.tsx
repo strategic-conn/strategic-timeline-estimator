@@ -5,7 +5,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
-  Briefcase,
   Package,
   ArrowRight,
   ChevronDown,
@@ -87,7 +86,6 @@ import { usePermissions } from "@/hooks/usePermissions";
 import {
   HOURLY_RATE,
   TIER_OPTIONS,
-  amountForHours,
   formatAmount,
   priceForHours,
   lineEffectiveHours,
@@ -124,17 +122,13 @@ import {
   requestStagePush,
   zohoPushes,
 } from "@/lib/zoho/push-state";
-import { ZohoDealCreate } from "@/components/features/proposals/ZohoDealCreate";
+import { ZohoSendDialog } from "@/components/features/proposals/ZohoSendDialog";
 import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPicker";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
-import {
-  buildProposalPdfBlob,
-  downloadProposalPdf,
-  proposalPdfFilename,
-} from "@/lib/utils/proposal-pdf-export";
+import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
 import {
   useProposalEstimatorStore,
@@ -224,7 +218,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   /** How much of the questionnaire is actually answered (null = catalog quote). */
   const coverage = React.useMemo(
     () => (quote?.discovery ? discoveryCoverage(quote.discovery) : null),
-    [quote?.discovery],
+    [quote],
   );
   // Amber on either signal: a blank *required* field is the concrete gap, while
   // low overall coverage means the number is mostly assumptions.
@@ -251,8 +245,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     React.useState<SchedulePreview | null>(null);
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
-  const [pushing, setPushing] = React.useState(false);
-  const [dealCreateOpen, setDealCreateOpen] = React.useState(false);
+  const [sendOpen, setSendOpen] = React.useState(false);
   const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -326,7 +319,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   // Guided scope: derive the estimate/timeline/risk from the saved answers.
   const scopeResult = React.useMemo(
     () => (quote?.discovery ? analyzeDiscovery(quote.discovery) : null),
-    [quote?.discovery],
+    [quote],
   );
 
   // Catalog / manual estimates (no guided scope): a tentative timeline from the
@@ -371,7 +364,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     regenerateLineItems(quote.id);
     toast.success("Line items generated from scope");
     setTab("scope");
-  }, [quote, regenerateLineItems]);
+    // setTab is listed because the compiler infers it; omitting it is what made
+    // it give up on this component.
+  }, [quote, regenerateLineItems, setTab]);
 
   const handlePrint = () => {
     window.print();
@@ -407,87 +402,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
       toast.success("Excel file downloaded");
     } catch {
       toast.error("Could not create Excel file");
-    }
-  };
-
-  /**
-   * Push this quote to its linked Zoho deal: move the stage to "Proposal Sent"
-   * and attach the PDF. The PDF is built here because jsPDF is browser-only —
-   * the bytes are POSTed to the route, which forwards them to Zoho.
-   */
-  const handlePushToZoho = async () => {
-    if (!quote?.zoho?.deal_id) return;
-    setPushing(true);
-    try {
-      const blob = await buildProposalPdfBlob(quote, projectName);
-      const form = new FormData();
-      form.append("proposalId", quote.id);
-      form.append("stage", PUSHABLE_STAGES.proposalSent);
-      form.append("file", blob, proposalPdfFilename(quote));
-      // An imported deal never received the estimate's content — only its stage
-      // moved. Send the same priced rows "Create deal" would; the route skips
-      // anything the deal already has rather than overwriting sales' work.
-      const products = quote.zoho?.products ?? [];
-      const t = quoteTotals(quote);
-      const shares = splitHours(t.grandHours, products.length);
-      form.append(
-        "products",
-        JSON.stringify(
-          products.map((p, i) => ({
-            id: p.id,
-            name: p.name,
-            hours: shares[i],
-            amount: amountForHours(shares[i]),
-          })),
-        ),
-      );
-      form.append(
-        "description",
-        [
-          quote.notes?.trim(),
-          `Estimate: ${t.grandHours} h across ${quote.line_items.length} line item${
-            quote.line_items.length === 1 ? "" : "s"
-          } — ${priceForHours(t.grandHours)}.`,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      );
-
-      const res = await fetch(
-        `/api/zoho/deals/${encodeURIComponent(quote.zoho.deal_id)}/push`,
-        { method: "POST", body: form },
-      );
-      const data = await res.json().catch(() => null);
-
-      if (!res.ok) {
-        toast.error("Couldn't push to Zoho", {
-          description: data?.error ?? `Request failed (${res.status}).`,
-        });
-        return;
-      }
-      if (data?.alreadyPushed) {
-        toast.info("Already pushed to Zoho", {
-          description: "This quote was pushed before — not sending it again.",
-        });
-      } else {
-        toast.success("Pushed to Zoho", {
-          description: data?.attachmentUploaded
-            ? "Deal moved to Proposal Sent and the PDF was attached."
-            : "Deal moved to Proposal Sent.",
-        });
-      }
-      // Surface any partial failure (e.g. stage moved but attachment failed).
-      for (const w of (data?.warnings ?? []) as string[]) {
-        toast.warning(w);
-      }
-      // Reflect pushed_at locally so the button disables without a reload.
-      await hydrateProposals();
-    } catch (e) {
-      toast.error("Couldn't push to Zoho", {
-        description: e instanceof Error ? e.message : "Unexpected error.",
-      });
-    } finally {
-      setPushing(false);
     }
   };
 
@@ -587,30 +501,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   ))}
                 </SelectContent>
               </Select>
-
-              {/* Only for quotes linked to a CRM deal. Explicit click — nothing
-                  reaches the production CRM automatically. */}
-              {quote.zoho?.deal_id ? (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={pushing || Boolean(proposalPushed)}
-                  onClick={() => void handlePushToZoho()}
-                  title={
-                    proposalPushed
-                      ? `Already pushed ${new Date(proposalPushed).toLocaleString()}`
-                      : "Move the linked Zoho deal to Proposal Sent and attach the PDF"
-                  }
-                >
-                  <Upload className="size-4" aria-hidden />
-                  {proposalPushed
-                    ? "Pushed to Zoho"
-                    : pushing
-                      ? "Pushing…"
-                      : "Push to Zoho"}
-                </Button>
-              ) : null}
 
               {quote.project_id ? (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
@@ -728,8 +618,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 {!quote.zoho?.deal_id ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-border/60 p-3 text-xs">
                     <span className="text-muted-foreground">
-                      Not linked to a Zoho deal — link an existing one, or open a
-                      new deal from the Review tab once the estimate is ready.
+                      Not linked to a Zoho deal — link an existing one, or send
+                      this estimate from the Review tab to open a new one.
                     </span>
                     <Button
                       type="button"
@@ -1338,23 +1228,29 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <FileSpreadsheet className="size-3.5" aria-hidden />
                   Excel
                 </Button>
-                {!quote.zoho?.deal_id ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    className="gap-1.5"
-                    disabled={!quote.zoho?.account_id}
-                    title={
-                      quote.zoho?.account_id
+                <Button
+                  type="button"
+                  size="sm"
+                  className="gap-1.5"
+                  // Creating needs an account to hang the deal off; updating an
+                  // existing deal doesn't, since it already has one.
+                  disabled={
+                    !quote.zoho?.deal_id && !quote.zoho?.account_id
+                  }
+                  title={
+                    quote.zoho?.deal_id
+                      ? proposalPushed
+                        ? `Already sent ${new Date(proposalPushed).toLocaleString()}`
+                        : `Update ${quote.zoho.deal_name ?? "the linked deal"} in Zoho`
+                      : quote.zoho?.account_id
                         ? `Open a deal on ${quote.zoho.account ?? "the linked account"}`
                         : "Link the client to a Zoho account first — “Find in Zoho” on Setup"
-                    }
-                    onClick={() => setDealCreateOpen(true)}
-                  >
-                    <Briefcase className="size-3.5" aria-hidden />
-                    Create deal in Zoho
-                  </Button>
-                ) : null}
+                  }
+                  onClick={() => setSendOpen(true)}
+                >
+                  <Upload className="size-3.5" aria-hidden />
+                  {proposalPushed ? "Sent to Zoho" : "Send to Zoho"}
+                </Button>
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
@@ -1392,12 +1288,12 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         }
       />
 
-      <ZohoDealCreate
-        open={dealCreateOpen}
-        onClose={() => setDealCreateOpen(false)}
+      <ZohoSendDialog
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
         quote={quote}
         projectName={projectName}
-        onCreated={hydrateProposals}
+        onDone={hydrateProposals}
       />
 
       <ZohoDealImport
