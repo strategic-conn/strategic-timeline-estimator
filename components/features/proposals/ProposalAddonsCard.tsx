@@ -1,5 +1,6 @@
 "use client";
 
+import { TriangleAlert } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -53,12 +54,33 @@ const ROWS: Row[] = [
 type ProposalAddonsCardProps = {
   addons: ProposalAddons;
   onChange: (partial: Partial<ProposalAddons>) => void;
+  /**
+   * True when the estimate was scoped with the guided questionnaire, which
+   * itemises Design, QA and PM as their own phases. These add-ons then describe
+   * the same work a second time.
+   */
+  itemisedByScope?: boolean;
 };
+
+/** Add-ons whose hours a guided estimate already covers in its phases. */
+const DOUBLE_COUNTED = [
+  "responsive_enabled",
+  "design_enabled",
+  "qa_enabled",
+  "pm_enabled",
+] as const;
 
 export function ProposalAddonsCard({
   addons,
   onChange,
+  itemisedByScope = false,
 }: ProposalAddonsCardProps) {
+  // On a guided estimate these are off by default and should stay off; the
+  // section previously looked identical either way, so "why is this all
+  // switched off?" was a fair question with no answer on screen.
+  const doubleCounting =
+    itemisedByScope && DOUBLE_COUNTED.some((k) => addons[k]);
+
   return (
     <Card>
       <CardHeader>
@@ -74,6 +96,42 @@ export function ProposalAddonsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pb-4">
+        {itemisedByScope ? (
+          doubleCounting ? (
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
+              <TriangleAlert className="size-4 shrink-0" aria-hidden />
+              <span className="min-w-0 flex-1">
+                <strong>Counted twice.</strong> Scope &amp; risk already itemises
+                Design, QA and PM as phases, so these add-ons are charging for
+                the same hours again.
+              </span>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 text-xs"
+                onClick={() =>
+                  onChange({
+                    responsive_enabled: false,
+                    design_enabled: false,
+                    qa_enabled: false,
+                    pm_enabled: false,
+                  })
+                }
+              >
+                Turn them off
+              </Button>
+            </div>
+          ) : (
+            <p className="rounded-xl border border-dashed border-border/70 px-3 py-2 text-xs text-muted-foreground">
+              <strong className="text-foreground">Off on purpose.</strong>{" "}
+              This estimate was scoped with the questionnaire, and its phases already
+              include Design, QA and PM as real hours. Turning these on would
+              count that work a second time — only do it for work the phases
+              don&apos;t cover.
+            </p>
+          )
+        ) : null}
         {ROWS.map((row) => {
           const enabled = addons[row.key];
           const pct = addons[row.pctKey];

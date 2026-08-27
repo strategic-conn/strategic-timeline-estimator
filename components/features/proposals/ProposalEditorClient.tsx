@@ -1312,6 +1312,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             <ProposalAddonsCard
               addons={quote.addons}
               onChange={(p) => updateAddons(quote.id, p)}
+              itemisedByScope={Boolean(quote.discovery)}
             />
 
             <Card>
