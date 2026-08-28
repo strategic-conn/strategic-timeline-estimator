@@ -37,6 +37,29 @@ export async function getPbsDirectory(): Promise<{
   return { clients, derivedFrom: rows.length, cached: false };
 }
 
+/**
+ * The default billing client, resolved from its code against live PO history.
+ *
+ * Resolved rather than hardcoded: if the code names a client that has never had
+ * a PO, there is nothing to bill against and no template to infer, so it returns
+ * null and the picker simply starts empty — better than defaulting to an id that
+ * would fail at create time.
+ */
+export async function resolveDefaultClient(): Promise<PbsClient | null> {
+  const wanted = pbsConfig.defaultClient.toUpperCase();
+  if (!wanted) return null;
+  try {
+    const { clients } = await getPbsDirectory();
+    return (
+      clients.find((c) => c.code.toUpperCase() === wanted) ??
+      clients.find((c) => c.clientId === wanted) ??
+      null
+    );
+  } catch {
+    return null;
+  }
+}
+
 export type TemplateChoice = {
   templateId: string | null;
   /** Where the value came from, so the caller can explain itself. */

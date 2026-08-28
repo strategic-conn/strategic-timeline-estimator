@@ -17,6 +17,7 @@ import {
   Package,
   Plus,
   Printer,
+  Receipt,
   RefreshCw,
   Search,
   SlidersHorizontal,
@@ -120,17 +121,18 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   PUSHABLE_STAGES,
+  looksWon,
   requestStagePush,
   zohoPushes,
 } from "@/lib/zoho/push-state";
 import { ZohoSendDialog } from "@/components/features/proposals/ZohoSendDialog";
 import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPicker";
-import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
+import { ZohoStageSelect } from "@/components/features/proposals/ZohoStageSelect";
+import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import {
   dealTakenMessage,
   findActiveDealHolder,
 } from "@/lib/zoho/deal-exclusivity";
-import { usePbsClients } from "@/hooks/usePbsClients";
 import { useZohoStageRefresh } from "@/hooks/useZohoStageRefresh";
 import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
@@ -254,32 +256,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
   const [sendOpen, setSendOpen] = React.useState(false);
-  const pbsClients = usePbsClients();
+  const [poOpen, setPoOpen] = React.useState(false);
   const allQuotes = useProposalEstimatorStore((s) => s.proposals);
-  /**
-   * The PBS client an earlier estimate for this same Zoho account billed to.
-   *
-   * This is the "remembered per client" behaviour, without a mapping table: the
-   * quotes already loaded in the store carry the answer. Offered as one click
-   * rather than filled in silently — a wrong billing client is a PO on the wrong
-   * account, and PBS has no delete endpoint, so the choice stays deliberate.
-   */
-  const pbsSuggestion = React.useMemo(() => {
-    const account = quote?.zoho?.account_id;
-    if (!account || quote?.pbs?.client_id) return null;
-    const sibling = allQuotes.find(
-      (q) =>
-        q.id !== quote?.id &&
-        q.zoho?.account_id === account &&
-        q.pbs?.client_id,
-    );
-    return sibling?.pbs
-      ? {
-          client_id: sibling.pbs.client_id,
-          client_code: sibling.pbs.client_code,
-        }
-      : null;
-  }, [allQuotes, quote]);
   const [productsOpen, setProductsOpen] = React.useState(false);
 
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
@@ -550,17 +528,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 </Button>
               ) : null}
 
-              <div className="hidden flex-col items-end leading-tight sm:flex">
-                <span className="text-[0.65rem] uppercase tracking-wide text-muted-foreground">
-                  Total
-                </span>
-                <span className="tabular-nums text-lg font-semibold">
-                  {priceForHours(totals.grandHours)}
-                </span>
-                <span className="tabular-nums text-[0.7rem] text-muted-foreground">
-                  {totals.grandHours} h @ {formatAmount(HOURLY_RATE)}/h
-                </span>
-              </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -604,6 +571,19 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
+
+              <span
+                className="mx-1 hidden h-8 w-px bg-border/70 sm:block"
+                aria-hidden
+              />
+              <div className="flex items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0 sm:leading-tight">
+                <span className="tabular-nums text-lg font-semibold">
+                  {priceForHours(totals.grandHours)}
+                </span>
+                <span className="tabular-nums text-[0.7rem] text-muted-foreground">
+                  {totals.grandHours} h @ {formatAmount(HOURLY_RATE)}/h
+                </span>
+              </div>
             </div>
           }
         />
@@ -689,14 +669,27 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       {quote.zoho.deal_name ? (
                         <span>Deal: {quote.zoho.deal_name}</span>
                       ) : null}
-                      {quote.zoho.stage ? (
+                      {quote.zoho.stage && quote.zoho.deal_id ? (
                         <span className="inline-flex items-center gap-1">
-                          <ZohoStageBadge
+                          {/* Doubles as the status changer: the badge shows where
+                              the deal is, and opens the org's own stage list to
+                              move it — no trip to Zoho for a stage change. */}
+                          <ZohoStageSelect
+                            dealId={quote.zoho.deal_id!}
+                            proposalId={quote.id}
                             stage={quote.zoho.stage}
                             syncedAt={
                               quote.zoho.stage_synced_at ?? quote.zoho.imported_at
                             }
-                            className="h-5 py-0"
+                            onChanged={(next) =>
+                              updateProposal(quote.id, {
+                                zoho: {
+                                  ...quote.zoho!,
+                                  stage: next,
+                                  stage_synced_at: new Date().toISOString(),
+                                },
+                              })
+                            }
                           />
                           {/* The badge is a snapshot — this re-reads it without
                               reloading the page. */}
@@ -772,87 +765,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       No products picked. Add as many as this deal sells — these
                       are the CRM catalogue items, separate from the line items
                       below, which are the work.
-                    </p>
-                  )}
-                </div>
-                {/* Which PBS client this estimate bills to. PBS ids are its own
-                    (nothing to do with Zoho's), and PBS has no clients endpoint,
-                    so the list is derived from PO history. */}
-                <div className="grid gap-2">
-                  {/* h-8 on every label row in this grid — a row carrying an
-                      action button is otherwise taller than a bare label, and
-                      the controls below them stop lining up. */}
-                  <div className="flex h-8 items-center">
-                    <Label>Billing client (PBS)</Label>
-                  </div>
-                  <Select
-                    value={quote.pbs?.client_id ?? "__none__"}
-                    onOpenChange={(open) => open && pbsClients.load()}
-                    onValueChange={(v) =>
-                      updateProposal(quote.id, {
-                        pbs:
-                          v === "__none__"
-                            ? { ...(quote.pbs ?? {}), client_id: null, client_code: null }
-                            : {
-                                ...(quote.pbs ?? {}),
-                                client_id: v,
-                                client_code:
-                                  pbsClients.clients.find((c) => c.clientId === v)
-                                    ?.code ?? null,
-                              },
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Not set" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">Not set</SelectItem>
-                      {quote.pbs?.client_id &&
-                      !pbsClients.clients.some(
-                        (c) => c.clientId === quote.pbs?.client_id,
-                      ) ? (
-                        <SelectItem value={quote.pbs.client_id}>
-                          {quote.pbs.client_code ?? `Client ${quote.pbs.client_id}`}
-                        </SelectItem>
-                      ) : null}
-                      {pbsClients.loading ? (
-                        <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                          Loading…
-                        </div>
-                      ) : null}
-                      {pbsClients.error ? (
-                        <div className="px-2 py-1.5 text-xs text-destructive">
-                          {pbsClients.error}
-                        </div>
-                      ) : null}
-                      {pbsClients.clients.map((c) => (
-                        <SelectItem key={c.clientId} value={c.clientId}>
-                          {c.code || `Client ${c.clientId}`}
-                          <span className="ml-1.5 text-xs text-muted-foreground">
-                            {c.poCount} PO{c.poCount === 1 ? "" : "s"}
-                          </span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  {pbsSuggestion ? (
-                    <button
-                      type="button"
-                      className="w-fit text-xs font-medium text-primary underline-offset-2 hover:underline"
-                      onClick={() =>
-                        updateProposal(quote.id, {
-                          pbs: { ...(quote.pbs ?? {}), ...pbsSuggestion },
-                        })
-                      }
-                    >
-                      Earlier estimates for this client billed to{" "}
-                      {pbsSuggestion.client_code ?? pbsSuggestion.client_id} — use it
-                    </button>
-                  ) : (
-                    <p className="text-xs text-muted-foreground">
-                      Codes come from existing PO numbers. Needed before a PO can
-                      be created.
                     </p>
                   )}
                 </div>
@@ -1391,6 +1303,22 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <Upload className="size-3.5" aria-hidden />
                   {proposalPushed ? "Sent to Zoho" : "Send to Zoho"}
                 </Button>
+                {/* Billing is gated on the win, not on the send: the PO is the
+                    one write neither system can undo. Shown only once Zoho says
+                    the deal is won; the route re-checks that live. */}
+                {looksWon(quote.zoho?.stage) && !quote.pbs?.po_no ? (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    className="gap-1.5"
+                    title="Raise the purchase order in PBS"
+                    onClick={() => setPoOpen(true)}
+                  >
+                    <Receipt className="size-3.5" aria-hidden />
+                    Create PO
+                  </Button>
+                ) : null}
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
@@ -1426,6 +1354,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             },
           })
         }
+      />
+
+      <CreatePoDialog
+        open={poOpen}
+        onClose={() => setPoOpen(false)}
+        quote={quote}
+        onDone={hydrateProposals}
       />
 
       <ZohoSendDialog

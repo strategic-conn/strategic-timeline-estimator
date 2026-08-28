@@ -116,6 +116,15 @@ export interface ProposalZohoLink {
   amount?: number | null;
   currency?: string | null;
   quote_number?: string | number | null;
+  /**
+   * Files this app has put on the deal, `filename -> ISO timestamp`.
+   *
+   * Zoho does NOT dedupe attachments — the same filename twice makes two
+   * records, and there is no DELETE scope to remove one. The filename carries
+   * the estimate's date, so an edited estimate produces a genuinely new document
+   * that is worth attaching, while re-sending the same one is skipped.
+   */
+  attachments?: Record<string, string> | null;
   /** Deal stage as of the last time this app read or wrote it in Zoho. */
   stage?: string | null;
   /** When `stage` was last confirmed against Zoho (absent = as of import). */

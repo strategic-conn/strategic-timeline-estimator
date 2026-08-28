@@ -1,11 +1,12 @@
 import type { ProposalZohoLink } from "@/types/proposal.types";
 
 /**
- * The only CRM stages this app is allowed to set, and what triggers each.
+ * The CRM stages this app sets ITSELF, and what triggers each.
  *
- * Deliberately excludes Closed Won / Closed Lost: those are revenue decisions
- * that belong to sales. "Approved" here means the team agreed to start work,
- * which is not the same as a client signing.
+ * Not a whitelist any more: the in-app status changer offers every stage in the
+ * org pipeline, validated against the live picklist server-side
+ * (`lib/zoho/stages.ts`). These are the three the app moves on its own, named
+ * here so the code that triggers them reads clearly.
  */
 export const PUSHABLE_STAGES = {
   /** Scoping has started — set when a deal is imported into an estimate. */
@@ -18,10 +19,6 @@ export const PUSHABLE_STAGES = {
 
 export type PushableStage =
   (typeof PUSHABLE_STAGES)[keyof typeof PUSHABLE_STAGES];
-
-export function isPushableStage(v: string): v is PushableStage {
-  return Object.values(PUSHABLE_STAGES).includes(v as PushableStage);
-}
 
 /**
  * For stages this app sets as a SIDE EFFECT of another action (importing a deal
@@ -36,9 +33,7 @@ export function isPushableStage(v: string): v is PushableStage {
  * ponytail: static predecessor list. If the pipeline gains stages before
  * Discovery, read the org's own Stage picklist order (settings.READ) instead.
  */
-export const AUTO_ADVANCE_FROM: Partial<
-  Record<PushableStage, readonly string[]>
-> = {
+export const AUTO_ADVANCE_FROM: Record<string, readonly string[] | undefined> = {
   [PUSHABLE_STAGES.discovery]: ["Proposal Requested"],
 };
 
@@ -60,12 +55,79 @@ export function zohoPushes(
   return {};
 }
 
-/** Has this exact stage already been pushed for this quote? */
-export function hasPushed(
-  zoho: ProposalZohoLink | null | undefined,
-  stage: PushableStage,
+/**
+ * Stages that mean the deal is won — the client-side hint that reveals "Create
+ * PO". A HINT, not the guard: the PO route re-reads the deal live and checks it
+ * against Zoho's own forecast bucket (`lib/zoho/stages.ts`, server-only, so it
+ * can't be imported here). Project Completed counts because it is also in the
+ * won bucket, and a deal that skipped straight to it could otherwise never be
+ * billed.
+ */
+export const WON_STAGES: readonly string[] = ["Closed Won", "Project Completed"];
+
+/** One entry of the org's Stage picklist. */
+export type ZohoStageInfo = {
+  value: string;
+  /** Position in the pipeline as Zoho orders it; -1 when unknown. */
+  order: number;
+  /** Zoho's own bucket — "Closed Won" / "Closed Lost" / "Open". */
+  forecast: string | null;
+  probability: number | null;
+};
+
+/**
+ * THE won rule, in one place. Zoho's own forecast bucket decides it; the names
+ * above are the fallback for when the picklist can't be read.
+ *
+ * Pure, and deliberately client-safe: the server gate (`lib/zoho/stages.ts`,
+ * which re-reads the deal live before creating a PO) and the button that reveals
+ * "Create PO" must never disagree about what "won" means. Checked in
+ * `e2e/won-stage.spec.ts`.
+ */
+export function stageIsWon(
+  stage: string | null | undefined,
+  stages: ZohoStageInfo[],
 ): boolean {
-  return Boolean(zohoPushes(zoho)[stage]);
+  if (!stage) return false;
+  const match = stages.find((s) => s.value === stage);
+  if (match?.forecast) return /won/i.test(match.forecast);
+  // Unknown stage, or one with no forecast: fall back to the names this org
+  // uses. Never a substring test — "Closed Lost" must not pass.
+  return WON_STAGES.includes(stage);
+}
+
+/**
+ * Client-side hint that reveals "Create PO", with no picklist to hand. A HINT,
+ * not the guard: the PO route re-reads the deal live and runs `stageIsWon`
+ * against the real picklist before writing anything.
+ */
+export function looksWon(stage: string | null | undefined): boolean {
+  return stageIsWon(stage, []);
+}
+
+/** Files this app has already attached to the deal, filename → ISO timestamp. */
+export function zohoAttachments(
+  zoho: ProposalZohoLink | null | undefined,
+): Record<string, string> {
+  return zoho?.attachments && typeof zoho.attachments === "object"
+    ? zoho.attachments
+    : {};
+}
+
+/**
+ * Whether this file still needs attaching.
+ *
+ * Keyed on the filename rather than the stage, because the PDF now goes up at
+ * whichever stage the deal is opened at — so "did we already push Proposal
+ * Sent?" is no longer the right question. `proposalPdfFilename` embeds the
+ * estimate's date, so an estimate edited later produces a new filename and its
+ * updated PDF is attached; re-sending an unchanged one is skipped.
+ */
+export function shouldAttach(
+  zoho: ProposalZohoLink | null | undefined,
+  filename: string,
+): boolean {
+  return Boolean(filename) && !zohoAttachments(zoho)[filename];
 }
 
 export type StagePushResult = {
@@ -75,7 +137,8 @@ export type StagePushResult = {
   skipped?: boolean;
   /** The deal's stage in Zoho as of this request. */
   currentStage?: string | null;
-  alreadyPushed?: boolean;
+  /** The deal was already at that stage, so nothing was written. */
+  stageAlreadySet?: boolean;
   warnings?: string[];
   error?: string;
 };
@@ -90,7 +153,7 @@ export async function requestStagePush(
   dealId: string,
   input: {
     proposalId: string;
-    stage: PushableStage;
+    stage: string;
     file?: Blob;
     filename?: string;
   },
@@ -128,7 +191,7 @@ export async function requestStagePush(
       moved: Boolean(data?.stageUpdated),
       skipped: Boolean(data?.skipped),
       currentStage: data?.currentStage ?? null,
-      alreadyPushed: Boolean(data?.alreadyPushed),
+      stageAlreadySet: Boolean(data?.stageAlreadySet),
       warnings: (data?.warnings ?? []) as string[],
     };
   } catch (e) {

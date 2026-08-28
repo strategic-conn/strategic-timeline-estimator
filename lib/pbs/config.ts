@@ -20,6 +20,12 @@ export const pbsConfig = {
   appSecret: process.env.PBS_APP_SECRET ?? "",
   /** One fixed template for estimator-created POs (Phase 3). */
   projectTemplateId: process.env.PBS_PROJECT_TEMPLATE_ID ?? "",
+  /**
+   * Billing client an estimate uses unless one is chosen for it. A three-letter
+   * client CODE rather than a numeric id: codes are what people read on POs, and
+   * an id is meaningless without looking it up.
+   */
+  defaultClient: (process.env.PBS_DEFAULT_CLIENT ?? "STR").trim(),
 };
 
 export const isPbsConfigured = Boolean(pbsConfig.appId && pbsConfig.appSecret);

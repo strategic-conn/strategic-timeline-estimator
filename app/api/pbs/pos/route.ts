@@ -11,6 +11,8 @@ import {
   findSiblingWithPo,
   type DealHolder,
 } from "@/lib/zoho/deal-exclusivity";
+import { isWonStage } from "@/lib/zoho/stages";
+import { zohoFetch } from "@/lib/zoho/tokens";
 
 /**
  * Create a PO in PBS from an estimate.
@@ -111,6 +113,42 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: `This deal is already billed as ${billed.pbs?.po_no ?? billed.pbs?.po_id} on the estimate "${billed.title ?? "another estimate"}". PBS can't remove a PO, so a second one isn't created.`,
+        },
+        { status: 409 },
+      );
+    }
+
+    // ── Billing waits for the win ──
+    // A PO is raised once sales has actually won the deal, not when a quote goes
+    // out. Read the stage live rather than trusting `zoho.stage` (a cache that
+    // refreshes on view) or the client, and FAIL CLOSED: PBS has no delete
+    // endpoint, so "couldn't confirm" must not create a PO. Only a deal with no
+    // Zoho link at all skips this — there is nothing to check, and hand-made
+    // estimates were billable before this rule existed.
+    let liveStage: string | null = null;
+    try {
+      const res = await zohoFetch(
+        `/crm/v2/Deals/${encodeURIComponent(dealId)}?fields=Stage`,
+      );
+      const body = await res.json().catch(() => null);
+      liveStage = (body?.data?.[0]?.Stage as string) ?? null;
+    } catch (e) {
+      console.error("[pbs po] couldn't read the deal stage", e);
+    }
+    if (!liveStage) {
+      return NextResponse.json(
+        {
+          error:
+            "Couldn't confirm the deal's stage in Zoho, so no PO was created. Try again once Zoho is reachable.",
+        },
+        { status: 502 },
+      );
+    }
+    if (!(await isWonStage(liveStage))) {
+      return NextResponse.json(
+        {
+          error: `This deal is at "${liveStage}". A PO is only created once it reaches Closed Won.`,
+          currentStage: liveStage,
         },
         { status: 409 },
       );

@@ -31,9 +31,10 @@ import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import {
   AUTO_ADVANCE_FROM,
   PUSHABLE_STAGES,
-  isPushableStage,
+  shouldAttach,
   zohoPushes,
 } from "@/lib/zoho/push-state";
+import { isKnownStage } from "@/lib/zoho/stages";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -99,16 +100,17 @@ export async function POST(
     return NextResponse.json({ error: "Missing proposalId." }, { status: 400 });
   }
 
-  // Whitelisted so a crafted request can't drive the deal to an arbitrary stage
-  // (e.g. Closed Won, which is sales' call, not this app's).
-  const requested = String(form.get("stage") ?? PUSHABLE_STAGES.proposalSent);
-  if (!isPushableStage(requested)) {
+  // Validated against the org's own Stage picklist rather than a list hardcoded
+  // here: the app now offers every stage in the pipeline (the in-app status
+  // changer), so the guard's job is to stop a crafted request reaching the CRM
+  // with a stage that doesn't exist — not to pick which stages are allowed.
+  const targetStage = String(form.get("stage") ?? PUSHABLE_STAGES.proposalSent);
+  if (!(await isKnownStage(targetStage))) {
     return NextResponse.json(
-      { error: `"${requested}" is not a stage this app may set.` },
+      { error: `"${targetStage}" isn't a stage in this Zoho pipeline.` },
       { status: 400 },
     );
   }
-  const targetStage = requested;
 
   const supabase = db();
 
@@ -129,20 +131,7 @@ export async function POST(
       { status: 409 },
     );
   }
-  // Per-stage guard: the deal legitimately advances more than once, but each
-  // stage may only be pushed a single time (a re-push would duplicate the PDF).
   const pushes = zohoPushes(zoho as never);
-  if (pushes[targetStage]) {
-    return NextResponse.json(
-      {
-        alreadyPushed: true,
-        stage: targetStage,
-        pushedAt: pushes[targetStage],
-        message: `Already pushed "${targetStage}" for this quote.`,
-      },
-      { status: 200 },
-    );
-  }
 
   // ── One estimate per deal, enforced on the DEAL not the quote ──
   // The guard above reads this proposal's own `pushes`, so a second estimate
@@ -168,22 +157,29 @@ export async function POST(
   }
 
   // ── Never regress the pipeline ──
+  // Read the live stage BEFORE writing, always. It answers two questions: is the
+  // deal already where we're sending it (idempotency from live CRM state, which
+  // replaced replaying this quote's own `pushes` — that blocked a legitimate
+  // A→B→A move from the status changer, and blocked re-attaching an edited
+  // estimate's PDF to a deal already at Proposal Sent), and may a side-effect
+  // stage advance from here.
+  let currentStage: string | null = null;
+  try {
+    const res = await zohoFetch(
+      `/crm/v2/Deals/${encodeURIComponent(dealId)}?fields=Stage`,
+    );
+    const body = await res.json().catch(() => null);
+    currentStage = (body?.data?.[0]?.Stage as string) ?? null;
+  } catch (e) {
+    console.error("[zoho push] couldn't read current stage", e);
+  }
+
   // Stages this app sets as a side effect (Discovery, on import) may only move a
-  // deal FORWARD, so read the live stage first: one already at Negotiation or
-  // Verbal Yes must stay where sales put it, and so must one in a stage this app
-  // doesn't know. Explicit-button stages skip this — the click is the intent.
+  // deal FORWARD: one already at Negotiation or Verbal Yes must stay where sales
+  // put it, and so must one in a stage this app doesn't know. Explicit-button
+  // stages skip this — the click is the intent.
   const allowedFrom = AUTO_ADVANCE_FROM[targetStage];
   if (allowedFrom) {
-    let currentStage: string | null = null;
-    try {
-      const res = await zohoFetch(
-        `/crm/v2/Deals/${encodeURIComponent(dealId)}?fields=Stage`,
-      );
-      const body = await res.json().catch(() => null);
-      currentStage = (body?.data?.[0]?.Stage as string) ?? null;
-    } catch (e) {
-      console.error("[zoho push] couldn't read current stage", e);
-    }
     if (!currentStage || !allowedFrom.includes(currentStage)) {
       // Not an error: importing a deal that's further along is normal. Record
       // what Zoho actually says, so the app stops showing a stale stage.
@@ -207,35 +203,55 @@ export async function POST(
 
   const result: {
     stageUpdated: boolean;
+    /** The deal was already at the target stage, so no write was sent. */
+    stageAlreadySet: boolean;
+    currentStage: string | null;
     attachmentUploaded: boolean;
     warnings: string[];
-  } = { stageUpdated: false, attachmentUploaded: false, warnings: [] };
+  } = {
+    stageUpdated: false,
+    stageAlreadySet: false,
+    currentStage,
+    attachmentUploaded: false,
+    warnings: [],
+  };
 
   // ── 1. Move the stage (the only field this app writes) ──
-  try {
-    const res = await zohoFetch(`/crm/v2/Deals/${encodeURIComponent(dealId)}`, {
-      method: "PUT",
-      body: JSON.stringify({ data: [{ Stage: targetStage }] }),
-    });
-    const body = await res.json().catch(() => null);
-    const row = body?.data?.[0];
-    if (res.ok && row?.code === "SUCCESS") {
-      result.stageUpdated = true;
-    } else {
-      // Zoho reports per-record errors inside a 2xx envelope, so check the row.
-      const msg = row?.message ?? `HTTP ${res.status}`;
-      console.error("[zoho push] stage update failed", res.status, JSON.stringify(body));
+  // Already there? Don't write. The PDF and Packages steps below still run:
+  // re-opening a deal that's sitting at Proposal Sent with an edited estimate
+  // should still attach the new PDF (deduped by filename, not by stage).
+  if (currentStage === targetStage) {
+    result.stageAlreadySet = true;
+  } else {
+    try {
+      const res = await zohoFetch(`/crm/v2/Deals/${encodeURIComponent(dealId)}`, {
+        method: "PUT",
+        body: JSON.stringify({ data: [{ Stage: targetStage }] }),
+      });
+      const body = await res.json().catch(() => null);
+      const row = body?.data?.[0];
+      if (res.ok && row?.code === "SUCCESS") {
+        result.stageUpdated = true;
+      } else {
+        // Zoho reports per-record errors inside a 2xx envelope, so check the row.
+        const msg = row?.message ?? `HTTP ${res.status}`;
+        console.error(
+          "[zoho push] stage update failed",
+          res.status,
+          JSON.stringify(body),
+        );
+        return NextResponse.json(
+          { error: `Couldn't update the deal stage: ${msg}` },
+          { status: 502 },
+        );
+      }
+    } catch (e) {
+      console.error("[zoho push] stage update threw", e);
       return NextResponse.json(
-        { error: `Couldn't update the deal stage: ${msg}` },
-        { status: 502 },
+        { error: e instanceof Error ? e.message : "Zoho is not connected." },
+        { status: 503 },
       );
     }
-  } catch (e) {
-    console.error("[zoho push] stage update threw", e);
-    return NextResponse.json(
-      { error: e instanceof Error ? e.message : "Zoho is not connected." },
-      { status: 503 },
-    );
   }
 
   // ── 2. Carry the estimate's content across, for deals that came FROM Zoho ──
@@ -243,7 +259,11 @@ export async function POST(
   // empty and its Amount stayed 0. Same shared write as "Create deal", which
   // skips anything the deal already has — sales may have filled those rows by
   // hand, and a subform write replaces all of them.
-  if (targetStage === PUSHABLE_STAGES.proposalSent) {
+  // Gated on the payload, not the stage: only the send dialog supplies these, and
+  // it sends at whichever stage the deal is opened at — the same reason the PDF
+  // is no longer stage-gated. `applyEstimateToDeal` still skips anything the deal
+  // already has.
+  {
     let products: ReturnType<typeof parsePackageInput> = [];
     try {
       products = parsePackageInput(JSON.parse(String(form.get("products") ?? "[]")));
@@ -258,7 +278,14 @@ export async function POST(
   }
 
   // ── 3. Attach the PDF (best-effort: the stage move already succeeded) ──
-  if (file && file instanceof File && file.size > 0) {
+  const attachName = file instanceof File ? file.name || "proposal.pdf" : "";
+  if (file instanceof File && file.size > 0 && !shouldAttach(zoho as never, attachName)) {
+    // Already on the deal. Zoho would happily store a second copy under the same
+    // name, and there is no DELETE scope to tidy that up.
+    result.warnings.push(
+      `"${attachName}" is already attached to this deal — not sending it twice.`,
+    );
+  } else if (file && file instanceof File && file.size > 0) {
     try {
       const upload = new FormData();
       upload.append("file", file, file.name || "proposal.pdf");
@@ -289,6 +316,12 @@ export async function POST(
   }
 
   // ── 4. Record the push so a retry can't duplicate the attachment ──
+  if (result.attachmentUploaded && attachName) {
+    zoho.attachments = {
+      ...((zoho.attachments as Record<string, string>) ?? {}),
+      [attachName]: new Date().toISOString(),
+    };
+  }
   const writeErr = await recordStage(supabase, proposalId, zoho, {
     stage: targetStage,
     dealId,

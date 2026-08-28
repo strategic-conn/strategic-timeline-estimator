@@ -405,9 +405,20 @@ covers webhook *channels*, not records.)
 | **Stage refresh** | `/api/zoho/deals/stages` | Opening the Estimator list or an estimate re-reads the linked Deals' `Stage` in one batched call (`useZohoStageRefresh`) and stores it only when it actually changed — writing every view would bump `updated_at` and reshuffle the list. This is what keeps `ZohoStageBadge` honest when **sales** moves a deal; there is no push/webhook (that needs `ZohoCRM.notifications.ALL` + re-consent + a channel-renewal cron). Zoho has no by-ids read on our scopes, so it fans out over single-record GETs, capped at 25 |
 | **Products** | `/api/zoho/products` | Estimator → Setup → "Add from Zoho": the live **Products** module behind category filter pills (same pattern as the deal picker), multi-select, stored on the quote as `zoho.products`. Covered by the existing `ZohoCRM.modules.READ` — no new scope, no CSV snapshot. Records are fetched **without** a `fields` filter because this org files products under two things: the standard `Product_Category` (Creative/Sysdev/Phone/…) **and** a custom `CATEGORY` field (ONBOARDING/SEO/…), whose API name can't be assumed — `lib/zoho/products.ts` picks both out case-insensitively and groups by the custom one first. **Not written onto the Deal** yet: the "Packages" subform's API name is unknown, so for now the picked names ride along in the new deal's `Description` |
 | **Client lookup** | `/api/zoho/accounts` | "Find in Zoho" on the Client field — available in **both** the New-estimate dialog and the editor's Setup tab. Search **Accounts** (companies), then pick a **Contact** (a company has many). Falls back to searching people when no company matches. Each company shows its **prior deals** — enriched with ONE batched `Account_Name:in:<ids>` query (never per-account: that would be 25 calls per search) |
-| **Create deal** (write) | `POST /api/zoho/deals` | The inverse of import: a hand-made estimate opens a **new** Deal. **One button does both directions**: editor **Review** tab → **"Send to Zoho"** creates the deal when none is linked and updates the linked one when there is (`ZohoSendDialog`), always behind a preview of exactly what will be written. Deliberately the last step, and deliberately not two buttons in two places — which of the two you needed was bookkeeping the user shouldn't have to work out. Setup only offers *linking* an existing deal. Writes `Deal_Name`, `Stage`, `Closing_Date`, `Account_Name`, optional `Contact_Name` + `Description` — never `Amount`/`Quote_number`. **Requires an existing Account** (`zoho.account_id` via "Find in Zoho"); this app never creates a company. Stage is limited to `Discovery` or `Proposal Sent`, and **only Proposal Sent attaches the PDF**, recorded in `pushes` so the push button can't attach it twice. **Duplicate-proof**: refuses a quote that already has `deal_id`, and claims the row with a compare-and-set (`zoho.creating_at`, 2-min TTL) before calling Zoho — there is no DELETE scope, so a duplicate deal is a manual cleanup. Needs `ZohoCRM.modules.deals.CREATE`, so it 401s until someone does Disconnect → Connect with the wider scopes |
+| **Create deal** (write) | `POST /api/zoho/deals` | The inverse of import: a hand-made estimate opens a **new** Deal. **One button does both directions**: editor **Review** tab → **"Send to Zoho"** creates the deal when none is linked and updates the linked one when there is (`ZohoSendDialog`), always behind a preview of exactly what will be written. Deliberately the last step, and deliberately not two buttons in two places — which of the two you needed was bookkeeping the user shouldn't have to work out. Setup only offers *linking* an existing deal. Writes `Deal_Name`, `Stage`, `Closing_Date`, `Account_Name`, optional `Contact_Name` + `Description` — never `Amount`/`Quote_number`. **Requires an existing Account** (`zoho.account_id` via "Find in Zoho"); this app never creates a company. Stage is limited to `Discovery` or `Proposal Sent`, and **the proposal PDF is attached either way** — sales reads it during Discovery, not only once the quote is formally sent. **Duplicate-proof**: refuses a quote that already has `deal_id`, and claims the row with a compare-and-set (`zoho.creating_at`, 2-min TTL) before calling Zoho — there is no DELETE scope, so a duplicate deal is a manual cleanup. Needs `ZohoCRM.modules.deals.CREATE`, so it 401s until someone does Disconnect → Connect with the wider scopes |
 | **Estimate → Deal content** | `lib/zoho/deal-estimate-sync.ts` | Both "Create deal" and "Push to Zoho" put the estimate's **Packages rows** (one per `zoho.products` entry: Product lookup + Unit Price = its `splitHours` share x `HOURLY_RATE` + "N h at $R/h") onto the Deal, plus the Description on push. **Nothing is hardcoded**: the subform and its columns are resolved from live field metadata by LABEL and type (`findPackagesSubform`), because custom API names can't be guessed — this org's "CATEGORY" field is reachable only as `CATEGORY1`. **Never overwrites**: the deal is read first and any existing rows/description are left alone with a warning, since a subform write replaces every row and sales may have typed their own. Can't resolve the subform → skips, warns, and the products still ride in the Description |
-| **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | The app's only writes: **two explicit buttons plus one on import**. **Import / link a deal** → **"Discovery"**, no attachment. **Quote editor → "Push to Zoho"**: Deal → **"Proposal Sent"** + attaches the proposal PDF. **Project page → "Mark complete in Zoho"** (only once the project is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Only `Stage` is written** — `Amount` is a Zoho *formula* field (a write "succeeds" then recalculates back within ~1s) and `Quote_number` is a system *autonumber*; verified live, neither is settable. Stages are **whitelisted** (`lib/zoho/push-state.ts`) so a crafted request can't set e.g. Closed Won — revenue stages stay sales' call. **Forward-only for side-effect stages**: `AUTO_ADVANCE_FROM` lists the only stages an import may advance *from* (`Proposal Requested`), so a deal at Negotiation / Verbal Yes / Proposal Sent — or in a stage this app doesn't know — is read and left alone, never dragged backwards. An explicit button skips that check; the click is the intent. **Idempotent per stage**: `proposals.zoho.pushes` (`stage → timestamp`) is checked+written server-side, since Zoho does **not** dedupe attachments (same filename twice = two records). Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields. Every push (and every skip) records the live `stage` + `stage_synced_at`, which is what `ZohoStageBadge` renders on the Estimator list and the editor's Setup panel |
+| **Stage picklist** | `/api/zoho/deal-stages` | The org's own Deal `Stage` list (value + pipeline order + forecast bucket + probability), read via `ZohoCRM.settings.READ` and cached 30 min in `lib/zoho/stages.ts`. **One reader, deliberately**: the status changer offers exactly what the push route accepts, so the menu can never show a stage the server then rejects. ⚠️ The readable bucket is **`forecast_type`** ("Open" / "Closed Won" / "Closed Lost"). `forecast_category` looks right and is **an opaque id** — matching on it classifies every stage as not-won |
+| **In-app status changer** (write) | via the push route | The stage badge on the editor's Setup panel is a dropdown (`ZohoStageSelect`): pick any stage in the org pipeline and the deal moves, without opening Zoho. **All stages, revenue ones included** — a stage is reversible in Zoho, and the irreversible half (the PO) has its own gate. No confirm dialog; the result is toasted |
+| **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | The app's only writes: **two explicit buttons plus one on import**. **Import / link a deal** → **"Discovery"**, no attachment. **Quote editor → "Push to Zoho"**: Deal → **"Proposal Sent"** + attaches the proposal PDF. **Project page → "Mark complete in Zoho"** (only once the project is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Any stage in the org picklist is settable** (the status changer above); the guard is that it must EXIST — validated against `lib/zoho/stages.ts` before the request leaves the process, not a hardcoded list. **Only `Stage` is written** — `Amount` is a Zoho *formula* field (a write "succeeds" then recalculates back within ~1s) and `Quote_number` is a system *autonumber*; verified live, neither is settable. **Idempotent against the LIVE deal**: the route reads the deal's current stage before writing and skips the PUT when it is already there (`stageAlreadySet`). That replaced replaying the quote's own `pushes` history, which blocked two legitimate things — a status changer moving A→B→A, and re-attaching an edited estimate's PDF to a deal already at Proposal Sent. **Forward-only for side-effect stages**: `AUTO_ADVANCE_FROM` lists the only stages an import may advance *from* (`Proposal Requested`), so a deal at Negotiation / Verbal Yes / Proposal Sent — or in a stage this app doesn't know — is read and left alone, never dragged backwards. An explicit button skips that check; the click is the intent. `proposals.zoho.pushes` (`stage → timestamp`) is still recorded — the sibling guard and the badge read it — but no longer gates a re-push. **Attachments are deduped separately, by filename** (`proposals.zoho.attachments`, `filename → timestamp`, via `shouldAttach()`): the PDF now goes up at whichever stage a deal is opened at, so "was this stage pushed?" is no longer the right question. `proposalPdfFilename` embeds the estimate's date, so re-sending an unchanged quote is skipped while an estimate edited later attaches its updated PDF. This matters because Zoho does **not** dedupe (same filename twice = two records) and there is no DELETE scope. Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields. Every push (and every skip) records the live `stage` + `stage_synced_at`, which is what `ZohoStageBadge` renders on the Estimator list and the editor's Setup panel |
+
+> ⚠️ **This org's pipeline order is not the obvious one.** Read live:
+> Discovery (1, 25%) · Negotiation (2, 35%) · Proposal Requested (3, 45%) ·
+> Proposal Sent (4, 50%) · Verbal Yes (5, 60%) · Proposal Signed (6, 90%) ·
+> Closed Won (7, 100%) · Closed Lost (8, 0%) · Not at this time maybe later
+> (9, 20%) · Project Completed (10, 0%). So the import's "Proposal Requested →
+> Discovery" advance moves a deal *backwards* by Zoho's own ordering — it is
+> deliberate (scoping starts there), which is why `AUTO_ADVANCE_FROM` encodes
+> intent rather than being derived from `sequence_number`.
 
 > Use **Accounts + Contacts** (~4.0k / ~3.7k qualified records) for client data — **not Leads**
 > (~122k raw, full of test/spam rows). A Lead converts into Account + Contact (+ Deal).
@@ -465,7 +476,7 @@ truth.
 | ------- | ----- | ------------ |
 | **Health** | `/api/pbs/health` | Admin-only, read-only. Token + reads + the derived client list |
 | **Clients** | `/api/pbs/clients` | The billing clients, **derived from PO history** — PBS has no clients endpoint (nine paths probed, all 404). A PO number's first 3 letters are the client's code |
-| **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id`; PBS generates the PO number |
+| **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id`; PBS generates the PO number. **Gated on the deal being won** — see below |
 
 **Endpoint allowlist.** `lib/pbs/endpoints.ts` is deny-by-default —
 `pbsFetch` refuses anything unlisted. `register` (creates an app permanently),
@@ -488,16 +499,46 @@ amount field, so the estimate's figures stay in this app and in Zoho.
 > once. **Adding a column to `proposals` means updating two whitelists** —
 > `quoteUpdatePayload()` and the `Pick<ClientQuote, …>` on `updateProposal`.
 
+**Default billing client:** `PBS_DEFAULT_CLIENT` (a three-letter **code**, default
+`STR`) is used when an estimate has no client of its own. It's resolved against
+live PO history, so an unknown code leaves the picker empty rather than failing at
+create time. Precedence: the estimate's own client → the workspace default. It is
+**not written to the quote** until a PO is actually created, so changing the env
+changes future estimates without rewriting past ones.
+
 **Storage:** `proposals.pbs` jsonb (migration `0031`) —
 `{client_id, client_code, po_id, po_no, created_at, creating_at}`. The billing
-client is chosen on the editor's **Setup** tab; when an earlier estimate for the
-same Zoho account already has one, the picker offers it in one click (no mapping
-table — the loaded quotes carry the answer).
+client is chosen in the **Create PO** dialog — the one place it is acted on, so
+Setup and the send dialog carry no PBS controls at all. When an earlier estimate
+for the same Zoho account already has one, the picker offers it in one click (no
+mapping table — the loaded quotes carry the answer).
 
-**Ordering with Zoho:** the send dialog runs **Zoho first, PBS second**. Zoho's
-writes are idempotent per stage; creating a PO is not and cannot be undone, so
-the non-idempotent call goes last and any earlier failure can be retried safely.
-Each system reports separately — "Sent to Zoho, but PBS didn't create the PO".
+**Billing waits for the win.** A PO is no longer part of "Send to Zoho" — sending
+a quote is not winning the work, and PBS cannot delete a PO. Instead:
+
+1. Sales (or the coordinator, via the in-app status changer) moves the deal to
+   **Closed Won** in Zoho.
+2. The app hears about it by **polling**, not webhooks: `useZohoStageRefresh`
+   already re-reads linked deals when the Estimator list or an estimate opens.
+   On the *transition* into a won stage it raises a bell notification to admins +
+   managers and logs a workspace activity entry, so the button that just appeared
+   is not a surprise.
+3. The estimate shows **Create PO** (`CreatePoDialog`) — client, template, PO
+   name, and the warning that it cannot be undone.
+
+**"Won" is Zoho's forecast bucket, not a name** (`stageIsWon` in
+`lib/zoho/push-state.ts`, client-safe so the button and the server gate cannot
+disagree; checked in `e2e/won-stage.spec.ts`). **Closed Won** and **Project
+Completed** both qualify — a deal that jumped straight to Completed can never go
+back, so name-matching only "Closed Won" would strand its PO forever. There is no
+"Deal Won" stage in this org; the won stage is **Closed Won** (probability 100).
+
+The server gate is the real one: `POST /api/pbs/pos` re-reads the deal's stage
+**live** (not the cached `zoho.stage`) and **fails closed** — a Zoho read it
+can't complete returns 502 rather than creating a PO. An estimate with no Zoho
+deal at all skips the check; there is nothing to gate on, and hand-made estimates
+were billable before this rule existed. The Create PO dialog picks *where* it is filed, so the
+choice and the act sit together.
 
 ---
 
@@ -694,6 +735,14 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
+> **2026-08-28 — billing moved behind the win.** Creating the PBS PO left "Send to
+> Zoho" and became its own **Create PO** button + dialog, shown only once the deal
+> is won (Zoho forecast bucket, re-checked live server-side, fails closed). The
+> stage badge became an **in-app status changer** over the org's real picklist
+> (`/api/zoho/deal-stages`), so the push route validates against that list instead
+> of a hardcoded whitelist, and idempotency now comes from the deal's live stage
+> rather than this app's own push history.
+>
 > Last updated: 2026-07-14 — **Discovery + Proposals merged into one Estimator** (guided questionnaire
 > *or* catalog → one quote; `proposals.discovery` JSONB; `/discovery` redirects). Also since 2026-07-01:
 > invite-only onboarding + pending state, two-tier user offboarding (deactivate / hard-delete), and the

@@ -218,7 +218,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
         });
         return;
       }
-      if (data?.alreadyPushed) {
+      if (data?.stageAlreadySet) {
         toast.info("Zoho already knows", {
           description: "This project was already marked complete in the CRM.",
         });

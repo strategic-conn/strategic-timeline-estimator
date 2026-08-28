@@ -3,7 +3,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 
 import { isPbsConfigured, pbsConfig } from "@/lib/pbs/config";
-import { getPbsDirectory } from "@/lib/pbs/directory";
+import { getPbsDirectory, resolveDefaultClient } from "@/lib/pbs/directory";
 import { requirePbsReader } from "@/lib/pbs/guard";
 
 /**
@@ -32,6 +32,8 @@ export async function GET() {
   try {
     return NextResponse.json({
       ...(await getPbsDirectory()),
+      /** Used when an estimate has no billing client of its own. */
+      defaultClient: await resolveDefaultClient(),
       // When set, this overrides every client's own template server-side — the
       // UI has to know, or its confirmation would name the wrong one.
       templateOverride: pbsConfig.projectTemplateId.trim() || null,

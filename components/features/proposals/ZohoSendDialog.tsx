@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, format } from "date-fns";
-import { Briefcase, Check, Loader2, Receipt, Upload } from "lucide-react";
+import { Briefcase, Check, Loader2, Upload } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -27,8 +27,7 @@ import {
   buildProposalPdfBlob,
   proposalPdfFilename,
 } from "@/lib/utils/proposal-pdf-export";
-import { usePbsClients } from "@/hooks/usePbsClients";
-import { PUSHABLE_STAGES, zohoPushes } from "@/lib/zoho/push-state";
+import { PUSHABLE_STAGES, shouldAttach, zohoPushes } from "@/lib/zoho/push-state";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /**
@@ -66,14 +65,12 @@ export function ZohoSendDialog({
   );
   const [stage, setStage] = React.useState<string>(PUSHABLE_STAGES.discovery);
   const [busy, setBusy] = React.useState(false);
-  const [alsoCreatePo, setAlsoCreatePo] = React.useState(true);
 
   React.useEffect(() => {
     if (open) {
       setName(quote.title);
       setClosingDate(format(addDays(new Date(), 30), "yyyy-MM-dd"));
       setStage(PUSHABLE_STAGES.discovery);
-      setAlsoCreatePo(true);
     }
   }, [open, quote.title]);
 
@@ -86,38 +83,22 @@ export function ZohoSendDialog({
   const alreadySent =
     zohoPushes(quote.zoho)[PUSHABLE_STAGES.proposalSent] ?? null;
 
-  // PBS: a PO is only offered when a billing client has been chosen and no PO
-  // exists yet. PBS has no delete endpoint, so "already has one" is final.
-  const pbsClientId = quote.pbs?.client_id ?? null;
-  const existingPo = quote.pbs?.po_no ?? quote.pbs?.po_id ?? null;
-  const canCreatePo = Boolean(pbsClientId) && !existingPo;
+  // Nothing about billing lives here. A PO is raised from its own dialog once
+  // the deal is won, and that dialog picks the client — one place to choose it,
+  // at the moment it is actually acted on.
 
-  // Load the directory when a PO is actually on the table, so the confirmation
-  // can name the exact template rather than describing one. Same resolution
-  // order as the server (`lib/pbs/directory.ts`): override first, else the
-  // client's own most-used.
-  const { clients: pbsDirectory, templateOverride, load: loadPbs } = usePbsClients();
-  React.useEffect(() => {
-    if (open && canCreatePo) loadPbs();
-  }, [open, canCreatePo, loadPbs]);
-  const pbsTemplate =
-    templateOverride ??
-    pbsDirectory.find((c) => c.clientId === pbsClientId)?.templates[0] ??
-    null;
+  // The proposal PDF goes up at whichever stage the deal opens at — sales reads
+  // it during Discovery, not only once the quote is formally sent. The guard is
+  // the filename, not the stage: the same document is never attached twice (Zoho
+  // doesn't dedupe and there's no DELETE scope), but an estimate edited later
+  // produces a new filename and its updated PDF does go up.
+  const attaches = shouldAttach(quote.zoho, proposalPdfFilename(quote));
 
-  // An update always targets Proposal Sent; a create offers the choice.
-  const attaches = isUpdate || stage === PUSHABLE_STAGES.proposalSent;
-
-  // The two halves are gated separately. A quote already pushed to Zoho may
-  // still have no PO — every estimate sent before PBS existed is in exactly
-  // that state — so "Zoho is done" must not disable the PBS half.
-  const zohoTodo = !isUpdate || !alreadySent;
-  const pbsTodo = canCreatePo && alsoCreatePo;
+  // A quote already at Proposal Sent can still be re-sent: the stage write is a
+  // no-op and the PDF is deduped by filename, so an edited estimate's updated
+  // document still reaches the deal.
   const canSubmit =
-    !busy &&
-    (isUpdate
-      ? zohoTodo || pbsTodo
-      : Boolean(accountId && name.trim() && closingDate));
+    !busy && (isUpdate || Boolean(accountId && name.trim() && closingDate));
 
   const productPayload = () =>
     JSON.stringify(
@@ -148,12 +129,8 @@ export function ZohoSendDialog({
     if (!canSubmit) return;
     setBusy(true);
     try {
-      // Skip the Zoho half when it's already done and only the PO is left.
-      if (zohoTodo) {
-        const zohoOk = await sendToZoho();
-        if (!zohoOk) return;
-      }
-      await createPoIfWanted();
+      const zohoOk = await sendToZoho();
+      if (!zohoOk) return;
       await onDone();
       onClose();
     } catch (e) {
@@ -202,71 +179,27 @@ export function ZohoSendDialog({
         });
         return false;
       }
-      if (data?.alreadyPushed) {
-        toast.info("Already sent to Zoho", {
-          description: "This stage was pushed before — not sending it again.",
-        });
-      } else {
-        const done = [
-          data?.packagesWritten
-            ? `${data.packagesWritten} product row${
-                data.packagesWritten === 1 ? "" : "s"
-              } added`
-            : null,
-          data?.attachmentUploaded ? "PDF attached" : null,
-        ].filter(Boolean);
-        toast.success(
-          isUpdate
-            ? `Deal moved to ${PUSHABLE_STAGES.proposalSent}`
-            : `Deal created in Zoho at ${data?.stage ?? stage}`,
-          { description: done.length ? done.join(" · ") : undefined },
-        );
-      }
+      const done = [
+        data?.packagesWritten
+          ? `${data.packagesWritten} product row${
+              data.packagesWritten === 1 ? "" : "s"
+            } added`
+          : null,
+        data?.attachmentUploaded ? "PDF attached" : null,
+      ].filter(Boolean);
+      toast.success(
+        !isUpdate
+          ? `Deal created in Zoho at ${data?.stage ?? stage}`
+          : data?.stageAlreadySet
+            ? `Deal already at ${PUSHABLE_STAGES.proposalSent}`
+            : `Deal moved to ${PUSHABLE_STAGES.proposalSent}`,
+        { description: done.length ? done.join(" · ") : undefined },
+      );
       for (const w of (data?.warnings ?? []) as string[]) toast.warning(w);
       return true;
     }
   };
 
-  const createPoIfWanted = async () => {
-    {
-      // PBS second, deliberately. The Zoho writes are idempotent per stage, so a
-      // retry re-runs them safely; creating a PO is not, and cannot be undone.
-      // Putting the non-idempotent call last means any earlier failure can be
-      // retried without risking a duplicate PO.
-      if (canCreatePo && alsoCreatePo) {
-        try {
-          const poRes = await fetch("/api/pbs/pos", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              proposalId: quote.id,
-              name: isUpdate ? quote.title : name.trim(),
-              clientId: pbsClientId,
-            }),
-          });
-          const poData = await poRes.json().catch(() => null);
-          if (!poRes.ok) {
-            // Zoho already succeeded — say so rather than implying a total
-            // failure, and leave the retry to the user.
-            toast.warning("Sent to Zoho, but PBS didn't create the PO", {
-              description: poData?.error ?? `Request failed (${poRes.status}).`,
-            });
-          } else {
-            toast.success(`PO ${poData?.poNo ?? "created"} in PBS`, {
-              description: poData?.templateSource === "client-history"
-                ? `Template ${poData.templateId}, from this client's own POs.`
-                : undefined,
-            });
-            for (const w of (poData?.warnings ?? []) as string[]) toast.warning(w);
-          }
-        } catch (err) {
-          toast.warning("Sent to Zoho, but PBS couldn't be reached", {
-            description: err instanceof Error ? err.message : "Unexpected error.",
-          });
-        }
-      }
-    }
-  };
   const zohoRows: [string, React.ReactNode][] = [
     [
       "Stage",
@@ -291,7 +224,7 @@ export function ZohoSendDialog({
         "none — add products on Setup"
       ),
     ],
-    ["PDF", attaches ? "attached" : "not attached"],
+    ["PDF", attaches ? "attached" : "already on the deal — not sent twice"],
   ];
 
   return (
@@ -304,9 +237,6 @@ export function ZohoSendDialog({
           <DialogTitle className="flex items-center gap-2 text-sm font-semibold">
             <Upload className="size-4 shrink-0 text-primary" aria-hidden />
             {isUpdate ? "Update Zoho deal" : "Send to Zoho"}
-            {canCreatePo ? (
-              <span className="text-muted-foreground">+ PBS</span>
-            ) : null}
           </DialogTitle>
           <DialogDescription className="truncate text-xs">
             {quote.zoho?.account ?? quote.client_name ?? quote.title}
@@ -418,73 +348,13 @@ export function ZohoSendDialog({
             ) : null}
           </section>
 
-          <section className="overflow-hidden rounded-md border border-border/60">
-            <h3 className="flex items-baseline gap-1.5 border-b border-border/50 bg-muted/30 px-2.5 py-1.5 text-xs font-semibold">
-              <Receipt className="size-3 self-center text-primary" aria-hidden />
-              PBS billing
-              <span className="truncate font-normal text-muted-foreground">
-                {existingPo
-                  ? `already ${existingPo}`
-                  : canCreatePo
-                    ? `new PO · ${quote.pbs?.client_code ?? pbsClientId}`
-                    : "nothing to send"}
-              </span>
-            </h3>
-            {existingPo ? (
-              <p className="px-2.5 py-1.5 text-xs text-muted-foreground">
-                Already billed. PBS can&apos;t update or remove a PO, so no second
-                one is created.
-              </p>
-            ) : canCreatePo ? (
-              <>
-                <dl className="px-2.5 py-1.5 text-xs">
-                  <div className="flex justify-between gap-3 py-0.5">
-                    <dt className="shrink-0 text-muted-foreground">Template</dt>
-                    <dd className="min-w-0 truncate text-right text-muted-foreground">
-                      {pbsTemplate ? (
-                        <>
-                          {pbsTemplate}
-                          {templateOverride ? " · set for all" : " · client default"}
-                        </>
-                      ) : (
-                        "from this client's POs"
-                      )}
-                    </dd>
-                  </div>
-                  <div className="flex justify-between gap-3 py-0.5">
-                    <dt className="shrink-0 text-muted-foreground">PO name</dt>
-                    <dd className="min-w-0 truncate text-right text-muted-foreground">
-                      {(isUpdate ? quote.title : name.trim()) || "—"}
-                    </dd>
-                  </div>
-                </dl>
-                <label className="flex cursor-pointer items-start gap-2 border-t border-border/40 px-2.5 py-1.5 text-[0.7rem]">
-                  <input
-                    type="checkbox"
-                    checked={alsoCreatePo}
-                    onChange={(ev) => setAlsoCreatePo(ev.target.checked)}
-                    className="mt-0.5 size-3.5 accent-primary"
-                  />
-                  <span>
-                    Create this PO — the number comes from PBS, the amount
-                    doesn&apos;t (PBS pins new POs to 0). Can&apos;t be undone.
-                  </span>
-                </label>
-              </>
-            ) : (
-              <p className="px-2.5 py-1.5 text-xs text-muted-foreground">
-                No billing client — pick one on the <strong>Setup</strong> tab.
-              </p>
-            )}
-          </section>
-
           {alreadySent ? (
             <p className="flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5 text-[0.7rem] text-emerald-700 dark:text-emerald-400">
               <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
               <span>
-                Sent to Zoho on {new Date(alreadySent).toLocaleDateString()} — the
-                stage and PDF won&apos;t go again.
-                {pbsTodo ? " The PO can still be created." : null}
+                Sent to Zoho on {new Date(alreadySent).toLocaleDateString()}. Sending
+                again is safe — the stage write is a no-op and the same PDF
+                isn&apos;t attached twice.
               </span>
             </p>
           ) : null}
@@ -508,19 +378,7 @@ export function ZohoSendDialog({
             className="gap-2"
           >
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-            {busy
-              ? "Sending…"
-              : !zohoTodo
-                ? pbsTodo
-                  ? "Create PO"
-                  : "Already sent"
-                : pbsTodo
-                  ? isUpdate
-                    ? "Update deal + PO"
-                    : "Create deal + PO"
-                  : isUpdate
-                    ? "Update deal"
-                    : "Create deal"}
+            {busy ? "Sending…" : isUpdate ? "Update deal" : "Create deal"}
           </Button>
         </DialogFooter>
       </DialogContent>

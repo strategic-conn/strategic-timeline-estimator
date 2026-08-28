@@ -7,7 +7,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { applyEstimateToDeal } from "@/lib/zoho/deal-estimate-sync";
 import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import { requireZohoReader, requireZohoWriter } from "@/lib/zoho/guard";
-import { PUSHABLE_STAGES } from "@/lib/zoho/push-state";
+import { PUSHABLE_STAGES, shouldAttach } from "@/lib/zoho/push-state";
 import { zohoFetch } from "@/lib/zoho/tokens";
 
 /**
@@ -357,13 +357,13 @@ export async function POST(req: Request) {
   const sync = await applyEstimateToDeal(dealId, { products });
   const warnings: string[] = [...sync.warnings];
   const packagesWritten = sync.packagesWritten;
+  let attachedName: string | null = null;
 
   let attachmentUploaded = false;
-  if (
-    stage === PUSHABLE_STAGES.proposalSent &&
-    file instanceof File &&
-    file.size > 0
-  ) {
+  // The proposal document goes on the deal whatever stage it opens at — sales
+  // wants to read it during Discovery, not only once it's formally sent. A brand
+  // new deal has no attachments, so there's nothing to collide with here.
+  if (file instanceof File && file.size > 0) {
     try {
       const upload = new FormData();
       upload.append("file", file, file.name || "proposal.pdf");
@@ -373,6 +373,7 @@ export async function POST(req: Request) {
       });
       const body = await res.json().catch(() => null);
       attachmentUploaded = res.ok && body?.data?.[0]?.code === "SUCCESS";
+      if (attachmentUploaded) attachedName = file.name || "proposal.pdf";
       if (!attachmentUploaded) {
         console.error(
           "[zoho create] attachment failed",
@@ -405,15 +406,23 @@ export async function POST(req: Request) {
     imported_at: (zoho.imported_at as string) ?? now,
   };
   delete nextZoho.creating_at;
-  if (attachmentUploaded) {
-    // Zoho does not dedupe attachments, so record this as the Proposal Sent
-    // push: the editor's own button must not send the same PDF again.
+  if (stage === PUSHABLE_STAGES.proposalSent) {
+    // The stage was pushed as part of creating the deal; record it so the send
+    // button doesn't offer to push it again.
     nextZoho.pushes = {
       ...((zoho.pushes as Record<string, string>) ?? {}),
       [stage]: now,
     };
     nextZoho.pushed_at = now;
     nextZoho.pushed_stage = stage;
+  }
+  if (attachedName) {
+    // Keyed by filename: Zoho does not dedupe, so a later push must know this
+    // exact document is already on the deal.
+    nextZoho.attachments = {
+      ...((zoho.attachments as Record<string, string>) ?? {}),
+      [attachedName]: now,
+    };
   }
   // Retried once, because this is the worst failure in the route: the deal
   // EXISTS in Zoho now, and a quote that didn't record its `deal_id` looks

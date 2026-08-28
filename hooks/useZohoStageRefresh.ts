@@ -3,8 +3,11 @@
 import * as React from "react";
 import { toast } from "sonner";
 
+import { notifyUsers, pushWorkspaceActivity } from "@/lib/activity/workspace-push";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { looksWon } from "@/lib/zoho/push-state";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import { useTeamStore } from "@/store/team-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /** How long a checked stage is trusted before it's worth re-reading. */
@@ -100,6 +103,26 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
           zoho: { ...quote.zoho, stage: live, stage_synced_at: syncedAt },
         });
         changed += 1;
+
+        // A deal reaching the won stage is the trigger for billing, and this
+        // poll is the only way the app hears about it — sales moves the deal in
+        // Zoho, and there is no webhook. Announce it once, on the transition,
+        // so the "Create PO" button that just appeared is not a surprise.
+        if (looksWon(live) && !looksWon(quote.zoho.stage)) {
+          const href = `/proposals/${proposalId}`;
+          const label = quote.title || quote.zoho.deal_name || "An estimate";
+          pushWorkspaceActivity(`Zoho deal won — ${label} can now be billed`, href);
+          // Only admins and managers can act on it; the estimator is gated to
+          // them anyway, and the store drops the actor from the list.
+          notifyUsers(
+            useTeamStore
+              .getState()
+              .members.filter((m) => m.role === "admin" || m.role === "manager")
+              .map((m) => m.id),
+            `"${label}" is at ${live} in Zoho — ready to raise the PO`,
+            href,
+          );
+        }
       }
       return changed;
     },
