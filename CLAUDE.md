@@ -523,8 +523,10 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    On the *transition* into a won stage it raises a bell notification to admins +
    managers and logs a workspace activity entry, so the button that just appeared
    is not a surprise.
-3. The estimate shows **Create PO** (`CreatePoDialog`) — client, template, PO
-   name, and the warning that it cannot be undone.
+3. **Create PO** appears in two places — the estimate's header (visible from
+   every tab) and its card on the Estimator list, so the next step is offered
+   without opening anything. Both open the same `CreatePoDialog`: client,
+   template, PO name, and the warning that it cannot be undone.
 
 **"Won" is Zoho's forecast bucket, not a name** (`stageIsWon` in
 `lib/zoho/push-state.ts`, client-safe so the button and the server gate cannot

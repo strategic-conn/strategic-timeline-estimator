@@ -8,6 +8,7 @@ import {
   Briefcase,
   FileText,
   Layers,
+  Receipt,
   Link2,
   Plus,
   RefreshCw,
@@ -65,7 +66,8 @@ import {
   findActiveDealHolder,
 } from "@/lib/zoho/deal-exclusivity";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
-import { PUSHABLE_STAGES, requestStagePush } from "@/lib/zoho/push-state";
+import { PUSHABLE_STAGES, looksWon, requestStagePush } from "@/lib/zoho/push-state";
+import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
@@ -87,6 +89,10 @@ export function ProposalsListClient() {
   const router = useRouter();
   const projects = useProjectsStore((s) => s.projects);
   const proposals = useProposalEstimatorStore((s) => s.proposals);
+  // The PO is written server-side, so the store only learns about it on a re-read.
+  const hydrateProposals = useProposalEstimatorStore(
+    (s) => s.hydrateFromSupabase,
+  );
   const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
@@ -95,6 +101,13 @@ export function ProposalsListClient() {
   const zohoStages = useZohoStageRefresh(proposals);
 
   const [createOpen, setCreateOpen] = React.useState(false);
+  // Which estimate the PO dialog is for. The list can hold several won deals, so
+  // this is an id — and an id rather than the row itself, because the store
+  // rewrites the quote once the PO lands and a captured object would go stale.
+  const [poTargetId, setPoTargetId] = React.useState<string | null>(null);
+  const poTarget = poTargetId
+    ? (proposals.find((q) => q.id === poTargetId) ?? null)
+    : null;
   const [dealImportOpen, setDealImportOpen] = React.useState(false);
   const [clientLookupOpen, setClientLookupOpen] = React.useState(false);
   /** CRM link captured when the client is picked from Zoho (null = typed by hand). */
@@ -226,6 +239,15 @@ export function ProposalsListClient() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+      {poTarget ? (
+        <CreatePoDialog
+          open
+          onClose={() => setPoTargetId(null)}
+          quote={poTarget}
+          onDone={hydrateProposals}
+        />
+      ) : null}
+
       <ZohoDealImport
         open={dealImportOpen}
         onClose={() => setDealImportOpen(false)}
@@ -336,7 +358,9 @@ export function ProposalsListClient() {
             return (
               <li key={q.id}>
                 <Card className="transition-colors hover:bg-muted/30">
-                  <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0 pb-4">
+                  {/* Stacks under sm: three controls on one row squeezed the
+                      title into a five-line column on a 375px screen. */}
+                  <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <CardTitle className="text-base">
@@ -389,6 +413,20 @@ export function ProposalsListClient() {
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 gap-1">
+                      {/* Deal won and nothing billed yet — the next step, offered
+                          without making anyone open the estimate first. */}
+                      {looksWon(q.zoho?.stage) && !q.pbs?.po_no ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          className="gap-1.5"
+                          title="Raise the purchase order in PBS"
+                          onClick={() => setPoTargetId(q.id)}
+                        >
+                          <Receipt className="size-4" aria-hidden />
+                          Create PO
+                        </Button>
+                      ) : null}
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/proposals/${q.id}`}>Open</Link>
                       </Button>

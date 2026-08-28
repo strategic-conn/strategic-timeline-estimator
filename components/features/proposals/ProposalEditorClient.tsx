@@ -528,6 +528,20 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 </Button>
               ) : null}
 
+              {/* The one moment this appears — deal won, no PO yet — so it goes
+                  in the header where every tab can see it, not inside Review. */}
+              {looksWon(quote.zoho?.stage) && !quote.pbs?.po_no ? (
+                <Button
+                  size="sm"
+                  className="gap-1.5"
+                  title="Raise the purchase order in PBS"
+                  onClick={() => setPoOpen(true)}
+                >
+                  <Receipt className="size-4" aria-hidden />
+                  Create PO
+                </Button>
+              ) : null}
+
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
@@ -1303,22 +1317,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <Upload className="size-3.5" aria-hidden />
                   {proposalPushed ? "Sent to Zoho" : "Send to Zoho"}
                 </Button>
-                {/* Billing is gated on the win, not on the send: the PO is the
-                    one write neither system can undo. Shown only once Zoho says
-                    the deal is won; the route re-checks that live. */}
-                {looksWon(quote.zoho?.stage) && !quote.pbs?.po_no ? (
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="secondary"
-                    className="gap-1.5"
-                    title="Raise the purchase order in PBS"
-                    onClick={() => setPoOpen(true)}
-                  >
-                    <Receipt className="size-3.5" aria-hidden />
-                    Create PO
-                  </Button>
-                ) : null}
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
