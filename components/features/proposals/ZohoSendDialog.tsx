@@ -22,12 +22,15 @@ import {
   quoteTotals,
   splitHours,
 } from "@/lib/constants/proposal-estimator";
-import { cn } from "@/lib/utils";
 import {
   buildProposalPdfBlob,
   proposalPdfFilename,
 } from "@/lib/utils/proposal-pdf-export";
-import { PUSHABLE_STAGES, shouldAttach, zohoPushes } from "@/lib/zoho/push-state";
+import {
+  PUSHABLE_STAGES,
+  shouldAttach,
+  zohoAttachments,
+} from "@/lib/zoho/push-state";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /**
@@ -63,14 +66,12 @@ export function ZohoSendDialog({
   const [closingDate, setClosingDate] = React.useState(() =>
     format(addDays(new Date(), 30), "yyyy-MM-dd"),
   );
-  const [stage, setStage] = React.useState<string>(PUSHABLE_STAGES.discovery);
   const [busy, setBusy] = React.useState(false);
 
   React.useEffect(() => {
     if (open) {
       setName(quote.title);
       setClosingDate(format(addDays(new Date(), 30), "yyyy-MM-dd"));
-      setStage(PUSHABLE_STAGES.discovery);
     }
   }, [open, quote.title]);
 
@@ -80,8 +81,11 @@ export function ZohoSendDialog({
   // The same derivation the Setup tab shows, so the review can't disagree with
   // what gets sent.
   const shares = splitHours(totals.grandHours, products.length);
-  const alreadySent =
-    zohoPushes(quote.zoho)[PUSHABLE_STAGES.proposalSent] ?? null;
+  // "Sent" = this estimate's document reached the deal. Keying it on a stage
+  // stopped working once every send targets Discovery, which an import records
+  // on its own — the attachment is the thing that actually marks a send.
+  const sentAt = Object.values(zohoAttachments(quote.zoho)).sort();
+  const alreadySent = sentAt.length ? sentAt[sentAt.length - 1] : null;
 
   // Nothing about billing lives here. A PO is raised from its own dialog once
   // the deal is won, and that dialog picks the client — one place to choose it,
@@ -158,14 +162,14 @@ export function ZohoSendDialog({
 
       let res: Response;
       if (isUpdate) {
-        form.append("stage", PUSHABLE_STAGES.proposalSent);
+        form.append("stage", PUSHABLE_STAGES.discovery);
         res = await fetch(
           `/api/zoho/deals/${encodeURIComponent(dealId!)}/push`,
           { method: "POST", body: form },
         );
       } else {
         form.append("name", name.trim());
-        form.append("stage", stage);
+        form.append("stage", PUSHABLE_STAGES.discovery);
         form.append("closingDate", closingDate);
         form.append("accountId", accountId!);
         if (quote.zoho?.contact_id) form.append("contactId", quote.zoho.contact_id);
@@ -189,10 +193,12 @@ export function ZohoSendDialog({
       ].filter(Boolean);
       toast.success(
         !isUpdate
-          ? `Deal created in Zoho at ${data?.stage ?? stage}`
-          : data?.stageAlreadySet
-            ? `Deal already at ${PUSHABLE_STAGES.proposalSent}`
-            : `Deal moved to ${PUSHABLE_STAGES.proposalSent}`,
+          ? `Deal created in Zoho at ${data?.stage ?? PUSHABLE_STAGES.discovery}`
+          : data?.skipped
+            ? `Estimate sent to ${quote.zoho?.deal_name ?? "the deal"}`
+            : data?.stageAlreadySet
+              ? `Deal already at ${PUSHABLE_STAGES.discovery}`
+              : `Deal moved to ${PUSHABLE_STAGES.discovery}`,
         { description: done.length ? done.join(" · ") : undefined },
       );
       for (const w of (data?.warnings ?? []) as string[]) toast.warning(w);
@@ -205,9 +211,13 @@ export function ZohoSendDialog({
       "Stage",
       <>
         <span className="font-medium text-foreground">
-          {isUpdate ? PUSHABLE_STAGES.proposalSent : stage}
+          {PUSHABLE_STAGES.discovery}
         </span>
-        {isUpdate && quote.zoho?.stage ? ` (from ${quote.zoho.stage})` : null}
+        {/* The stage only moves forward. A deal sales has already carried past
+            Discovery keeps its stage; the PDF and Packages still go up. */}
+        {isUpdate && quote.zoho?.stage && quote.zoho.stage !== PUSHABLE_STAGES.discovery
+          ? ` — or left at ${quote.zoho.stage}, whichever is further along`
+          : null}
       </>,
     ],
     [
@@ -267,7 +277,7 @@ export function ZohoSendDialog({
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="zdeal-close" className="text-xs">
                     Closing date
@@ -279,31 +289,6 @@ export function ZohoSendDialog({
                     onChange={(e) => setClosingDate(e.target.value)}
                     className="h-9"
                   />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label className="text-xs">Open at</Label>
-                  {/* Segmented control rather than two description cards: the
-                      consequence of each is already spelled out below. */}
-                  <div className="flex h-9 rounded-md border border-border/60 p-0.5">
-                    {[PUSHABLE_STAGES.discovery, PUSHABLE_STAGES.proposalSent].map(
-                      (opt) => (
-                        <button
-                          key={opt}
-                          type="button"
-                          aria-pressed={stage === opt}
-                          onClick={() => setStage(opt)}
-                          className={cn(
-                            "flex-1 rounded-[0.3rem] px-1 text-xs font-medium transition-colors",
-                            stage === opt
-                              ? "bg-primary text-primary-foreground shadow-sm"
-                              : "text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {opt === PUSHABLE_STAGES.discovery ? "Discovery" : "Proposal"}
-                        </button>
-                      ),
-                    )}
-                  </div>
                 </div>
               </div>
             </>
@@ -353,7 +338,7 @@ export function ZohoSendDialog({
               <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
               <span>
                 Sent to Zoho on {new Date(alreadySent).toLocaleDateString()}. Sending
-                again is safe — the stage write is a no-op and the same PDF
+                again is safe — the stage only moves forward and the same PDF
                 isn&apos;t attached twice.
               </span>
             </p>

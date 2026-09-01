@@ -63,6 +63,22 @@ export async function getDealStages(): Promise<{
 }
 
 /**
+ * Where a stage sits in the pipeline, or null when unknown.
+ *
+ * The ordering guard reads this instead of a hand-maintained predecessor list —
+ * `sequence_number` is the org's own answer to "is this forwards?".
+ */
+export async function stageOrder(stage: string): Promise<number | null> {
+  try {
+    const { stages } = await getDealStages();
+    const hit = stages.find((s) => s.value === stage);
+    return hit && hit.order >= 0 ? hit.order : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Is this a stage the org actually has?
  *
  * The trust boundary for every stage write: the client may send any string, and

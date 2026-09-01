@@ -42,6 +42,7 @@ type Pair = { proposalId: string; dealId: string };
  */
 export function useZohoStageRefresh(quotes: ClientQuote[]) {
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
+  const setProposalStatus = useProposalEstimatorStore((s) => s.setProposalStatus);
   const [refreshing, setRefreshing] = React.useState(false);
 
   // Every linked quote, as a stable string. Keying the effect on the ids rather
@@ -110,23 +111,44 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
         // so the "Create PO" button that just appeared is not a surprise.
         if (looksWon(live) && !looksWon(quote.zoho.stage)) {
           const href = `/proposals/${proposalId}`;
-          const label = quote.title || quote.zoho.deal_name || "An estimate";
-          pushWorkspaceActivity(`Zoho deal won — ${label} can now be billed`, href);
-          // Only admins and managers can act on it; the estimator is gated to
-          // them anyway, and the store drops the actor from the list.
+          const label = quote.title || quote.zoho.deal_name || "this estimate";
+
+          // Winning the deal IS the approval, so stop making someone remember to
+          // say so twice: promoting the status here is what puts "Start project"
+          // beside "Create PO". Only from draft/sent — a REJECTED estimate stays
+          // rejected, because that was a deliberate call about this quote and a
+          // won deal on the same account shouldn't silently reverse it.
+          if (quote.status === "draft" || quote.status === "sent") {
+            setProposalStatus(proposalId, "approved");
+          }
+          // Past-tense verb phrase: the store prefixes the actor and lower-cases
+          // the first word, so a summary starting with a proper noun renders as
+          // "Daniel zoho deal won". "Synced" is also the honest verb — sales
+          // moved the deal, this session is what noticed.
+          pushWorkspaceActivity(
+            `synced "${label}" from Zoho — the deal is won, ready to bill and start`,
+            href,
+          );
+          // Everyone who can act on it — admins and managers, the tier the
+          // Estimator is gated to anyway. `includeSelf` because nobody here
+          // DID anything: sales moved the deal in Zoho and this session merely
+          // noticed. Excluding the observer would leave a lone admin with no
+          // notification at all.
           notifyUsers(
             useTeamStore
               .getState()
               .members.filter((m) => m.role === "admin" || m.role === "manager")
               .map((m) => m.id),
-            `"${label}" is at ${live} in Zoho — ready to raise the PO`,
+            `"${label}" is at ${live} in Zoho — ready to raise the PO and start the project`,
             href,
+            null,
+            { includeSelf: true },
           );
         }
       }
       return changed;
     },
-    [key, updateProposal],
+    [key, updateProposal, setProposalStatus],
   );
 
   React.useEffect(() => {

@@ -14,17 +14,21 @@ export function pushWorkspaceActivity(
 }
 
 /**
- * Send a targeted notification (the bell) to specific people. The actor is
- * always excluded by the store. Use alongside pushWorkspaceActivity when an
- * action concerns particular teammates (assignees, reporter, @-mentions).
+ * Send a targeted notification (the bell) to specific people. Use alongside
+ * pushWorkspaceActivity when an action concerns particular teammates (assignees,
+ * reporter, @-mentions).
+ *
+ * The store drops the actor by default. `includeSelf` keeps them, for events the
+ * app noticed rather than the user performing.
  */
 export function notifyUsers(
   recipientIds: string[],
   text: string,
   href?: string,
   projectId?: string | null,
+  opts?: { includeSelf?: boolean },
 ): void {
   useNotificationsStore
     .getState()
-    .notify(recipientIds, text, href, projectId ?? undefined);
+    .notify(recipientIds, text, href, projectId ?? undefined, opts);
 }

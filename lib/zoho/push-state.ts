@@ -105,6 +105,24 @@ export function looksWon(stage: string | null | undefined): boolean {
   return stageIsWon(stage, []);
 }
 
+/**
+ * May this estimate raise a PBS purchase order — deal won, nothing billed yet?
+ *
+ * One definition for both the header button and the list card. They had a copy
+ * each, and the copies had already drifted: one tested `po_no` while the dialog
+ * tested `po_no ?? po_id`, so a PO that came back with an id but no number would
+ * show a button that opens straight onto "already billed".
+ *
+ * A hint, like `looksWon` — `POST /api/pbs/pos` re-reads the deal live and
+ * re-checks everything before writing.
+ */
+export function canRaisePo(quote: {
+  zoho?: { stage?: string | null } | null;
+  pbs?: { po_no?: string | null; po_id?: string | number | null } | null;
+}): boolean {
+  return looksWon(quote.zoho?.stage) && !quote.pbs?.po_no && !quote.pbs?.po_id;
+}
+
 /** Files this app has already attached to the deal, filename → ISO timestamp. */
 export function zohoAttachments(
   zoho: ProposalZohoLink | null | undefined,
@@ -156,11 +174,19 @@ export async function requestStagePush(
     stage: string;
     file?: Blob;
     filename?: string;
+    /**
+     * A human picked this exact stage (the status changer), so the pipeline
+     * ordering guard is skipped — moving a deal BACK is a legitimate thing to
+     * ask for. Side-effect pushes (import, send) leave this off and may only
+     * move a deal forwards.
+     */
+    explicit?: boolean;
   },
 ): Promise<StagePushResult> {
   const form = new FormData();
   form.append("proposalId", input.proposalId);
   form.append("stage", input.stage);
+  if (input.explicit) form.append("explicit", "1");
   if (input.file) {
     form.append("file", input.file, input.filename ?? "proposal.pdf");
   }

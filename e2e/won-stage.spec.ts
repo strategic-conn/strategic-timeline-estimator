@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { stageIsWon, type ZohoStageInfo } from "../lib/zoho/push-state";
+import { canRaisePo, stageIsWon, type ZohoStageInfo } from "../lib/zoho/push-state";
 
 /**
  * The rule that decides whether a PBS purchase order may be created.
@@ -98,6 +98,20 @@ test.describe("won-stage rule", () => {
     expect(stageIsWon("Closed Won", stages)).toBe(true);
     expect(stageIsWon("Closed Lost", stages)).toBe(false);
     expect(stageIsWon("Proposal Sent", stages)).toBe(false);
+  });
+
+  test("the button only shows when the deal is won and nothing is billed", () => {
+    const won = { zoho: { stage: "Closed Won" } };
+    expect(canRaisePo(won)).toBe(true);
+    expect(canRaisePo({ zoho: { stage: "Proposal Sent" } })).toBe(false);
+    expect(canRaisePo({ zoho: { stage: "Closed Lost" } })).toBe(false);
+    expect(canRaisePo({})).toBe(false);
+    // Already billed, by either identifier. The header button used to test only
+    // po_no, so a PO with an id and no number showed a button that opened
+    // straight onto "already billed".
+    expect(canRaisePo({ ...won, pbs: { po_no: "STR-001" } })).toBe(false);
+    expect(canRaisePo({ ...won, pbs: { po_id: 4210 } })).toBe(false);
+    expect(canRaisePo({ ...won, pbs: { po_no: null, po_id: null } })).toBe(true);
   });
 
   test("a renamed stage is judged by its bucket, not its name", () => {

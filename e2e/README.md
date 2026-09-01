@@ -50,6 +50,8 @@ time via Team → deactivate → delete.
 | `smoke.spec.ts` | All 10 routes render, no console errors, no sideways scroll | no |
 | `responsive.spec.ts` | The three layout tiers + calendar/timeline width | no |
 | `create-project.spec.ts` | Create a project → appears instantly → survives reload | **yes** (cleaned up) |
+| `won-stage.spec.ts` | The rule that decides whether a PO may be created | no |
+| `zoho-guards.spec.ts` | Auth + stage-push guards (no-op pushes only) | no |
 
 Smoke and responsive run at **1280 / 768 / 375**. The write test runs **once**,
 on desktop — it exercises data flow, not layout, so repeating it per viewport
@@ -66,3 +68,27 @@ would just triple the writes.
 - **On the icon rail, nav links stay visible** (they're the icons) and keep their
   accessible name via `title`. To assert labels are hidden, check the sidebar's
   rendered `innerText`, not the link's visibility.
+
+## Checking the PBS won-stage gate (not automated, on purpose)
+
+`POST /api/pbs/pos` refuses to bill a deal that is not won. Asserting that
+automatically means asking a **live billing system** to create a PO and trusting
+it to refuse — and **PBS has no delete endpoint**, so one regression leaves a
+real PO to unpick by hand. `zoho-guards.spec.ts` deliberately stops short of it.
+
+Check it in a sandbox instead. Point PBS at a dead port, so a leaked gate still
+cannot create anything, then assert the refusal:
+
+```bash
+# one dev server at a time — Next 16 refuses a second for the same directory
+PBS_BASE_URL="http://127.0.0.1:9/api" npx next dev
+```
+
+```
+POST /api/pbs/pos  { proposalId: <a quote whose deal is NOT won>, name: "gate check", clientId: "1" }
+expect 409  This deal is at "<stage>". A PO is only created once it reaches Closed Won.
+```
+
+A PBS connection error instead of that 409 means the gate leaked — the request
+got as far as PBS. The gate reads the deal's stage **live** and fails closed, so
+a Zoho outage gives 502, never a PO.

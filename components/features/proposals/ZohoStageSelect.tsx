@@ -88,7 +88,13 @@ export function ZohoStageSelect({
     if (next === stage || busy) return;
     setBusy(next);
     try {
-      const res = await requestStagePush(dealId, { proposalId, stage: next });
+      const res = await requestStagePush(dealId, {
+        proposalId,
+        stage: next,
+        // A person picked this exact stage, so the forward-only rule that guards
+        // side-effect pushes does not apply — moving a deal back is allowed here.
+        explicit: true,
+      });
       if (res.error) {
         toast.error("Zoho didn't accept the stage change", {
           description: res.error,
@@ -103,9 +109,12 @@ export function ZohoStageSelect({
         toast.info(`Deal left at ${res.currentStage}`);
       }
       for (const w of res.warnings ?? []) toast.warning(w);
-      // We know what it moved to, so write that rather than paying another
-      // round-trip to read back a value we just set.
-      await onChanged(next);
+      // Store what the deal ACTUALLY ended up at, not what we asked for. A
+      // skipped push leaves it where it was, and writing `next` there would
+      // make the badge lie — and the store's write-through would persist that
+      // lie over the correct value the route just recorded.
+      const settled = res.moved || res.stageAlreadySet ? next : res.currentStage;
+      if (settled) await onChanged(settled);
     } finally {
       setBusy(null);
     }

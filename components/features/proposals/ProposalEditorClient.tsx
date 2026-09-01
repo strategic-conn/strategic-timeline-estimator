@@ -121,7 +121,7 @@ import {
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   PUSHABLE_STAGES,
-  looksWon,
+  canRaisePo,
   requestStagePush,
   zohoPushes,
 } from "@/lib/zoho/push-state";
@@ -530,7 +530,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
               {/* The one moment this appears — deal won, no PO yet — so it goes
                   in the header where every tab can see it, not inside Review. */}
-              {looksWon(quote.zoho?.stage) && !quote.pbs?.po_no ? (
+              {canRaisePo(quote) ? (
                 <Button
                   size="sm"
                   className="gap-1.5"

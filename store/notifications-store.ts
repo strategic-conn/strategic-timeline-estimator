@@ -46,14 +46,20 @@ interface NotificationsState {
   /** Pull the signed-in user's notifications from Supabase (live mode). */
   hydrateFromSupabase: () => Promise<void>;
   /**
-   * Notify specific people about something (the actor is always excluded).
-   * Inserts one row per recipient; their own realtime channels deliver it.
+   * Notify specific people about something. Inserts one row per recipient;
+   * their own realtime channels deliver it.
+   *
+   * The actor is excluded by default — you don't need telling about what you
+   * just did. Pass `includeSelf` for events the app DETECTED rather than the
+   * user performing: whoever's browser happened to notice is not the person who
+   * caused it, and excluding them means a lone admin gets no notification at all.
    */
   notify: (
     recipientIds: string[],
     text: string,
     href?: string,
     project_id?: string | null,
+    opts?: { includeSelf?: boolean },
   ) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
@@ -119,13 +125,14 @@ export const useNotificationsStore = create<NotificationsState>()(
         });
       },
 
-      notify: (recipientIds, text, href, project_id) => {
+      notify: (recipientIds, text, href, project_id, opts) => {
         const actor = isSupabaseConfigured
           ? useAuthStore.getState().user.authId
           : CURRENT_USER_ID;
-        // Never notify the actor of their own action; dedupe recipients.
+        // Don't notify the actor of their own action; dedupe recipients. An
+        // app-detected event opts out of that — see `includeSelf` above.
         const targets = [...new Set(recipientIds)].filter(
-          (r) => r && r !== actor,
+          (r) => r && (opts?.includeSelf || r !== actor),
         );
         if (!targets.length) return;
 
@@ -145,9 +152,12 @@ export const useNotificationsStore = create<NotificationsState>()(
           return;
         }
 
-        // Live: insert a row per recipient. We don't optimistically add to our
-        // own store — these rows are for OTHER users; if one targets us, our
-        // realtime channel delivers it (applyRealtimeInsert).
+        // Live: insert a row per recipient. Normally we don't optimistically add
+        // to our own store — those rows are for OTHER users, and one that targets
+        // us arrives over realtime (applyRealtimeInsert). A self-notification is
+        // the exception: show it immediately rather than waiting on a round trip
+        // we just triggered. `applyRealtimeInsert` dedupes by id, so the echo is
+        // harmless.
         void (async () => {
           const supabase = createClient();
           const rows = targets.map((rid) => ({
@@ -157,6 +167,27 @@ export const useNotificationsStore = create<NotificationsState>()(
             href: href ?? null,
             actor_id: actor ?? null,
           }));
+          const mine = actor ? rows.find((r) => r.recipient_id === actor) : null;
+          if (mine) {
+            set((s) =>
+              s.items.some((n) => n.id === mine.id)
+                ? s
+                : {
+                    items: [
+                      {
+                        id: mine.id,
+                        text,
+                        at: new Date().toISOString(),
+                        read: false,
+                        href,
+                        project_id: project_id ?? null,
+                        actor_id: actor,
+                      },
+                      ...s.items,
+                    ].slice(0, 50),
+                  },
+            );
+          }
           const { error } = await supabase
             .from("notifications")
             .insert(rows.map((r) => ({ ...r, project_id: project_id ?? null })));

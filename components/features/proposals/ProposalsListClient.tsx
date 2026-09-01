@@ -66,7 +66,7 @@ import {
   findActiveDealHolder,
 } from "@/lib/zoho/deal-exclusivity";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
-import { PUSHABLE_STAGES, looksWon, requestStagePush } from "@/lib/zoho/push-state";
+import { PUSHABLE_STAGES, canRaisePo, requestStagePush } from "@/lib/zoho/push-state";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -415,7 +415,7 @@ export function ProposalsListClient() {
                     <div className="flex shrink-0 gap-1">
                       {/* Deal won and nothing billed yet — the next step, offered
                           without making anyone open the estimate first. */}
-                      {looksWon(q.zoho?.stage) && !q.pbs?.po_no ? (
+                      {canRaisePo(q) ? (
                         <Button
                           type="button"
                           size="sm"

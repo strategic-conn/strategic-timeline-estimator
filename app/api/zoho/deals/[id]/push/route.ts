@@ -34,7 +34,7 @@ import {
   shouldAttach,
   zohoPushes,
 } from "@/lib/zoho/push-state";
-import { isKnownStage } from "@/lib/zoho/stages";
+import { isKnownStage, stageOrder } from "@/lib/zoho/stages";
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -174,30 +174,43 @@ export async function POST(
     console.error("[zoho push] couldn't read current stage", e);
   }
 
-  // Stages this app sets as a side effect (Discovery, on import) may only move a
-  // deal FORWARD: one already at Negotiation or Verbal Yes must stay where sales
-  // put it, and so must one in a stage this app doesn't know. Explicit-button
-  // stages skip this — the click is the intent.
-  const allowedFrom = AUTO_ADVANCE_FROM[targetStage];
-  if (allowedFrom) {
-    if (!currentStage || !allowedFrom.includes(currentStage)) {
-      // Not an error: importing a deal that's further along is normal. Record
-      // what Zoho actually says, so the app stops showing a stale stage.
-      if (currentStage) {
-        await recordStage(supabase, proposalId, zoho, { stage: currentStage });
-      }
-      return NextResponse.json({
-        skipped: true,
-        stageUpdated: false,
-        currentStage,
-        message: !currentStage
-          ? "Couldn't read the deal's current stage, so it was left untouched."
-          : currentStage === targetStage
-            ? `Deal is already at "${currentStage}".`
-            : `Left at "${currentStage}" — an import only advances a deal from ${allowedFrom
-                .map((s) => `"${s}"`)
-                .join(" or ")}.`,
-      });
+  // A human picking a stage from the status changer may move a deal anywhere,
+  // backwards included — the click is the intent. Everything else is a side
+  // effect of another action, and side effects are forward-only.
+  const explicit = form.get("explicit") === "1";
+
+  // Two reasons a side-effect push may not move the stage, and they resolve to
+  // the same outcome: hold the STAGE back, run everything else. Sending an
+  // estimate sets Discovery, and a deal sales has already carried to Verbal Yes
+  // must stay there — but that send still has to attach the updated PDF and fill
+  // the Packages rows. An early return here would silently drop both, which is
+  // the worse bug by far.
+  const allowedFrom = explicit ? undefined : AUTO_ADVANCE_FROM[targetStage];
+  let stageHeldBack: string | null = null;
+  let holdReason = "";
+
+  if (!explicit && !currentStage) {
+    // Couldn't read the deal. Never write a stage we can't compare against.
+    stageHeldBack = "";
+    holdReason = "Couldn't read the deal's current stage, so it was left untouched.";
+  } else if (currentStage === targetStage) {
+    // Already there. Not "held back" — nothing was refused, there is simply
+    // nothing to write. Reported below as `stageAlreadySet`.
+  } else if (allowedFrom && currentStage && !allowedFrom.includes(currentStage)) {
+    // A stage this app sets as a side effect of one specific transition.
+    stageHeldBack = currentStage;
+    holdReason = `Deal left at "${currentStage}" — "${targetStage}" is only set automatically from ${allowedFrom
+      .map((s) => `"${s}"`)
+      .join(" or ")}. Use the stage picker to move it deliberately.`;
+  } else if (!explicit && !allowedFrom && currentStage) {
+    // Everything else: forward-only, judged by the org's own pipeline order.
+    const [from, to] = await Promise.all([
+      stageOrder(currentStage),
+      stageOrder(targetStage),
+    ]);
+    if (from !== null && to !== null && from > to) {
+      stageHeldBack = currentStage;
+      holdReason = `Deal left at "${currentStage}" — it's further along than "${targetStage}", so the stage wasn't moved back. Use the stage picker to move it deliberately.`;
     }
   }
 
@@ -205,13 +218,16 @@ export async function POST(
     stageUpdated: boolean;
     /** The deal was already at the target stage, so no write was sent. */
     stageAlreadySet: boolean;
+    /** The stage was deliberately not moved — see the warning for why. */
+    skipped: boolean;
     currentStage: string | null;
     attachmentUploaded: boolean;
     warnings: string[];
   } = {
     stageUpdated: false,
     stageAlreadySet: false,
-    currentStage,
+    skipped: false,
+    currentStage: stageHeldBack || currentStage,
     attachmentUploaded: false,
     warnings: [],
   };
@@ -220,7 +236,10 @@ export async function POST(
   // Already there? Don't write. The PDF and Packages steps below still run:
   // re-opening a deal that's sitting at Proposal Sent with an edited estimate
   // should still attach the new PDF (deduped by filename, not by stage).
-  if (currentStage === targetStage) {
+  if (holdReason) {
+    result.skipped = true;
+    result.warnings.push(holdReason);
+  } else if (currentStage === targetStage) {
     result.stageAlreadySet = true;
   } else {
     try {
@@ -322,10 +341,14 @@ export async function POST(
       [attachName]: new Date().toISOString(),
     };
   }
+  // Record what the deal is ACTUALLY at. When the stage was held back the deal
+  // never went to `targetStage`, so storing it would make the badge lie and
+  // would tell the sibling guard a stage was pushed that wasn't.
+  const settledStage = stageHeldBack || currentStage || targetStage;
   const writeErr = await recordStage(supabase, proposalId, zoho, {
-    stage: targetStage,
+    stage: settledStage,
     dealId,
-    pushes: { ...pushes, [targetStage]: new Date().toISOString() },
+    pushes: { ...pushes, [settledStage]: new Date().toISOString() },
   });
   if (writeErr) {
     console.error("[zoho push] couldn't record pushed_at", writeErr);
