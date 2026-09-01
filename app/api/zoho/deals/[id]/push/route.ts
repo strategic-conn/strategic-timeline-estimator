@@ -14,9 +14,11 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  *
  * Verified against the live CRM before building (see
  * docs/zoho-workflow-automation-plan.md §Phase 3):
- *  - Only `Stage` is writable. `Amount` is a formula field (a write "succeeds"
- *    then Zoho recalculates it back within ~1s) and `Quote_number` is a system
- *    autonumber — so neither is sent here.
+ *  - `Stage` is the only plain field this writes. `Quote_number` is a system
+ *    autonumber. `Amount` reports itself writable and is NOT: a write returns
+ *    SUCCESS, reads back correctly, then Zoho recomputes it from the Packages
+ *    subform within seconds (verified live — 43 833 reverted to the subform's
+ *    20 000 in under 4 s). The price therefore travels as a priced Packages row.
  *  - Zoho does NOT dedupe attachments: uploading the same filename twice creates
  *    two records. Hence the server-side `pushed_at` guard below.
  */
@@ -290,8 +292,18 @@ export async function POST(
       products = [];
     }
     const description = String(form.get("description") ?? "").slice(0, 2000);
-    if (products.length || description) {
-      const sync = await applyEstimateToDeal(dealId, { products, description });
+    // The estimate's own total, so a quote with no CRM products still puts a
+    // price on the deal. Zoho computes `Amount` from the Packages rows.
+    const total = {
+      hours: Number(form.get("totalHours") ?? 0) || 0,
+      amount: Number(form.get("totalAmount") ?? 0) || 0,
+    };
+    if (products.length || description || total.amount > 0) {
+      const sync = await applyEstimateToDeal(dealId, {
+        products,
+        description,
+        total,
+      });
       result.warnings.push(...sync.warnings);
     }
   }

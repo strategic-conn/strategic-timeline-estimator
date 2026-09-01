@@ -354,7 +354,13 @@ export async function POST(req: Request) {
   // the deal still exists and only the rows are missing — where folding it into
   // the insert would fail the whole create and leave a claimed, dealless quote.
   // Description went in with the insert, so only the product rows are left.
-  const sync = await applyEstimateToDeal(dealId, { products });
+  const sync = await applyEstimateToDeal(dealId, {
+    products,
+    total: {
+      hours: Number(str("totalHours")) || 0,
+      amount: Number(str("totalAmount")) || 0,
+    },
+  });
   const warnings: string[] = [...sync.warnings];
   const packagesWritten = sync.packagesWritten;
   let attachedName: string | null = null;

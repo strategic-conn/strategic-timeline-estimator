@@ -120,6 +120,34 @@ export function packageRows(
   });
 }
 
+/** The estimate's own totals, for a quote that picked no CRM products. */
+export type EstimateTotal = { hours: number; amount: number };
+
+/**
+ * One Packages row carrying the estimate's total, with no Product lookup.
+ *
+ * This is the only way a price reaches the CRM. Writing `Deals.Amount` directly
+ * reports SUCCESS and is then **recomputed from this subform within seconds** —
+ * verified live: a deal whose single row held 20 000 reverted a written 43 833
+ * back to 20 000 in under 4 s. The field metadata claims `Amount` is writable,
+ * which is why that had to be tested rather than read.
+ *
+ * `Product` is `required: false` on this subform (also verified), so a bare
+ * priced row is legal and Zoho totals it into `Amount` like any other.
+ */
+export function estimateTotalRow(
+  layout: PackagesLayout,
+  total: EstimateTotal,
+  rate: number,
+): Record<string, unknown> {
+  const row: Record<string, unknown> = {};
+  if (layout.priceField) row[layout.priceField] = total.amount;
+  if (layout.descriptionField) {
+    row[layout.descriptionField] = `Estimate — ${total.hours} h at $${rate}/h`;
+  }
+  return row;
+}
+
 /** Products accepted from the client, rejecting anything malformed. */
 export function parsePackageInput(raw: unknown): PackageInput[] {
   if (!Array.isArray(raw)) return [];

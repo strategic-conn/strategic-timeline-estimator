@@ -2,9 +2,11 @@ import "server-only";
 
 import { HOURLY_RATE } from "@/lib/constants/proposal-estimator";
 import {
+  estimateTotalRow,
   findPackagesSubform,
   packageRows,
   type DealFieldMeta,
+  type EstimateTotal,
   type PackageInput,
   type PackagesLayout,
   type SubformFieldMeta,
@@ -71,14 +73,26 @@ export type EstimateSyncResult = {
  */
 export async function applyEstimateToDeal(
   dealId: string,
-  input: { products: PackageInput[]; description?: string | null },
+  input: {
+    products: PackageInput[];
+    description?: string | null;
+    /**
+     * The estimate's own total. Used when no CRM products were picked, so the
+     * quote's price still reaches the deal — Zoho derives `Amount` from these
+     * rows and ignores any direct write to it.
+     */
+    total?: EstimateTotal | null;
+  },
 ): Promise<EstimateSyncResult> {
   const out: EstimateSyncResult = {
     packagesWritten: 0,
     descriptionWritten: false,
     warnings: [],
   };
-  const wantsPackages = input.products.length > 0;
+  // A priced row either way: one per product, or a single row for the estimate
+  // total. Without this, a quote with no products sent no price at all.
+  const totalOnly = !input.products.length && (input.total?.amount ?? 0) > 0;
+  const wantsPackages = input.products.length > 0 || totalOnly;
   const wantsDescription = Boolean(input.description?.trim());
   if (!wantsPackages && !wantsDescription) return out;
 
@@ -123,7 +137,9 @@ export async function applyEstimateToDeal(
         } — left as they are.`,
       );
     } else {
-      payload[layout.apiName] = packageRows(layout, input.products, HOURLY_RATE);
+      payload[layout.apiName] = totalOnly
+        ? [estimateTotalRow(layout, input.total!, HOURLY_RATE)]
+        : packageRows(layout, input.products, HOURLY_RATE);
     }
   }
 

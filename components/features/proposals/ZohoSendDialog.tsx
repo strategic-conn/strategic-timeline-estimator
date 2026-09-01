@@ -1,7 +1,7 @@
 "use client";
 
 import { addDays, format } from "date-fns";
-import { Briefcase, Check, Loader2, Upload } from "lucide-react";
+import { Briefcase, Check, Loader2, TriangleAlert, Upload } from "lucide-react";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -17,7 +17,9 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  HOURLY_RATE,
   amountForHours,
+  formatAmount,
   priceForHours,
   quoteTotals,
   splitHours,
@@ -153,6 +155,10 @@ export function ZohoSendDialog({
       form.append("proposalId", quote.id);
       form.append("products", productPayload());
       form.append("description", descriptionPayload());
+      // The estimate's price. It reaches Zoho as a Packages row, never as a
+      // direct `Amount` write — Zoho recomputes that field from the subform.
+      form.append("totalHours", String(totals.grandHours));
+      form.append("totalAmount", String(amountForHours(totals.grandHours)));
       // jsPDF is browser-only, so the bytes are built here and posted to the
       // route, which forwards them to Zoho.
       if (attaches) {
@@ -185,9 +191,9 @@ export function ZohoSendDialog({
       }
       const done = [
         data?.packagesWritten
-          ? `${data.packagesWritten} product row${
+          ? `${data.packagesWritten} Packages row${
               data.packagesWritten === 1 ? "" : "s"
-            } added`
+            } written`
           : null,
         data?.attachmentUploaded ? "PDF attached" : null,
       ].filter(Boolean);
@@ -221,6 +227,13 @@ export function ZohoSendDialog({
       </>,
     ],
     [
+      "Amount",
+      <span key="amount" className="font-medium text-foreground">
+        {priceForHours(totals.grandHours)}
+      </span>,
+    ],
+    ["Hours", `${totals.grandHours} h at ${formatAmount(HOURLY_RATE)}/h`],
+    [
       "Packages",
       products.length ? (
         <>
@@ -231,7 +244,10 @@ export function ZohoSendDialog({
           {isUpdate ? " · skipped if the deal has rows" : null}
         </>
       ) : (
-        "none — add products on Setup"
+        <>
+          1 row · no product
+          {isUpdate ? " · skipped if the deal has rows" : null}
+        </>
       ),
     ],
     ["PDF", attaches ? "attached" : "already on the deal — not sent twice"],
@@ -330,7 +346,21 @@ export function ZohoSendDialog({
                   <li className="pt-0.5">+{products.length - 3} more</li>
                 ) : null}
               </ul>
-            ) : null}
+            ) : (
+              /* Same slot the product list uses, so saying this costs no height.
+                 A row with no Product is valid and still carries the price —
+                 but it's worth knowing before it lands in the CRM. */
+              <p className="flex items-start gap-1.5 border-t border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[0.7rem] text-amber-700 dark:text-amber-400">
+                <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+                <span>
+                  <strong className="font-semibold">No product selected.</strong>{" "}
+                  The row carries the price and hours only, so Zoho&apos;s{" "}
+                  <strong className="font-semibold">Product</strong> column stays
+                  empty. Add products on{" "}
+                  <strong className="font-semibold">Setup</strong> to itemise it.
+                </span>
+              </p>
+            )}
           </section>
 
           {alreadySent ? (
