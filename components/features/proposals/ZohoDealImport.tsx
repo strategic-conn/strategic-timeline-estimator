@@ -162,7 +162,10 @@ export function ZohoDealImport({
           {/* Stage filter — ignored while free-text searching. */}
           <div
             className={cn(
-              "-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+              // Wraps rather than scrolls: on a phone these ran past the dialog
+              // edge behind a hidden scrollbar, so the later stage filters read
+              // as if they did not exist. They fit one row from sm up anyway.
+              "-mx-1 flex flex-wrap gap-1.5 px-1 pb-1",
               searching && "pointer-events-none opacity-40",
             )}
           >

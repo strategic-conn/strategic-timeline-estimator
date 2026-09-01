@@ -717,6 +717,14 @@ if (!tasks.length) {
      left only ~504px — *narrower than the same device with no sidebar at all*.
    - `lg+` — full sidebar with labels (`lg:w-56`, `xl:w-64`)
 
+   **A strip that scrolls sideways reads as a strip that ends.** Overlay
+   scrollbars are invisible on touch and idle desktops, so tabs and filter pills
+   that overflow hide their last items with no hint — the estimator's *Review*
+   tab (where Send to Zoho lives) sat off a 375px screen exactly this way.
+   Prefer `flex-wrap` under `sm:` over `overflow-x-auto`, and never pair
+   overflow with `[scrollbar-width:none]`. Reserve scrolling for content that
+   genuinely cannot wrap (Gantt, wide tables) — those get their own container.
+
    So gate multi-column grids on **`lg:`**, not `sm:`/`md:` — `sm:grid-cols-3` fires at 640px but the
    *content area* on a tablet is far narrower than the viewport suggests.
 

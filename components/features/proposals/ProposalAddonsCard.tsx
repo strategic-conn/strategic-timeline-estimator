@@ -101,7 +101,10 @@ export function ProposalAddonsCard({
             <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400">
               <TriangleAlert className="size-4 shrink-0" aria-hidden />
               <span className="min-w-0 flex-1">
-                <strong>Counted twice.</strong> Scope &amp; risk already itemises
+                {/* Explicit space: JSX drops the one after </strong> when the
+                    text that follows wraps onto the next line. */}
+                <strong>Counted twice.</strong>{" "}
+                Scope &amp; risk already itemises
                 Design, QA and PM as phases, so these add-ons are charging for
                 the same hours again.
               </span>

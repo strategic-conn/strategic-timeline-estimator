@@ -603,7 +603,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
         />
 
         <Tabs value={tab} onValueChange={setTab} className="gap-5">
-          <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+          {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
+              phone gives 351px, so "Review" — where Send to Zoho lives — sat
+              off-screen behind a scrollbar nobody sees on touch. */}
+          <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
             <TabsTrigger value="setup">Setup</TabsTrigger>
             <TabsTrigger value="guided" className="gap-1.5">
               <Compass className="size-3.5" aria-hidden />
@@ -985,7 +988,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   onValueChange={setScopeTab}
                   className="gap-4"
                 >
-                  <TabsList className="w-full justify-start overflow-x-auto sm:w-fit">
+                  {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
+              phone gives 351px, so "Review" — where Send to Zoho lives — sat
+              off-screen behind a scrollbar nobody sees on touch. */}
+          <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
                     <TabsTrigger value="questionnaire">Questionnaire</TabsTrigger>
                     <TabsTrigger value="hours">Hours</TabsTrigger>
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>

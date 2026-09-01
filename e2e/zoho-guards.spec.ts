@@ -102,6 +102,35 @@ test.describe("stage push guards", () => {
   });
 });
 
+test.describe("estimate price -> Packages", () => {
+  /**
+   * No file, and the deal is already at the target stage, so Zoho is read but
+   * never written. What this proves is the plumbing: the estimate total reaches
+   * `applyEstimateToDeal`, and the never-overwrite guard holds.
+   */
+  test("the total reaches the sync layer and never clobbers existing rows", async ({ request }) => {
+    const res = await request.post(`/api/zoho/deals/${DEAL}/push`, {
+      multipart: { proposalId: QUOTE, stage: "Discovery", totalHours: "438.33", totalAmount: "43833" },
+    });
+    const b = await res.json();
+    test.skip(b.currentStage !== "Discovery", `QA deal moved to ${b.currentStage}`);
+    expect(res.ok()).toBeTruthy();
+    expect(b.stageUpdated, "stage must not move").toBe(false);
+    expect(b.attachmentUploaded, "no file was sent").toBe(false);
+    // Only reachable when wantsPackages was true — i.e. the total got through.
+    expect(b.warnings.join(" ")).toMatch(/already has d+ Packages row/i);
+  });
+
+  test("a zero total does not invent an empty priced row", async ({ request }) => {
+    const res = await request.post(`/api/zoho/deals/${DEAL}/push`, {
+      multipart: { proposalId: QUOTE, stage: "Discovery", totalHours: "0", totalAmount: "0" },
+    });
+    const b = await res.json();
+    expect(res.ok()).toBeTruthy();
+    expect(b.warnings.join(" ")).not.toMatch(/Packages row/i);
+  });
+});
+
 test("the pipeline order the backwards-guard relies on is real", async ({ request }) => {
   const res = await request.get("/api/zoho/deal-stages");
   test.skip(!res.ok(), "Zoho not connected");
