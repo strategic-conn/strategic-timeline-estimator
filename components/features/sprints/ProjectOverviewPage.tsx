@@ -40,6 +40,10 @@ import { useSprints } from "@/hooks/useSprints";
 import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
+import {
+  ProjectNotFound,
+  useProjectMissing,
+} from "@/components/features/projects/ProjectNotFound";
 import { useProjectsStore } from "@/store/projects-store";
 import {
   useProposalEstimatorStore,
@@ -89,8 +93,9 @@ function ProjectBacklogCard({
       )}
     >
       <CardHeader className="gap-2 pb-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 space-y-1">
+        {/* See SprintCard: the grid item needs min-w-0 to let the title truncate. */}
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 flex-1 space-y-1">
             <CardTitle className="flex items-center gap-2 text-base">
               <Inbox
                 className="size-4 shrink-0 text-muted-foreground"
@@ -248,6 +253,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
     s.projects.find((p) => p.id === projectId)
   );
   const projectsLoaded = useProjectsStore((s) => s.loaded);
+  const projectMissing = useProjectMissing(projectId);
   const projectLabel = projectRecord?.name ?? "Project";
 
   // Demo shows a brief skeleton; live mode waits on the synced stores.
@@ -365,6 +371,21 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
       </div>
     );
   }
+
+  /**
+   * The project isn't there — deleted, or never existed.
+   *
+   * Reachable by design, not just by a bad URL: deleting a project writes an
+   * activity entry whose href is that project's own overview page, so every
+   * "Deleted project X" line in the feed leads straight here. Without this the
+   * page rendered as a working project with a raw id for a name and offered
+   * "New sprint" — and that insert can only fail, because sprints carry a
+   * foreign key to a row that is gone.
+   *
+   * Safe to key off `loading` being finished: in live mode that already waits
+   * on `projectsLoaded`, so an empty lookup here means absent, not pending.
+   */
+  if (projectMissing) return <ProjectNotFound />;
 
   if (sprintsError) {
     return (

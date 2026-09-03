@@ -146,9 +146,13 @@ export function WorkspaceSync() {
         { event: "*", schema: "public", table: "projects" },
         (p) => {
           const store = useProjectsStore.getState();
-          if (p.eventType === "DELETE")
-            store.applyRealtimeDelete((p.old as { id: string }).id);
-          else store.applyRealtimeUpsert(p.new as ProjectRow);
+          if (p.eventType === "DELETE") {
+            const id = (p.old as { id: string }).id;
+            store.applyRealtimeDelete(id);
+            // Mirror the FK cascade: Postgres has already nulled
+            // `proposals.project_id`, and proposals have no channel of their own.
+            useProposalEstimatorStore.getState().applyProjectDeleted(id);
+          } else store.applyRealtimeUpsert(p.new as ProjectRow);
         },
       )
       .on(

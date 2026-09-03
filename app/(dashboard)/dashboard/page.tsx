@@ -37,6 +37,7 @@ import { useTasksDataStore } from "@/store/tasks-store";
 import { useActivityStore } from "@/store/activity-store";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import { cn } from "@/lib/utils";
+import { daysUntil, relativeDay } from "@/lib/utils/relative-dates";
 import {
   TASK_PRIORITIES,
   type TaskPriority,
@@ -80,22 +81,6 @@ const STATUS_FOCUS_RANK: Record<TaskStatus, number> = {
 
 const priorityMeta = (p: TaskPriority) =>
   TASK_PRIORITIES.find((x) => x.value === p) ?? TASK_PRIORITIES[1];
-
-function calendarYmd(d: Date): number {
-  return d.getFullYear() * 10_000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
-
-function relativeDay(iso: string): string {
-  const d = new Date(iso);
-  const todayYmd = calendarYmd(new Date());
-  const dueYmd = calendarYmd(d);
-  const diff = dueYmd - todayYmd;
-  if (diff < -1) return `${Math.abs(diff)} days ago`;
-  if (diff === -1) return "Yesterday";
-  if (diff === 0) return "Today";
-  if (diff === 1) return "Tomorrow";
-  return d.toLocaleDateString(undefined, { weekday: "short" });
-}
 
 function timeAgo(iso: string): string {
   const ms = Date.now() - new Date(iso).getTime();
@@ -147,14 +132,13 @@ export default function DashboardPage() {
   );
 
   const userDueSoonTasks = useMemo(() => {
-    const todayYmd = calendarYmd(new Date(now));
     return tasks
       .filter((t) => {
         if (t.status === "done") return false;
         if (!t.assignee_ids.includes(userId)) return false;
         if (!t.due_date) return false;
-        const dueYmd = calendarYmd(new Date(t.due_date));
-        return dueYmd - todayYmd <= 7;
+        // Overdue work counts as due soon — it is the most due thing there is.
+        return daysUntil(t.due_date, now) <= 7;
       })
       .sort((a, b) => {
         const pr =
@@ -188,8 +172,13 @@ export default function DashboardPage() {
       .sort((a, b) => new Date(a.end_date).getTime() - new Date(b.end_date).getTime());
     if (!upcoming.length) return "—";
     const d = new Date(upcoming[0].end_date);
-    const diff = Math.ceil((d.getTime() - now) / (1000 * 60 * 60 * 24));
-    if (diff <= 0) return "Today";
+    const diff = daysUntil(upcoming[0].end_date, now);
+    // A missed milestone must not read as "Today". A sprint still open with an
+    // end date in the past is late, and saying so is the whole point of the
+    // tile — `diff <= 0` used to collapse "ended nine days ago" into "Today",
+    // which told you the deadline was fine on the day you needed to chase it.
+    if (diff < 0) return relativeDay(upcoming[0].end_date, now);
+    if (diff === 0) return "Today";
     if (diff <= 7) return d.toLocaleDateString(undefined, { weekday: "short" });
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }, [sprints, now]);
@@ -225,7 +214,10 @@ export default function DashboardPage() {
         description="Your deadlines, sprint pulse, and recent workspace motion — prioritized for what you own."
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Two-up even on a phone: four full-width tiles pushed the actual work
+          ~290px down the page, and "Active projects / 1" needs nowhere near
+          that room. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} size="sm">
             <CardHeader className="gap-1">
@@ -293,8 +285,12 @@ export default function DashboardPage() {
                       <TableRow key={t.id}>
                         <TableCell className="max-w-[280px]">
                           <div className="truncate font-medium">{t.title}</div>
-                          <div className="text-xs text-muted-foreground">
-                            {t.id}
+                          {/* The project, not the id: a task id is a 36-char
+                              UUID in live mode, which no one can act on. The
+                              Project column is hidden under sm, so this is
+                              where that information has to live on a phone. */}
+                          <div className="truncate text-xs text-muted-foreground sm:hidden">
+                            {projectNameMap.get(t.project_id) ?? "Unknown project"}
                           </div>
                         </TableCell>
                         <TableCell className="hidden text-muted-foreground sm:table-cell">
@@ -310,7 +306,7 @@ export default function DashboardPage() {
                         </TableCell>
                         <TableCell>
                           <Badge variant="outline">
-                            {relativeDay(t.due_date!)}
+                            {relativeDay(t.due_date!, now)}
                           </Badge>
                         </TableCell>
                         <TableCell>

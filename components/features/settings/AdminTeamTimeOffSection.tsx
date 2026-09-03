@@ -47,7 +47,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ymdCompare } from "@/lib/utils/availability-dates";
-import { useTeamMembers } from "@/store/team-store";
+import { useActiveTeamMembers } from "@/store/team-store";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { AvailabilityEntryKind } from "@/types/availability.types";
 
@@ -73,7 +73,15 @@ type FormValues = z.infer<typeof schema>;
 
 export function AdminTeamTimeOffSection() {
   const { canEditOthersAvailability } = usePermissions();
-  const members = useTeamMembers();
+  /**
+   * Active members only, like every other picker.
+   *
+   * `useTeamMembers()` includes invitees who never accepted, and because the
+   * list is alphabetical this section DEFAULTED to one of them — offering to
+   * record time off for someone who has never signed in. Deactivated members
+   * are out too: you do not schedule leave for someone who has left.
+   */
+  const members = useActiveTeamMembers();
   const entries = useAvailabilityStore((s) => s.entries);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
@@ -149,7 +157,10 @@ export function AdminTeamTimeOffSection() {
             <Users className="size-5 text-muted-foreground" aria-hidden />
           </div>
           <div className="min-w-0">
-            <h2 className="text-base font-semibold">Team time off (admin)</h2>
+            {/* Not "(admin)": the gate is canEditOthersAvailability, which
+                managers have too — and a manager seeing a section labelled
+                admin-only reasonably wonders whether they should be there. */}
+            <h2 className="text-base font-semibold">Team time off</h2>
             <p className="text-sm text-muted-foreground">
               Add or remove PTO and away days for anyone on the team. Shown on the
               calendar like their own entries.

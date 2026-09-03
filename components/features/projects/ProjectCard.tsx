@@ -67,8 +67,13 @@ export function ProjectCard({
   return (
     <Card className="group relative overflow-hidden">
       <CardHeader className="gap-2">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
+        {/* min-w-0 on THIS row, not just the text: CardHeader is a grid, and a
+            grid item defaults to `min-width: auto` — it refuses to shrink below
+            its content however much the title truncates. Without it a long
+            project name pushed the actions menu off a 375px screen entirely,
+            so Edit/Delete/Status were unreachable on a phone. */}
+        <div className="flex min-w-0 items-start justify-between gap-2">
+          <div className="min-w-0 flex-1">
             <CardTitle className="truncate text-base">
               {project.name}
             </CardTitle>

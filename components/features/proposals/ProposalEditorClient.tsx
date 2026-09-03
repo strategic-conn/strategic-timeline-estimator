@@ -298,9 +298,21 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     if (quote.discovery && quote.line_items.length === 0) setTab("guided");
   }, [hydrated, quote]);
 
-  const projectName = quote?.project_id
-    ? projects.find((p) => p.id === quote.project_id)?.name ?? null
+  /**
+   * The project this estimate started — resolved against the live store, not
+   * taken on trust from `project_id`.
+   *
+   * A link can outlive its project: `proposals.project_id` is `on delete set
+   * null`, so Postgres clears it, but proposals have no realtime channel (the
+   * row is one JSONB document; an echoed upsert would replace someone's
+   * in-progress line items). Trusting the raw id showed "View project" pointing
+   * at a page that no longer exists AND hid "Start project", leaving an
+   * approved estimate with no way to get its work scheduled again.
+   */
+  const linkedProject = quote?.project_id
+    ? (projects.find((p) => p.id === quote.project_id) ?? null)
     : null;
+  const projectName = linkedProject?.name ?? null;
 
   const totals = quote ? quoteTotals(quote) : null;
   const devHours = quote ? quoteDevHours(quote) : 0;
@@ -514,9 +526,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 </SelectContent>
               </Select>
 
-              {quote.project_id ? (
+              {linkedProject ? (
                 <Button variant="outline" size="sm" className="gap-1.5" asChild>
-                  <Link href={`/projects/${quote.project_id}`}>
+                  <Link href={`/projects/${linkedProject.id}`}>
                     <FolderPlus className="size-4" aria-hidden />
                     View project
                   </Link>

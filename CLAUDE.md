@@ -252,7 +252,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `profiles` (team directory)           | select                     | `team-store` / `useTeamMembers` | Wired |
 | `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
 | `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
-| `availability_entries`                | select / insert / update / delete | `availability-store` (calendar/workload) | Wired |
+| `availability_entries`                | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
 | `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
@@ -438,6 +438,18 @@ covers webhook *channels*, not records.)
 **The CRM link** lives in **`proposals.zoho`** jsonb (migration `0029`):
 `{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, stage_synced_at?, web_url?, imported_at}`.
 Every field is optional except `imported_at` — a quote may come from a deal, from an account, or both.
+
+> ⚠️ **`proposals` has no realtime channel, on purpose.** The row is one JSONB
+> document, so an echoed upsert would replace `line_items` / `addons` /
+> `discovery` wholesale — under someone mid-edit. Two consequences to respect:
+> the estimator refreshes by re-reading (`hydrateFromSupabase`), and the one
+> field worth mirroring by hand is the project link. `proposals.project_id` is
+> `on delete set null`, so Postgres clears it when a project goes; the projects
+> DELETE handler in `workspace-sync.tsx` calls
+> `applyProjectDeleted(id)` to mirror that locally. UI never trusts the raw id
+> either — the editor resolves it against the live projects store, so a dangling
+> link shows **Start project** rather than a **View project** button pointing at
+> a page that no longer exists.
 
 > ⚠️ **Adding any column to `proposals` means updating two whitelists** — `quoteUpdatePayload()`
 > and the `Pick<ClientQuote, …>` param type of `updateProposal`. Miss either and the edit updates
@@ -708,7 +720,7 @@ if (!tasks.length) {
    if they wait for a server round-trip. Update UI instantly, sync to Supabase in background.
 
 5. **Mobile is not an afterthought.** Check every page on 375px width before calling it done.
-   Gantt/Calendar fallback to list view on mobile.
+   Neither the Gantt nor the Calendar falls back to a list on mobile — the Calendar keeps its month grid (it fits 375px) and the Gantt keeps its chart inside a horizontal scroller with swipe hints. Both verified.
 
    **Three layout tiers, not two** — `md` (768px) is *iPad portrait*, not a desktop:
    - `< md` — no sidebar, bottom tab bar + drawer
@@ -733,6 +745,17 @@ if (!tasks.length) {
 
 7. **Security is not optional.** httpOnly cookies, DOMPurify on user content, Zod on all
    inputs. No exceptions, even for "internal" features.
+
+8. **One definition per number, shared.** Reports, Workload and the Dashboard each
+   hand-rolled the same date maths and disagreed on screen: `new Date(due_date) < now`
+   treats a DATE column as midnight **UTC**, so a task due *today* counted as overdue
+   from 08:00 local (and from the previous evening in a negative-offset zone) — Reports
+   said 7 overdue where 6 were late while the Dashboard called the same task "Today".
+   Use `lib/utils/relative-dates.ts` (`daysUntil` / `isOverdue` / `relativeDay`, built on
+   date-fns `parseISO` + `differenceInCalendarDays`), never a fresh comparison.
+   Same rule for hours: **per-person** time comes from `time_entries` (one row per
+   logger); `tasks.logged_hours` is the TASK's cached total and credits every assignee
+   in full, so summing it per member double-counts shared work.
 
 ---
 

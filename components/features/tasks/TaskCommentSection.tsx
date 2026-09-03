@@ -248,7 +248,25 @@ export function TaskCommentSection({
   const currentUserId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
 
   const [composer, setComposer] = React.useState("");
-  const main = useMentionableTextarea({
+  /**
+   * Destructured, not held as one object: the hook returns a ref alongside
+   * render-derived values, and reading any property off that combined object
+   * makes React Compiler treat it as a possible ref read during render. It
+   * skipped memoizing this component and raised 16 lint errors, which is enough
+   * noise to hide a real one. Splitting the bindings is behaviour-neutral —
+   * `mentionOpen` and `filteredMembers` come from state, and `ref.current` is
+   * only ever touched inside event handlers.
+   */
+  const {
+    ref: mainRef,
+    mentionOpen: mainMentionOpen,
+    filteredMembers: mainMembers,
+    insertMention: mainInsertMention,
+    onInternalChange: mainOnChange,
+    onSelect: mainOnSelect,
+    onKeyUp: mainOnKeyUp,
+    closeMention: mainCloseMention,
+  } = useMentionableTextarea({
     value: composer,
     onChange: setComposer,
     maxLength: MAX_COMMENT_LENGTH,
@@ -278,7 +296,7 @@ export function TaskCommentSection({
     if (!body) return;
     onAddComment(taskId, body);
     setComposer("");
-    main.closeMention();
+    mainCloseMention();
   };
 
   const startEdit = (id: string, body: string) => {
@@ -307,20 +325,20 @@ export function TaskCommentSection({
       </div>
 
       <Popover
-        open={main.mentionOpen}
+        open={mainMentionOpen}
         onOpenChange={(o) => {
-          if (!o) main.closeMention();
+          if (!o) mainCloseMention();
         }}
       >
         <PopoverAnchor asChild>
           <div className="flex flex-col gap-2">
             <Textarea
-              ref={main.ref}
+              ref={mainRef}
               placeholder="Write a comment..."
               value={composer}
-              onChange={main.onInternalChange}
-              onSelect={main.onSelect}
-              onKeyUp={main.onKeyUp}
+              onChange={mainOnChange}
+              onSelect={mainOnSelect}
+              onKeyUp={mainOnKeyUp}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                   e.preventDefault();
@@ -359,18 +377,18 @@ export function TaskCommentSection({
           onOpenAutoFocus={(e) => e.preventDefault()}
         >
           <div className="max-h-48 overflow-y-auto p-1">
-            {main.filteredMembers.length === 0 ? (
+            {mainMembers.length === 0 ? (
               <p className="px-2 py-3 text-xs text-muted-foreground">
                 No matching teammates
               </p>
             ) : (
-              main.filteredMembers.map((m) => (
+              mainMembers.map((m) => (
                 <button
                   key={m.id}
                   type="button"
                   className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                   onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => main.insertMention(m)}
+                  onClick={() => mainInsertMention(m)}
                 >
                   <Avatar size="sm">
                     <AvatarImage src={m.avatar_url} alt="" />
@@ -488,7 +506,17 @@ function CommentThread({
     setReplyBody("");
   };
 
-  const replyTa = useMentionableTextarea({
+  /** Destructured for the same reason as the main composer — see above. */
+  const {
+    ref: replyRef,
+    mentionOpen: replyMentionOpen,
+    filteredMembers: replyMembers,
+    insertMention: replyInsertMention,
+    onInternalChange: replyOnChange,
+    onSelect: replyOnSelect,
+    onKeyUp: replyOnKeyUp,
+    closeMention: replyCloseMention,
+  } = useMentionableTextarea({
     value: replyBody,
     onChange: setReplyBody,
     maxLength: MAX_COMMENT_LENGTH,
@@ -631,7 +659,7 @@ function CommentThread({
                 className="h-7 text-muted-foreground"
                 onClick={() => {
                   onExpandForReply();
-                  setTimeout(() => replyTa.ref.current?.focus(), 0);
+                  setTimeout(() => replyRef.current?.focus(), 0);
                 }}
               >
                 <ReplyIcon className="size-3" data-icon="inline-start" />
@@ -688,20 +716,20 @@ function CommentThread({
                 ))}
               </ul>
               <Popover
-                open={replyTa.mentionOpen}
+                open={replyMentionOpen}
                 onOpenChange={(o) => {
-                  if (!o) replyTa.closeMention();
+                  if (!o) replyCloseMention();
                 }}
               >
                 <PopoverAnchor asChild>
                   <div className="flex flex-col gap-2">
                     <Textarea
-                      ref={replyTa.ref}
+                      ref={replyRef}
                       placeholder="Write a reply..."
                       value={replyBody}
-                      onChange={replyTa.onInternalChange}
-                      onSelect={replyTa.onSelect}
-                      onKeyUp={replyTa.onKeyUp}
+                      onChange={replyOnChange}
+                      onSelect={replyOnSelect}
+                      onKeyUp={replyOnKeyUp}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
                           e.preventDefault();
@@ -736,18 +764,18 @@ function CommentThread({
                   onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                   <div className="max-h-48 overflow-y-auto p-1">
-                    {replyTa.filteredMembers.length === 0 ? (
+                    {replyMembers.length === 0 ? (
                       <p className="px-2 py-3 text-xs text-muted-foreground">
                         No matching teammates
                       </p>
                     ) : (
-                      replyTa.filteredMembers.map((m) => (
+                      replyMembers.map((m) => (
                         <button
                           key={m.id}
                           type="button"
                           className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm hover:bg-muted"
                           onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => replyTa.insertMention(m)}
+                          onClick={() => replyInsertMention(m)}
                         >
                           <Avatar size="sm">
                             <AvatarImage src={m.avatar_url} alt="" />

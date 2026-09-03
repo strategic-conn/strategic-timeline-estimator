@@ -511,6 +511,18 @@ interface ProposalEstimatorState {
   /** Move a proposal through its approval lifecycle (draft/sent/approved/rejected). */
   setProposalStatus: (id: string, status: ProposalStatus) => void;
   /**
+   * A project was deleted — drop any estimate's link to it.
+   *
+   * Local only, on purpose: `proposals.project_id` is `on delete set null`, so
+   * Postgres has already done this. Writing again would be a pointless round
+   * trip that also bumps `updated_at` and reshuffles a list sorted by it.
+   *
+   * `proposals` deliberately has NO realtime subscription — the row is one big
+   * JSONB document, and an echoed upsert would replace `line_items` wholesale
+   * under someone mid-edit. This is the one field worth mirroring by hand.
+   */
+  applyProjectDeleted: (projectId: string) => void;
+  /**
    * Convert an (approved) proposal into a real project. Creates the project,
    * optionally seeds backlog tasks from the line items, and links the proposal.
    * Returns the new project id (or null on failure).
@@ -812,6 +824,17 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         }));
         persistQuoteDoc(id, get);
       },
+
+      applyProjectDeleted: (projectId) =>
+        set((s) =>
+          s.proposals.some((p) => p.project_id === projectId)
+            ? {
+                proposals: s.proposals.map((p) =>
+                  p.project_id === projectId ? { ...p, project_id: null } : p,
+                ),
+              }
+            : s,
+        ),
 
       setProposalStatus: (id, status) => {
         const prev = get().proposals.find((p) => p.id === id);

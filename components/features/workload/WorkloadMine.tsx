@@ -28,6 +28,7 @@ import {
   useWeeklyCapacityStore,
 } from "@/store/weekly-capacity-store";
 import { cn } from "@/lib/utils";
+import { isOverdue } from "@/lib/utils/relative-dates";
 import type { Task } from "@/types/task.types";
 
 function taskHref(t: Task) {
@@ -94,7 +95,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
     10;
   const now = new Date();
   const overdue = accepted.filter(
-    (t) => t.due_date && new Date(t.due_date) < now
+    (t) => isOverdue(t.due_date, now)
   ).length;
   const utilPct = weeklyCap > 0 ? Math.round((openEst / weeklyCap) * 100) : 0;
   const overCap = openEst > weeklyCap;
@@ -204,7 +205,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
                 </p>
                 <ul className="divide-y divide-border rounded-lg border">
                   {list.map((t) => {
-                    const isOverdue = t.due_date && new Date(t.due_date) < now;
+                    const overdueRow = isOverdue(t.due_date, now);
                     return (
                       <li key={t.id}>
                         <Link
@@ -213,7 +214,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
                         >
                           <span className="min-w-0 truncate">{t.title}</span>
                           <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
-                            {isOverdue ? (
+                            {overdueRow ? (
                               <Badge variant="destructive" className="text-[0.65rem]">
                                 overdue
                               </Badge>

@@ -25,12 +25,14 @@ import {
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import {
   DEFAULT_WEEKLY_CAPACITY_HOURS,
+  awayWorkdaysInWeek,
+  capacityAfterTimeOff,
   startOfWeekIso,
 } from "@/lib/constants/workload";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
-import { useTeamMembers } from "@/store/team-store";
+import { useJoinedTeamMembers } from "@/store/team-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import {
@@ -38,6 +40,8 @@ import {
   useWeeklyCapacityStore,
 } from "@/store/weekly-capacity-store";
 import { cn } from "@/lib/utils";
+import { isOverdue } from "@/lib/utils/relative-dates";
+import { useAvailabilityStore } from "@/store/availability-store";
 import type { Task } from "@/types/task.types";
 
 type ProjectFilter = "all" | string;
@@ -62,7 +66,16 @@ export function WorkloadClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
-  const members = useTeamMembers();
+  /**
+   * People who actually joined — not every profile row.
+   *
+   * `useTeamMembers()` includes invitees who never accepted, so the team table
+   * listed two accounts that cannot hold work at all, each carrying the default
+   * weekly capacity. Deactivated members are deliberately kept: if someone left
+   * with open tasks still assigned, this is the page that has to show it.
+   */
+  const members = useJoinedTeamMembers();
+  const availabilityEntries = useAvailabilityStore((s) => s.entries);
   const role = useAuthStore((s) => s.user.role);
   const canSeeTeam = role === "admin" || role === "manager";
 
@@ -117,9 +130,26 @@ export function WorkloadClient() {
     };
   }, [tasks]);
 
+
+  /**
+   * "Now", read after mount rather than during render — the same rule the
+   * dashboard follows. Reading the clock while rendering makes the component
+   * impure, and this renders on the server too, where "today" can already be
+   * tomorrow for the browser.
+   */
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   const rows = React.useMemo(() => {
     return members.map((m) => {
-      const weeklyCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
+      const contractedCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
+      // Time off comes off this week's capacity: planning against contracted
+      // hours for someone on leave is how work gets assigned to an empty desk.
+      const awayDays = awayWorkdaysInWeek(availabilityEntries, m.id, now);
+      const weeklyCap = capacityAfterTimeOff(contractedCap, awayDays);
       const open = openAssignedTasks(tasks, m.id, projectId);
       const pending = tasks.filter(
         (t) =>
@@ -131,10 +161,7 @@ export function WorkloadClient() {
       const loggedWeek = Math.round((weekLogged[m.id] ?? 0) * 10) / 10;
       const openEst = open.reduce((s, t) => s + (t.estimated_hours ?? 0), 0);
       const openLogged = open.reduce((s, t) => s + (t.logged_hours ?? 0), 0);
-      const now = new Date();
-      const overdue = open.filter(
-        (t) => t.due_date && new Date(t.due_date) < now
-      ).length;
+      const overdue = open.filter((t) => isOverdue(t.due_date, now)).length;
 
       const byProject = new Map<string, number>();
       for (const t of open) {
@@ -150,13 +177,22 @@ export function WorkloadClient() {
         })
         .join(" · ");
 
+      // Away all week leaves zero capacity. Open work against zero is not "0%
+      // utilised" — it is work with nobody available to do it, so the bar fills
+      // and `overCap` below fires.
       const utilPct =
-        weeklyCap > 0 ? Math.round((openEst / weeklyCap) * 100) : 0;
+        weeklyCap > 0
+          ? Math.round((openEst / weeklyCap) * 100)
+          : openEst > 0
+            ? 100
+            : 0;
       const barVisual = Math.min(utilPct, 100);
 
       return {
         member: m,
         weeklyCap,
+        contractedCap,
+        awayDays,
         openTasks: open,
         openCount: open.length,
         pending,
@@ -170,10 +206,31 @@ export function WorkloadClient() {
         overCap: openEst > weeklyCap,
       };
     }).sort((a, b) => b.openEst - a.openEst);
-  }, [members, tasks, projectId, projectNameMap, capacityOverrides, weekLogged]);
+  }, [members, tasks, projectId, projectNameMap, capacityOverrides, weekLogged, now, availabilityEntries]);
 
   const peopleWithOpen = rows.filter((r) => r.openCount > 0).length;
-  const totalOpenEst = rows.reduce((s, r) => s + r.openEst, 0);
+
+  /**
+   * Each open task's estimate counted ONCE, not once per assignee.
+   *
+   * Summing the per-person column double-counts shared work: a 6h task with two
+   * assignees made the workspace look like it had 12h of work outstanding. The
+   * per-person rows are still per-person — that column answers "how loaded is
+   * this individual", where counting the whole task for each of them is right.
+   * This tile answers "how much work is there", which is a different question.
+   */
+  const totalOpenEst = React.useMemo(() => {
+    const seen = new Set<string>();
+    let sum = 0;
+    for (const m of members) {
+      for (const t of openAssignedTasks(tasks, m.id, projectId)) {
+        if (seen.has(t.id)) continue;
+        seen.add(t.id);
+        sum += t.estimated_hours ?? 0;
+      }
+    }
+    return sum;
+  }, [members, tasks, projectId]);
   const overCapacityCount = rows.filter((r) => r.overCap).length;
 
   if (view === "mine") return <WorkloadMine toggle={toggle} />;
@@ -359,7 +416,15 @@ export function WorkloadClient() {
                     />
                   </div>
                   <span className="text-xs tabular-nums text-muted-foreground">
-                    {r.utilPct}% of {r.weeklyCap}h
+                    {r.utilPct}% of {r.weeklyCap}h{" "}
+                    {r.awayDays > 0 ? (
+                      /* Say why the number dropped. A capacity that quietly
+                         shrank would read as a bug, not as time off. */
+                      <span className="ml-1 text-rose-600 dark:text-rose-400">
+                        ({r.contractedCap}h &minus; {r.awayDays}{" "}
+                        {r.awayDays === 1 ? "day" : "days"} off)
+                      </span>
+                    ) : null}
                   </span>
                 </div>
 

@@ -94,7 +94,10 @@ export function SprintCard({
     <TooltipProvider delayDuration={400}>
       <Card className="group relative overflow-hidden">
         <CardHeader className="gap-2">
-          <div className="flex items-start justify-between gap-2">
+          {/* min-w-0 here too: CardHeader is a grid, and a grid item won't
+              shrink below its content — a long sprint name pushed this row to
+              589px inside a 349px header, taking the status badge off-screen. */}
+          <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
               <CardTitle className="truncate text-base">{sprint.name}</CardTitle>
               {sprint.goal ? (

@@ -32,13 +32,25 @@ export function sortActivityNewestFirst<T extends ActivityLike>(items: T[]): T[]
   );
 }
 
-/** Resolve the actor id for an item: explicit `actor_id`, else name-prefix match. */
+/**
+ * Resolve the actor for an entry: the stored `actor_id`, else the name the text
+ * starts with (rows written before `actor_id` existed carry only the name).
+ *
+ * **Longest name wins.** One member's name can be a prefix of another's — this
+ * workspace has both "Daniel" and "Daniel Arvi Paragas" — and taking the first
+ * match attributed the longer name's entries to the shorter person. Worse,
+ * `activityDisplayBody` then strips only the matched part, so the row rendered
+ * as "Arvi Paragas deleted project …". It also mixed the two together in the
+ * per-user filter.
+ */
 export function resolveActorId(
   item: { actor_id?: string | null; text: string },
   members: { id: string; name: string }[]
 ): string | null {
   if (item.actor_id) return item.actor_id;
-  const m = members.find((mm) => mm.name && item.text.startsWith(mm.name));
+  const m = [...members]
+    .sort((a, b) => (b.name?.length ?? 0) - (a.name?.length ?? 0))
+    .find((mm) => mm.name && item.text.startsWith(mm.name));
   return m ? m.id : null;
 }
 

@@ -16,6 +16,10 @@ import { CreateTaskModal } from "@/components/features/tasks/CreateTaskModal";
 import { EditTaskModal } from "@/components/features/tasks/EditTaskModal";
 import { DeleteTaskDialog } from "@/components/features/tasks/DeleteTaskDialog";
 import { Button } from "@/components/ui/button";
+import {
+  ProjectNotFound,
+  useProjectMissing,
+} from "@/components/features/projects/ProjectNotFound";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useTasks, useTasksStore } from "@/hooks/useTasks";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -45,6 +49,7 @@ export interface TasksPageProps {
 }
 
 export function TasksPage({ projectId, sprintId }: TasksPageProps) {
+  const projectMissing = useProjectMissing(projectId);
   const searchParams = useSearchParams();
   const focusParam = searchParams.get(TASK_FOCUS_QUERY_PARAM);
 
@@ -430,6 +435,11 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
       </div>
     );
   }
+
+  // Same guard as the project overview: this route is reachable from a "deleted
+  // project" activity link, and a board offering "Add task" for a project that
+  // is gone can only produce a foreign-key failure.
+  if (projectMissing) return <ProjectNotFound />;
 
   if (loading || (isSupabaseConfigured && !tasksLoaded)) {
     return (

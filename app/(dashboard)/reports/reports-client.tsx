@@ -33,8 +33,11 @@ import {
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
-import { useTeamMembers } from "@/store/team-store";
+import { useJoinedTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
+import { isOverdue } from "@/lib/utils/relative-dates";
+import { createClient } from "@/lib/supabase/client";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { TaskStatus } from "@/types/task.types";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -57,7 +60,21 @@ export function ReportsClient() {
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
-  const members = useTeamMembers();
+  // Joined, not "active": a deactivated member's past work still belongs in a
+  // report. Only invitees who never accepted are excluded — they have no work.
+  const members = useJoinedTeamMembers();
+  /**
+   * "Now", read after mount rather than during render — the same rule the
+   * dashboard follows. Reading the clock while rendering makes the component
+   * impure, and this renders on the server too, where "today" can already be
+   * tomorrow for the browser.
+   */
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
 
   const statusBreakdown = React.useMemo(() => {
     const counts: Record<TaskStatus, number> = {
@@ -92,19 +109,52 @@ export function ReportsClient() {
     });
   }, [projects, tasks, sprints]);
 
+  /**
+   * Hours each person actually logged, from `time_entries` — the same source
+   * the Workload views read.
+   *
+   * NOT summed from the assigned tasks' `logged_hours`: that column is the
+   * TASK's cached total, so a task with two assignees credited its full hours
+   * to both. The per-person column then didn't add up to the workspace total
+   * and disagreed with Workload for the same person. `time_entries` carries one
+   * row per logger, which is the only place the attribution actually exists.
+   */
+  const [loggedByMember, setLoggedByMember] = React.useState<
+    Record<string, number>
+  >({});
+  React.useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let active = true;
+    void (async () => {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("time_entries")
+        .select("profile_id, hours");
+      if (!active) return;
+      const map: Record<string, number> = {};
+      for (const r of data ?? [])
+        map[r.profile_id] = (map[r.profile_id] ?? 0) + Number(r.hours);
+      setLoggedByMember(map);
+    })();
+    return () => {
+      active = false;
+    };
+  }, [tasks]);
+
   const memberStats = React.useMemo(() => {
-    return members.map((m) => {
-      const assigned = tasks.filter((t) => t.assignee_ids.includes(m.id));
-      const done = assigned.filter((t) => t.status === "done").length;
-      const logH = assigned.reduce((sum, t) => sum + (t.logged_hours ?? 0), 0);
-      return {
-        ...m,
-        assigned: assigned.length,
-        done,
-        logH: Math.round(logH * 10) / 10,
-      };
-    }).sort((a, b) => b.assigned - a.assigned);
-  }, [tasks, members]);
+    return members
+      .map((m) => {
+        const assigned = tasks.filter((t) => t.assignee_ids.includes(m.id));
+        const done = assigned.filter((t) => t.status === "done").length;
+        return {
+          ...m,
+          assigned: assigned.length,
+          done,
+          logH: Math.round((loggedByMember[m.id] ?? 0) * 10) / 10,
+        };
+      })
+      .sort((a, b) => b.assigned - a.assigned);
+  }, [tasks, members, loggedByMember]);
 
   const totalEstimated = Math.round(
     tasks.reduce((s, t) => s + (t.estimated_hours ?? 0), 0)
@@ -124,14 +174,12 @@ export function ReportsClient() {
     return Math.round((onTime / completed.length) * 100);
   }, [tasks]);
 
-  const overdue = React.useMemo(() => {
-    const now = new Date();
-    return tasks.filter((t) => {
-      if (t.status === "done") return false;
-      if (!t.due_date) return false;
-      return new Date(t.due_date) < now;
-    }).length;
-  }, [tasks]);
+  const overdue = React.useMemo(
+    () =>
+      tasks.filter((t) => t.status !== "done" && isOverdue(t.due_date, now))
+        .length,
+    [tasks, now],
+  );
 
   const kpis = [
     {
@@ -164,10 +212,13 @@ export function ReportsClient() {
       <WorkspacePageHeader
         eyebrow="Insights"
         title="Reports"
-        description="Workspace-wide stats computed from live project data — ready to share when exports land."
+        description="Workspace-wide stats, computed from live project data."
       />
 
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {/* Two-up on a phone, like the dashboard: four full-width tiles pushed
+          the charts below the fold for numbers that need a fraction of that
+          room. */}
+      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((kpi) => (
           <Card key={kpi.label} size="sm">
             <CardHeader className="gap-1">

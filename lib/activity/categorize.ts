@@ -90,9 +90,34 @@ export const ACTIVITY_CATEGORY_META: Record<
   },
 };
 
+/**
+ * The entity name in an activity line, e.g. the `"…"` in
+ * `Daniel created task "Project kickoff"`.
+ *
+ * Stripped before categorising, because otherwise the user's own wording drives
+ * the classification: a task called "Project kickoff" filed under Projects, one
+ * called "Sprint planning" under Sprints, a sprint called "Comment triage"
+ * under Comments. Every summary this app writes puts the category word in the
+ * verb phrase (`created task`, `marked project … as Active`), so the quotes
+ * carry no signal worth keeping — only noise. Typographic quotes are covered
+ * too, in case a summary ever uses them.
+ */
+const QUOTED = /["“”‘’][^"“”‘’]*["“”‘’]/g;
+
+/**
+ * The " · Project Name" scope that `withProjectScope` appends to task,
+ * comment and time entries.
+ *
+ * Unquoted, so stripping quotes alone was not enough: a task created in a
+ * project called "Comment Co" filed under Comments, and one in "Sprint
+ * Ventures" under Sprints. No summary this app writes contains " · "
+ * itself, so taking everything from the last one is safe.
+ */
+const PROJECT_SCOPE = / · [^·]*$/;
+
 /** Map an activity log line to a category. Order matters (most specific first). */
 export function categorizeActivity(text: string): ActivityCategory {
-  const t = text.toLowerCase();
+  const t = text.replace(PROJECT_SCOPE, " ").replace(QUOTED, " ").toLowerCase();
   if (t.includes("reacted")) return "reaction";
   if (t.includes("comment") || t.includes("replied")) return "comment";
   if (t.includes("logged time")) return "time";

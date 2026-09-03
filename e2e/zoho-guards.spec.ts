@@ -118,7 +118,7 @@ test.describe("estimate price -> Packages", () => {
     expect(b.stageUpdated, "stage must not move").toBe(false);
     expect(b.attachmentUploaded, "no file was sent").toBe(false);
     // Only reachable when wantsPackages was true — i.e. the total got through.
-    expect(b.warnings.join(" ")).toMatch(/already has d+ Packages row/i);
+    expect(b.warnings.join(" ")).toMatch(/already has \d+ Packages row/i);
   });
 
   test("a zero total does not invent an empty priced row", async ({ request }) => {

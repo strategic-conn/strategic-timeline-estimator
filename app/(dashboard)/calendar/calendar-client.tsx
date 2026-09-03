@@ -19,7 +19,10 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useTeamMembers } from "@/store/team-store";
-import { eachYmdInInclusiveRange } from "@/lib/utils/availability-dates";
+import {
+  calendarDayKey,
+  eachYmdInInclusiveRange,
+} from "@/lib/utils/availability-dates";
 import { useAvailabilityStore } from "@/store/availability-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
@@ -42,11 +45,6 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function ymd(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function parseYmd(iso: string): string {
-  const d = new Date(iso);
-  return ymd(d);
 }
 
 function sameMonth(a: Date, b: Date) {
@@ -98,7 +96,7 @@ export function CalendarClient() {
 
     for (const t of tasks) {
       if (!t.due_date) continue;
-      const key = parseYmd(t.due_date);
+      const key = calendarDayKey(t.due_date);
       const href = t.sprint_id
         ? sprintTasksHref(t.project_id, t.sprint_id, t.id)
         : backlogHref(t.project_id, t.id);
@@ -113,14 +111,14 @@ export function CalendarClient() {
 
     for (const s of sprints) {
       const projName = projectNameMap.get(s.project_id) ?? "Project";
-      const startKey = parseYmd(s.start_date);
+      const startKey = calendarDayKey(s.start_date);
       push(startKey, {
         id: `${s.id}-start`,
         title: `${s.name} starts (${projName})`,
         type: "sprint-start",
         href: sprintTasksHref(s.project_id, s.id),
       });
-      const endKey = parseYmd(s.end_date);
+      const endKey = calendarDayKey(s.end_date);
       push(endKey, {
         id: `${s.id}-end`,
         title: `${s.name} ends (${projName})`,

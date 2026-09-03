@@ -140,7 +140,10 @@ export function GanttClient({
         <WorkspacePageHeader
           eyebrow="Planning"
           title="Timeline"
-          description="See when work is scheduled: each bar is the sprint dates for that task (capped by due date), or created→due for backlog items. Bars use status colors. Click a bar to jump to the board with that task focused."
+          // Deliberately short. The bar rules used to be spelled out here AND in
+          // the "How to read this" tooltip below; on a 375px screen that
+          // duplicate cost 114px and pushed the chart itself under the tab bar.
+          description="When each task is scheduled. Click a bar to open it on its board."
           actions={
             <div className="flex w-full flex-col gap-1.5 sm:w-64">
               <span className="text-xs font-medium text-muted-foreground">
@@ -477,11 +480,8 @@ export function GanttClient({
                 (or the date row) horizontally — they stay in sync. The vertical
                 line marks today when it is in range.
               </p>
-              <p className="md:hidden">
-                <span className="font-medium text-foreground/80">Tip:</span> Vertical
-                scroll for tasks; horizontal swipe for timeline (date row tracks with
-                it).
-              </p>
+              {/* No mobile variant: the same advice already sits directly above
+                  the chart, where it is read before you try to scroll. */}
             </CardFooter>
           ) : null}
         </Card>

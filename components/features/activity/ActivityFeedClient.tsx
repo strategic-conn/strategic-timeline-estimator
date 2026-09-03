@@ -26,6 +26,10 @@ import {
   resolveActorId,
 } from "@/lib/utils/activity-feed";
 import { useActivityStore } from "@/store/activity-store";
+import {
+  ProjectNotFound,
+  useProjectMissing,
+} from "@/components/features/projects/ProjectNotFound";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTeamMembers } from "@/store/team-store";
 
@@ -39,6 +43,7 @@ const ALL = "all";
 export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
   const items = useActivityStore((s) => s.items);
   const projects = useProjectsStore((s) => s.projects);
+  const projectMissing = useProjectMissing(projectId);
   const members = useTeamMembers();
 
   const projectName = projectId
@@ -115,15 +120,21 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
     setQuery("");
   };
 
+  if (projectMissing) return <ProjectNotFound />;
+
   const title = projectId
     ? projectName
       ? `Activity — ${projectName}`
       : "Project activity"
     : "Activity";
 
+  // Says "recent", not "everything": the store fetches the newest 80 rows and
+  // there is no paging, so the filters below search those 80 and nothing older.
+  // Promising the full history would make a filtered view that finds nothing
+  // read as "this person did nothing" rather than "not in the recent window".
   const description = projectId
-    ? "Updates for this project only."
-    : "Everything that happened across your workspace, newest first.";
+    ? "Recent updates for this project."
+    : "The most recent activity across your workspace, newest first.";
 
   const emptyMessage = projectId
     ? "No activity recorded for this project yet. Sprint changes and linked updates will appear here."
