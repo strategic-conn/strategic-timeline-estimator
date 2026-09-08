@@ -3,6 +3,7 @@ import "server-only";
 import { HOURLY_RATE } from "@/lib/constants/proposal-estimator";
 import {
   estimateTotalRow,
+  isGeneratedDescription,
   findPackagesSubform,
   packageRows,
   type DealFieldMeta,
@@ -17,12 +18,24 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  * Putting an estimate's content onto a Deal: the Packages rows, and (for pushes)
  * the description.
  *
- * Shared by "Create deal" and "Push to Zoho" so both behave identically. The
- * rule that makes it safe for an existing deal: **never overwrite content that
- * is already there.** A subform write replaces every row, so a deal where sales
- * has typed their own Packages lines would silently lose them. On a deal we just
- * created the table is empty by definition, so the same code does the obvious
- * thing there without a special case.
+ * Shared by "Create deal" and "Push to Zoho" so both behave identically.
+ *
+ * **Two modes, because "never overwrite" was too strong.** The default still
+ * skips anything the deal already has — a subform write replaces every row, so
+ * an import or a stage change must never silently drop lines sales typed by
+ * hand. But that also made the estimate's price a write-once value: `Amount` is
+ * derived from the Packages rows, so a deal that already had rows could never be
+ * repriced from the app, and editing an estimate did nothing to its deal.
+ *
+ * So the send dialog passes `replace`. It is the one caller that shows the
+ * deal's current amount and row count first and asks, which is the only thing
+ * that makes overwriting a production CRM defensible. Everything else — import,
+ * the status changer, "mark complete" — keeps the safe default.
+ *
+ * The Description is narrower still: `replace` only rewrites a description this
+ * app itself wrote (recognised by its `Estimate: … line item…` roll-up line).
+ * Free text on a deal is far more likely to be a person's own words than a
+ * subform row is, and there is no undo.
  */
 
 /**
@@ -61,6 +74,8 @@ export async function resolvePackagesLayout(): Promise<PackagesLayout | null> {
 export type EstimateSyncResult = {
   packagesWritten: number;
   descriptionWritten: boolean;
+  /** Rows that were on the deal and got overwritten (`replace` only). */
+  packagesReplaced: number;
   warnings: string[];
 };
 
@@ -82,11 +97,17 @@ export async function applyEstimateToDeal(
      * rows and ignores any direct write to it.
      */
     total?: EstimateTotal | null;
+    /**
+     * Overwrite rows that are already on the deal. Only the send dialog sets
+     * this, and only after showing what is there — see the file header.
+     */
+    replace?: boolean;
   },
 ): Promise<EstimateSyncResult> {
   const out: EstimateSyncResult = {
     packagesWritten: 0,
     descriptionWritten: false,
+    packagesReplaced: 0,
     warnings: [],
   };
   // A priced row either way: one per product, or a single row for the estimate
@@ -127,26 +148,43 @@ export async function applyEstimateToDeal(
 
   const payload: Record<string, unknown> = {};
 
+  // Hoisted so the success path can report the real row count, but only built
+  // when there is a layout to build it against — `estimateTotalRow` reads the
+  // layout's columns and would throw on the unresolved-subform path, which is
+  // precisely the path that has to degrade quietly.
+  const rows =
+    layout && wantsPackages
+      ? totalOnly
+        ? [estimateTotalRow(layout, input.total!, HOURLY_RATE)]
+        : packageRows(layout, input.products, HOURLY_RATE)
+      : [];
+
   if (layout && wantsPackages) {
     const existing = current[layout.apiName];
-    const hasRows = Array.isArray(existing) && existing.length > 0;
-    if (hasRows) {
+    const found = Array.isArray(existing) ? existing.length : 0;
+    if (found && !input.replace) {
       out.warnings.push(
-        `The deal already has ${existing.length} ${layout.apiName} row${
-          existing.length === 1 ? "" : "s"
+        `The deal already has ${found} ${layout.apiName} row${
+          found === 1 ? "" : "s"
         } — left as they are.`,
       );
     } else {
-      payload[layout.apiName] = totalOnly
-        ? [estimateTotalRow(layout, input.total!, HOURLY_RATE)]
-        : packageRows(layout, input.products, HOURLY_RATE);
+      // Zoho deletes any row not present in the payload, so this IS the whole
+      // table. That is why `replace` is gated on a dialog that showed the count.
+      payload[layout.apiName] = rows;
+      out.packagesReplaced = found;
     }
   }
 
   if (wantsDescription) {
     const existing = current.Description;
-    if (typeof existing === "string" && existing.trim()) {
-      out.warnings.push("The deal already has a description — left as it is.");
+    const occupied = typeof existing === "string" && existing.trim().length > 0;
+    if (occupied && !(input.replace && isGeneratedDescription(existing as string))) {
+      out.warnings.push(
+        input.replace
+          ? "The deal's description looks hand-written, so it was left as it is."
+          : "The deal already has a description — left as it is.",
+      );
     } else {
       payload.Description = input.description;
     }
@@ -161,7 +199,36 @@ export async function applyEstimateToDeal(
     });
     const body = await res.json().catch(() => null);
     if (res.ok && body?.data?.[0]?.code === "SUCCESS") {
-      if (payload[layout?.apiName ?? ""]) out.packagesWritten = input.products.length;
+      // The rows actually sent — `products.length` is 0 for a total-only write,
+      // which made the toast say nothing had been written when a price had.
+      if (payload[layout?.apiName ?? ""]) {
+        out.packagesWritten = rows.length;
+        // ── Confirm the subform was REPLACED, not appended to ──
+        // A subform PUT with rows that carry no `id` is documented to replace
+        // the table, and that is what the price depends on: Zoho recomputes
+        // `Amount` by summing these rows. If it ever appended instead, the deal
+        // would quietly show double the estimate and this call would still
+        // report success. One read turns that into a visible warning.
+        if (out.packagesReplaced && layout) {
+          try {
+            const check = await zohoFetch(
+              `/crm/v2/Deals/${dealId}?fields=${encodeURIComponent(layout.apiName)}`,
+            );
+            const after = (await check.json().catch(() => null))?.data?.[0]?.[
+              layout.apiName
+            ];
+            const n = Array.isArray(after) ? after.length : null;
+            if (n !== null && n !== rows.length) {
+              out.warnings.push(
+                `The deal now has ${n} ${layout.apiName} rows but ${rows.length} were sent — check the deal's Amount in Zoho.`,
+              );
+            }
+          } catch {
+            // Best effort. The write already succeeded; failing to verify it is
+            // not a reason to report the write as failed.
+          }
+        }
+      }
       if (payload.Description) out.descriptionWritten = true;
     } else {
       console.error("[zoho sync] write failed", res.status, JSON.stringify(body));

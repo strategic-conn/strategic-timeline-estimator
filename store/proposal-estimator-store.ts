@@ -47,6 +47,7 @@ import type {
   ProposalPlatform,
   ProposalStatus,
   ProposalTier,
+  ProposalPbsLink,
   ProposalZohoLink,
 } from "@/types/proposal.types";
 
@@ -326,6 +327,12 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     requirements_unclear: r.requirements_unclear,
     discovery: (r.discovery as unknown as DiscoveryProject | null) ?? null,
     zoho: (r.zoho as unknown as ProposalZohoLink | null) ?? null,
+    // Was missing, and silently: `pbs` was written to Postgres and dropped on
+    // every hydrate, so a reload forgot the PO. That is not cosmetic — the PO
+    // number vanished from the UI AND `canRaisePo` (which gates on `po_no`)
+    // started offering **Create PO** again, on a quote already billed, into a
+    // system with no delete endpoint.
+    pbs: (r.pbs as unknown as ProposalPbsLink | null) ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };

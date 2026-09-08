@@ -28,6 +28,90 @@ type PoRow = {
   project_template_id?: number | string | null;
 };
 
+/** A PO as PBS returns it. Field names verified live against `fetch-all-po`. */
+export type PbsPo = {
+  id?: number | string | null;
+  po_no?: string | null;
+  name?: string | null;
+  client_id?: number | string | null;
+  project_template_id?: number | string | null;
+  status?: string | null;
+  create_date?: string | null;
+  create_by?: string | null;
+  update_date?: string | null;
+  /** Set once the PO is attached to a project in PBS. */
+  project_id?: number | string | null;
+};
+
+export type PoCandidate = {
+  po_id: string | null;
+  po_no: string;
+  name: string;
+  client_id: string | null;
+  project_template_id: string | null;
+  create_date: string | null;
+  create_by: string | null;
+  /** How many POs matched. >1 means the name is ambiguous even for one client. */
+  matchCount: number;
+};
+
+const norm = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+
+/**
+ * A PO in `rows` that might be the one this app created for `name` under
+ * `clientId` — a **candidate**, never an identity.
+ *
+ * PBS has no get-by-name, so the only thing to match on is the `name` this app
+ * sets at create time, and a name is not an identifier:
+ *
+ *  - two estimates can share a title ("Website Redesign") for different
+ *    clients, so name alone can point at another customer's PO — hence the
+ *    client match is required, not optional;
+ *  - a repeat client can have the same job name twice a year, so name **and**
+ *    client can still point at last year's PO. Nothing here closes that, which
+ *    is why callers must not link on this automatically. `matchCount` is
+ *    reported so an ambiguous name is visible rather than silently resolved.
+ *
+ * Pure, and separated from the fetch for exactly that reason: this is the
+ * decision that could bill work against the wrong purchase order.
+ */
+export function pickPoCandidate(
+  rows: PbsPo[],
+  name: string,
+  clientId: string,
+): PoCandidate | null {
+  const wanted = norm(name);
+  // An empty name would match every unnamed PO; a non-numeric client id can't
+  // be a real PBS client and would make the client check vacuous.
+  if (!wanted || !/^\d+$/.test(String(clientId))) return null;
+
+  const matches = rows
+    .filter(
+      (r) =>
+        norm(String(r.name ?? "")) === wanted &&
+        String(r.client_id ?? "") === String(clientId) &&
+        String(r.po_no ?? "").trim(),
+    )
+    // Newest first, made explicit rather than trusting PBS's ordering.
+    .sort((a, b) =>
+      String(b.create_date ?? "").localeCompare(String(a.create_date ?? "")),
+    );
+
+  const top = matches[0];
+  if (!top) return null;
+  return {
+    po_id: top.id != null ? String(top.id) : null,
+    po_no: String(top.po_no).trim(),
+    name: String(top.name ?? ""),
+    client_id: top.client_id != null ? String(top.client_id) : null,
+    project_template_id:
+      top.project_template_id != null ? String(top.project_template_id) : null,
+    create_date: top.create_date ?? null,
+    create_by: top.create_by ?? null,
+    matchCount: matches.length,
+  };
+}
+
 /**
  * Fold PO rows into one entry per client.
  *

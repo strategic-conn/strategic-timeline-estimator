@@ -35,6 +35,9 @@ import {
 } from "@/lib/zoho/push-state";
 import type { ClientQuote } from "@/types/proposal.types";
 
+/** Product id → catalogue description. One read per page load. */
+let productDescriptionCache: Record<string, string> | null = null;
+
 /**
  * Send this estimate to Zoho CRM — one action for both cases.
  *
@@ -77,6 +80,114 @@ export function ZohoSendDialog({
     }
   }, [open, quote.title]);
 
+  /**
+   * Catalogue descriptions for this quote's products, keyed by product id.
+   *
+   * Fetched rather than read off the quote: `zoho.products` stores the id, name
+   * and price picked at the time, not the description — and quotes saved before
+   * this existed carry none at all. Reading the live catalogue means an existing
+   * estimate shows its descriptions without anyone re-picking products, and the
+   * copy is whatever Zoho says today.
+   *
+   * Module-scoped cache, like the stage picklist: one read per page load, shared
+   * by every estimate you open.
+   */
+  const [descriptions, setDescriptions] = React.useState<Record<string, string>>(
+    productDescriptionCache ?? {},
+  );
+  /**
+   * The catalogue read is the slowest thing in this dialog, and the payload is
+   * built from its result at click time — so submitting before it lands wrote
+   * the "N h at $R/h" fallback into the CRM even though the product HAS a
+   * description. Blocking the button is the honest fix: the alternative is a
+   * send whose content depends on how fast you clicked.
+   */
+  const [loadingDescriptions, setLoadingDescriptions] = React.useState(false);
+  React.useEffect(() => {
+    if (!open || !quote.zoho?.products?.length) return;
+    if (productDescriptionCache) {
+      setDescriptions(productDescriptionCache);
+      return;
+    }
+    let active = true;
+    setLoadingDescriptions(true);
+    void (async () => {
+      try {
+        const res = await fetch("/api/zoho/products");
+        const data = await res.json().catch(() => null);
+        if (!res.ok || !active) return;
+        const map: Record<string, string> = {};
+        for (const r of (data?.products ?? []) as {
+          id?: string;
+          description?: string | null;
+        }[]) {
+          if (r.id && r.description) map[r.id] = r.description;
+        }
+        productDescriptionCache = map;
+        setDescriptions(map);
+      } catch {
+        // A catalogue that can't be read is a fine outcome — the row falls back
+        // to the hours-and-rate note. Only an unfinished read is a problem,
+        // because that one silently looks like "no description".
+      } finally {
+        if (active) setLoadingDescriptions(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [open, quote.zoho?.products]);
+
+  /**
+   * What the deal holds in Zoho *right now* — amount and Packages row count.
+   *
+   * Read on every open and never cached: this is the number the confirm button
+   * is about to overwrite, so a stale one would defeat the point. `zoho.amount`
+   * on the quote is the last value the app happened to see, which is exactly
+   * what goes wrong when sales edits the deal.
+   */
+  const [live, setLive] = React.useState<{
+    amount: number | null;
+    /** `null` = Zoho answered but the subform couldn't be resolved: unknown. */
+    packageRows: number | null;
+  } | null>(null);
+  /**
+   * Submit waits on this, not just on the catalogue read. The row count IS the
+   * preview — confirming an irreversible subform replace before it arrives
+   * means agreeing to "replaces any existing rows", which is exactly the
+   * uninformed click this dialog exists to prevent. A read that *fails* still
+   * lets the send through; only an unfinished one blocks.
+   */
+  const [loadingLive, setLoadingLive] = React.useState(false);
+  React.useEffect(() => {
+    if (!open || !dealId) {
+      setLive(null);
+      return;
+    }
+    const ctl = new AbortController();
+    setLoadingLive(true);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/zoho/deals/stages?ids=${encodeURIComponent(dealId)}`,
+          { signal: ctl.signal },
+        );
+        const d = await res.json().catch(() => null);
+        if (!res.ok || !d) return;
+        setLive({
+          amount: d.amounts?.[dealId] ?? null,
+          packageRows: d.packageRows?.[dealId] ?? null,
+        });
+      } catch {
+        // Offline or Zoho down. The send still works; it just can't promise
+        // what it is replacing, and the copy below says so rather than guessing.
+      } finally {
+        if (!ctl.signal.aborted) setLoadingLive(false);
+      }
+    })();
+    return () => ctl.abort();
+  }, [open, dealId]);
+
   const accountId = quote.zoho?.account_id ?? null;
   const totals = quoteTotals(quote);
   const products = quote.zoho?.products ?? [];
@@ -100,11 +211,31 @@ export function ZohoSendDialog({
   // produces a new filename and its updated PDF does go up.
   const attaches = shouldAttach(quote.zoho, proposalPdfFilename(quote));
 
+  /** Rows already on the deal that this send will overwrite. */
+  const replacingRows =
+    isUpdate && typeof live?.packageRows === "number" ? live.packageRows : 0;
+  /**
+   * The read finished but couldn't say how many rows are there — a failed
+   * fetch, or Zoho answered without a resolvable Packages subform. Treated as
+   * "there may be rows", never as "there are none": this gates the warning
+   * before an irreversible overwrite.
+   */
+  const rowsUnknown =
+    isUpdate && !loadingLive && (!live || live.packageRows === null);
+  /** The CRM price and the estimate price disagree — the reprice is the point. */
+  const priceMoves =
+    isUpdate &&
+    live?.amount != null &&
+    live.amount !== amountForHours(totals.grandHours);
+
   // A quote already at Proposal Sent can still be re-sent: the stage write is a
   // no-op and the PDF is deduped by filename, so an edited estimate's updated
   // document still reaches the deal.
+  const reading = loadingDescriptions || loadingLive;
   const canSubmit =
-    !busy && (isUpdate || Boolean(accountId && name.trim() && closingDate));
+    !busy &&
+    !reading &&
+    (isUpdate || Boolean(accountId && name.trim() && closingDate));
 
   const productPayload = () =>
     JSON.stringify(
@@ -113,6 +244,7 @@ export function ZohoSendDialog({
         name: p.name,
         hours: shares[i],
         amount: amountForHours(shares[i]),
+        description: descriptions[p.id] ?? null,
       })),
     );
 
@@ -124,7 +256,14 @@ export function ZohoSendDialog({
       } — ${priceForHours(totals.grandHours)}.`,
       products.length
         ? `Products:\n${products
-            .map((p, i) => `  - ${p.name}: ${shares[i]} h, ${priceForHours(shares[i])}`)
+            .map((p, i) => {
+              const line = `  - ${p.name}: ${shares[i]} h, ${priceForHours(shares[i])}`;
+              const desc = descriptions[p.id];
+              // The catalogue copy, indented under its product — the same text
+              // the Packages row carries, so the deal reads consistently
+              // whichever field someone looks at.
+              return desc ? `${line}\n      ${desc}` : line;
+            })
             .join("\n")}`
         : null,
     ]
@@ -159,6 +298,11 @@ export function ZohoSendDialog({
       // direct `Amount` write — Zoho recomputes that field from the subform.
       form.append("totalHours", String(totals.grandHours));
       form.append("totalAmount", String(amountForHours(totals.grandHours)));
+      // The estimate owns its own pricing, so a re-send reprices the deal rather
+      // than skipping a table that already has rows — which is what made an
+      // edited estimate silently fail to update its deal. Safe only because the
+      // rows above showed what is being replaced.
+      if (isUpdate) form.append("replace", "1");
       // jsPDF is browser-only, so the bytes are built here and posted to the
       // route, which forwards them to Zoho.
       if (attaches) {
@@ -193,7 +337,7 @@ export function ZohoSendDialog({
         data?.packagesWritten
           ? `${data.packagesWritten} Packages row${
               data.packagesWritten === 1 ? "" : "s"
-            } written`
+            } ${data.packagesReplaced ? `replaced (was ${data.packagesReplaced})` : "written"}`
           : null,
         data?.attachmentUploaded ? "PDF attached" : null,
       ].filter(Boolean);
@@ -229,26 +373,39 @@ export function ZohoSendDialog({
     [
       "Amount",
       <span key="amount" className="font-medium text-foreground">
+        {/* Zoho derives Amount from the Packages rows, so showing the live value
+            beside the new one is the only honest preview of a reprice. */}
+        {priceMoves ? (
+          <>
+            <s className="font-normal text-muted-foreground">
+              {formatAmount(live!.amount!)}
+            </s>{" "}
+            →{" "}
+          </>
+        ) : null}
         {priceForHours(totals.grandHours)}
       </span>,
     ],
     ["Hours", `${totals.grandHours} h at ${formatAmount(HOURLY_RATE)}/h`],
     [
       "Packages",
-      products.length ? (
-        <>
-          {products.length} row{products.length === 1 ? "" : "s"} ·{" "}
-          <span className="font-medium text-foreground">
-            {priceForHours(totals.grandHours)}
-          </span>
-          {isUpdate ? " · skipped if the deal has rows" : null}
-        </>
-      ) : (
-        <>
-          1 row · no product
-          {isUpdate ? " · skipped if the deal has rows" : null}
-        </>
-      ),
+      <>
+        {products.length ? (
+          <>
+            {products.length} row{products.length === 1 ? "" : "s"} ·{" "}
+            <span className="font-medium text-foreground">
+              {priceForHours(totals.grandHours)}
+            </span>
+          </>
+        ) : (
+          "1 row · no product"
+        )}
+        {replacingRows
+          ? ` · replaces ${replacingRows} existing row${replacingRows === 1 ? "" : "s"}`
+          : rowsUnknown
+            ? " · replaces any existing rows"
+            : null}
+      </>,
     ],
     ["PDF", attaches ? "attached" : "already on the deal — not sent twice"],
   ];
@@ -335,11 +492,22 @@ export function ZohoSendDialog({
             {products.length ? (
               <ul className="border-t border-border/40 px-2.5 py-1.5 text-[0.7rem] text-muted-foreground">
                 {products.slice(0, 3).map((p, i) => (
-                  <li key={p.id} className="flex justify-between gap-3">
-                    <span className="min-w-0 truncate">{p.name}</span>
-                    <span className="shrink-0 tabular-nums">
-                      {shares[i]} h · {priceForHours(shares[i])}
-                    </span>
+                  <li key={p.id} className="py-0.5">
+                    <div className="flex justify-between gap-3">
+                      <span className="min-w-0 truncate">{p.name}</span>
+                      <span className="shrink-0 tabular-nums">
+                        {shares[i]} h · {priceForHours(shares[i])}
+                      </span>
+                    </div>
+                    {/* The exact text that lands in the row's Description
+                        column — previewed for the same reason as everything
+                        else here: nothing reaches the CRM unseen. */}
+                    <p className="mt-0.5 line-clamp-2 text-[0.65rem] text-muted-foreground/80">
+                      {loadingDescriptions
+                        ? "Reading the catalogue description…"
+                        : (descriptions[p.id] ??
+                          `${shares[i]} h at ${formatAmount(HOURLY_RATE)}/h`)}
+                    </p>
                   </li>
                 ))}
                 {products.length > 3 ? (
@@ -363,13 +531,33 @@ export function ZohoSendDialog({
             )}
           </section>
 
+          {replacingRows || rowsUnknown ? (
+            <p className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[0.7rem] text-amber-700 dark:text-amber-400">
+              <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>
+                <strong className="font-semibold">
+                  {replacingRows
+                    ? `Replaces ${replacingRows} Packages row${
+                        replacingRows === 1 ? "" : "s"
+                      } on the deal.`
+                    : "Replaces any Packages rows on the deal."}
+                </strong>{" "}
+                That is how the estimate&apos;s price reaches Zoho — it
+                recomputes <strong className="font-semibold">Amount</strong>{" "}
+                from these rows and ignores a direct write. A subform write
+                replaces the whole table and Zoho has no undo, so anything typed
+                into those rows there is lost.
+              </span>
+            </p>
+          ) : null}
+
           {alreadySent ? (
             <p className="flex items-start gap-1.5 rounded-md border border-emerald-500/30 bg-emerald-500/5 px-2.5 py-1.5 text-[0.7rem] text-emerald-700 dark:text-emerald-400">
               <Check className="mt-0.5 size-3 shrink-0" aria-hidden />
               <span>
-                Sent to Zoho on {new Date(alreadySent).toLocaleDateString()}. Sending
-                again is safe — the stage only moves forward and the same PDF
-                isn&apos;t attached twice.
+                Sent to Zoho on {new Date(alreadySent).toLocaleDateString()}.
+                Sending again re-prices the deal from this estimate; the stage
+                only moves forward and the same PDF isn&apos;t attached twice.
               </span>
             </p>
           ) : null}
@@ -393,7 +581,13 @@ export function ZohoSendDialog({
             className="gap-2"
           >
             {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : null}
-            {busy ? "Sending…" : isUpdate ? "Update deal" : "Create deal"}
+            {busy
+              ? "Sending…"
+              : reading
+                ? "Reading the deal…"
+                : isUpdate
+                  ? "Update deal"
+                  : "Create deal"}
           </Button>
         </DialogFooter>
       </DialogContent>

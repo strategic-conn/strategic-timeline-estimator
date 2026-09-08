@@ -1,0 +1,79 @@
+GUIDED-ESTIMATE PHASES (7)
+
+Discovery & Strategy
+Content & Copy
+Design & UX
+Development
+QA & Testing
+SEO Setup
+Launch & Handoff
+
+CATALOG MODULES (59)
+
+Accessibility
+Advanced
+Advanced E-Commerce
+Analytics
+Analytics & Tracking
+Backend
+Backup Before Deploy
+Blog
+Blog Setup
+Cache/CDN Setup
+CMS Structure Setup
+Configurator - 3D
+Configurator - 3D WebGL
+Configurator - Advanced
+Configurator - Advanced 2D
+Configurator - Basic
+Configurator - Basic 2D
+Configurator - Features
+Configurator - Full Builder
+Content Entry
+Core Page - Blog Detail
+Core Page - Contact Page
+Core Page - Detail Page
+Core Page - Detail Pages
+Core Page - Landing Page
+Core Page - Standard
+Deployment
+Dynamic Templates
+E-Commerce
+E-Commerce Core
+Environment Setup
+Forms - Advanced
+Forms - CRM Integration
+Forms - Multi-Step
+Forms - Standard
+General
+Homepage - Advanced Dynamic
+Homepage - Conversion
+Homepage - Creative
+Homepage - E-Commerce
+Homepage - Multi-Industry
+Homepage - Standard
+Integrations
+Media Optimization
+Member Login
+Members / Accounts
+Members Area
+Performance
+Performance & Security
+Performance Check
+Post-Launch
+Post-Launch QA
+Pre-Launch QA
+Production Deployment
+SEO
+SEO & Content
+SSL & Mixed Content Fix
+Tracking Verification
+URL/DB Sync
+
+NOT MODULES — broken spreadsheet import, React/Next ids 68-73 (5)
+
+55-66 Required
+62-66 Required
+68: Options
+68: Variations
+71: Discounts

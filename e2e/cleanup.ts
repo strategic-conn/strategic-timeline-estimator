@@ -1,5 +1,4 @@
-import { readFileSync } from "node:fs";
-import { E2E_PREFIX } from "./helpers";
+import { E2E_PREFIX, env } from "./helpers";
 
 /**
  * Deletes anything a test created, matched strictly by the "[E2E]" prefix.
@@ -8,19 +7,6 @@ import { E2E_PREFIX } from "./helpers";
  * when a test failed midway. **Only ever removes prefixed rows** — a missing or
  * empty prefix aborts instead of risking a broad delete.
  */
-function env(): Record<string, string> {
-  const out: Record<string, string> = {};
-  try {
-    for (const line of readFileSync(".env.local", "utf8").split("\n")) {
-      const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
-      if (m) out[m[1]] = m[2].replace(/^["']|["']$/g, "").trim();
-    }
-  } catch {
-    /* fall back to process env */
-  }
-  return { ...out, ...(process.env as Record<string, string>) };
-}
-
 export async function cleanupE2EData(): Promise<{ deleted: Record<string, number> }> {
   const e = env();
   const url = (e.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");

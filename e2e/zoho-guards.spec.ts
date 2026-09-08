@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { linkedQuote } from "./helpers";
+
 /**
  * The guards on the two write surfaces that reach production systems.
  *
@@ -16,8 +18,25 @@ import { expect, test } from "@playwright/test";
  * Needs the app running with Zoho connected; the deal below is the QA record.
  */
 
-const QUOTE = "c859c9ad-a90b-4585-9c68-a64c3178edb3";
-const DEAL = "3805132000161523001";
+/**
+ * Resolved live, never hardcoded: an id written into this file stops existing
+ * the first time somebody deletes that estimate, and the guards then quietly
+ * pass by returning 404 instead of the refusal they were written to prove.
+ */
+let QUOTE = "";
+let DEAL = "";
+
+test.beforeAll(async () => {
+  const found = await linkedQuote();
+  if (found) {
+    QUOTE = found.quoteId;
+    DEAL = found.dealId;
+  }
+});
+
+test.beforeEach(() => {
+  test.skip(!QUOTE, "No estimate is linked to a Zoho deal — nothing to guard.");
+});
 
 test.describe("auth", () => {
   test.use({ storageState: { cookies: [], origins: [] } });
@@ -73,18 +92,26 @@ test.describe("stage push guards", () => {
   });
 
   test("pushing the stage a deal is already at writes nothing", async ({ request }) => {
-    // `explicit` is the status-changer path, where "already there" is the answer.
-    // Without it, Discovery goes through the import guard, which says the same
-    // thing in its own shape — both are asserted so neither drifts.
-    const stages = await (await request.get("/api/zoho/deal-stages")).json();
-    const live = await request.post(`/api/zoho/deals/${DEAL}/push`, {
-      multipart: { proposalId: QUOTE, stage: "Discovery", explicit: "1" },
-    });
-    const body = await live.json();
+    // ⚠️ Read the live stage BEFORE writing anything. `explicit` is the
+    // status-changer path, and that is the one push allowed to move a deal
+    // BACKWARDS — so asking "was the deal already at Discovery?" from the push
+    // response is too late: on a deal at Closed Won it has already dragged it
+    // back. That is not hypothetical; it happened, to a live deal.
+    const live = await request.get(`/api/zoho/deals/stages?ids=${DEAL}`);
+    test.skip(!live.ok(), "Zoho not connected");
+    const current = (await live.json()).stages?.[DEAL];
     test.skip(
-      body.currentStage !== "Discovery",
-      `QA deal has moved to ${body.currentStage} — this no-op assertion needs it at Discovery`,
+      current !== "Discovery",
+      `QA deal is at ${current} — this no-op assertion needs it at Discovery, and `
+        + `pushing explicitly from anywhere else would MOVE it.`,
     );
+
+    const stages = await (await request.get("/api/zoho/deal-stages")).json();
+    const body = await (
+      await request.post(`/api/zoho/deals/${DEAL}/push`, {
+        multipart: { proposalId: QUOTE, stage: "Discovery", explicit: "1" },
+      })
+    ).json();
     expect(body.stageAlreadySet).toBe(true);
     expect(body.stageUpdated).toBe(false);
     expect(stages.stages.length).toBeGreaterThan(0);
@@ -129,6 +156,24 @@ test.describe("estimate price -> Packages", () => {
     expect(res.ok()).toBeTruthy();
     expect(b.warnings.join(" ")).not.toMatch(/Packages row/i);
   });
+});
+
+test("the live deal read carries the price, not just the stage", async ({ request }) => {
+  // The Zoho->app direction. `Amount` is derived from the Packages subform, so
+  // the row count travels with it: together they tell the send dialog whether a
+  // write would fill an empty table or replace numbers someone else put there.
+  test.skip(!DEAL, "No estimate is linked to a Zoho deal.");
+  const res = await request.get(`/api/zoho/deals/stages?ids=${DEAL}`);
+  test.skip(!res.ok(), "Zoho not connected");
+  const b = await res.json();
+  console.log("LIVE DEAL:", JSON.stringify({
+    stage: b.stages[DEAL], amount: b.amounts[DEAL], rows: b.packageRows[DEAL],
+  }));
+  expect(b.stages).toHaveProperty(DEAL);
+  expect(b.amounts).toHaveProperty(DEAL);
+  // A deal this app has sent to has rows; the count must be a real number so
+  // "replaces N rows" can never render as "replaces undefined rows".
+  expect(typeof b.packageRows[DEAL]).toBe("number");
 });
 
 test("the pipeline order the backwards-guard relies on is real", async ({ request }) => {

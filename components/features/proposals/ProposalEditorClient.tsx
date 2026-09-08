@@ -88,6 +88,7 @@ import { usePermissions } from "@/hooks/usePermissions";
 import {
   HOURLY_RATE,
   TIER_OPTIONS,
+  amountForHours,
   formatAmount,
   priceForHours,
   lineEffectiveHours,
@@ -129,6 +130,8 @@ import { ZohoSendDialog } from "@/components/features/proposals/ZohoSendDialog";
 import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPicker";
 import { ZohoStageSelect } from "@/components/features/proposals/ZohoStageSelect";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
+import { usePbsPoRefresh } from "@/hooks/usePbsPoRefresh";
+import { poStatusLabel } from "@/lib/pbs/po-status";
 import {
   dealTakenMessage,
   findActiveDealHolder,
@@ -204,9 +207,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
   // Re-check this quote's deal stage on open, so the badge reflects Zoho
   // rather than whatever it said when the deal was imported.
-  const zohoStages = useZohoStageRefresh(
-    React.useMemo(() => (quote ? [quote] : []), [quote]),
-  );
+  const onScreen = React.useMemo(() => (quote ? [quote] : []), [quote]);
+  const zohoStages = useZohoStageRefresh(onScreen);
+  // And the PO's live state in PBS — exact, keyed on the stored `po_id`.
+  usePbsPoRefresh(onScreen);
   const updateAddons = useProposalEstimatorStore((s) => s.updateAddons);
   const addLineItem = useProposalEstimatorStore((s) => s.addLineItem);
   const addLineItemsFromCatalog = useProposalEstimatorStore(
@@ -552,6 +556,52 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <Receipt className="size-4" aria-hidden />
                   Create PO
                 </Button>
+              ) : quote.pbs?.po_no ? (
+                /* The other half of that moment: once a PO exists the button
+                   goes away, and without this the estimate showed nothing at
+                   all — the number lived only in PBS. It is also the signal
+                   that billing is done, so it sits in the same slot. */
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium tabular-nums",
+                    quote.pbs.missing
+                      ? // PBS says this PO is gone. Showing it as normal would
+                        // be the app asserting something billing denies.
+                        "border-destructive/40 bg-destructive/10 text-destructive"
+                      : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                  )}
+                  title={[
+                    `Purchase order ${quote.pbs.po_no} in PBS`,
+                    quote.pbs.missing
+                      ? "PBS reports this PO no longer exists."
+                      : quote.pbs.status
+                        ? `Status ${quote.pbs.status}`
+                        : null,
+                    quote.pbs.created_at ? `Created ${quote.pbs.created_at}` : null,
+                    quote.pbs.status_synced_at
+                      ? `Checked ${new Date(quote.pbs.status_synced_at).toLocaleString()}`
+                      : null,
+                    quote.pbs.adopted
+                      ? "Linked to an existing PO rather than created here."
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                >
+                  {quote.pbs.missing ? (
+                    <TriangleAlert className="size-3.5 shrink-0" aria-hidden />
+                  ) : (
+                    <Receipt className="size-3.5 shrink-0" aria-hidden />
+                  )}
+                  PO {quote.pbs.po_no}
+                  {quote.pbs.missing ? (
+                    <span className="font-normal">· not in PBS</span>
+                  ) : poStatusLabel(quote.pbs.status) ? (
+                    <span className="font-normal opacity-80">
+                      · {poStatusLabel(quote.pbs.status)}
+                    </span>
+                  ) : null}
+                </span>
               ) : null}
 
               <DropdownMenu>
@@ -738,6 +788,35 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                               aria-hidden
                             />
                           </button>
+                        </span>
+                      ) : null}
+                      {/* The CRM's own price, refreshed alongside the stage.
+                          Zoho derives it from the Packages subform, so this is
+                          how a reprice made *in Zoho* becomes visible here.
+                          Shown beside the estimate rather than folded into it:
+                          the line items are this app's source of truth, and
+                          silently adopting a CRM number would overwrite them. */}
+                      {typeof quote.zoho.amount === "number" &&
+                      quote.zoho.deal_id ? (
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1",
+                            quote.zoho.amount !==
+                              amountForHours(totals.grandHours) &&
+                              "font-medium text-amber-600 dark:text-amber-500",
+                          )}
+                          title={
+                            quote.zoho.amount !==
+                            amountForHours(totals.grandHours)
+                              ? `Zoho holds ${formatAmount(quote.zoho.amount)}; this estimate is ${priceForHours(totals.grandHours)}. Send to Zoho to reprice the deal.`
+                              : "Zoho matches this estimate."
+                          }
+                        >
+                          CRM amount: {formatAmount(quote.zoho.amount)}
+                          {quote.zoho.amount !==
+                          amountForHours(totals.grandHours) ? (
+                            <TriangleAlert className="size-3" aria-hidden />
+                          ) : null}
                         </span>
                       ) : null}
                       {quote.zoho.contact ? (

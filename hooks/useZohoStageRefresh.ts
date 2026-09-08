@@ -13,6 +13,9 @@ import type { ClientQuote } from "@/types/proposal.types";
 /** How long a checked stage is trusted before it's worth re-reading. */
 const STAGE_TTL_MS = 5 * 60 * 1000;
 
+/** Mirrors `MAX_IDS` in `app/api/zoho/deals/stages/route.ts`. */
+const ROUTE_MAX_IDS = 25;
+
 /**
  * When each deal was last checked, for this tab only.
  *
@@ -28,10 +31,11 @@ const checkedAt = new Map<string, number>();
 type Pair = { proposalId: string; dealId: string };
 
 /**
- * Refresh the stored Zoho stage for the quotes on screen.
+ * Refresh the stored Zoho stage AND amount for the quotes on screen.
  *
- * The stage is a snapshot: it's written when this app imports or pushes a deal,
- * so a move made by sales inside Zoho would otherwise never reach the badge.
+ * Both are snapshots: they're written when this app imports or pushes a deal, so
+ * a change made by sales inside Zoho — a stage move, or a repriced Packages row
+ * — would otherwise never reach the badge.
  * Re-reading it when someone opens the list or an estimate keeps it honest —
  * cheaper, and far less machinery, than webhooks (a new consent scope plus a
  * channel-renewal cron).
@@ -65,11 +69,17 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
       // so the automatic pass skips anything checked recently. A manual refresh
       // is an explicit ask and ignores that.
       const now = Date.now();
-      const due = force
+      const dueAll = force
         ? pairs
         : pairs.filter(
             ({ dealId }) => now - (checkedAt.get(dealId) ?? 0) > STAGE_TTL_MS,
           );
+      // The route answers for at most MAX_IDS deals and silently drops the
+      // rest — but every id asked about gets marked checked below, so anything
+      // past the cap would be marked without ever being read and would then
+      // never refresh at all. Ask only for what will come back; the remainder
+      // is still due on the next pass.
+      const due = dueAll.slice(0, ROUTE_MAX_IDS);
       if (!due.length) return 0;
 
       const ids = [...new Set(due.map((p) => p.dealId))].join(",");
@@ -83,9 +93,11 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
       }
       const data = (await res.json()) as {
         stages?: Record<string, string | null>;
+        amounts?: Record<string, number | null>;
         checkedAt?: string;
       };
       const stages = data.stages ?? {};
+      const amounts = data.amounts ?? {};
       const syncedAt = data.checkedAt ?? new Date().toISOString();
       // Mark every id we asked about, including ones whose stage was unchanged
       // — that is the whole point of the throttle.
@@ -95,15 +107,32 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
       let changed = 0;
       for (const { proposalId, dealId } of due) {
         const live = stages[dealId];
-        if (!live) continue;
+        const liveAmount = amounts[dealId];
         const quote = quotesNow.find((q) => q.id === proposalId);
+        if (!quote?.zoho) continue;
+
         // Persist only on an actual change: writing every check would bump
         // `updated_at` and reshuffle a list sorted by it, just for looking.
-        if (!quote?.zoho || quote.zoho.stage === live) continue;
+        const stageChanged = Boolean(live) && quote.zoho.stage !== live;
+        // The other half of the Zoho→app direction. Zoho derives `Amount` from
+        // the Packages subform, so this is how an edit made *in the CRM* — a
+        // repriced row, a package added by sales — reaches the app at all.
+        // Stored, not applied: it never rewrites the estimate's line items,
+        // which are this app's own source of truth. The two are shown side by
+        // side so a divergence is visible instead of silently resolved.
+        const amountChanged =
+          typeof liveAmount === "number" && quote.zoho.amount !== liveAmount;
+        if (!stageChanged && !amountChanged) continue;
+
         updateProposal(proposalId, {
-          zoho: { ...quote.zoho, stage: live, stage_synced_at: syncedAt },
+          zoho: {
+            ...quote.zoho,
+            ...(stageChanged ? { stage: live, stage_synced_at: syncedAt } : {}),
+            ...(amountChanged ? { amount: liveAmount } : {}),
+          },
         });
         changed += 1;
+        if (!stageChanged || !live) continue;
 
         // A deal reaching the won stage is the trigger for billing, and this
         // poll is the only way the app hears about it — sales moves the deal in
@@ -167,8 +196,8 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
       if (changed === null) return;
       toast.success(
         changed
-          ? `${changed} deal stage${changed === 1 ? "" : "s"} updated`
-          : "Deal stages are up to date",
+          ? `${changed} deal${changed === 1 ? "" : "s"} updated from Zoho`
+          : "Deals are up to date with Zoho",
       );
     } catch (e) {
       toast.error("Couldn't refresh from Zoho", {

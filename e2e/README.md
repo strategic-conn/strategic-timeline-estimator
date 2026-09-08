@@ -76,6 +76,22 @@ automatically means asking a **live billing system** to create a PO and trusting
 it to refuse — and **PBS has no delete endpoint**, so one regression leaves a
 real PO to unpick by hand. `zoho-guards.spec.ts` deliberately stops short of it.
 
+### A no-op push must be proven BEFORE it is sent
+
+`zoho-guards.spec.ts` only pushes stages a deal is **already at**, which is what
+makes it safe to run against live Zoho. That safety depends on reading the
+deal's stage first (`GET /api/zoho/deals/stages`) and skipping, never on
+inspecting the push response — a push carrying `explicit=1` is the status-changer
+path and may move a deal **backwards**, so by the time the response says "it was
+at Closed Won" the deal is at Discovery. That is a real incident, not a
+hypothetical: a suite run dragged a live won deal back to the start of the
+pipeline.
+
+For the same reason no id is hardcoded here. The quote/deal pair is resolved at
+run time by `linkedQuote()` in `helpers.ts`; a baked-in id stops existing the
+first time someone deletes that estimate, and the guards then pass by returning
+404 instead of the refusal they were written to prove.
+
 Check it in a sandbox instead. Point PBS at a dead port, so a leaked gate still
 cannot create anything, then assert the refusal:
 

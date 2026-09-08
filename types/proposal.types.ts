@@ -21,7 +21,21 @@ export interface ProposalLineItem {
   id: string;
   /** Short description of work for the client quote */
   title: string;
-  /** Optional module label inherited from the catalog (e.g. "Homepage - Standard"). */
+  /**
+   * Grouping label — **one field, two vocabularies**, which is the only thing
+   * connecting the two:
+   *
+   *  - guided rows get a `PHASE_META` label ("Development") — a delivery phase;
+   *  - catalog rows get the catalog's own module ("Homepage - Standard") — a
+   *    scope category;
+   *  - freehand rows get `null`, shown as "Custom / freehand".
+   *
+   * Downstream code tells them apart by membership (`module in
+   * PHASE_LABEL_TO_ID`), and only phase labels carry delivery meaning — see
+   * `phaseLabelForLineItem`, where every catalog module falls back to
+   * Development. `catalog_id` is the more reliable discriminator when you need
+   * to know which vocabulary a row is using.
+   */
   module?: string | null;
   /** Optional category id from the catalog. */
   category_id?: number | null;
@@ -89,8 +103,26 @@ export interface ProposalPbsLink {
   client_code?: string | null;
   po_id?: number | string | null;
   po_no?: string | null;
-  /** When THIS app created the PO. */
+  /** When the PO was created (by this app, or in PBS if it was adopted). */
   created_at?: string | null;
+  /**
+   * The PO already existed in PBS and somebody linked it here, rather than this
+   * app creating it. Set only by the explicit "Link PO …" confirmation in the
+   * Create PO dialog — the match is on name-within-client, which is a candidate
+   * and not an identifier, so the provenance is worth recording.
+   */
+  adopted?: boolean | null;
+  /**
+   * The PO's status letter as PBS holds it — live history shows N, A, B, C and
+   * E in use, so a PO does move after this app creates it. Refreshed by reading
+   * `fetch-po` with the stored `po_id`; exact, so unlike linking it needs no
+   * confirmation.
+   */
+  status?: string | null;
+  /** When `status` was last confirmed against PBS. */
+  status_synced_at?: string | null;
+  /** PBS answered "PO not found" — the number here no longer exists there. */
+  missing?: boolean | null;
   /**
    * Server-side claim while a PO is being created — the compare-and-set that
    * stops two submits creating two POs. PBS has no delete endpoint.

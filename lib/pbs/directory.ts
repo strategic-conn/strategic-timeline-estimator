@@ -1,6 +1,12 @@
 import "server-only";
 
-import { clientsFromPos, type PbsClient } from "@/lib/pbs/clients";
+import {
+  clientsFromPos,
+  pickPoCandidate,
+  type PbsClient,
+  type PbsPo,
+  type PoCandidate,
+} from "@/lib/pbs/clients";
 import { pbsConfig } from "@/lib/pbs/config";
 import { pbsFetch } from "@/lib/pbs/tokens";
 
@@ -16,7 +22,12 @@ import { pbsFetch } from "@/lib/pbs/tokens";
 const PO_SAMPLE = 500;
 const TTL_MS = 10 * 60 * 1000;
 
-let cache: { at: number; clients: PbsClient[]; derivedFrom: number } | null = null;
+let cache: {
+  at: number;
+  clients: PbsClient[];
+  derivedFrom: number;
+  rows: PbsPo[];
+} | null = null;
 
 export async function getPbsDirectory(): Promise<{
   clients: PbsClient[];
@@ -33,8 +44,24 @@ export async function getPbsDirectory(): Promise<{
   const clients = clientsFromPos(rows);
   // Never cache an empty list: no clients is far more likely a bad read than a
   // billing system with no customers, and caching it would hide the fault.
-  if (clients.length) cache = { at: Date.now(), clients, derivedFrom: rows.length };
+  if (clients.length) {
+    cache = { at: Date.now(), clients, derivedFrom: rows.length, rows: rows as PbsPo[] };
+  }
   return { clients, derivedFrom: rows.length, cached: false };
+}
+
+/**
+ * The raw PO rows behind the directory.
+ *
+ * Same fetch, same cache: PBS has no "get PO by name" endpoint, so finding one
+ * means reading history — and history is already read to derive the client
+ * list. Reading it twice would double a 500-row call and let the two views
+ * disagree.
+ */
+export async function getPoRows(): Promise<PbsPo[]> {
+  if (cache && Date.now() - cache.at < TTL_MS) return cache.rows;
+  await getPbsDirectory();
+  return cache?.rows ?? [];
 }
 
 /**
@@ -90,4 +117,55 @@ export async function resolveTemplateForClient(
   return templateId
     ? { templateId, source: "client-history", poCount: client?.poCount }
     : { templateId: null, source: "none" };
+}
+
+/**
+ * A PO already in PBS that might be this estimate's — see `pickPoCandidate`
+ * for why this is a candidate and not an answer, and why nothing links on it
+ * automatically. This wrapper only supplies the rows.
+ */
+export async function findPoCandidate(
+  name: string,
+  clientId: string,
+): Promise<PoCandidate | null> {
+  return pickPoCandidate(await getPoRows(), name, clientId);
+}
+
+/**
+ * One PO, read live by its PBS id.
+ *
+ * This is the PBS→app direction, and unlike `pickPoCandidate` it has no
+ * guesswork in it: the id was recorded when the PO was created, so the match is
+ * exact. That is why status can be synced automatically while *linking* still
+ * needs a human.
+ *
+ * Three outcomes, kept distinct on purpose:
+ *   - a row      — the PO as PBS holds it right now;
+ *   - `"missing"` — PBS explicitly answered "PO not found", so the app is
+ *     showing a PO number that no longer exists. Worth saying out loud.
+ *   - `null`      — the read failed. Unknown is not the same as gone, and
+ *     treating it as gone would raise a false alarm every time PBS blinks.
+ *
+ * ⚠️ `po_id` is mandatory. `fetch-po` with no key answers **HTTP 200 with 200
+ * arbitrary POs** (verified live) — the same shape a success takes, so a missing
+ * parameter would silently yield somebody else's purchase order.
+ */
+export async function fetchPoById(
+  poId: string | number,
+): Promise<PbsPo | "missing" | null> {
+  const id = String(poId).trim();
+  if (!/^\d+$/.test(id)) return null;
+  try {
+    const res = await pbsFetch<{ po?: PbsPo }>("fetch-po", { po_id: Number(id) });
+    if (res.ok) {
+      const po = res.body?.data?.po;
+      // A single object is the documented success shape. An array means the key
+      // was ignored and PBS returned a page of unrelated POs — never trust it.
+      return po && !Array.isArray(po) ? po : null;
+    }
+    return /not found/i.test(res.error ?? "") ? "missing" : null;
+  } catch (e) {
+    console.error("[pbs] fetchPoById", e);
+    return null;
+  }
 }

@@ -68,6 +68,8 @@ import {
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { PUSHABLE_STAGES, canRaisePo, requestStagePush } from "@/lib/zoho/push-state";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
+import { usePbsPoRefresh } from "@/hooks/usePbsPoRefresh";
+import { poStatusLabel } from "@/lib/pbs/po-status";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
@@ -99,6 +101,8 @@ export function ProposalsListClient() {
   // Sales can move a deal in Zoho without telling us — re-check the linked ones
   // whenever the list is opened, in a single batched read.
   const zohoStages = useZohoStageRefresh(proposals);
+  // Keep each linked PO's status honest against PBS.
+  usePbsPoRefresh(proposals);
 
   const [createOpen, setCreateOpen] = React.useState(false);
   // Which estimate the PO dialog is for. The list can hold several won deals, so
@@ -426,6 +430,38 @@ export function ProposalsListClient() {
                           <Receipt className="size-4" aria-hidden />
                           Create PO
                         </Button>
+                      ) : q.pbs?.po_no ? (
+                        /* Billed. The number is what someone scanning this list
+                           is looking for, and it lived only in PBS before. */
+                        <span
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium tabular-nums",
+                            q.pbs.missing
+                              ? "border-destructive/40 bg-destructive/10 text-destructive"
+                              : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+                          )}
+                          title={[
+                            `Purchase order ${q.pbs.po_no} in PBS`,
+                            q.pbs.missing
+                              ? "PBS reports this PO no longer exists."
+                              : q.pbs.status
+                                ? `Status ${q.pbs.status}`
+                                : null,
+                            q.pbs.created_at ? `Created ${q.pbs.created_at}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          <Receipt className="size-3.5 shrink-0" aria-hidden />
+                          PO {q.pbs.po_no}
+                          {q.pbs.missing ? (
+                            <span className="font-normal">· not in PBS</span>
+                          ) : poStatusLabel(q.pbs.status) ? (
+                            <span className="font-normal opacity-80">
+                              · {poStatusLabel(q.pbs.status)}
+                            </span>
+                          ) : null}
+                        </span>
                       ) : null}
                       <Button variant="outline" size="sm" asChild>
                         <Link href={`/proposals/${q.id}`}>Open</Link>

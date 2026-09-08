@@ -18,6 +18,26 @@ export type ZohoProduct = {
   description: string | null;
 };
 
+/**
+ * Collapse whitespace and shorten to `max`, breaking on a word.
+ *
+ * Catalogue copy arrives from Zoho's rich-text editor full of newlines, and it
+ * ends up in two places that are read by people: the product picker and the
+ * Deal's Packages row. A hard `slice` cut one mid-word — "…server-side
+ * scripting lang" — which in a CRM field reads as corrupted data rather than as
+ * an excerpt.
+ */
+export function truncateAtWord(text: string, max: number): string {
+  const flat = text.replace(/\s+/g, " ").trim();
+  if (flat.length <= max) return flat;
+  const cut = flat.slice(0, max);
+  const lastSpace = cut.lastIndexOf(" ");
+  // Only break on a word when there IS one to break on — a single very long
+  // token still has to be cut somewhere.
+  const body = lastSpace > max * 0.5 ? cut.slice(0, lastSpace) : cut;
+  return `${body.replace(/[,;:.\s]+$/, "")}…`;
+}
+
 /** One entry of `GET /crm/v2/settings/fields?module=Products`. */
 export type ZohoFieldMeta = {
   api_name?: string;
@@ -90,9 +110,11 @@ export function toProduct(
         ? tagged.trim()
         : pickField(rec, /^category$/i, ["Product_Category"]),
     unitPrice: typeof price === "number" && price > 0 ? price : null,
-    // Descriptions here run to several paragraphs; the picker needs a hint, and
-    // the full text would dominate the payload.
-    description: description ? description.replace(/\s+/g, " ").slice(0, 160) : null,
+    // Descriptions run to several paragraphs. Long enough to be a real
+    // description — this text is written into the Deal's Packages row, where a
+    // sentence cut mid-word reads as broken data — but still bounded, because
+    // the full copy would dominate a whole-catalogue read.
+    description: description ? truncateAtWord(description, 400) : null,
   };
 }
 

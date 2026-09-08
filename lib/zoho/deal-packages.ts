@@ -13,7 +13,7 @@
  * deal with rows written to the wrong columns is a mess someone has to unpick by
  * hand, and there is no DELETE scope.
  */
-import type { ZohoFieldMeta } from "@/lib/zoho/products";
+import { truncateAtWord, type ZohoFieldMeta } from "@/lib/zoho/products";
 
 export type SubformFieldMeta = ZohoFieldMeta & {
   lookup?: { module?: { api_name?: string } } | null;
@@ -96,7 +96,12 @@ export type PackageInput = {
   name: string;
   hours: number;
   amount: number;
+  /** The product's own description from the Zoho catalogue, when it has one. */
+  description?: string | null;
 };
+
+/** Zoho's Description column is a textarea; keep rows readable and bounded. */
+const MAX_ROW_DESCRIPTION = 255;
 
 /**
  * Build the subform payload. Only the columns that actually exist are set —
@@ -113,8 +118,11 @@ export function packageRows(
     };
     if (layout.priceField) row[layout.priceField] = p.amount;
     if (layout.descriptionField) {
-      // Say where the number came from: the estimate, at the standard rate.
-      row[layout.descriptionField] = `${p.hours} h at $${rate}/h`;
+      // The product's own catalogue description, which is what someone reading
+      // the deal wants to see. Falls back to saying where the number came from
+      // when the catalogue entry has no description of its own.
+      const own = truncateAtWord(p.description ?? "", MAX_ROW_DESCRIPTION);
+      row[layout.descriptionField] = own || `${p.hours} h at $${rate}/h`;
     }
     return row;
   });
@@ -165,7 +173,28 @@ export function parsePackageInput(raw: unknown): PackageInput[] {
       name: typeof r.name === "string" ? r.name : "",
       hours: Number.isFinite(hours) && hours > 0 ? hours : 0,
       amount: Number.isFinite(amount) && amount > 0 ? Math.round(amount) : 0,
+      // Bounded and broken on a word: this lands in a CRM field people read.
+      description:
+        typeof r.description === "string"
+          ? truncateAtWord(r.description, MAX_ROW_DESCRIPTION) || null
+          : null,
     });
   }
   return out;
+}
+
+/**
+ * A deal description this app generated, rather than one a person typed.
+ *
+ * The send dialog's `descriptionPayload()` has always emitted this line, so it
+ * identifies our own roll-up on deals written before `replace` existed too.
+ * Anything else is treated as someone's own words and left alone: overwriting
+ * the Packages rows is recoverable by re-sending, but deleting a rep's notes
+ * from a production CRM is not.
+ *
+ * Lives here rather than beside the sync so it can be tested — that module is
+ * `server-only` and won't load outside Next.
+ */
+export function isGeneratedDescription(text: string): boolean {
+  return /^Estimate: .*line item/m.test(text);
 }

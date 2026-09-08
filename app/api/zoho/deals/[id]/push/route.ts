@@ -224,6 +224,9 @@ export async function POST(
     skipped: boolean;
     currentStage: string | null;
     attachmentUploaded: boolean;
+    /** Packages rows written, and how many existing ones they replaced. */
+    packagesWritten: number;
+    packagesReplaced: number;
     warnings: string[];
   } = {
     stageUpdated: false,
@@ -231,6 +234,8 @@ export async function POST(
     skipped: false,
     currentStage: stageHeldBack || currentStage,
     attachmentUploaded: false,
+    packagesWritten: 0,
+    packagesReplaced: 0,
     warnings: [],
   };
 
@@ -282,8 +287,14 @@ export async function POST(
   // hand, and a subform write replaces all of them.
   // Gated on the payload, not the stage: only the send dialog supplies these, and
   // it sends at whichever stage the deal is opened at — the same reason the PDF
-  // is no longer stage-gated. `applyEstimateToDeal` still skips anything the deal
-  // already has.
+  // is no longer stage-gated.
+  //
+  // `replace=1` is what makes an edited estimate actually reprice its deal.
+  // Without it `applyEstimateToDeal` skips a table that already has rows, and
+  // since Zoho derives `Amount` from those rows the deal's price was
+  // effectively write-once. Only the send dialog sets it, and only after
+  // showing the deal's current amount and row count — every other caller
+  // (import, status changer, mark-complete) keeps the non-destructive default.
   {
     let products: ReturnType<typeof parsePackageInput> = [];
     try {
@@ -303,7 +314,10 @@ export async function POST(
         products,
         description,
         total,
+        replace: form.get("replace") === "1",
       });
+      result.packagesWritten = sync.packagesWritten;
+      result.packagesReplaced = sync.packagesReplaced;
       result.warnings.push(...sync.warnings);
     }
   }

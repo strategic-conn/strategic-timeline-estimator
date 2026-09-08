@@ -4,8 +4,12 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
 import { isPbsConfigured } from "@/lib/pbs/config";
-import { resolveTemplateForClient } from "@/lib/pbs/directory";
-import { requirePbsWriter } from "@/lib/pbs/guard";
+import {
+  fetchPoById,
+  findPoCandidate,
+  resolveTemplateForClient,
+} from "@/lib/pbs/directory";
+import { requirePbsReader, requirePbsWriter } from "@/lib/pbs/guard";
 import { pbsFetch } from "@/lib/pbs/tokens";
 import {
   findSiblingWithPo,
@@ -35,6 +39,7 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  * line-item or amount field. The estimate's figures stay in this app and Zoho.
  */
 const CLAIM_TTL_MS = 2 * 60 * 1000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 function db() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -43,6 +48,132 @@ function db() {
   return createClient(url, key, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
+}
+
+/**
+ * Is there already a PO in PBS that might be this estimate's? — read-only.
+ *
+ * GET /api/pbs/pos?proposalId=<uuid>&clientId=<pbs client id>
+ *   → { candidate: { po_no, po_id, create_date, create_by, matchCount, … } | null }
+ * GET /api/pbs/pos?proposalIds=<uuid>,<uuid>,…
+ *   → { live: { "<proposalId>": { po_no, name, status, missing } } }
+ *
+ * Two shapes, because they answer different questions about different
+ * estimates: **candidate** is "does a PO for this UNLINKED estimate already
+ * exist" (a guess, matched by name, confirmed by a human), and **live** is
+ * "what do the POs these estimates are ALREADY linked to look like now" (exact,
+ * keyed on the stored `po_id`, safe to apply automatically).
+ *
+ * Matched on the estimate's title within one client (see `findPoCandidate` for
+ * why that is a candidate and not an answer). Purely so the Create PO dialog can
+ * show what it found *before* anyone clicks — the same rule as the Zoho send
+ * dialog: nothing irreversible without seeing it first.
+ *
+ * Writes nothing, links nothing. The server-side refusal in POST is the guard;
+ * this is the preview.
+ */
+export async function GET(req: Request) {
+  const gate = await requirePbsReader();
+  if ("error" in gate) return gate.error;
+
+  if (!isPbsConfigured) {
+    return NextResponse.json(
+      { error: "PBS isn't configured on the server." },
+      { status: 503 },
+    );
+  }
+
+  const q = new URL(req.url).searchParams;
+  const supabase0 = db();
+
+  // ── Mode 2: live state of POs these estimates are ALREADY linked to ──
+  // Keyed on the stored `po_id`, so this is an exact read with none of the
+  // name-matching ambiguity that keeps linking manual. This is the whole
+  // PBS→app direction: a PO's status moves in the billing system (N/A/B/C/E
+  // all occur in live history) and nothing else would ever tell the app.
+  const many = String(q.get("proposalIds") ?? "").trim();
+  if (many) {
+    const ids = [
+      ...new Set(
+        many
+          .split(",")
+          .map((s) => s.trim())
+          .filter((s) => UUID.test(s)),
+      ),
+    ].slice(0, 25);
+    if (!ids.length) return NextResponse.json({ live: {} });
+
+    const { data: rows } = await supabase0
+      .from("proposals")
+      .select("id, pbs")
+      .in("id", ids);
+
+    const live: Record<string, unknown> = {};
+    const linked = (rows ?? []).filter(
+      (r) => ((r.pbs ?? {}) as Record<string, unknown>).po_id,
+    );
+    // PBS has no read-many-by-id, so this fans out — in small batches rather
+    // than one at a time, which at the 25 cap was 25 sequential round-trips
+    // blocking the estimator list.
+    const BATCH = 5;
+    for (let i = 0; i < linked.length; i += BATCH) {
+      await Promise.all(
+        linked.slice(i, i + BATCH).map(async (r) => {
+          const poId = ((r.pbs ?? {}) as Record<string, unknown>).po_id;
+          const po = await fetchPoById(String(poId));
+          if (po === null) return; // couldn't read — say nothing rather than guess
+          live[r.id] =
+            po === "missing"
+              ? { missing: true }
+              : {
+                  po_no: po.po_no ?? null,
+                  name: po.name ?? null,
+                  status: po.status ?? null,
+                  project_id: po.project_id ?? null,
+                  project_template_id:
+                    po.project_template_id != null
+                      ? String(po.project_template_id)
+                      : null,
+                  update_date: po.update_date ?? null,
+                  missing: false,
+                };
+        }),
+      );
+    }
+    return NextResponse.json({ live, checkedAt: new Date().toISOString() });
+  }
+
+  // ── Mode 1: a PO that might already exist for an UNLINKED estimate ──
+  const proposalId = String(q.get("proposalId") ?? "").trim();
+  const clientId = String(q.get("clientId") ?? "").trim();
+  if (!UUID.test(proposalId) || !/^\d+$/.test(clientId)) {
+    return NextResponse.json({ candidate: null });
+  }
+
+  const { data: proposal } = await supabase0
+    .from("proposals")
+    .select("id, title, pbs")
+    .eq("id", proposalId)
+    .maybeSingle();
+  if (!proposal) {
+    return NextResponse.json({ error: "Quote not found." }, { status: 404 });
+  }
+  // Already linked — there is nothing to recover, and reporting a candidate
+  // would invite re-linking a quote that is settled.
+  const pbs = (proposal.pbs ?? {}) as Record<string, unknown>;
+  if (pbs.po_no || pbs.po_id) return NextResponse.json({ candidate: null });
+
+  try {
+    return NextResponse.json({
+      candidate: await findPoCandidate(String(proposal.title ?? ""), clientId),
+    });
+  } catch (e) {
+    console.error("[pbs po lookup]", e);
+    return NextResponse.json(
+      { error: e instanceof Error ? e.message : "PBS request failed." },
+      { status: 502 },
+    );
+  }
 }
 
 export async function POST(req: Request) {
@@ -56,7 +187,17 @@ export async function POST(req: Request) {
     );
   }
 
-  let input: { proposalId?: string; name?: string; clientId?: string };
+  let input: {
+    proposalId?: string;
+    name?: string;
+    clientId?: string;
+    /**
+     * A PO number the user explicitly chose to link instead of creating. Must
+     * equal the candidate the server finds — never trusted on its own, so a
+     * crafted value can't attach an arbitrary PO to a quote.
+     */
+    linkExisting?: string;
+  };
   try {
     input = await req.json();
   } catch {
@@ -65,6 +206,7 @@ export async function POST(req: Request) {
   const proposalId = String(input.proposalId ?? "").trim();
   const name = String(input.name ?? "").trim().slice(0, 255);
   const clientId = String(input.clientId ?? "").trim();
+  const linkExisting = String(input.linkExisting ?? "").trim();
 
   if (!proposalId || !name) {
     return NextResponse.json(
@@ -153,6 +295,74 @@ export async function POST(req: Request) {
         { status: 409 },
       );
     }
+  }
+
+  // ── Does PBS already have a PO that might be this one? ──
+  // The quote's own `pbs` field is not proof: the PO is created in PBS first
+  // and linked second, so a Supabase failure in between leaves a real PO this
+  // app has no record of (verified live). Creating a second one is the only
+  // unrecoverable outcome here — PBS has no delete endpoint — so ask PBS.
+  //
+  // On a hit this **refuses** and hands the candidate back. It does not adopt:
+  // the match is on the estimate's title within one client, and a repeat client
+  // can have the same job name twice. Guessing wrong would bill work against
+  // an unrelated PO silently, which is worse than the visible mess of a
+  // duplicate. `linkExisting` is how a human says "yes, that one".
+  let candidate: Awaited<ReturnType<typeof findPoCandidate>> = null;
+  try {
+    candidate = await findPoCandidate(name, clientId);
+  } catch (e) {
+    // A PBS read we can't complete must not become "no PO exists, go create
+    // one". Fail closed, like the Zoho won-stage check above.
+    console.error("[pbs po] existing-PO check failed", e);
+    return NextResponse.json(
+      {
+        error:
+          "Couldn't check PBS for an existing PO, so none was created. PBS can't delete a PO, so this check isn't skipped.",
+      },
+      { status: 502 },
+    );
+  }
+
+  if (candidate) {
+    // The client confirmed this exact PO — record the link, call nothing.
+    if (linkExisting && linkExisting === candidate.po_no) {
+      const linked: Record<string, unknown> = {
+        ...pbs,
+        client_id: candidate.client_id ?? clientId,
+        po_id: candidate.po_id,
+        po_no: candidate.po_no,
+        created_at: candidate.create_date ?? new Date().toISOString(),
+        adopted: true,
+      };
+      delete linked.creating_at;
+      const { error: linkErr } = await supabase
+        .from("proposals")
+        .update({ pbs: linked })
+        .eq("id", proposalId);
+      if (linkErr) {
+        console.error("[pbs po] link write failed", linkErr);
+        return NextResponse.json(
+          { error: `Couldn't link PO ${candidate.po_no} to this estimate.` },
+          { status: 500 },
+        );
+      }
+      return NextResponse.json({
+        poId: candidate.po_id,
+        poNo: candidate.po_no,
+        linked: true,
+        warnings: [`Linked to the existing PO ${candidate.po_no}. Nothing was created in PBS.`],
+      });
+    }
+    return NextResponse.json(
+      {
+        error: `PBS already has PO ${candidate.po_no} named "${candidate.name}" for this client${
+          candidate.create_date ? `, created ${candidate.create_date}` : ""
+        }. Nothing was created. Link that PO if it is this estimate's, or rename the estimate if it's a different job.`,
+        candidate,
+      },
+      { status: 409 },
+    );
   }
 
   // ── Claim the row so a double submit can't create two POs ──
