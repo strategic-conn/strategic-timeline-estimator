@@ -22,6 +22,17 @@ function durationDays(hours: number): number {
   return Math.max(1, Math.ceil(hours / BUSINESS_HOURS_PER_DAY));
 }
 
+/**
+ * The project's start date, or today when it hasn't been answered.
+ *
+ * Exported because the PBS purchase order needs the SAME start the Gantt draws
+ * from — a PO filed against a different date than the timeline everyone is
+ * looking at is a discrepancy nobody would think to check.
+ */
+export function resolveProjectStart(value: string | null | undefined): Date {
+  return resolveStart(value ?? "");
+}
+
 function resolveStart(value: string): Date {
   if (value) {
     const parsed = parseISO(value);

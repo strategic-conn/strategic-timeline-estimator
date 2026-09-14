@@ -113,6 +113,16 @@ export interface ProposalPbsLink {
    */
   adopted?: boolean | null;
   /**
+   * The project date range the PO was filed with (`YYYY-MM-DD`).
+   *
+   * Kept here because PBS stores it in a separate `po_parameter` record that no
+   * endpoint this app may call returns — `fetch-po` gives back the PO row only.
+   * So this is the app's only record of what was sent, and it is never refreshed
+   * from PBS the way `status` is.
+   */
+  start_date?: string | null;
+  end_date?: string | null;
+  /**
    * The PO's status letter as PBS holds it — live history shows N, A, B, C and
    * E in use, so a PO does move after this app creates it. Refreshed by reading
    * `fetch-po` with the stored `po_id`; exact, so unlike linking it needs no

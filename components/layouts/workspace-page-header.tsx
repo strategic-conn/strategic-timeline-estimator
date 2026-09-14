@@ -52,8 +52,13 @@ export function WorkspacePageHeader({
           ) : null}
           {meta ? <div className="pt-2">{meta}</div> : null}
         </div>
+        {/* The actions cap keeps a long row from crowding the title. Raised at
+            2xl only: a five-control header (the Estimator's) needs ~611px and
+            clipped against 576 even inside a 1600px shell, while at that width
+            the title still keeps 800px+. Narrower breakpoints are unchanged —
+            actions there are expected to wrap. */}
         {actions ? (
-          <div className="flex w-full min-w-0 flex-col gap-2 pt-0.5 xl:w-auto xl:max-w-md xl:shrink-0 2xl:max-w-xl *:min-w-0">
+          <div className="flex w-full min-w-0 flex-col gap-2 pt-0.5 xl:w-auto xl:max-w-md xl:shrink-0 2xl:max-w-2xl *:min-w-0">
             {actions}
           </div>
         ) : null}

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { addBusinessDays, format, isValid, parseISO } from "date-fns";
+import { addBusinessDays, format } from "date-fns";
 import { Flag, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { PHASE_META } from "@/lib/discovery/constants";
 import { formatHours } from "@/lib/discovery";
+import { resolveProjectStart } from "@/lib/discovery/timeline";
 import { cn } from "@/lib/utils";
 import type {
   DiscoveryProject,
@@ -29,14 +30,6 @@ const MIN_PX = 5;
 const MAX_PX = 48;
 const PAD = 10;
 
-function resolveStart(value: string): Date {
-  if (value) {
-    const parsed = parseISO(value);
-    if (isValid(parsed)) return parsed;
-  }
-  return new Date();
-}
-
 export function DiscoveryGantt({
   result,
   project,
@@ -45,7 +38,7 @@ export function DiscoveryGantt({
   project: DiscoveryProject;
 }) {
   const { timeline, estimate } = result;
-  const start = resolveStart(project.project_start_date);
+  const start = resolveProjectStart(project.project_start_date);
   const total = Math.max(timeline.totalBusinessDays, 1);
 
   const [selectedId, setSelectedId] = React.useState<PhaseId | null>(null);

@@ -6,11 +6,13 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Briefcase,
+  Columns3,
   FileText,
   Layers,
-  Receipt,
   Link2,
+  List,
   Plus,
+  Receipt,
   RefreshCw,
   Search,
   Trash2,
@@ -18,6 +20,7 @@ import {
 import { toast } from "sonner";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { ProposalStageBoard } from "@/components/features/proposals/ProposalStageBoard";
 import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import {
   ZohoDealImport,
@@ -98,12 +101,24 @@ export function ProposalsListClient() {
   const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
+  const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
   // Sales can move a deal in Zoho without telling us — re-check the linked ones
   // whenever the list is opened, in a single batched read.
   const zohoStages = useZohoStageRefresh(proposals);
   // Keep each linked PO's status honest against PBS.
   usePbsPoRefresh(proposals);
 
+  /**
+   * List or the Zoho-shaped pipeline board.
+   *
+   * Defaults to Stages — the pipeline view is now the primary way people work
+   * this list, and it degrades gracefully on its own (a Zoho read failure shows
+   * an inline message pointing back to List) rather than needing the default to
+   * protect against that. Deliberately not persisted beyond that: no reason to
+   * add storage for a per-session toggle when the default already matches how
+   * it is used.
+   */
+  const [view, setView] = React.useState<"list" | "stages">("stages");
   const [createOpen, setCreateOpen] = React.useState(false);
   // Which estimate the PO dialog is for. The list can hold several won deals, so
   // this is an id — and an id rather than the row itself, because the store
@@ -132,6 +147,26 @@ export function ProposalsListClient() {
           new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime(),
       ),
     [proposals],
+  );
+
+  /**
+   * Record where a deal actually landed after a stage move.
+   *
+   * Takes the SETTLED stage, never the requested one — `moveDealStage` resolves
+   * that, because a push can be held back and persisting the request would make
+   * the badge lie.
+   */
+  const handleStageChanged = React.useCallback(
+    (proposalId: string, stage: string) => {
+      const quote = useProposalEstimatorStore
+        .getState()
+        .proposals.find((q) => q.id === proposalId);
+      if (!quote?.zoho) return;
+      updateProposal(proposalId, {
+        zoho: { ...quote.zoho, stage, stage_synced_at: new Date().toISOString() },
+      });
+    },
+    [updateProposal],
   );
 
   const projectName = React.useCallback(
@@ -242,7 +277,7 @@ export function ProposalsListClient() {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       {poTarget ? (
         <CreatePoDialog
           open
@@ -287,7 +322,40 @@ export function ProposalsListClient() {
             : " Data stays in this browser until the API is connected."
         }`}
         actions={
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:justify-end">
+            {/* Matches the task board's switcher. The pipeline board is the same
+                estimates arranged by their Zoho stage — familiar to anyone who
+                works the deal in the CRM. */}
+            <div
+              data-slot="button-group"
+              className="inline-flex w-full items-center rounded-lg border border-border bg-muted/40 p-0.5 sm:w-auto"
+              role="group"
+              aria-label="Estimator view"
+            >
+              <Button
+                type="button"
+                size="sm"
+                variant={view === "list" ? "secondary" : "ghost"}
+                className="flex-1 gap-1.5 rounded-md sm:flex-none"
+                onClick={() => setView("list")}
+                aria-pressed={view === "list"}
+              >
+                <List className="size-4" aria-hidden />
+                List
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={view === "stages" ? "secondary" : "ghost"}
+                className="flex-1 gap-1.5 rounded-md sm:flex-none"
+                onClick={() => setView("stages")}
+                aria-pressed={view === "stages"}
+              >
+                <Columns3 className="size-4" aria-hidden />
+                Stages
+              </Button>
+            </div>
+
             {/* Sales can move a deal in Zoho at any time; this re-reads the
                 linked ones without reloading the page. */}
             {zohoStages.linkedCount ? (
@@ -334,7 +402,7 @@ export function ProposalsListClient() {
           Loading quotes…
         </p>
       ) : sorted.length === 0 ? (
-        <Card className="border-dashed">
+        <Card className="max-w-3xl border-dashed">
           <CardHeader className="items-center text-center">
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
               <FileText className="size-6 text-muted-foreground" aria-hidden />
@@ -354,8 +422,14 @@ export function ProposalsListClient() {
             </Button>
           </CardHeader>
         </Card>
+      ) : view === "stages" ? (
+        <ProposalStageBoard
+          quotes={sorted}
+          projectName={projectName}
+          onChanged={handleStageChanged}
+        />
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex max-w-3xl flex-col gap-3">
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
             const totals = quoteTotals(q);
@@ -448,6 +522,9 @@ export function ProposalsListClient() {
                                 ? `Status ${q.pbs.status}`
                                 : null,
                             q.pbs.created_at ? `Created ${q.pbs.created_at}` : null,
+                            q.pbs.start_date && q.pbs.end_date
+                              ? `Project ${q.pbs.start_date} → ${q.pbs.end_date}`
+                              : null,
                           ]
                             .filter(Boolean)
                             .join(" · ")}

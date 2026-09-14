@@ -6,11 +6,15 @@
  * structure into phases: dev line items (+ responsive) → Development, the design
  * add-on → Design, the QA add-on → QA. Sequenced by `computeTimeline`.
  */
+import { addBusinessDays } from "date-fns";
+
+import { analyzeDiscovery } from "@/lib/discovery";
 import {
   PHASE_META,
   createEmptyDiscoveryProject,
 } from "@/lib/discovery/constants";
-import { computeTimeline } from "@/lib/discovery/timeline";
+import { computeTimeline, resolveProjectStart } from "@/lib/discovery/timeline";
+import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
 import type {
   DiscoveryProject,
@@ -162,4 +166,33 @@ export function resultFromQuote(quote: ClientQuote): DiscoveryResult {
     unansweredCount: 0,
   };
   return { estimate, timeline, risk };
+}
+
+/**
+ * The estimate's own date range as ISO `YYYY-MM-DD`, for systems that need real
+ * dates rather than the display strings the Gantt renders.
+ *
+ * Built from the same analyzer the timeline uses — guided answers when the quote
+ * has them, the tentative line-item timeline otherwise — so the PBS purchase
+ * order carries the dates the estimate actually shows. `DiscoveryTimeline`
+ * formats its own dates as "MMM d, yyyy" for display, which no API accepts, and
+ * re-deriving them anywhere else is how two screens start disagreeing.
+ *
+ * `null` when there is no work to schedule: no line items means no honest range,
+ * and inventing one would put a fabricated date range on a billing record.
+ */
+export function estimateDateRange(
+  quote: ClientQuote,
+): { start: string; end: string } | null {
+  const result = quote.discovery
+    ? analyzeDiscovery(quote.discovery)
+    : quoteHasWork(quote)
+      ? resultFromQuote(quote)
+      : null;
+  if (!result) return null;
+  const start = resolveProjectStart(quote.discovery?.project_start_date);
+  // `totalBusinessDays` is the span the timeline drew, so the end date lands on
+  // the same day as the last phase bar.
+  const end = addBusinessDays(start, result.timeline.totalBusinessDays);
+  return { start: formatYmdLocal(start), end: formatYmdLocal(end) };
 }

@@ -578,6 +578,12 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                         ? `Status ${quote.pbs.status}`
                         : null,
                     quote.pbs.created_at ? `Created ${quote.pbs.created_at}` : null,
+                    // The range the PO was filed with. PBS keeps it in a
+                    // `po_parameter` record nothing here can read back, so this
+                    // stored copy is the only place it is visible at all.
+                    quote.pbs.start_date && quote.pbs.end_date
+                      ? `Project ${quote.pbs.start_date} → ${quote.pbs.end_date}`
+                      : null,
                     quote.pbs.status_synced_at
                       ? `Checked ${new Date(quote.pbs.status_synced_at).toLocaleString()}`
                       : null,

@@ -70,6 +70,34 @@ test.describe("Create PO dialog", () => {
       expect(text, "the irreversibility must always be stated").toMatch(
         /no delete endpoint/i,
       );
+
+      // ── The project date range ──
+      // PBS defaults both to today when they are omitted, so they must always
+      // be present and filled — never blank inputs someone can skip past.
+      const start = dlg.locator("#po-start");
+      const end = dlg.locator("#po-end");
+      await expect(start).toBeVisible();
+      await expect(end).toBeVisible();
+      expect(await start.inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(await end.inputValue()).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(await end.inputValue() >= (await start.inputValue())).toBe(true);
+
+      // A backwards range must block the button, not fail at PBS.
+      await start.fill("2030-01-01");
+      await end.fill("2029-01-01");
+      await expect(submit).toBeDisabled();
+      expect(await dlg.innerText()).toMatch(/end date must be on or after/i);
+      await end.fill("2030-06-01");
+      await expect(submit).toBeEnabled();
+
+      // Both inputs fully inside the viewport at every width.
+      for (const [name, el] of [["start", start], ["end", end]] as const) {
+        const box = await el.boundingBox();
+        expect(box!.x, name).toBeGreaterThanOrEqual(0);
+        expect(box!.x + box!.width, name).toBeLessThanOrEqual(
+          page.viewportSize()!.width,
+        );
+      }
       expect(await hasHorizontalScroll(page)).toBe(false);
     } finally {
       await rest(`proposals?id=eq.${id}`, { method: "DELETE" });
@@ -107,6 +135,15 @@ test.describe("Create PO dialog", () => {
         timeout: 40_000,
       });
       await expect(dlg.getByRole("button", { name: /^create po$/i })).toHaveCount(0);
+
+      // Linking records a PO whose dates PBS already holds and this app cannot
+      // change — editable date fields there would look like they set something.
+      await expect(dlg.locator("#po-start")).toHaveCount(0);
+      await expect(dlg.locator("#po-end")).toHaveCount(0);
+      // And the button must not be gated on a range it never sends.
+      await expect(
+        dlg.getByRole("button", { name: /link po STR000428/i }),
+      ).toBeEnabled();
 
       const text = await dlg.innerText();
       expect(text).toMatch(/PBS already has PO STR000428/);

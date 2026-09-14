@@ -21,7 +21,7 @@ import { zohoFetch } from "@/lib/zoho/tokens";
 /**
  * Create a PO in PBS from an estimate.
  *
- * POST /api/pbs/pos   { proposalId, name, clientId }
+ * POST /api/pbs/pos   { proposalId, name, clientId, startDate?, endDate? }
  *
  * This is the app's only PBS write, and the riskiest call in the integration:
  * **PBS has no delete endpoint**, so a duplicate PO is a manual cleanup in a
@@ -34,9 +34,17 @@ import { zohoFetch } from "@/lib/zoho/tokens";
  *  - the link write is retried once, because a created PO that failed to record
  *    itself looks like "no PO yet" to the next click.
  *
- * The PO is intentionally a shell — `name`, template and client. The API accepts
- * nothing else: `rate_per_hour` is pinned to 0 server-side, and there is no
- * line-item or amount field. The estimate's figures stay in this app and Zoho.
+ * The PO is intentionally a shell — `name`, template, client and a project date
+ * range. The API accepts nothing else: `rate_per_hour` is pinned to 0
+ * server-side, and there is no line-item or amount field. The estimate's figures
+ * stay in this app and Zoho.
+ *
+ * `start_date` / `end_date` are optional to PBS and **both default to the
+ * current UTC date when omitted** — which would file a months-long project as
+ * starting and ending today. So the dialog always derives them from the
+ * estimate's own timeline and sends them; they are validated here rather than
+ * trusted, because PBS stores them in a `po_parameter` record created in the
+ * same transaction as the PO, and there is no endpoint to correct either one.
  */
 const CLAIM_TTL_MS = 2 * 60 * 1000;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -197,6 +205,9 @@ export async function POST(req: Request) {
      * crafted value can't attach an arbitrary PO to a quote.
      */
     linkExisting?: string;
+    /** Project date range, `YYYY-MM-DD`. See the header for why these matter. */
+    startDate?: string;
+    endDate?: string;
   };
   try {
     input = await req.json();
@@ -207,6 +218,41 @@ export async function POST(req: Request) {
   const name = String(input.name ?? "").trim().slice(0, 255);
   const clientId = String(input.clientId ?? "").trim();
   const linkExisting = String(input.linkExisting ?? "").trim();
+
+  // Optional to PBS, so absence is allowed (it defaults both to today) — but a
+  // malformed or backwards range is rejected rather than passed on: the PO and
+  // its date record are written transactionally and neither can be edited after.
+  const YMD = /^\d{4}-\d{2}-\d{2}$/;
+  const startDate = String(input.startDate ?? "").trim();
+  const endDate = String(input.endDate ?? "").trim();
+  // A real calendar day, not just the right shape. `Date.parse` is not enough:
+  // it ROLLS OVER, so "2026-02-31" parses happily as March 3rd and "2026-04-31"
+  // as May 1st (verified). PBS would then store the rolled-over date, in a
+  // record with no edit endpoint — a typo becomes permanent and silent. Only a
+  // value that round-trips to itself is the date the user actually typed.
+  const isRealYmd = (v: string) => {
+    if (!YMD.test(v)) return false;
+    const t = Date.parse(`${v}T00:00:00Z`);
+    return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === v;
+  };
+  for (const [label, v] of [
+    ["startDate", startDate],
+    ["endDate", endDate],
+  ] as const) {
+    if (v && !isRealYmd(v)) {
+      return NextResponse.json(
+        { error: `${label} must be a real date in YYYY-MM-DD form.` },
+        { status: 400 },
+      );
+    }
+  }
+  if (startDate && endDate && endDate < startDate) {
+    // PBS enforces this too; failing here keeps a doomed write off the wire.
+    return NextResponse.json(
+      { error: "The end date must be on or after the start date." },
+      { status: 400 },
+    );
+  }
 
   if (!proposalId || !name) {
     return NextResponse.json(
@@ -422,6 +468,10 @@ export async function POST(req: Request) {
       name,
       client_id: Number(clientId),
       project_template_id: Number(template.templateId),
+      // Omitted rather than sent empty when absent: PBS treats a missing key as
+      // "default to today", and an empty string is not a date.
+      ...(startDate ? { start_date: startDate } : {}),
+      ...(endDate ? { end_date: endDate } : {}),
     });
     const po = res.body?.data?.po;
     if (!res.ok || !po) {
@@ -439,6 +489,11 @@ export async function POST(req: Request) {
       po_id: po.id ?? null,
       po_no: po.po_no ?? null,
       created_at: now,
+      // The PO row PBS returns carries no dates — they live in the separate
+      // `po_parameter` record, which nothing this app can read exposes. So this
+      // is the only record of the range the PO was filed with.
+      ...(startDate ? { start_date: startDate } : {}),
+      ...(endDate ? { end_date: endDate } : {}),
     };
     delete nextPbs.creating_at;
 

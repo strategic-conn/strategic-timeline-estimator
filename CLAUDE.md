@@ -124,7 +124,7 @@ components/
 ├── common/             # coming-soon, shared bits
 ├── features/
 │   ├── projects/       # ProjectsPage, ProjectCard, Create/Edit/Delete modals
-│   ├── proposals/      # Estimator: editor (Scope & risk + Line items tabs), CatalogBrowser, AddonsCard, DependencyAlert, PDF preview mock, access-denied
+│   ├── proposals/      # Estimator: editor (Scope & risk + Line items tabs), StageBoard (Zoho pipeline kanban), CatalogBrowser, AddonsCard, DependencyAlert, PDF preview mock, access-denied
 │   ├── discovery/      # guided-scope UI reused BY the Estimator (no standalone route): DiscoveryWizard, Gantt, HoursBreakdown, RiskBadge, Field
 │   ├── sprints/        # ProjectOverviewPage, SprintCard, Create/Edit/Delete modals
 │   ├── tasks/          # TasksPage, KanbanBoard/Column, TaskCard, TaskDetailDrawer, list/table views, comments, time tracker, modals
@@ -421,7 +421,60 @@ covers webhook *channels*, not records.)
 | **Estimate → Deal content** | `lib/zoho/deal-estimate-sync.ts` | Both "Create deal" and "Push to Zoho" put the estimate's **Packages rows** (one per `zoho.products` entry: Product lookup + Unit Price = its `splitHours` share x `HOURLY_RATE`) onto the Deal, plus the Description on push. **The row's Description column carries the product's own catalogue description**, read live from the Products module — that is what someone opening the deal wants to read; the "N h at $R/h" note is only the fallback for a catalogue entry that has none. It is shown in the send dialog under each product, so the review matches what is written. Both the picker and the row bound it with `truncateAtWord` (`lib/zoho/products.ts`) rather than a hard `slice`: a sentence cut mid-word ("…server-side scripting lang") reads as corrupted data in a CRM field, not as an excerpt. **A quote with no products still carries its price**: `estimateTotalRow` writes ONE row with `Unit_Price` = the whole estimate and no Product lookup (`Product` is `required: false` on this subform, verified live) — and that price only reaches Zoho this way, because `Amount` is recomputed from these rows. **Nothing is hardcoded**: the subform and its columns are resolved from live field metadata by LABEL and type (`findPackagesSubform`), because custom API names can't be guessed — this org's "CATEGORY" field is reachable only as `CATEGORY1`. **Verifies the replace**: after a replacing write it re-reads the row count and warns if it differs from what was sent — a subform PUT is documented to replace, and if it ever appended the deal would silently show double the estimate while the call still reported success. **Overwrites only when asked**: the deal is read first, and by default any existing rows/description are left alone with a warning, since a subform write replaces every row and sales may have typed their own. That default made the price **write-once** — `Amount` is derived from the rows, so an edited estimate could never reprice a deal that already had any — which is why the send dialog (and only the send dialog) passes **`replace=1`**, after showing the deal's live amount and row count. Import, the status changer and mark-complete keep the safe default. The free-text `Description` is narrower still: `replace` rewrites it only when this app wrote it (`isGeneratedDescription`, matching the `Estimate: … line item…` roll-up) — a rep's own notes are never deleted. Can't resolve the subform → skips, warns, and the products still ride in the Description |
 | **Stage picklist** | `/api/zoho/deal-stages` | The org's own Deal `Stage` list (value + pipeline order + forecast bucket + probability), read via `ZohoCRM.settings.READ` and cached 30 min in `lib/zoho/stages.ts`. **One reader, deliberately**: the status changer offers exactly what the push route accepts, so the menu can never show a stage the server then rejects. ⚠️ The readable bucket is **`forecast_type`** ("Open" / "Closed Won" / "Closed Lost"). `forecast_category` looks right and is **an opaque id** — matching on it classifies every stage as not-won |
 | **In-app status changer** (write) | via the push route | The stage badge on the editor's Setup panel is a dropdown (`ZohoStageSelect`): pick any stage in the org pipeline and the deal moves, without opening Zoho. **All stages, revenue ones included** — a stage is reversible in Zoho, and the irreversible half (the PO) has its own gate. No confirm dialog; the result is toasted |
+| **Stage board** (write) | via the push route | Estimator → **Stages**: the same estimates as the list, arranged as a Zoho-shaped pipeline (`ProposalStageBoard`) so someone who works the deal in the CRM recognises the layout. Columns are the org's own picklist in Zoho's order with its probabilities, headed by that column's estimate total and count. Dragging a card moves the real deal. **Only this app's estimates appear** — the rest of that pipeline is sales' business, and rendering it would imply this app could act on it. See the rules below |
 | **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | The app's only writes: **two explicit buttons plus one on import**. **Import / link a deal** → **"Discovery"**, no attachment. **Quote editor → "Send to Zoho"**: also **"Discovery"** — a finished estimate means scoping is done, and sales walks the deal up the pipeline from there. The PDF is attached and the Packages rows filled either way. **Project page → "Mark complete in Zoho"** (only once the project is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Any stage in the org picklist is settable** (the status changer above); the guard is that it must EXIST — validated against `lib/zoho/stages.ts` before the request leaves the process, not a hardcoded list. **`Stage` is the only plain field written** — `Quote_number` is a system *autonumber*, and `Amount` **reports itself writable but is not**: a write returns SUCCESS, reads back correctly, then Zoho recomputes it from the **Packages subform** within seconds (verified live — 43,833 reverted to the subform's 20,000 in under 4 s). So the estimate's price travels as a priced Packages row, never as an `Amount` write. **Idempotent against the LIVE deal**: the route reads the deal's current stage before writing and skips the PUT when it is already there (`stageAlreadySet`). That replaced replaying the quote's own `pushes` history, which blocked two legitimate things — a status changer moving A→B→A, and re-attaching an edited estimate's PDF to a deal already at Proposal Sent. **Forward-only for side-effect stages**: a push carries `explicit=1` only when a human picked the stage from the in-app status changer — that may move a deal anywhere, backwards included. Everything else is a side effect and may only move a deal FORWARD, judged by the org's own `sequence_number` (`stageOrder`), not a static list. This matters most for "Send to Zoho", which sets *Discovery*: on a deal sales had already moved to Negotiation or Closed Won, that would silently drag it back to the start of the pipeline in order to re-attach a PDF. Only the **stage** is held back — the PDF and Packages rows still go up, because losing those would be the worse bug. `AUTO_ADVANCE_FROM` additionally pins the import's Discovery advance to `Proposal Requested`. `proposals.zoho.pushes` (`stage → timestamp`) is still recorded — the sibling guard and the badge read it — but no longer gates a re-push. **Attachments are deduped separately, by filename** (`proposals.zoho.attachments`, `filename → timestamp`, via `shouldAttach()`): the PDF now goes up at whichever stage a deal is opened at, so "was this stage pushed?" is no longer the right question. `proposalPdfFilename` embeds the estimate's date, so re-sending an unchanged quote is skipped while an estimate edited later attaches its updated PDF. This matters because Zoho does **not** dedupe (same filename twice = two records) and there is no DELETE scope. Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields. Every push (and every skip) records the live `stage` + `stage_synced_at`, which is what `ZohoStageBadge` renders on the Estimator list and the editor's Setup panel |
+
+> ⚠️ **One settle rule, shared** (`lib/zoho/stage-catalog.ts`). The picklist
+> cache and `moveDealStage` were lifted out of `ZohoStageSelect` when the board
+> arrived: two surfaces that move deals must not each carry their own copy.
+> `moveDealStage` returns where the deal **settled**, which is not always what
+> was asked for — a push can be held back, and the route then reports
+> `currentStage`. Persisting the request instead is how the badge started lying
+> once before, because the store's write-through overwrote the value the route
+> had just recorded correctly.
+>
+> Three more rules the board depends on:
+>
+>  - **Optimism is board-local.** A dragged card moves instantly via a `pending`
+>    map, but nothing reaches Postgres until the server answers — then the
+>    SETTLED stage is written. A failure clears `pending` and the card snaps
+>    back. Writing optimistically here would persist a stage Zoho refused.
+>  - **Nothing is ever hidden.** A quote whose stage is not in the picklist
+>    (renamed in Zoho, imported before a change) gets its own column at the end.
+>    An estimate that silently disappears from the board is the worst outcome.
+>    Estimates with no `deal_id` sit in a **"Not in Zoho"** column that is not a
+>    drop target — there is no deal to move.
+>  - **It has to look like a pipeline.** The strip is `min-h-[min(62vh,680px)]`
+>    (the Gantt's trick) so columns read as columns rather than a row of chips,
+>    and its scrollbar is deliberately made visible — overlay scrollbars fade
+>    when idle and the last column is cut mid-card at most widths, so without it
+>    the board reads as a board that simply ends. A line under it names the
+>    stage count and both ways to move a card. Loading shows **skeleton
+>    columns**, not a sentence: the picklist is a live Zoho settings read on the
+>    first hit of the 30-minute cache, and one centred line where a whole board
+>    is about to appear reads as a broken page.
+>  - **It is shaped like Zoho's board on purpose.** A column carries a rule
+>    coloured by its **forecast bucket** (`accentFor` — won green, lost muted
+>    red, open blue) rather than by stage name: names differ per org, the three
+>    buckets do not, and that colour is what makes the CRM's board readable at a
+>    glance. A card reads deal → account → contact → amount → **closing date**,
+>    the five things someone scanning that pipeline is looking for, taken from
+>    `proposals.zoho` where the CRM has them. A closing date that has passed
+>    turns red via the shared `isOverdue` — never `new Date(iso) < now`, which
+>    on a DATE string is UTC midnight and flags a day early west of Greenwich.
+>    The clock is read **once** into state (`Date.now()` in a render body is an
+>    impure call the React Compiler rejects, and per-card readings could
+>    straddle midnight and disagree). The per-card stage menu is
+>    `ZohoStageSelect compact` — an icon, because the column already states the
+>    stage and a badge on every card would repeat it N times.
+>  - **Drag is a pointer gesture; the card's stage menu is the universal one.**
+>    At 375px a single 17rem column fills the viewport, so no second column is
+>    ever on screen to drop onto — verified, and why the drag tests skip at
+>    mobile. Every card therefore carries `ZohoStageSelect`, which is also the
+>    only path available to a keyboard. Collision detection is `pointerWithin`
+>    rather than the task board's `closestCorners`: nothing here is sortable, and
+>    the column the cursor is inside is the one `isOver` highlights, so the drop
+>    matches what the user is looking at.
 
 > ⚠️ **This org's pipeline order is not the obvious one.** Read live:
 > Discovery (1, 25%) · Negotiation (2, 35%) · Proposal Requested (3, 45%) ·
@@ -502,7 +555,7 @@ truth.
 | **Clients** | `/api/pbs/clients` | The billing clients, **derived from PO history** — PBS has no clients endpoint (nine paths probed, all 404). A PO number's first 3 letters are the client's code |
 | **Candidate PO preview** | `GET /api/pbs/pos?proposalId=&clientId=` | Read-only. A PO can outlive its link (created in PBS *first*, recorded *second*), so before creating, the dialog asks whether PBS already holds one. Matched by `pickPoCandidate` on the estimate's **title within one client**; writes nothing |
 | **PO status refresh** (PBS → app) | `GET /api/pbs/pos?proposalIds=…` | The PBS→app direction, `usePbsPoRefresh`. Reads each linked PO with `fetchPoById` (`fetch-po` + `po_id`) and stores `status` / `missing` only when they changed. **Exact, so it applies automatically** — the id was recorded at creation, unlike the name-matching that keeps *linking* manual. Live history uses five status codes (B 440, C 27, N 19, A 8, E 6 of 500), so a PO does move after this app creates it. ⚠️ `fetch-po` **without** `po_id` answers HTTP 200 with 200 arbitrary POs (verified live) — same shape as a success; a not-found is an explicit `400 / "PO not found."`, which is why "gone" and "couldn't read" stay distinct. Only status code **N = New** is confirmed (from the PBS UI); the rest render as their raw letter rather than a guessed label |
-| **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id`; PBS generates the PO number. **Gated on the deal being won** — see below. **Refuses (409) when a candidate exists**, handing it back for a human to confirm; `linkExisting=<po_no>` then records the link and calls PBS not at all. A PBS read it can't complete returns 502 rather than proceeding — the quote's own `pbs` field is not proof a PO doesn't exist |
+| **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id` + `start_date`/`end_date`; PBS generates the PO number. **Gated on the deal being won** — see below. **Refuses (409) when a candidate exists**, handing it back for a human to confirm; `linkExisting=<po_no>` then records the link and calls PBS not at all. A PBS read it can't complete returns 502 rather than proceeding — the quote's own `pbs` field is not proof a PO doesn't exist |
 
 **Endpoint allowlist.** `lib/pbs/endpoints.ts` is deny-by-default —
 `pbsFetch` refuses anything unlisted. `register` (creates an app permanently),
@@ -519,9 +572,56 @@ given someone else's. `PBS_PROJECT_TEMPLATE_ID` overrides this and is optional.
 PO's **status** on open, keyed on `po_id`. What is NOT synced back: the
 estimate's own figures, because a PO carries none (see below).
 
-**The PO is a shell** — name, client, template. The API accepts nothing else:
-`rate_per_hour` is pinned to `0.0000` server-side and there is no line-item or
-amount field, so the estimate's figures stay in this app and in Zoho.
+**The PO is a shell** — name, client, template, and a project date range. The
+API accepts nothing else: `rate_per_hour` is pinned to `0.0000` server-side and
+there is no line-item or amount field, so the estimate's figures stay in this
+app and in Zoho.
+
+**Project dates** (`start_date` / `end_date`, `YYYY-MM-DD`) were added to
+`create-po` in the Sep 2026 API update (`pbs-docs/`). PBS stores them in a
+separate `po_parameter` record written in the **same transaction** as the PO, and
+nothing this app may call reads or edits it — `fetch-po` returns the PO row
+alone. Three consequences:
+
+- ⚠️ **Both are optional to PBS and default to the current UTC date**, so
+  omitting them files a months-long project as starting *and ending today*. The
+  Create PO dialog therefore always sends them.
+- They are pre-filled from **`estimateDateRange`** (`lib/discovery/from-line-items.ts`)
+  — the same analyzer the Gantt draws, so the PO matches the timeline on screen
+  rather than a second derivation. The start rule itself is one function,
+  `resolveProjectStart` (`lib/discovery/timeline.ts`): `DiscoveryGantt` had a
+  byte-identical private copy, which is item 8 waiting to happen — the two
+  consumers being the timeline someone *looks at* and the range they are
+  *billed against*. `DiscoveryTimeline`'s own dates are formatted
+  `"MMM d, yyyy"` for display and no API accepts them; this returns ISO. It
+  returns `null` when the quote has no line items, and the dialog says so
+  instead of inventing a range.
+- They are **editable** in the dialog (the billed schedule is the coordinator's
+  call), and validated both there and in the route — before the row claim, so a
+  rejected range leaves no dangling `creating_at` lock. ⚠️ The route round-trips
+  each value rather than trusting `Date.parse`, which **rolls over**:
+  `2026-02-31` parses happily as March 3rd and `2026-04-31` as May 1st (verified),
+  so a typo would become a different, permanent date in a record with no edit
+  endpoint. `end_date` must be on or after `start_date`. The range sent is
+  mirrored onto `proposals.pbs` — the app's only record of it — and shown in the
+  PO badge's tooltip on both the editor header and the Estimator list.
+- **Create only.** `linkExisting` records a PO whose range PBS already holds and
+  this app cannot change, so the dialog hides the fields, stops gating the
+  button on them, and sends no dates at all on that path.
+- The end date is `start + totalBusinessDays`, the **max across phases**, so it
+  covers the launch phase and anything (e.g. SEO) that outruns it. Verified live
+  against the estimate on screen: PO `2026-09-04 → 2026-12-10` beside the Gantt's
+  "69 business days · launches Dec 10, 2026".
+
+> ⚠️ **The pre-fill effect must depend on the derived STRINGS, not the object.**
+> `estimateDateRange` returns a fresh object per call, so an effect keyed on it
+> re-ran whenever the quote's identity changed — and picking the billing client
+> writes `pbs` through the store, which does exactly that. The dialog then
+> **silently reset dates the coordinator had typed** (`2027-03-01` → today) and
+> filed the PO with the derived range, with nothing on screen saying so. The
+> `useMemo` is likewise keyed on the four fields the derivation reads
+> (`discovery`, `line_items`, `addons`, `requirements_unclear`), never on
+> `quote`. Regression test: `e2e/po-date-edits.spec.ts`.
 
 > ⚠️ **PBS has no delete endpoint.** A duplicate PO is a manual cleanup in a live
 > billing system, so `POST /api/pbs/pos` refuses a quote that already has a
@@ -538,7 +638,8 @@ create time. Precedence: the estimate's own client → the workspace default. It
 changes future estimates without rewriting past ones.
 
 **Storage:** `proposals.pbs` jsonb (migration `0031`) —
-`{client_id, client_code, po_id, po_no, created_at, creating_at, adopted}`.
+`{client_id, client_code, po_id, po_no, created_at, creating_at, adopted, status,
+status_synced_at, missing, start_date, end_date}`.
 
 > ⚠️ **A PO is never linked on a name match alone.** PBS has no get-by-name, so
 > the only thing to match on is the `name` this app set at create time — and a
@@ -768,6 +869,21 @@ if (!tasks.length) {
      keep icons identifiable). Gives ~664px of content on iPad portrait; a full `w-56` sidebar there
      left only ~504px — *narrower than the same device with no sidebar at all*.
    - `lg+` — full sidebar with labels (`lg:w-56`, `xl:w-64`)
+
+   **A reading-width cap belongs on the CONTENT, not the page.** The Estimator
+   put `max-w-3xl` on its page root, which starved its own header: 768px cannot
+   seat a five-control actions row beside a title, so at a 1920 viewport the
+   `h1` collapsed to **85px** and the description wrapped one word per line
+   inside a 1600px shell (all measured, not guessed). The cap now sits on the
+   card `<ul>` — the thing that wants a comfortable column — leaving the header
+   and the stage board the whole shell. `WorkspacePageHeader` is
+   `overflow-hidden`, so anything that does not fit is **invisible rather than
+   cramped**, with no scrollbar to hint at it; that is how **New estimate** came
+   to be sliced off. Its actions cap is `xl:max-w-md` / `2xl:max-w-2xl` (raised
+   from `max-w-xl`, which clipped 611px of controls into 576px), and heavy
+   actions rows should carry `sm:flex-wrap` so they wrap instead of clipping.
+   `e2e/page-header-fit.spec.ts` walks every page at all three widths and fails
+   on any control outside its header, or any page that scrolls sideways.
 
    **A strip that scrolls sideways reads as a strip that ends.** Overlay
    scrollbars are invisible on touch and idle desktops, so tabs and filter pills

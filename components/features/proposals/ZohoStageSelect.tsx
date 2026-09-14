@@ -1,8 +1,7 @@
 "use client";
 
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { ArrowLeftRight, Check, ChevronDown, Loader2 } from "lucide-react";
 import * as React from "react";
-import { toast } from "sonner";
 
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import {
@@ -14,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
-import { requestStagePush } from "@/lib/zoho/push-state";
+import { moveDealStage, useZohoStages } from "@/lib/zoho/stage-catalog";
 
 /**
  * Move a linked deal through the Zoho pipeline without leaving the app.
@@ -26,94 +25,41 @@ import { requestStagePush } from "@/lib/zoho/push-state";
  *
  * No confirmation step: a stage is reversible in Zoho, unlike the PO this can
  * unlock. The irreversible half has its own dialog.
+ *
+ * The picklist and the move itself live in `lib/zoho/stage-catalog.ts`, shared
+ * with the stage board — one settle rule, one cache.
  */
-export type ZohoStage = {
-  value: string;
-  order: number;
-  forecast: string | null;
-  probability: number | null;
-};
-
-// Module-scoped, like the PBS directory: the picklist is org configuration that
-// changes about never, and every estimate would otherwise re-read it.
-let cache: ZohoStage[] | null = null;
-let inFlight: Promise<ZohoStage[]> | null = null;
-
-async function fetchStages(): Promise<ZohoStage[]> {
-  const res = await fetch("/api/zoho/deal-stages");
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error ?? "Couldn't read the Zoho stages.");
-  return (data?.stages ?? []) as ZohoStage[];
-}
-
 export function ZohoStageSelect({
   dealId,
   proposalId,
   stage,
   syncedAt,
   onChanged,
+  compact = false,
 }: {
   dealId: string;
   proposalId: string;
   stage: string;
   syncedAt?: string | null;
   onChanged: (stage: string) => void | Promise<void>;
+  /**
+   * Render just an icon instead of the stage badge.
+   *
+   * For the pipeline board, where the COLUMN already states the stage and a
+   * badge on every card would repeat it N times. The control still has to be
+   * there — dragging is pointer-only, so this is the touch and keyboard path.
+   */
+  compact?: boolean;
 }) {
-  const [stages, setStages] = React.useState<ZohoStage[]>(cache ?? []);
-  const [loading, setLoading] = React.useState(false);
-  const [error, setError] = React.useState<string | null>(null);
+  const { stages, loading, error, load } = useZohoStages();
   const [busy, setBusy] = React.useState<string | null>(null);
-
-  const load = React.useCallback(() => {
-    if (cache) {
-      setStages(cache);
-      return;
-    }
-    setLoading(true);
-    setError(null);
-    inFlight ??= fetchStages();
-    void inFlight
-      .then((s) => {
-        cache = s;
-        setStages(s);
-      })
-      .catch((e: unknown) => {
-        inFlight = null;
-        setError(e instanceof Error ? e.message : "Couldn't read the Zoho stages.");
-      })
-      .finally(() => setLoading(false));
-  }, []);
 
   const move = async (next: string) => {
     if (next === stage || busy) return;
     setBusy(next);
     try {
-      const res = await requestStagePush(dealId, {
-        proposalId,
-        stage: next,
-        // A person picked this exact stage, so the forward-only rule that guards
-        // side-effect pushes does not apply — moving a deal back is allowed here.
-        explicit: true,
-      });
-      if (res.error) {
-        toast.error("Zoho didn't accept the stage change", {
-          description: res.error,
-        });
-        return;
-      }
-      if (res.moved) {
-        toast.success(`Deal moved to ${next}`);
-      } else if (res.stageAlreadySet) {
-        toast.info(`Deal was already at ${next}`);
-      } else if (res.skipped && res.currentStage) {
-        toast.info(`Deal left at ${res.currentStage}`);
-      }
-      for (const w of res.warnings ?? []) toast.warning(w);
-      // Store what the deal ACTUALLY ended up at, not what we asked for. A
-      // skipped push leaves it where it was, and writing `next` there would
-      // make the badge lie — and the store's write-through would persist that
-      // lie over the correct value the route just recorded.
-      const settled = res.moved || res.stageAlreadySet ? next : res.currentStage;
+      // Returns where the deal ACTUALLY landed — a skipped push leaves it put.
+      const settled = await moveDealStage(dealId, { proposalId, stage: next });
       if (settled) await onChanged(settled);
     } finally {
       setBusy(null);
@@ -123,13 +69,23 @@ export function ZohoStageSelect({
   return (
     <DropdownMenu onOpenChange={(open) => open && load()}>
       <DropdownMenuTrigger
-        className="inline-flex items-center gap-0.5 rounded transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50"
+        className={cn(
+          "inline-flex items-center rounded transition-opacity hover:opacity-80 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none disabled:opacity-50",
+          compact
+            ? "size-5 justify-center text-muted-foreground hover:bg-muted hover:text-foreground"
+            : "gap-0.5",
+        )}
         aria-label={`Deal stage: ${stage}. Change it in Zoho.`}
+        title={compact ? `Stage: ${stage} — move it in Zoho` : undefined}
         disabled={Boolean(busy)}
       >
-        <ZohoStageBadge stage={stage} syncedAt={syncedAt} className="h-5 py-0" />
+        {compact ? null : (
+          <ZohoStageBadge stage={stage} syncedAt={syncedAt} className="h-5 py-0" />
+        )}
         {busy ? (
           <Loader2 className="size-3 animate-spin text-muted-foreground" aria-hidden />
+        ) : compact ? (
+          <ArrowLeftRight className="size-3" aria-hidden />
         ) : (
           <ChevronDown className="size-3 text-muted-foreground" aria-hidden />
         )}

@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -21,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePbsPoTarget } from "@/hooks/usePbsClients";
+import { estimateDateRange } from "@/lib/discovery/from-line-items";
+import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -64,6 +68,56 @@ export function CreatePoDialog({
   React.useEffect(() => {
     if (open) load();
   }, [open, load]);
+
+  /**
+   * The project date range the PO is filed against.
+   *
+   * PBS treats both as optional and **defaults each to the current UTC date**,
+   * which would record a months-long project as starting and ending today. So
+   * they are always sent, pre-filled from the estimate's own timeline (the same
+   * analyzer the Gantt draws) — and editable, because the schedule a client is
+   * billed against is a call the coordinator may need to make differently from
+   * the tentative plan.
+   *
+   * PBS writes the PO and its date record in one transaction and offers no way
+   * to edit either afterwards, so this is a one-shot decision.
+   */
+  // Memoised on what the derivation actually reads, NOT on `quote`. Picking a
+  // billing client writes `pbs` through the store, which hands this component a
+  // new quote object while these four are untouched — so keying on `quote`
+  // recomputed (and re-fired the effect below) on an unrelated edit.
+  const derived = React.useMemo(
+    () => estimateDateRange(quote),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the fields `estimateDateRange` reads
+    [
+      quote.discovery,
+      quote.line_items,
+      quote.addons,
+      quote.requirements_unclear,
+    ],
+  );
+  const derivedStart = derived?.start ?? null;
+  const derivedEnd = derived?.end ?? null;
+
+  const [startDate, setStartDate] = React.useState("");
+  const [endDate, setEndDate] = React.useState("");
+  React.useEffect(() => {
+    if (!open) return;
+    // ⚠️ Depends on the derived STRINGS, never on the object.
+    //
+    // `derived` is a fresh object on every recompute, so an object dependency
+    // re-ran this and **silently reset dates the coordinator had typed** — pick
+    // the billing client after setting the range and the PO was filed with the
+    // derived dates instead, with nothing on screen saying so. On a record PBS
+    // cannot edit, that is a wrong date range nobody would catch. Primitives
+    // re-fill only when the estimate's own timeline genuinely moves.
+    const fallback = formatYmdLocal(new Date());
+    setStartDate(derivedStart ?? fallback);
+    setEndDate(derivedEnd ?? fallback);
+  }, [open, derivedStart, derivedEnd]);
+
+  /** PBS rejects a backwards range, and so does the route — say so before either. */
+  const datesValid = Boolean(startDate && endDate && endDate >= startDate);
 
   /**
    * A PO already in PBS that might be this estimate's.
@@ -121,10 +175,14 @@ export function CreatePoDialog({
     const account = quote.zoho?.account_id;
     if (!account || quote.pbs?.client_id) return null;
     const sibling = allQuotes.find(
-      (q) => q.id !== quote.id && q.zoho?.account_id === account && q.pbs?.client_id,
+      (q) =>
+        q.id !== quote.id && q.zoho?.account_id === account && q.pbs?.client_id,
     );
     return sibling?.pbs
-      ? { client_id: sibling.pbs.client_id, client_code: sibling.pbs.client_code }
+      ? {
+          client_id: sibling.pbs.client_id,
+          client_code: sibling.pbs.client_code,
+        }
       : null;
   }, [allQuotes, quote]);
 
@@ -139,6 +197,10 @@ export function CreatePoDialog({
           proposalId: quote.id,
           name: quote.title,
           clientId,
+          // Only on a create. Linking records a PO whose date range PBS already
+          // holds; sending ours would imply this app set it, and the route
+          // would validate a range it then ignores.
+          ...(linkExisting ? {} : { startDate, endDate }),
           // Only ever the number the server itself offered. It re-finds the
           // candidate and compares, so this can't attach an arbitrary PO.
           ...(linkExisting ? { linkExisting } : {}),
@@ -190,7 +252,8 @@ export function CreatePoDialog({
               pbs: {
                 ...(quote.pbs ?? {}),
                 client_id: v,
-                client_code: clients.find((c) => c.clientId === v)?.code ?? null,
+                client_code:
+                  clients.find((c) => c.clientId === v)?.code ?? null,
               },
             })
           }
@@ -264,7 +327,10 @@ export function CreatePoDialog({
             <>
               <dl className="overflow-hidden rounded-md border border-border/60 px-2.5 py-1.5 text-xs">
                 {rows.map(([label, value]) => (
-                  <div key={label} className="flex justify-between gap-3 py-0.5">
+                  <div
+                    key={label}
+                    className="flex justify-between gap-3 py-0.5"
+                  >
                     <dt className="shrink-0 self-center text-muted-foreground">
                       {label}
                     </dt>
@@ -274,6 +340,70 @@ export function CreatePoDialog({
                   </div>
                 ))}
               </dl>
+
+              {/* Omitted entirely while a candidate is offered: that button
+                  LINKS an existing PO, whose date range already exists in PBS
+                  and which this app cannot change. Editable fields there would
+                  look like they set something.
+
+                  Conditionally rendered rather than class-hidden: `hidden` and
+                  `grid` both set `display`, so which one wins is CSS order, not
+                  the order they appear in the attribute.
+
+                  Own fields rather than a <dl> row: two native date inputs do
+                  not fit a right-aligned truncating cell at 375px. Stacked
+                  below sm for the same reason. */}
+              {candidate ? null : (
+                <>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <div className="grid gap-1">
+                      <Label htmlFor="po-start" className="text-xs">
+                        Project start
+                      </Label>
+                      <Input
+                        id="po-start"
+                        type="date"
+                        value={startDate}
+                        max={endDate || undefined}
+                        onChange={(e) => setStartDate(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                    <div className="grid gap-1">
+                      <Label htmlFor="po-end" className="text-xs">
+                        Project end
+                      </Label>
+                      <Input
+                        id="po-end"
+                        type="date"
+                        value={endDate}
+                        min={startDate || undefined}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  {!datesValid ? (
+                    <p className="text-xs text-destructive">
+                      {!startDate || !endDate
+                        ? "Both project dates are required."
+                        : "The end date must be on or after the start date."}
+                    </p>
+                  ) : derived ? (
+                    <p className="text-[0.7rem] text-muted-foreground">
+                      From this estimate&apos;s timeline. PBS stores this range
+                      with the PO and can&apos;t change it afterwards.
+                    </p>
+                  ) : (
+                    <p className="text-[0.7rem] text-amber-700 dark:text-amber-400">
+                      This estimate has no line items to schedule, so the dates
+                      default to today — set the real range before creating the
+                      PO.
+                    </p>
+                  )}
+                </>
+              )}
+
               {candidate ? (
                 /* PBS already has a PO with this name for this client. Almost
                    certainly this estimate's, whose link write failed — but
@@ -282,7 +412,10 @@ export function CreatePoDialog({
                    against the wrong PO is silent where a duplicate is obvious. */
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-[0.7rem] text-amber-700 dark:text-amber-400">
                   <p className="flex items-start gap-1.5">
-                    <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+                    <TriangleAlert
+                      className="mt-0.5 size-3 shrink-0"
+                      aria-hidden
+                    />
                     <span>
                       <strong className="font-semibold">
                         PBS already has PO {candidate.po_no}
@@ -291,7 +424,10 @@ export function CreatePoDialog({
                       {candidate.create_date
                         ? `, created ${candidate.create_date}`
                         : null}
-                      {candidate.create_by ? ` by ${candidate.create_by}` : null}.
+                      {candidate.create_by
+                        ? ` by ${candidate.create_by}`
+                        : null}
+                      .
                     </span>
                   </p>
                   <p className="mt-1 pl-4.5">
@@ -302,7 +438,10 @@ export function CreatePoDialog({
                 </div>
               ) : (
                 <p className="flex items-start gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[0.7rem] text-amber-700 dark:text-amber-400">
-                  <TriangleAlert className="mt-0.5 size-3 shrink-0" aria-hidden />
+                  <TriangleAlert
+                    className="mt-0.5 size-3 shrink-0"
+                    aria-hidden
+                  />
                   <span>
                     PBS has no delete endpoint — this can&apos;t be undone. The
                     PO is a shell: PBS pins new POs to a 0 rate, so the
@@ -355,7 +494,14 @@ export function CreatePoDialog({
             type="button"
             size="sm"
             onClick={() => void create(candidate?.po_no)}
-            disabled={busy || checking || !clientId || Boolean(existingPo)}
+            disabled={
+              busy ||
+              checking ||
+              !clientId ||
+              // Dates gate a create only — a link doesn't use them.
+              (!candidate && !datesValid) ||
+              Boolean(existingPo)
+            }
             className="gap-2"
           >
             {busy || checking ? (
