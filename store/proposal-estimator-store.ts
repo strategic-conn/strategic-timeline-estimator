@@ -518,6 +518,26 @@ interface ProposalEstimatorState {
   /** Move a proposal through its approval lifecycle (draft/sent/approved/rejected). */
   setProposalStatus: (id: string, status: ProposalStatus) => void;
   /**
+   * Record what a linked Zoho deal now looks like — stage, amount, and the
+   * won-promotion — in **one** write.
+   *
+   * ⚠️ Exists because doing it as `updateProposal` + `setProposalStatus` is a
+   * race, not a sequence. `persistQuoteDoc` sends the WHOLE document, `status`
+   * included, so the stage write (built while the quote was still `draft`) can
+   * land after the status write and silently revert `approved` back to
+   * `draft` — reproduced at roughly one in three. One `set`, one round trip.
+   */
+  applyDealStage: (
+    id: string,
+    patch: {
+      stage?: string;
+      stageSyncedAt?: string;
+      amount?: number | null;
+      /** Promote draft/sent → approved in the same write. */
+      approve?: boolean;
+    },
+  ) => void;
+  /**
    * A project was deleted — drop any estimate's link to it.
    *
    * Local only, on purpose: `proposals.project_id` is `on delete set null`, so
@@ -842,6 +862,36 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               }
             : s,
         ),
+
+      applyDealStage: (id, patch) => {
+        const prev = get().proposals.find((p) => p.id === id);
+        if (!prev?.zoho) return;
+        set((s) => ({
+          proposals: s.proposals.map((p) => {
+            if (p.id !== id) return p;
+            const zoho = { ...p.zoho! };
+            if (patch.stage !== undefined) {
+              zoho.stage = patch.stage;
+              zoho.stage_synced_at = patch.stageSyncedAt ?? new Date().toISOString();
+            }
+            if (patch.amount !== undefined) zoho.amount = patch.amount;
+            return {
+              ...p,
+              zoho,
+              // Winning IS the approval. A REJECTED estimate is left alone —
+              // that was a deliberate call about this quote.
+              status:
+                patch.approve && (p.status === "draft" || p.status === "sent")
+                  ? ("approved" as ProposalStatus)
+                  : p.status,
+              updated_at: new Date().toISOString(),
+            };
+          }),
+        }));
+        // Single write: the payload it builds now carries the new stage AND the
+        // new status, so neither can overwrite the other.
+        persistQuoteDoc(id, get);
+      },
 
       setProposalStatus: (id, status) => {
         const prev = get().proposals.find((p) => p.id === id);

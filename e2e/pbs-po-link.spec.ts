@@ -120,6 +120,10 @@ test.describe("the PO number reaches the UI", () => {
     test.skip(!billed, "No estimate has a PO recorded.");
     await page.goto("/proposals");
     await waitForApp(page);
+    // The Estimator opens on Stages now, so ask for the list explicitly —
+    // otherwise there are no cards and this asserts nothing.
+    await page.getByRole("button", { name: /^list$/i }).click();
+    await expect(page.locator("main ul")).toBeVisible({ timeout: 30_000 });
     const badge = page.getByText(`PO ${billed!.poNo}`).first();
     await expect(badge).toBeVisible({ timeout: 30_000 });
     // It sits in a shrink-0 row beside the card's action buttons — the classic

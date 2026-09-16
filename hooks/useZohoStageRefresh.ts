@@ -3,11 +3,9 @@
 import * as React from "react";
 import { toast } from "sonner";
 
-import { notifyUsers, pushWorkspaceActivity } from "@/lib/activity/workspace-push";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
-import { looksWon } from "@/lib/zoho/push-state";
+import { announceWin, shouldPromoteOnWin } from "@/lib/zoho/won-transition";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
-import { useTeamStore } from "@/store/team-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /** How long a checked stage is trusted before it's worth re-reading. */
@@ -45,8 +43,7 @@ type Pair = { proposalId: string; dealId: string };
  * opposite — someone asked, so it ignores the throttle and always reports.
  */
 export function useZohoStageRefresh(quotes: ClientQuote[]) {
-  const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
-  const setProposalStatus = useProposalEstimatorStore((s) => s.setProposalStatus);
+  const applyDealStage = useProposalEstimatorStore((s) => s.applyDealStage);
   const [refreshing, setRefreshing] = React.useState(false);
 
   // Every linked quote, as a stable string. Keying the effect on the ids rather
@@ -124,60 +121,30 @@ export function useZohoStageRefresh(quotes: ClientQuote[]) {
           typeof liveAmount === "number" && quote.zoho.amount !== liveAmount;
         if (!stageChanged && !amountChanged) continue;
 
-        updateProposal(proposalId, {
-          zoho: {
-            ...quote.zoho,
-            ...(stageChanged ? { stage: live, stage_synced_at: syncedAt } : {}),
-            ...(amountChanged ? { amount: liveAmount } : {}),
-          },
+        // Stage, amount AND the won-promotion in ONE write. Splitting the
+        // promotion into its own `setProposalStatus` raced this one: the
+        // document payload carries `status`, so whichever landed last won and
+        // `approved` got reverted to `draft` about a third of the time.
+        applyDealStage(proposalId, {
+          ...(stageChanged && live
+            ? { stage: live, stageSyncedAt: syncedAt }
+            : {}),
+          ...(amountChanged ? { amount: liveAmount } : {}),
+          approve: Boolean(
+            stageChanged && live && shouldPromoteOnWin(quote, live),
+          ),
         });
         changed += 1;
         if (!stageChanged || !live) continue;
 
-        // A deal reaching the won stage is the trigger for billing, and this
-        // poll is the only way the app hears about it — sales moves the deal in
-        // Zoho, and there is no webhook. Announce it once, on the transition,
-        // so the "Create PO" button that just appeared is not a surprise.
-        if (looksWon(live) && !looksWon(quote.zoho.stage)) {
-          const href = `/proposals/${proposalId}`;
-          const label = quote.title || quote.zoho.deal_name || "this estimate";
-
-          // Winning the deal IS the approval, so stop making someone remember to
-          // say so twice: promoting the status here is what puts "Start project"
-          // beside "Create PO". Only from draft/sent — a REJECTED estimate stays
-          // rejected, because that was a deliberate call about this quote and a
-          // won deal on the same account shouldn't silently reverse it.
-          if (quote.status === "draft" || quote.status === "sent") {
-            setProposalStatus(proposalId, "approved");
-          }
-          // Past-tense verb phrase: the store prefixes the actor and lower-cases
-          // the first word, so a summary starting with a proper noun renders as
-          // "Daniel zoho deal won". "Synced" is also the honest verb — sales
-          // moved the deal, this session is what noticed.
-          pushWorkspaceActivity(
-            `synced "${label}" from Zoho — the deal is won, ready to bill and start`,
-            href,
-          );
-          // Everyone who can act on it — admins and managers, the tier the
-          // Estimator is gated to anyway. `includeSelf` because nobody here
-          // DID anything: sales moved the deal in Zoho and this session merely
-          // noticed. Excluding the observer would leave a lone admin with no
-          // notification at all.
-          notifyUsers(
-            useTeamStore
-              .getState()
-              .members.filter((m) => m.role === "admin" || m.role === "manager")
-              .map((m) => m.id),
-            `"${label}" is at ${live} in Zoho — ready to raise the PO and start the project`,
-            href,
-            null,
-            { includeSelf: true },
-          );
-        }
+        // Announcing is a separate side effect with no ordering constraint.
+        // `observed: true` because nobody here did anything: sales moved the
+        // deal in Zoho and this session merely noticed.
+        announceWin(quote, live, { observed: true });
       }
       return changed;
     },
-    [key, updateProposal, setProposalStatus],
+    [key, applyDealStage],
   );
 
   React.useEffect(() => {

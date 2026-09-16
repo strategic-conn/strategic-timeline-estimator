@@ -72,6 +72,7 @@ import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
 import { PUSHABLE_STAGES, canRaisePo, requestStagePush } from "@/lib/zoho/push-state";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import { usePbsPoRefresh } from "@/hooks/usePbsPoRefresh";
+import { recordStageChange } from "@/lib/zoho/won-transition";
 import { poStatusLabel } from "@/lib/pbs/po-status";
 import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -101,7 +102,6 @@ export function ProposalsListClient() {
   const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
-  const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
   // Sales can move a deal in Zoho without telling us — re-check the linked ones
   // whenever the list is opened, in a single batched read.
   const zohoStages = useZohoStageRefresh(proposals);
@@ -162,11 +162,11 @@ export function ProposalsListClient() {
         .getState()
         .proposals.find((q) => q.id === proposalId);
       if (!quote?.zoho) return;
-      updateProposal(proposalId, {
-        zoho: { ...quote.zoho, stage, stage_synced_at: new Date().toISOString() },
-      });
+      // Records the stage AND applies the win — dragging a card to Closed Won
+      // has to promote the estimate, or "Start project" never appears.
+      recordStageChange(quote, stage);
     },
-    [updateProposal],
+    [],
   );
 
   const projectName = React.useCallback(

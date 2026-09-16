@@ -542,6 +542,18 @@ instantly with no reuse window, while minting is unconditional and non-revoking,
 so an expiring token is simply re-minted. The table is a cache, not a source of
 truth.
 
+> ⚠️ **Minting is NOT safe to race** — this file used to claim it was. PBS keeps
+> a unique index on `(app_id, refresh_token_hash)`, so two `/token` calls landing
+> together get a raw driver error back:
+> `SQLSTATE[23000] … columns app_id, refresh_token_hash are not unique`.
+> It surfaced the moment the PO status read started fanning out five requests at
+> a time against a cold cache — each found no fresh token and minted. Every
+> caller now goes through **`mintOnce`** (`lib/pbs/tokens.ts`): one in-flight
+> promise shared per process, plus a re-read of the cache on failure to cover the
+> cross-process case, where another instance has just minted a perfectly good
+> token. Reproduced and re-verified live by forcing `expires_at` into the past
+> and firing two concurrent batched requests.
+
 > ⚠️ Three things the PBS reference doc gets wrong, all verified live:
 > the base path is **`/api`**, not `/pbs/api` (which answers **HTTP 200** with an
 > HTML login redirect); **`Authorization: Bearer` is rejected**; and the reads
@@ -681,6 +693,29 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    with no notification at all. Detection is per-browser, so two admins with the
    app open each raise one.
 3. Reaching a won stage also promotes the estimate from `draft`/`sent` to **`approved`** — winning the deal *is* the approval, so **Start project** appears beside **Create PO** instead of waiting for someone to flip a dropdown. A `rejected` estimate is left alone; that was a deliberate call about the quote.
+
+   > ⚠️ **Stage and promotion travel in ONE store write** (`applyDealStage`).
+   > Doing it as `updateProposal` + `setProposalStatus` is a race, not a
+   > sequence: `persistQuoteDoc` sends the **whole document**, `status`
+   > included, so the stage write — built while the quote was still `draft` —
+   > could land after the status write and revert `approved` back to `draft`.
+   > Reproduced at roughly **one in three**, on both the in-app path and the
+   > poll. Anything that changes two fields of a quote at once must go through a
+   > single action for the same reason.
+   >
+   > ⚠️ **However the deal got there.** That promotion lived inline in
+   > `useZohoStageRefresh`, so only the **poll** ran it: moving a deal to Closed
+   > Won from the status changer — or, once it shipped, by dragging a card on the
+   > stage board — wrote the stage and nothing else, leaving the estimate `draft`
+   > with no **Start project**. Found live on an estimate that already had a PO
+   > raised against it. The rule now lives in **`lib/zoho/won-transition.ts`**:
+   > `applyWonTransition` (promote + activity + notify, guarded on the
+   > *transition*) and `recordStageChange` (record the settled stage, then apply
+   > it) — the poll calls the first, both in-app surfaces call the second, so the
+   > three cannot drift again. `observed` only changes the wording and whether
+   > the actor is notified; the promotion is identical. Regression test in
+   > `e2e/stage-board.spec.ts`, including that a **rejected** estimate stays
+   > rejected while its stage still moves.
 4. **Create PO** appears in two places — the estimate's header (visible from
    every tab) and its card on the Estimator list, so the next step is offered
    without opening anything. Both open the same `CreatePoDialog`: client,

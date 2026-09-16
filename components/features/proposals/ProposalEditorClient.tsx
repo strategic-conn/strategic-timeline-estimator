@@ -131,6 +131,7 @@ import { ZohoProductPicker } from "@/components/features/proposals/ZohoProductPi
 import { ZohoStageSelect } from "@/components/features/proposals/ZohoStageSelect";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import { usePbsPoRefresh } from "@/hooks/usePbsPoRefresh";
+import { recordStageChange } from "@/lib/zoho/won-transition";
 import { poStatusLabel } from "@/lib/pbs/po-status";
 import {
   dealTakenMessage,
@@ -766,15 +767,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                             syncedAt={
                               quote.zoho.stage_synced_at ?? quote.zoho.imported_at
                             }
-                            onChanged={(next) =>
-                              updateProposal(quote.id, {
-                                zoho: {
-                                  ...quote.zoho!,
-                                  stage: next,
-                                  stage_synced_at: new Date().toISOString(),
-                                },
-                              })
-                            }
+                            // Records the stage AND applies the win — the same
+                            // call the pipeline board makes, so the two cannot
+                            // drift apart again.
+                            onChanged={(next) => recordStageChange(quote, next)}
                           />
                           {/* The badge is a snapshot — this re-reads it without
                               reloading the page. */}

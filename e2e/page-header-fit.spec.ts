@@ -69,6 +69,12 @@ test("the Estimator gives the board the shell and the cards a reading width", as
     () => Math.round(document.querySelector("main > div")!.getBoundingClientRect().width),
   );
 
+  // Stages is the default view now, so switch to List explicitly — otherwise
+  // `main ul` is absent and the reading-width assertion below silently passes
+  // without ever checking anything.
+  await page.getByRole("button", { name: /^list$/i }).click();
+  await expect(page.locator("main ul")).toBeVisible({ timeout: 30_000 });
+
   // List: the header takes the whole shell (so its controls fit) while the card
   // column stays a comfortable column. Capping the PAGE is what broke the
   // header, so the cap belongs here and only here.
@@ -81,7 +87,8 @@ test("the Estimator gives the board the shell and the cards a reading width", as
     };
   });
   expect(list.header).toBe(shell);
-  if (list.ul !== null && shell > 800) {
+  expect(list.ul, "the list must be rendered to be measured").not.toBeNull();
+  if (shell > 800) {
     expect(list.ul, "cards keep a reading width on a wide screen").toBeLessThanOrEqual(
       800,
     );

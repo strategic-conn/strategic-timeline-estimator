@@ -50,7 +50,23 @@ async function readCached(): Promise<Cached | null> {
   return (data as Cached | null) ?? null;
 }
 
-/** Mint a fresh token and cache it. Safe to race — PBS tokens coexist. */
+/**
+ * In-flight mint, shared by every concurrent caller in this process.
+ *
+ * ⚠️ Minting is NOT safe to race, despite what this file used to claim. PBS
+ * keeps a unique index on `(app_id, refresh_token_hash)`, so two `/token` calls
+ * landing together make it answer with a raw driver error:
+ *
+ *   SQLSTATE[23000]: Integrity constraint violation: 19 columns
+ *   app_id, refresh_token_hash are not unique
+ *
+ * Reproduced live the moment the PO status read started fanning out five
+ * requests at a time against a cold cache — each one found no fresh token and
+ * called `mint()`. One promise, shared, removes the whole class.
+ */
+let minting: Promise<string> | null = null;
+
+/** Mint a fresh token and cache it. Always go through `mintOnce`. */
 async function mint(): Promise<string> {
   const res = await fetch(`${pbsConfig.baseUrl}/token`, {
     method: "POST",
@@ -86,6 +102,30 @@ async function mint(): Promise<string> {
   return token;
 }
 
+/**
+ * One mint at a time, and one retry through the cache if PBS still refuses.
+ *
+ * The retry covers the cross-process case the single flight cannot: another
+ * instance may have minted successfully a moment ago, in which case the cached
+ * token is perfectly good and there is nothing to mint.
+ */
+async function mintOnce(): Promise<string> {
+  minting ??= mint().finally(() => {
+    minting = null;
+  });
+  try {
+    return await minting;
+  } catch (e) {
+    const cached = await readCached();
+    if (cached && cached.app_id === pbsConfig.appId) {
+      const stillValid =
+        new Date(cached.expires_at).getTime() - RENEW_MARGIN_MS > Date.now();
+      if (stillValid) return cached.access_token;
+    }
+    throw e;
+  }
+}
+
 export async function getAccessToken(): Promise<string> {
   if (!isPbsConfigured) throw new Error("PBS is not configured.");
   const cached = await readCached();
@@ -95,7 +135,7 @@ export async function getAccessToken(): Promise<string> {
     // minted for a different application.
     cached.app_id === pbsConfig.appId &&
     new Date(cached.expires_at).getTime() - RENEW_MARGIN_MS > Date.now();
-  return fresh ? cached!.access_token : mint();
+  return fresh ? cached!.access_token : mintOnce();
 }
 
 export type PbsResponse<T = unknown> = {

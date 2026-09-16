@@ -210,6 +210,26 @@ test.describe("stage board", () => {
     await expect.poll(() => calls, { timeout: 15_000 }).toBeGreaterThan(0);
   }
 
+  /**
+   * Poll Postgres for a proposal's settled stage.
+   *
+   * ⚠️ Never read the row with a bare `expect` straight after a UI action. The
+   * store updates **optimistically** and writes through in the background, so
+   * the card lands in its new column before the row is saved — a plain read
+   * catches the old value, intermittently, and only under load. That is what a
+   * full-suite flake turned out to be.
+   */
+  async function expectStoredStage(id: string, stage: string) {
+    await expect
+      .poll(
+        async () =>
+          (await (await rest(`proposals?select=zoho&id=eq.${id}`)).json())[0]?.zoho
+            ?.stage,
+        { timeout: 20_000 },
+      )
+      .toBe(stage);
+  }
+
   /** Which column currently holds the card for `label`. */
   async function columnOf(page: import("@playwright/test").Page, label: string) {
     return page.evaluate((l) => {
@@ -236,8 +256,7 @@ test.describe("stage board", () => {
           timeout: 15_000,
         })
         .toEqual(["Negotiation"]);
-      const row = await (await rest(`proposals?select=zoho&id=eq.${id}`)).json();
-      expect(row[0].zoho.stage).toBe("Negotiation");
+      await expectStoredStage(id!, "Negotiation");
     } finally {
       await rest(`proposals?id=eq.${id}`, { method: "DELETE" });
     }
@@ -261,10 +280,7 @@ test.describe("stage board", () => {
       await expect
         .poll(() => columnOf(page, `${E2E_PREFIX} held drag`), { timeout: 15_000 })
         .toEqual(["Discovery"]);
-      const row = await (await rest(`proposals?select=zoho&id=eq.${id}`)).json();
-      expect(row[0].zoho.stage, "Postgres must hold the settled stage").toBe(
-        "Discovery",
-      );
+      await expectStoredStage(id!, "Discovery");
     } finally {
       await rest(`proposals?id=eq.${id}`, { method: "DELETE" });
     }
@@ -314,8 +330,7 @@ test.describe("stage board", () => {
       await expect
         .poll(() => columnOf(page, `${E2E_PREFIX} menu move`), { timeout: 15_000 })
         .toEqual(["Negotiation"]);
-      const row = await (await rest(`proposals?select=zoho&id=eq.${id}`)).json();
-      expect(row[0].zoho.stage).toBe("Negotiation");
+      await expectStoredStage(id!, "Negotiation");
     } finally {
       await rest(`proposals?id=eq.${id}`, { method: "DELETE" });
     }
@@ -392,6 +407,98 @@ test.describe("stage board", () => {
     } finally {
       await rest(`proposals?id=eq.${past}`, { method: "DELETE" });
       await rest(`proposals?id=eq.${future}`, { method: "DELETE" });
+    }
+  });
+
+  test("winning the deal in-app promotes the estimate, and spares a rejected one", async ({
+    page,
+  }) => {
+    // ⚠️ The gap this guards: the won-promotion lived inside the background
+    // poll, so moving a deal to Closed Won from the board or the status changer
+    // wrote the stage and nothing else — the estimate stayed `draft` and
+    // "Start project" never appeared. Found live, on an estimate that already
+    // had a PO raised against it.
+    const seedWith = async (label: string, status: string) => {
+      const title = `${E2E_PREFIX} ${label}`;
+      const res = await rest("proposals", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          platform: "shopify",
+          status,
+          requirements_unclear: false,
+          addons: {},
+          line_items: [
+            { id: "l1", title: "Work", base_hours: 9, tier: "basic", quantity: 1, hours: 9, depends_on: [] },
+          ],
+          zoho: {
+            deal_id: FAKE_DEAL,
+            deal_name: title,
+            stage: "Discovery",
+            imported_at: new Date().toISOString(),
+          },
+        }),
+      });
+      return res.ok ? (JSON.parse(await res.text())[0].id as string) : null;
+    };
+
+    const draft = await seedWith("promote me", "draft");
+    const rejected = await seedWith("stay rejected", "rejected");
+    test.skip(!draft || !rejected, "Couldn't seed the fixtures.");
+
+    await page.route("**/api/zoho/deals/*/push", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          stageUpdated: true,
+          stageAlreadySet: false,
+          skipped: false,
+          currentStage: "Closed Won",
+          attachmentUploaded: false,
+          packagesWritten: 0,
+          packagesReplaced: 0,
+          warnings: [],
+        }),
+      }),
+    );
+
+    const moveToWon = async (label: string) => {
+      const card = page.locator("article").filter({ hasText: `${E2E_PREFIX} ${label}` });
+      await expect(card).toBeVisible({ timeout: 30_000 });
+      const trigger = card.getByRole("button", { name: /Deal stage:/i });
+      await expect(trigger).toBeEnabled();
+      await trigger.click();
+      const item = page.getByRole("menuitem", { name: /^Closed Won/ });
+      await expect(item).toBeVisible({ timeout: 30_000 });
+      await item.click();
+    };
+
+    try {
+      await openBoard(page);
+      await moveToWon("promote me");
+      // Winning IS the approval — this is what puts "Start project" on screen.
+      await expect
+        .poll(
+          async () =>
+            (await (await rest(`proposals?select=status&id=eq.${draft}`)).json())[0]
+              ?.status,
+          { timeout: 20_000 },
+        )
+        .toBe("approved");
+
+      await moveToWon("stay rejected");
+      // A rejected quote was a deliberate call; a won deal must not reverse it.
+      await page.waitForTimeout(2500);
+      const after = await (
+        await rest(`proposals?select=status,zoho&id=eq.${rejected}`)
+      ).json();
+      expect(after[0].status, "a rejected estimate stays rejected").toBe("rejected");
+      // …but its stage still moved, because that part is not a judgement call.
+      expect(after[0].zoho.stage).toBe("Closed Won");
+    } finally {
+      await rest(`proposals?id=eq.${draft}`, { method: "DELETE" });
+      await rest(`proposals?id=eq.${rejected}`, { method: "DELETE" });
     }
   });
 
