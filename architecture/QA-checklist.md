@@ -19,6 +19,104 @@
 
 ---
 
+## 📅 Calendar views & time-off approval
+
+> Needs a **Member** account and an **Admin/Manager** account.
+
+**Who sees what**
+- [ ] As a **Member**, open Calendar: the title reads **My calendar**, there is **no Mine/Team toggle**, and you see only your own tasks, the sprints of projects you have work on, and your own leave. No teammate's PTO, no other project's tasks.
+- [ ] As **Admin/Manager**: the **Mine / Team** toggle is there and defaults to **Team**; switching to Mine narrows it exactly like the Member view.
+- [ ] Hard check (not just the UI): as a Member, the app must not even receive others' leave — the `availability_entries` read policy is self-or-approver (`0034`).
+
+**Requesting**
+- [ ] As a **Member**, Settings → the button reads **Request time off** and the copy says it will be reviewed. Submit one.
+- [ ] Your row shows **Awaiting approval**. Workload → Mine: your capacity is **unchanged** (a request must not reduce it).
+- [ ] Calendar: those days show a **dashed amber outline**, not the solid rose tint, and the side panel says "awaiting approval".
+- [ ] The approvers get a bell notification.
+- [ ] As **Admin/Manager**, Settings → your own new entry is **Approved** immediately (you are the approver — no self-approval theatre).
+
+**Deciding**
+- [ ] As **Admin/Manager**, Settings → **Time-off requests** shows the queue with a "N waiting" badge, oldest first. Click **Review**.
+- [ ] With **no** work due in those dates: a green "nothing scheduled falls in these dates" panel and a single **Approve** button (no reschedule offer).
+- [ ] With work due in those dates: each task lists `due → new date`, and either the people who could cover it or a **No cover** warning. Sprints that can no longer finish are listed with `ends → new end`.
+- [ ] **Approve only** → leave is granted, **no** dates move. Check a listed task still has its original due date.
+- [ ] Re-test with **Approve + reschedule** → every listed task and sprint now matches **exactly** what the dialog showed.
+- [ ] **Decline** with a note → the requester sees **Declined** plus the note, the days vanish from the calendar entirely, and their capacity is untouched.
+- [ ] Once approved, the requester's Workload capacity drops and shows the `(40h − N days off)` note.
+
+**Clickable count badges**
+- [ ] Workload → Team: click a **N pending** badge → a panel lists exactly N tasks, each with project, status and due date.
+- [ ] Click a row → lands on that task's sprint board (or backlog) with the task selected.
+- [ ] Same for **N overdue** (red badge).
+- [ ] The number on the badge and the number of rows in the panel always match.
+- [ ] Keyboard: Tab to the badge, Enter opens it, Escape closes it.
+- [ ] 375px: the panel stays fully on screen and scrolls inside itself — the page must not scroll sideways.
+- [ ] Workload → **Mine**: the pending banner and the overdue badge behave the same way.
+- [ ] Nobody with 0 pending / 0 overdue shows a badge at all.
+
+**Workload bar & week metrics**
+- [ ] Workload → Team: each person's bar is now **segmented by task status** with a legend under it (To Do grey, In Progress blue, In Review purple, Blocked red). Hover a segment → tooltip naming the status, hours and task count.
+- [ ] The legend hours **sum to the Est. figure** beside it.
+- [ ] Someone over capacity: the bar keeps its status colours and gains an **amber ring** — the fill must NOT turn solid amber.
+- [ ] A person with no open work shows an empty track and no legend.
+- [ ] The metrics row reads **Logged this wk** (not "This wk") and now also shows **Available**. Hover each → tooltips explain logged-vs-available.
+- [ ] ⚠️ Available = weekly capacity − logged. Someone at 328% utilisation can still show hours available — that is correct, not a bug; utilisation is the over-allocation signal.
+- [ ] Book PTO / land a holiday in the week → Available drops with capacity.
+- [ ] Workload → **Mine** shows the same segmented bar and an "Xh available" line under Logged this week. The two views must not disagree.
+- [ ] 375px: the legend wraps onto two lines rather than scrolling sideways.
+
+**Schedule risk buffer**
+- [ ] Estimator → **Adjust**: the "Schedule risk buffer" card sits under "Requirements not pinned down yet", with presets None / 10 / 15 / 20 / 30 and a free-text %.
+- [ ] ⚠️ Set it to 20% → the **Totals** panel and the quote price do **NOT** change. Only the Timeline does. (This is the whole point — if the price moves, stop and report it.)
+- [ ] Timeline tab → the header reads "N business days (incl. 20% risk buffer on M)" and the launch date is later. Every phase bar stretches; the first still starts on day 0 and no two phases overlap.
+- [ ] Type 900 → clamps to 100. Type -5 → clamps to 0. Clear the field and click away → 0, not NaN.
+- [ ] **Start project** with a 20% buffer → the seeded sprint dates match the buffered Timeline, and the new project's own buffer reads 20%.
+- [ ] Project page → under the Timeline, the section shows **Planned finish** and **With buffer**. Changing the % moves **nothing** on the Gantt — it is a forecast.
+- [ ] **Apply to sprint dates…** → the dialog lists every sprint as `old range → new range`. Cancel → nothing changed.
+- [ ] Confirm → the sprints move, the Gantt reflects it, and the buffer **resets to 0%** (applying twice must not compound).
+- [ ] A project with no sprints says so instead of offering to apply.
+- [ ] A **Member** does not see the section at all.
+
+**US holidays**
+- [ ] Calendar → November 2026: **Wed 11th** reads "Veterans Day" and **Thu 26th** "Thanksgiving", both with a muted tint (not the rose PTO tint). Click one → the side panel explains it is excluded from timelines and capacity.
+- [ ] ⚠️ July 2026: the marked day is **Fri the 3rd**, NOT Sat the 4th — the federal observance rule. Same for December 2027: **Fri the 24th**, not Sat the 25th.
+- [ ] ⚠️ December 2027: **Fri the 31st** is marked "New Year's Day" (Jan 1 2028 is a Saturday).
+- [ ] An estimate whose timeline spans late November → the Gantt says "**N days later — Thanksgiving**" and the launch date moves. "business days" itself does NOT change.
+- [ ] Workload during Thanksgiving week → everyone's capacity reads 32h with "(40h − 1 holiday)", on **both** Mine and Team.
+- [ ] Book PTO Mon–Fri of Thanksgiving week and approve it → the note reads "(40h − 4 days off − 1 holiday)", NOT 5 days off. Capacity must not go below 0.
+- [ ] Start project on an estimate spanning a holiday → no seeded task is due on the holiday.
+
+**Timeline generator respects PTO**
+- [ ] Open an estimate's **Timeline** tab with nobody on leave → note the launch date. It must be unchanged from before this feature.
+- [ ] Approve PTO for **one** person across a week that the timeline spans → reopen the Timeline: the launch date moves later and the header says "**N days later for booked time off**" in amber. "business days" itself must NOT change — it is the same amount of work.
+- [ ] Approve PTO for the **whole team** across that week → the timeline steps over it entirely.
+- [ ] A **pending** request must move nothing. Approve it → the dates move. Decline it → they move back.
+- [ ] Leave booked **after** the project finishes changes nothing.
+- [ ] **Create PO** on that estimate → the pre-filled end date matches the Gantt's launch date, not a plain business-day count.
+- [ ] **Start project** → the seeded sprint dates match the Timeline tab you just looked at.
+
+**Edges**
+- [ ] Edit the **dates** of an approved request → it returns to **Awaiting approval** (nobody agreed to the new dates). Edit only the **note** → it stays approved.
+- [ ] A task due on the **first** day of a 5-day absence and one due on the **last** day must BOTH land clear of it — not shifted by the same amount.
+- [ ] Someone already **approved** away over the same window is not offered as cover; someone with a **pending** request still is (it may yet be refused).
+- [ ] Emergency case: approve PTO starting today that overlaps an active sprint → the sprint appears in "at risk" and the Gantt reflects the new end after rescheduling.
+
+## 🟢 Tasks ↔ Workload
+
+> The only "I'm finished" signal is moving a task to **Done**. Use one dev
+> account and one manager account, side by side, in the same week.
+
+- [ ] Assign a task to a dev → **Workload → Team** shows it under them with a **pending** badge and its hours in `Est.` labelled `(incl. Nh pending)`.
+- [ ] The dev opens **Workload → Mine**: the **same** open count, the **same** estimate, the **same** utilisation % as the manager sees. The pending task carries a `pending` badge in the list. (These two used to disagree.)
+- [ ] The dev **accepts** → the pending badge clears on both pages; the numbers do not move.
+- [ ] The dev **declines** → the task leaves their load entirely on both pages (the assignee row is deleted, not flagged).
+- [ ] Move the task to **Done** (drag to the column) → it leaves Mine and Team immediately, open count and estimate both drop, no refresh needed.
+- [ ] Move it back out of Done → it returns to both.
+- [ ] Set the task to **In review** or **Blocked** → it **stays** in the workload (unfinished work must not disappear).
+- [ ] Book the dev 3 days' PTO this week → **both** pages show capacity dropping to 16h with the `(40h − 3 days off)` note, and utilisation rises on both. (Mine ignored time off entirely.)
+- [ ] Log hours on an accepted task → "Logged this week" updates on **both** pages without a reload. Try logging as a non-assignee → refused by the DB (`0018` trigger), not just hidden.
+- [ ] Drag a card to Done, then open a **different project** → no task there has a fresh "updated" timestamp. (Board writes used to hit every task in the workspace with that status.)
+
 ## 🔴 Must-test — could block real flows (RLS / server guards, `0027`)
 
 - [ ] Create a task, post a comment, add a reaction — all succeed.
@@ -36,7 +134,7 @@
 - [ ] **Preview step:** "Start project" shows **Review schedule** first — sprints, each task's assignee and dates, an amber warning for unassigned work. **Nothing is created yet** (cancel → confirm the project doesn't exist).
 - [ ] **Back** returns to the options step; changing strategy and re-previewing shows a *different* plan.
 - [ ] **Confirm & create** saves **exactly** what the preview showed — spot-check 2 assignees + sprint dates against the preview.
-- [ ] **Sync schedule** (existing project) shows the same preview, listing only what's **missing**; "already up to date" short-circuits with a toast and no dialog.
+- [ ] **Sync schedule** (existing project) shows the same preview, listing what's missing **and** what changed; "already up to date" short-circuits with a toast and no dialog.
 - [ ] **Start project → Manual:** creates project + phase sprints + tasks, **unassigned**.
 - [ ] **Start project → Best-fit:** each dev/QA task gets an assignee; go-live/hosting work lands on the InMotion-skilled dev; QA lands on a QA-skilled dev.
 - [ ] **Start project → Fastest:** work spreads across *more* devs than Best-fit; finish date is the same or earlier.
@@ -45,6 +143,29 @@
 - [ ] Tasks appear **immediately** after conversion — no refresh needed (this was the "empty project" bug).
 - [ ] Project page shows the **Timeline** section (project-scoped Gantt); editing a sprint's dates moves its bar.
 - [ ] Assignments arrive as **pending** → the dev sees accept/reject/pass.
+
+### Two-way sync: estimate ↔ project
+
+> The pair is keyed on `tasks.source_line_item_id`. Use an estimate that has
+> already been started as a project, and a task that came **from** it (not one
+> you typed yourself).
+
+- [ ] **Rename a line item** in the estimator → project → **Sync schedule**: the preview's *Existing tasks* block shows `old title → new title`. Confirm → the task is **renamed**, and there is **no duplicate** (this was the bug — title matching added a second task).
+- [ ] **Change a line item's hours** (or its tier) → Sync schedule: the preview shows `12h → 18h`; confirm → the task's Estimated hours match.
+- [ ] **Delete a line item** → Sync schedule: the preview lists it in **red** as "no longer in the estimate"; confirm → the task is gone.
+- [ ] A task you created **by hand** on that project is **never** listed for update or removal, however the estimate changes.
+- [ ] **Log time against a seeded task, then delete its line item** → Sync schedule: the task is listed in **amber** as "kept — N h already logged", NOT in red, and after confirming **the task still exists** with its time entry intact.
+- [ ] **Rollback:** sign in as a Viewer (or otherwise make the task write fail) and rename a seeded task → the task snaps back AND the estimate's line item still reads the old title. Neither side may keep a change the other rolled back.
+- [ ] **The other direction:** rename a seeded task on the project board → a toast says the estimate was updated → open the estimator: the line item carries the new title.
+- [ ] Change that task's **estimated hours** to 30 → the line item's hours read 30, and its **base hours** have been divided by the tier multiplier (Advanced 30h → base 20). Re-running **Sync schedule** then says "already up to date" — it must not bounce back and forth.
+- [ ] With **Requirements unclear** ticked on the quote, the same round trip still lands on 30h (every line is priced as Advanced).
+- [ ] **Delete a seeded task** → its line item disappears from the estimate and the total drops.
+- [ ] After any of the above on a quote with a **linked Zoho deal**, the Setup panel's **CRM amount** badge turns amber with the old figure, and **Send to Zoho** previews `$old → $new`.
+- [ ] **Timeline tab** on an estimate that has a project shows the **live project Gantt** (with a link to the project page), not the tentative estimate timeline — move a sprint's dates and the estimator reflects it.
+- [ ] On a quote with a **PO**: move a sprint so the project range no longer matches the PO's, and the **PO badge** gains "· dates changed"; its tooltip names the new range and says PBS must be corrected by hand.
+- [ ] The same edit raises a **warning toast** naming the PO, the billed range and the new one. Change **two more** sprint dates without leaving the page — the toast must NOT repeat for the same resulting range. Renaming a sprint, or flipping its status, raises nothing.
+- [ ] Move the sprint back so the range matches the PO again → no toast, and the badge's "· dates changed" clears.
+- [ ] A **Member** editing a seeded task changes the task only — RLS hides `proposals` from them, so nothing is written to the quote (and nothing errors).
 
 ## 🔌 Zoho CRM
 

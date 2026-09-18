@@ -188,7 +188,12 @@ export interface Milestone {
 export interface DiscoveryTimeline {
   phases: TimelinePhase[];
   milestones: Milestone[];
+  /** The span actually drawn — effort days WITH the risk buffer applied. */
   totalBusinessDays: number;
+  /** Effort days before the buffer, so the UI can show "45 + 20% = 54". */
+  baseBusinessDays: number;
+  /** The contingency that was applied, 0–100. */
+  riskBufferPct: number;
   totalWeeks: number;
   launchDate: string;
 }

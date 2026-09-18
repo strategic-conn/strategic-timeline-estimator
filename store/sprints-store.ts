@@ -11,6 +11,7 @@ import { DUMMY_SPRINTS } from "@/lib/dummy/sprints.data";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import { notifyProjectScheduleChanged } from "@/lib/sync/estimate-project-sync";
 import { offerUndoToast } from "@/lib/undo/offer-undo-toast";
 import type { Database } from "@/types/database.types";
 import { SPRINT_STATUSES, type Sprint, type SprintStatus } from "@/types/sprint.types";
@@ -126,6 +127,7 @@ export const useSprintsStore = create<SprintsState>()(
             updated_at: now,
           };
           set((s) => ({ sprints: [...s.sprints, next] }));
+          notifyProjectScheduleChanged(payload.project_id);
           offerUndoToast(
             "Sprint created",
             () => useSprintsStore.setState({ sprints: before }),
@@ -199,6 +201,14 @@ export const useSprintsStore = create<SprintsState>()(
             sp.id === id ? { ...sp, ...partial, updated_at: now } : sp,
           ),
         }));
+        // Only the dates move the project's range — and that range is what a
+        // PBS purchase order was billed against.
+        if (
+          (partial.start_date !== undefined && partial.start_date !== snapshot.start_date) ||
+          (partial.end_date !== undefined && partial.end_date !== snapshot.end_date)
+        ) {
+          notifyProjectScheduleChanged(prev.project_id);
+        }
 
         if (!isSupabaseConfigured) {
           offerUndoToast("Sprint updated", () =>
@@ -257,6 +267,7 @@ export const useSprintsStore = create<SprintsState>()(
         const before = structuredClone(get().sprints);
         const prev = get().sprints.find((sp) => sp.id === id);
         set((s) => ({ sprints: s.sprints.filter((sp) => sp.id !== id) }));
+        if (prev) notifyProjectScheduleChanged(prev.project_id);
 
         if (!isSupabaseConfigured) {
           offerUndoToast("Sprint deleted", () =>

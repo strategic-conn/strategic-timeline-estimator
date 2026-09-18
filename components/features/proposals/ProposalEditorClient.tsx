@@ -31,10 +31,16 @@ import {
 import { toast } from "sonner";
 
 import { DiscoveryGantt } from "@/components/features/discovery/DiscoveryGantt";
+import {
+  poScheduleDrift,
+  projectDateRange,
+} from "@/lib/sync/estimate-project-sync";
+import { GanttClient } from "@/components/features/gantt/GanttClient";
 import { DiscoveryHoursBreakdown } from "@/components/features/discovery/DiscoveryHoursBreakdown";
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
+import { RiskBufferCard } from "@/components/features/proposals/RiskBufferCard";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import { ZohoDealImport } from "@/components/features/proposals/ZohoDealImport";
@@ -85,6 +91,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import {
   HOURLY_RATE,
   TIER_OPTIONS,
@@ -142,6 +149,7 @@ import { cn } from "@/lib/utils";
 import { downloadProposalExcel } from "@/lib/utils/proposal-excel-export";
 import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
+import { useSprintsStore } from "@/store/sprints-store";
 import {
   useProposalEstimatorStore,
   type SchedulePreview,
@@ -200,6 +208,8 @@ function groupLinesByModule(
 
 export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) {
   const { canExportProposals } = usePermissions();
+  // Booked time off, folded into every timeline this page draws.
+  const teamCalendar = useTeamCalendar();
   const router = useRouter();
   const projects = useProjectsStore((s) => s.projects);
   const quote = useProposalEstimatorStore((s) =>
@@ -319,6 +329,23 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
     : null;
   const projectName = linkedProject?.name ?? null;
 
+  // The PO was billed against a date range PBS cannot be asked to change (it
+  // has no update endpoint, and `fetch-po` doesn't even return the range). So
+  // when the project's real sprints move away from it, say so — somebody has to
+  // correct it in PBS by hand.
+  const projectSprints = useSprintsStore((s) => s.sprints);
+  const pbsLink = quote?.pbs ?? null;
+  const linkedProjectId = linkedProject?.id ?? null;
+  const poDrift = React.useMemo(() => {
+    if (!pbsLink?.po_no || !linkedProjectId) return null;
+    return poScheduleDrift(
+      pbsLink,
+      projectDateRange(
+        projectSprints.filter((s) => s.project_id === linkedProjectId),
+      ),
+    );
+  }, [pbsLink, linkedProjectId, projectSprints]);
+
   const totals = quote ? quoteTotals(quote) : null;
   const devHours = quote ? quoteDevHours(quote) : 0;
 
@@ -347,8 +374,11 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
   // Guided scope: derive the estimate/timeline/risk from the saved answers.
   const scopeResult = React.useMemo(
-    () => (quote?.discovery ? analyzeDiscovery(quote.discovery) : null),
-    [quote],
+    () =>
+      quote?.discovery
+        ? analyzeDiscovery(quote.discovery, teamCalendar, quote.risk_buffer_pct ?? 0)
+        : null,
+    [quote, teamCalendar],
   );
 
   // Catalog / manual estimates (no guided scope): a tentative timeline from the
@@ -356,11 +386,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const catalogResult = React.useMemo(
     () =>
       quote && !quote.discovery && quoteHasWork(quote)
-        ? resultFromQuote(quote)
+        ? resultFromQuote(quote, teamCalendar)
         : null,
-    [quote],
+    [quote, teamCalendar],
   );
   const tentProject = React.useMemo(() => tentativeProject(), []);
+  /** Whichever timeline this quote actually has — guided answers or line items. */
+  const activeResult = scopeResult ?? catalogResult;
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -585,6 +617,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     quote.pbs.start_date && quote.pbs.end_date
                       ? `Project ${quote.pbs.start_date} → ${quote.pbs.end_date}`
                       : null,
+                    poDrift
+                      ? `The project now runs ${poDrift.actual.start} → ${poDrift.actual.end}. PBS has no way to edit a PO, so change it there by hand.`
+                      : null,
                     quote.pbs.status_synced_at
                       ? `Checked ${new Date(quote.pbs.status_synced_at).toLocaleString()}`
                       : null,
@@ -606,6 +641,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   ) : poStatusLabel(quote.pbs.status) ? (
                     <span className="font-normal opacity-80">
                       · {poStatusLabel(quote.pbs.status)}
+                    </span>
+                  ) : null}
+                  {poDrift && !quote.pbs.missing ? (
+                    /* Dates only, deliberately: the PO's status is fine, it is
+                       the billed schedule that no longer matches the plan. */
+                    <span className="font-normal text-amber-700 dark:text-amber-400">
+                      · dates changed
                     </span>
                   ) : null}
                 </span>
@@ -1100,36 +1142,51 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     <DiscoveryHoursBreakdown result={scopeResult} />
                   </TabsContent>
                   <TabsContent value="timeline">
-                    <DiscoveryGantt
-                      result={scopeResult}
-                      project={quote.discovery}
-                    />
+                    {linkedProject ? (
+                      <LiveProjectTimeline projectId={linkedProject.id} />
+                    ) : (
+                      <DiscoveryGantt
+                        result={scopeResult}
+                        project={quote.discovery}
+                        teamCalendar={teamCalendar}
+                      />
+                    )}
                   </TabsContent>
                 </Tabs>
               </>
             ) : catalogResult ? (
               <>
-                <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-                  <p className="max-w-md text-sm text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      Tentative timeline
-                    </span>{" "}
-                    — auto-generated from your line items &amp; add-ons, starting
-                    today. Answer the questionnaire for a detailed timeline and a
-                    risk score.
-                  </p>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="gap-1.5"
-                    onClick={startGuided}
-                  >
-                    <Compass className="size-3.5" aria-hidden />
-                    Start guided scoping
-                  </Button>
-                </div>
-                <DiscoveryGantt result={catalogResult} project={tentProject} />
+                {linkedProject ? (
+                  <LiveProjectTimeline projectId={linkedProject.id} />
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Tentative timeline
+                        </span>{" "}
+                        — auto-generated from your line items &amp; add-ons,
+                        starting today. Answer the questionnaire for a detailed
+                        timeline and a risk score.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={startGuided}
+                      >
+                        <Compass className="size-3.5" aria-hidden />
+                        Start guided scoping
+                      </Button>
+                    </div>
+                    <DiscoveryGantt
+                      result={catalogResult}
+                      project={tentProject}
+                      teamCalendar={teamCalendar}
+                    />
+                  </>
+                )}
               </>
             ) : (
               <Card>
@@ -1333,6 +1390,15 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                 </Label>
               </CardContent>
             </Card>
+
+            <RiskBufferCard
+              value={quote.risk_buffer_pct ?? 0}
+              onChange={(pct) =>
+                updateProposal(quote.id, { risk_buffer_pct: pct })
+              }
+              baseDays={activeResult?.timeline.baseBusinessDays}
+              bufferedDays={activeResult?.timeline.totalBusinessDays}
+            />
 
             <ProposalAddonsCard
               addons={quote.addons}
@@ -1677,6 +1743,35 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Once an estimate has become a project, the project's sprints ARE the
+ * timeline. Drawing the estimate's own tentative Gantt beside them is how the
+ * two pages came to disagree — the manager moves a sprint, and the estimate
+ * carries on showing dates nobody is working to.
+ *
+ * ponytail: reuse `GanttClient` (already embedded on the project overview the
+ * same way) rather than a second renderer that could drift from it.
+ */
+function LiveProjectTimeline({ projectId }: { projectId: string }) {
+  return (
+    <div className="space-y-3">
+      <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        <span className="font-medium text-foreground">Live project timeline</span>{" "}
+        — this estimate has a project, so its sprints are the schedule. Edit the
+        dates on the{" "}
+        <Link
+          href={`/projects/${projectId}`}
+          className="font-medium text-foreground underline underline-offset-2"
+        >
+          project page
+        </Link>
+        ; the tentative estimate timeline no longer applies.
+      </p>
+      <GanttClient lockedProjectId={projectId} />
     </div>
   );
 }

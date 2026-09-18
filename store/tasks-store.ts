@@ -19,6 +19,7 @@ import { DUMMY_TASKS } from "@/lib/dummy/tasks.data";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import { mirrorTaskChange } from "@/lib/sync/estimate-project-sync";
 import { offerUndoToast } from "@/lib/undo/offer-undo-toast";
 import { taskBoardRelativePath } from "@/lib/utils/share-links";
 import { roundWorkHours } from "@/lib/utils/work-hours";
@@ -126,6 +127,7 @@ function rowToTask(r: TaskRowWithAssignees): Task {
     estimated_hours: r.estimated_hours ?? undefined,
     logged_hours: r.logged_hours ?? undefined,
     tags: r.tags,
+    source_line_item_id: r.source_line_item_id ?? null,
     position: r.position,
     created_at: r.created_at,
     updated_at: r.updated_at,
@@ -725,6 +727,9 @@ export const useTasksDataStore = create<TasksState>()(
               estimated_hours: payload.estimated_hours ?? null,
               logged_hours: payload.logged_hours ?? null,
               tags: payload.tags,
+              // Set only by an estimate sync; null for a hand-made task, which
+              // is what keeps the sync from ever touching one.
+              source_line_item_id: payload.source_line_item_id ?? null,
               position,
             })
             .select()
@@ -820,6 +825,23 @@ export const useTasksDataStore = create<TasksState>()(
           }),
         }));
 
+        // A seeded task's title/hours belong to the estimate too — push the
+        // change back onto its line item so the quote and the plan agree.
+        // `revertMirror` undoes that write; this task update is optimistic, and
+        // an estimate left holding a change the project rolled back is a line
+        // item silently repriced by a failed request.
+        const revertMirror =
+          normalized.title !== undefined || normalized.estimated_hours !== undefined
+            ? mirrorTaskChange({
+                kind: "update",
+                task: snapshot,
+                patch: {
+                  title: normalized.title,
+                  estimated_hours: normalized.estimated_hours ?? undefined,
+                },
+              })
+            : null;
+
         // Notify anyone newly assigned (they must accept or decline).
         const addedIds =
           normalized.assignee_ids !== undefined
@@ -838,13 +860,14 @@ export const useTasksDataStore = create<TasksState>()(
         }
 
         if (!isSupabaseConfigured) {
-          offerUndoToast("Task updated", () =>
+          offerUndoToast("Task updated", () => {
             useTasksDataStore.setState((s) => ({
               tasks: s.tasks.map((t) =>
                 t.id === id ? structuredClone(snapshot) : t,
               ),
-            })),
-          );
+            }));
+            revertMirror?.();
+          });
           const merged = get().tasks.find((t) => t.id === id)!;
           pushWorkspaceActivity(
             withProjectScope(`Updated task "${titleOf(merged)}"`, merged.project_id),
@@ -900,6 +923,7 @@ export const useTasksDataStore = create<TasksState>()(
                 t.id === id ? structuredClone(snapshot) : t,
               ),
             }));
+            revertMirror?.();
             toast.error("Couldn't update task", {
               description: parseSupabaseError(error ?? assigneeErr),
             });
@@ -921,11 +945,15 @@ export const useTasksDataStore = create<TasksState>()(
         const task = get().tasks.find((t) => t.id === id);
         const beforeTasks = structuredClone(get().tasks);
         set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
+        // Dropping seeded work drops it from the estimate too, otherwise the
+        // next sync would just put the task back.
+        const revertMirror = task ? mirrorTaskChange({ kind: "delete", task }) : null;
 
         if (!isSupabaseConfigured) {
-          offerUndoToast("Task deleted", () =>
-            useTasksDataStore.setState({ tasks: beforeTasks }),
-          );
+          offerUndoToast("Task deleted", () => {
+            useTasksDataStore.setState({ tasks: beforeTasks });
+            revertMirror?.();
+          });
           if (task) {
             pushWorkspaceActivity(
               withProjectScope(`Deleted task "${titleOf(task)}"`, task.project_id),
@@ -946,6 +974,7 @@ export const useTasksDataStore = create<TasksState>()(
           const { error } = await supabase.from("tasks").delete().eq("id", id);
           if (error) {
             set({ tasks: beforeTasks });
+            revertMirror?.();
             toast.error("Couldn't delete task", {
               description: parseSupabaseError(error),
             });
@@ -1058,8 +1087,21 @@ export const useTasksDataStore = create<TasksState>()(
           const supabase = createClient();
           const now = new Date().toISOString();
           // Persist the task's final column (status + position for every row).
+          //
+          // Scoped to THIS board — same project, same sprint (or the same
+          // backlog). Filtering on status alone swept in every task in the
+          // workspace that happened to share it, so dropping one card into Done
+          // rewrote unrelated tasks in other projects: N pointless writes, and
+          // an `updated_at` bump on rows nobody touched. That timestamp is what
+          // the on-time-delivery figure reads as a completion time, so the churn
+          // quietly corrupted it project-wide.
           const colRows = get()
-            .tasks.filter((t) => t.status === task.status)
+            .tasks.filter(
+              (t) =>
+                t.status === task.status &&
+                t.project_id === task.project_id &&
+                t.sprint_id === task.sprint_id,
+            )
             .map((t) => ({ id: t.id, position: t.position }));
           const results = await Promise.all(
             colRows.map((r) =>

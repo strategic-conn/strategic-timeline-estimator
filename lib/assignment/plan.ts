@@ -16,6 +16,7 @@
  * testable via `plan.check.ts`. Skill keys are compared case-insensitively.
  */
 import type { PhaseId } from "@/types/discovery.types";
+import { isUsHoliday } from "@/lib/calendar/us-holidays";
 import type { ProposalPlatform } from "@/lib/proposal-catalog";
 
 export type PlanStrategy = "quick" | "efficient";
@@ -180,7 +181,11 @@ function makeClock(dev: PlanDev, start: Date): Clock {
   };
 }
 function isWorkday(clock: Clock, d: Date): boolean {
-  return !isWeekend(d) && !clock.pto.has(isoDay(d));
+  // Holidays here as well as in the tentative timeline: without it the estimate
+  // would step over Christmas while the assigned plan booked work on it, and
+  // the two schedules a manager compares would disagree by a day.
+  const day = isoDay(d);
+  return !isWeekend(d) && !isUsHoliday(day) && !clock.pto.has(day);
 }
 /** Advance to the next workday and refill the day's hours. */
 function stepToNextWorkday(clock: Clock): void {
@@ -314,7 +319,7 @@ export function planSchedule(
         let placed = 0;
         let start: string | null = null;
         while (placed < days) {
-          if (!isWeekend(cur)) {
+          if (!isWeekend(cur) && !isUsHoliday(isoDay(cur))) {
             if (!start) start = isoDay(cur);
             placed += 1;
           }

@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePbsPoTarget } from "@/hooks/usePbsClients";
+import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import { estimateDateRange } from "@/lib/discovery/from-line-items";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
@@ -86,14 +87,20 @@ export function CreatePoDialog({
   // billing client writes `pbs` through the store, which hands this component a
   // new quote object while these four are untouched — so keying on `quote`
   // recomputed (and re-fired the effect below) on an unrelated edit.
+  // Booked time off is part of the derivation now, so the PO's range matches
+  // the Gantt on screen rather than a pure business-day count. `useTeamCalendar`
+  // is memoised on its store slices, so adding it here does not reintroduce the
+  // "new object every render" problem this memo exists to avoid.
+  const teamCalendar = useTeamCalendar();
   const derived = React.useMemo(
-    () => estimateDateRange(quote),
+    () => estimateDateRange(quote, teamCalendar),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the fields `estimateDateRange` reads
     [
       quote.discovery,
       quote.line_items,
       quote.addons,
       quote.requirements_unclear,
+      teamCalendar,
     ],
   );
   const derivedStart = derived?.start ?? null;

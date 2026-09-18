@@ -6,7 +6,6 @@
  * structure into phases: dev line items (+ responsive) → Development, the design
  * add-on → Design, the QA add-on → QA. Sequenced by `computeTimeline`.
  */
-import { addBusinessDays } from "date-fns";
 
 import { analyzeDiscovery } from "@/lib/discovery";
 import {
@@ -14,6 +13,7 @@ import {
   createEmptyDiscoveryProject,
 } from "@/lib/discovery/constants";
 import { computeTimeline, resolveProjectStart } from "@/lib/discovery/timeline";
+import { addWorkingDays, type TeamCalendar } from "@/lib/discovery/team-calendar";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { quoteTotals } from "@/lib/constants/proposal-estimator";
 import type {
@@ -95,7 +95,10 @@ export function quoteHasWork(quote: ClientQuote): boolean {
  * Build a DiscoveryResult (estimate + timeline + neutral risk) from a quote's
  * line items and add-ons, for estimates with no guided questionnaire.
  */
-export function resultFromQuote(quote: ClientQuote): DiscoveryResult {
+export function resultFromQuote(
+  quote: ClientQuote,
+  cal?: TeamCalendar | null,
+): DiscoveryResult {
   const t = quoteTotals(quote);
 
   // Only non-empty phases become bars; sequencing (Design → Dev → QA) and the
@@ -157,7 +160,13 @@ export function resultFromQuote(quote: ClientQuote): DiscoveryResult {
     ],
   };
 
-  const timeline = computeTimeline(tentativeProject(), estimate);
+  // The quote carries its own buffer — no extra parameter to thread.
+  const timeline = computeTimeline(
+    tentativeProject(),
+    estimate,
+    cal,
+    quote.risk_buffer_pct ?? 0,
+  );
   const risk: DiscoveryResult["risk"] = {
     score: 0,
     level: "low",
@@ -183,16 +192,19 @@ export function resultFromQuote(quote: ClientQuote): DiscoveryResult {
  */
 export function estimateDateRange(
   quote: ClientQuote,
+  cal?: TeamCalendar | null,
 ): { start: string; end: string } | null {
   const result = quote.discovery
-    ? analyzeDiscovery(quote.discovery)
+    ? analyzeDiscovery(quote.discovery, cal, quote.risk_buffer_pct ?? 0)
     : quoteHasWork(quote)
-      ? resultFromQuote(quote)
+      ? resultFromQuote(quote, cal)
       : null;
   if (!result) return null;
   const start = resolveProjectStart(quote.discovery?.project_start_date);
   // `totalBusinessDays` is the span the timeline drew, so the end date lands on
-  // the same day as the last phase bar.
-  const end = addBusinessDays(start, result.timeline.totalBusinessDays);
+  // the same day as the last phase bar — and it must be converted to a date the
+  // SAME way, calendar included, or the PO would be billed against a range the
+  // Gantt never showed.
+  const end = addWorkingDays(start, result.timeline.totalBusinessDays, cal);
   return { start: formatYmdLocal(start), end: formatYmdLocal(end) };
 }

@@ -14,6 +14,14 @@ interface Permissions {
   canManageTeam: boolean;
   /** Log PTO / availability for people other than yourself (demo: admin + manager). */
   canEditOthersAvailability: boolean;
+  /**
+   * Approve or reject a time-off request, and see the whole team's calendar.
+   *
+   * Mirrors the `prevent_self_approval` trigger and the read policy in
+   * migration 0034 — the database is the real gate; this only decides what is
+   * on screen.
+   */
+  canApproveTimeOff: boolean;
   canExportProposals: boolean;
   /** Edit another person's skill profile (self-edit is always allowed via RLS). */
   canEditMemberSkills: boolean;
@@ -30,6 +38,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canDeleteTask: true,
     canManageTeam: true,
     canEditOthersAvailability: true,
+    canApproveTimeOff: true,
     canExportProposals: true,
     canEditMemberSkills: true,
   },
@@ -42,6 +51,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canDeleteTask: true,
     canManageTeam: false,
     canEditOthersAvailability: true,
+    canApproveTimeOff: true,
     canExportProposals: true,
     canEditMemberSkills: true,
   },
@@ -54,6 +64,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canDeleteTask: false,
     canManageTeam: false,
     canEditOthersAvailability: false,
+    canApproveTimeOff: false,
     canExportProposals: false,
     canEditMemberSkills: false,
   },
@@ -66,6 +77,7 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canDeleteTask: false,
     canManageTeam: false,
     canEditOthersAvailability: false,
+    canApproveTimeOff: false,
     canExportProposals: false,
     canEditMemberSkills: false,
   },

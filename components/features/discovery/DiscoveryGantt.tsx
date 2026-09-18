@@ -15,6 +15,11 @@ import {
 import { PHASE_META } from "@/lib/discovery/constants";
 import { formatHours } from "@/lib/discovery";
 import { resolveProjectStart } from "@/lib/discovery/timeline";
+import {
+  addWorkingDays,
+  timelineShift,
+  type TeamCalendar,
+} from "@/lib/discovery/team-calendar";
 import { cn } from "@/lib/utils";
 import type {
   DiscoveryProject,
@@ -33,13 +38,48 @@ const PAD = 10;
 export function DiscoveryGantt({
   result,
   project,
+  teamCalendar,
 }: {
   result: DiscoveryResult;
   project: DiscoveryProject;
+  /** Booked time off already folded into `result`; passed only to explain it. */
+  teamCalendar?: TeamCalendar | null;
 }) {
   const { timeline, estimate } = result;
-  const start = resolveProjectStart(project.project_start_date);
+  // Memoised because `resolveProjectStart` returns a fresh Date every call, and
+  // the derivations below take it as a dependency — an unstable identity would
+  // re-walk the calendar on every render.
+  const start = React.useMemo(
+    () => resolveProjectStart(project.project_start_date),
+    [project.project_start_date],
+  );
   const total = Math.max(timeline.totalBusinessDays, 1);
+  /**
+   * Why the dates sit later than a plain business-day count, and by how much.
+   *
+   * The bars are drawn in BUSINESS-DAY offsets, which none of this changes — it
+   * is the same amount of work. Only the dates move. Saying so matters: a launch
+   * date that quietly slipped nine days reads as a bug, not as a closed office.
+   *
+   * Holidays are named rather than counted, and kept separate from leave,
+   * because a manager can decline somebody's PTO and cannot decline Christmas.
+   */
+  const shift = React.useMemo(
+    () => timelineShift(start, timeline.totalBusinessDays, teamCalendar),
+    [start, timeline.totalBusinessDays, teamCalendar],
+  );
+  const shiftReason = React.useMemo(() => {
+    if (shift.days <= 0) return null;
+    const names = shift.holidays.map((h) => h.name);
+    const parts: string[] = [];
+    // Three names is already a long line in a card description; past that the
+    // count carries the point better than the list.
+    if (names.length) {
+      parts.push(names.length <= 3 ? names.join(", ") : `${names.length} holidays`);
+    }
+    if (shift.fromPto) parts.push("booked time off");
+    return parts.join(" + ");
+  }, [shift]);
 
   const [selectedId, setSelectedId] = React.useState<PhaseId | null>(null);
   const toggle = (id: PhaseId) =>
@@ -79,7 +119,12 @@ export function DiscoveryGantt({
     const months: { x: number; label: string }[] = [];
     let prevKey = "";
     for (let o = 0; o <= total; o++) {
-      const d = addBusinessDays(start, o);
+      // ⚠️ The SAME conversion the phase bars' own date labels use. This read
+      // `addBusinessDays`, which ignores holidays, leave and everything else the
+      // timeline accounts for — so on a plan crossing Christmas the month
+      // dividers drifted away from the bars above them, and a bar labelled
+      // "Jan 5" could sit under a divider reading "Dec".
+      const d = addWorkingDays(start, o, teamCalendar);
       const key = `${d.getFullYear()}-${d.getMonth()}`;
       if (key !== prevKey) {
         months.push({ x: x(o), label: format(d, "MMM yyyy") });
@@ -103,7 +148,24 @@ export function DiscoveryGantt({
               <CardTitle>Project timeline</CardTitle>
               <CardDescription>
                 {timeline.totalWeeks} weeks · {timeline.totalBusinessDays} business
-                days · launches {timeline.launchDate}
+                days
+                {timeline.riskBufferPct > 0 ? (
+                  /* Say where the extra days came from. The bars stretched, so
+                     without this the estimate simply looks bigger than the
+                     hours justify. */
+                  <span className="text-primary">
+                    {" "}
+                    (incl. {timeline.riskBufferPct}% risk buffer on{" "}
+                    {timeline.baseBusinessDays})
+                  </span>
+                ) : null}{" "}
+                · launches {timeline.launchDate}
+                {shiftReason ? (
+                  <span className="text-amber-700 dark:text-amber-400">
+                    {" · "}
+                    {shift.days} day{shift.days === 1 ? "" : "s"} later — {shiftReason}
+                  </span>
+                ) : null}
               </CardDescription>
             </div>
             <div className="flex shrink-0 items-center gap-1">

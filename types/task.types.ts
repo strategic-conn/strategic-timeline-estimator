@@ -61,6 +61,15 @@ export interface Task {
   estimated_hours?: number;
   logged_hours?: number;
   tags: string[];
+  /**
+   * The `proposals.line_items[].id` this task was seeded from (migration 0032/0033).
+   *
+   * The stable pair for estimate ↔ project sync. Before it, the only link was
+   * the TITLE, so renaming a line item duplicated its task, deleting one
+   * orphaned it, and changing its hours did nothing. `null` means a person
+   * created this task by hand — an estimate sync never touches those.
+   */
+  source_line_item_id?: string | null;
   position: number;
   created_at: string;
   updated_at: string;

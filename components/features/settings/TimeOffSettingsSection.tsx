@@ -49,12 +49,32 @@ import { ymdCompare } from "@/lib/utils/availability-dates";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
 import { useAvailabilityStore } from "@/store/availability-store";
-import type { AvailabilityEntryKind } from "@/types/availability.types";
+import { usePermissions } from "@/hooks/usePermissions";
+import { cn } from "@/lib/utils";
+import type {
+  AvailabilityEntryKind,
+  AvailabilityStatus,
+} from "@/types/availability.types";
 
 const KIND_LABEL: Record<AvailabilityEntryKind, string> = {
   pto: "PTO / vacation",
   unavailable: "Away (other)",
   partial: "Partial day",
+};
+
+const STATUS_STYLE: Record<AvailabilityStatus, { label: string; className: string }> = {
+  pending: {
+    label: "Awaiting approval",
+    className: "border-amber-500/40 text-amber-700 dark:text-amber-400",
+  },
+  approved: {
+    label: "Approved",
+    className: "border-emerald-500/40 text-emerald-700 dark:text-emerald-400",
+  },
+  rejected: {
+    label: "Declined",
+    className: "border-destructive/40 text-destructive",
+  },
 };
 
 const schema = z
@@ -76,6 +96,8 @@ export function TimeOffSettingsSection() {
   const entries = useAvailabilityStore((s) => s.entries);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
+  // An approver's own entry needs no approval, so the copy must not promise one.
+  const { canApproveTimeOff } = usePermissions();
 
   const [dialogOpen, setDialogOpen] = React.useState(false);
   const [deleteId, setDeleteId] = React.useState<string | null>(null);
@@ -116,9 +138,14 @@ export function TimeOffSettingsSection() {
       kind: values.kind,
       note: values.note,
     });
-    toast.success("Time off added", {
-      description: "It appears on the team calendar for planning.",
-    });
+    toast.success(
+      canApproveTimeOff ? "Time off added" : "Request submitted",
+      {
+        description: canApproveTimeOff
+          ? "It appears on the team calendar for planning."
+          : "An admin or manager will review it. Until then it does not change your capacity.",
+      }
+    );
     setDialogOpen(false);
     form.reset();
   });
@@ -133,7 +160,9 @@ export function TimeOffSettingsSection() {
           <div>
             <h2 className="text-base font-semibold">Time off & availability</h2>
             <p className="text-sm text-muted-foreground">
-              Log when you&apos;re out so teammates see it on the calendar.
+              {canApproveTimeOff
+                ? "Log when you’re out so teammates see it on the calendar."
+                : "Request time off. An admin or manager reviews it — until it is approved it does not change your capacity or the project plan."}
               {isSupabaseConfigured
                 ? " Saved to your workspace."
                 : " Stored locally in this demo."}
@@ -142,7 +171,7 @@ export function TimeOffSettingsSection() {
         </div>
         <Button type="button" size="sm" className="gap-1.5 shrink-0" onClick={openAdd}>
           <Plus className="size-4" aria-hidden />
-          Add time off
+          {canApproveTimeOff ? "Add time off" : "Request time off"}
         </Button>
       </div>
 
@@ -157,6 +186,7 @@ export function TimeOffSettingsSection() {
               <TableRow>
                 <TableHead>Dates</TableHead>
                 <TableHead>Type</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead className="hidden sm:table-cell">Note</TableHead>
                 <TableHead className="w-12 text-right" />
               </TableRow>
@@ -174,6 +204,29 @@ export function TimeOffSettingsSection() {
                     <Badge variant="secondary" className="font-normal">
                       {KIND_LABEL[row.kind]}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "whitespace-nowrap font-normal",
+                        STATUS_STYLE[row.status].className
+                      )}
+                      title={
+                        row.review_note
+                          ? `Reason: ${row.review_note}`
+                          : undefined
+                      }
+                    >
+                      {STATUS_STYLE[row.status].label}
+                    </Badge>
+                    {/* A decline without a reason is the thing people chase an
+                        approver about; show it where they read the verdict. */}
+                    {row.status === "rejected" && row.review_note ? (
+                      <p className="mt-1 max-w-[220px] text-xs text-muted-foreground">
+                        {row.review_note}
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell className="hidden max-w-[200px] truncate text-muted-foreground sm:table-cell">
                     {row.note ?? "—"}

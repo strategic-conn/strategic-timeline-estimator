@@ -31,8 +31,24 @@ async function rest(path: string, init?: RequestInit) {
 const FAKE_DEAL = "9990001112223334445";
 
 /** A disposable estimate parked at a known stage. */
+/**
+ * A fixture name nobody else can be using.
+ *
+ * The viewport projects run in parallel against ONE database, so a fixed
+ * `[E2E] <label>` is seeded three times over and every browser sees all three
+ * rows. Tests here find their card BY TEXT, so the duplicates broke both the
+ * `article` filter (strict-mode: three matches) and `columnOf` (three hits
+ * against a single expected column). Unique per worker process, so a name is
+ * only ever in one browser's DOM.
+ */
+const RUN_TOKEN = `${process.pid.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
+export function fixtureTitle(label: string): string {
+  return `${E2E_PREFIX} ${label} ${RUN_TOKEN}`;
+}
+
 async function seed(label: string, stage: string | null): Promise<string | null> {
-  const title = `${E2E_PREFIX} ${label}`;
+  const title = fixtureTitle(label);
   const res = await rest("proposals", {
     method: "POST",
     body: JSON.stringify({
@@ -110,8 +126,8 @@ test.describe("stage board", () => {
     try {
       await openBoard(page);
 
-      await expect(page.getByText(`${E2E_PREFIX} orphan stage`)).toBeVisible();
-      await expect(page.getByText(`${E2E_PREFIX} no deal`)).toBeVisible();
+      await expect(page.getByText(fixtureTitle("orphan stage"))).toBeVisible();
+      await expect(page.getByText(fixtureTitle("no deal"))).toBeVisible();
       // The unknown stage earned its own column rather than swallowing the card.
       await expect(
         page.locator("section[aria-label] h3", {
@@ -123,7 +139,7 @@ test.describe("stage board", () => {
       // it sits in is already called "Not in Zoho".
       const unlinkedCard = page
         .locator("article")
-        .filter({ hasText: `${E2E_PREFIX} no deal` });
+        .filter({ hasText: fixtureTitle("no deal") });
       await expect(
         unlinkedCard.getByText("Not linked to a Zoho deal"),
       ).toBeAttached();
@@ -252,7 +268,7 @@ test.describe("stage board", () => {
         stageAlreadySet: true,
       });
       await expect
-        .poll(() => columnOf(page, `${E2E_PREFIX} accepted drag`), {
+        .poll(() => columnOf(page, fixtureTitle("accepted drag")), {
           timeout: 15_000,
         })
         .toEqual(["Negotiation"]);
@@ -278,7 +294,7 @@ test.describe("stage board", () => {
         warnings: ["Deal left at Discovery."],
       });
       await expect
-        .poll(() => columnOf(page, `${E2E_PREFIX} held drag`), { timeout: 15_000 })
+        .poll(() => columnOf(page, fixtureTitle("held drag")), { timeout: 15_000 })
         .toEqual(["Discovery"]);
       await expectStoredStage(id!, "Discovery");
     } finally {
@@ -313,7 +329,7 @@ test.describe("stage board", () => {
       await openBoard(page);
       const card = page
         .locator("article")
-        .filter({ hasText: `${E2E_PREFIX} menu move` });
+        .filter({ hasText: fixtureTitle("menu move") });
       await expect(card).toBeVisible({ timeout: 30_000 });
       const trigger = card.getByRole("button", { name: /Deal stage:/i });
       await expect(trigger).toBeEnabled();
@@ -328,7 +344,7 @@ test.describe("stage board", () => {
 
       await expect.poll(() => called, { timeout: 15_000 }).toBe(true);
       await expect
-        .poll(() => columnOf(page, `${E2E_PREFIX} menu move`), { timeout: 15_000 })
+        .poll(() => columnOf(page, fixtureTitle("menu move")), { timeout: 15_000 })
         .toEqual(["Negotiation"]);
       await expectStoredStage(id!, "Negotiation");
     } finally {
@@ -348,7 +364,7 @@ test.describe("stage board", () => {
     if (!url || !key) test.skip(true, "Supabase service role is not configured.");
 
     const make = async (label: string, closing: string) => {
-      const title = `${E2E_PREFIX} ${label}`;
+      const title = fixtureTitle(label);
       const res = await rest("proposals", {
         method: "POST",
         body: JSON.stringify({
@@ -383,7 +399,7 @@ test.describe("stage board", () => {
       await openBoard(page);
       const lateCard = page
         .locator("article")
-        .filter({ hasText: `${E2E_PREFIX} late deal` });
+        .filter({ hasText: fixtureTitle("late deal") });
       await expect(lateCard).toBeVisible({ timeout: 30_000 });
 
       // Account and contact come from the CRM link, not the quote's own title.
@@ -419,7 +435,7 @@ test.describe("stage board", () => {
     // "Start project" never appeared. Found live, on an estimate that already
     // had a PO raised against it.
     const seedWith = async (label: string, status: string) => {
-      const title = `${E2E_PREFIX} ${label}`;
+      const title = fixtureTitle(label);
       const res = await rest("proposals", {
         method: "POST",
         body: JSON.stringify({
@@ -464,7 +480,7 @@ test.describe("stage board", () => {
     );
 
     const moveToWon = async (label: string) => {
-      const card = page.locator("article").filter({ hasText: `${E2E_PREFIX} ${label}` });
+      const card = page.locator("article").filter({ hasText: fixtureTitle(label) });
       await expect(card).toBeVisible({ timeout: 30_000 });
       const trigger = card.getByRole("button", { name: /Deal stage:/i });
       await expect(trigger).toBeEnabled();

@@ -18,6 +18,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { usePermissions } from "@/hooks/usePermissions";
+import { usHolidayMap } from "@/lib/calendar/us-holidays";
+import { useAuthStore } from "@/store/auth-store";
 import { useTeamMembers } from "@/store/team-store";
 import {
   calendarDayKey,
@@ -31,15 +34,11 @@ import { cn } from "@/lib/utils";
 import type { AvailabilityEntry } from "@/types/availability.types";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import Link from "next/link";
+import { TASK_STATUS_DOT } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
 
-const STATUS_DOT: Record<TaskStatus, string> = {
-  todo: "bg-slate-400",
-  in_progress: "bg-blue-500",
-  in_review: "bg-purple-500",
-  done: "bg-green-500",
-  blocked: "bg-red-500",
-};
+/** Shared, so a status cannot be purple here and blue on the next page. */
+const STATUS_DOT = TASK_STATUS_DOT;
 
 const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -61,6 +60,9 @@ type CalendarEvent = {
 
 type DayAway = { entry: AvailabilityEntry; name: string };
 
+/** Whose schedule is on screen. Admin/manager can switch; everyone else can't. */
+type Scope = "mine" | "team";
+
 const AWAY_KIND_LABEL: Record<AvailabilityEntry["kind"], string> = {
   pto: "PTO / vacation",
   unavailable: "Away",
@@ -71,8 +73,30 @@ export function CalendarClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
-  const availabilityEntries = useAvailabilityStore((s) => s.entries);
+  const allAvailability = useAvailabilityStore((s) => s.entries);
   const members = useTeamMembers();
+  const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
+  const { canApproveTimeOff } = usePermissions();
+
+  /**
+   * A Member/Viewer sees their own schedule and nothing else — their tasks,
+   * the sprints of projects they are working on, and their own leave.
+   *
+   * The calendar used to show everyone everything: every person's PTO (with its
+   * free-text note), and every task in every project. Migration 0034 narrowed
+   * the read policy to match, so for a non-approver `allAvailability` now only
+   * ever contains their own rows anyway — this filter is what the screen
+   * promises, not what enforces it.
+   */
+  const [scope, setScope] = React.useState<Scope>(() =>
+    canApproveTimeOff ? "team" : "mine"
+  );
+  const mineOnly = !canApproveTimeOff || scope === "mine";
+
+  const availabilityEntries = React.useMemo(
+    () => (mineOnly ? allAvailability.filter((e) => e.user_id === me) : allAvailability),
+    [allAvailability, mineOnly, me]
+  );
 
   const memberById = React.useMemo(
     () => new Map(members.map((m) => [m.id, m])),
@@ -96,6 +120,7 @@ export function CalendarClient() {
 
     for (const t of tasks) {
       if (!t.due_date) continue;
+      if (mineOnly && !t.assignee_ids.includes(me)) continue;
       const key = calendarDayKey(t.due_date);
       const href = t.sprint_id
         ? sprintTasksHref(t.project_id, t.sprint_id, t.id)
@@ -109,7 +134,13 @@ export function CalendarClient() {
       });
     }
 
+    // Sprint markers follow the tasks: a sprint on a project you have no work
+    // on is somebody else's milestone.
+    const myProjects = new Set(
+      tasks.filter((t) => t.assignee_ids.includes(me)).map((t) => t.project_id)
+    );
     for (const s of sprints) {
+      if (mineOnly && !myProjects.has(s.project_id)) continue;
       const projName = projectNameMap.get(s.project_id) ?? "Project";
       const startKey = calendarDayKey(s.start_date);
       push(startKey, {
@@ -128,11 +159,14 @@ export function CalendarClient() {
     }
 
     return map;
-  }, [tasks, sprints, projectNameMap]);
+  }, [tasks, sprints, projectNameMap, mineOnly, me]);
 
   const availabilityByDate = React.useMemo(() => {
     const map = new Map<string, DayAway[]>();
     for (const e of availabilityEntries) {
+      // A refused request is not an absence — showing it would leave the
+      // calendar contradicting the roster and the workload page.
+      if (e.status === "rejected") continue;
       const name = memberById.get(e.user_id)?.name ?? `User ${e.user_id}`;
       for (const key of eachYmdInInclusiveRange(e.start_date, e.end_date)) {
         if (!map.has(key)) map.set(key, []);
@@ -169,6 +203,19 @@ export function CalendarClient() {
     return days;
   }, [year, month]);
 
+  /**
+   * Observed US holidays across the visible grid — including the leading and
+   * trailing days from the neighbouring months, since those cells are on screen
+   * and a holiday sitting in one would otherwise be the only unmarked day.
+   */
+  const holidays = React.useMemo(() => {
+    if (!calendarDays.length) return new Map<string, string>();
+    return usHolidayMap(
+      calendarDays[0].key,
+      calendarDays[calendarDays.length - 1].key,
+    );
+  }, [calendarDays]);
+
   const todayKey = ymd(new Date());
 
   const monthLabel = viewDate.toLocaleDateString(undefined, {
@@ -185,16 +232,43 @@ export function CalendarClient() {
 
   const selectedEvents = selectedDate ? eventsByDate.get(selectedDate) ?? [] : [];
   const selectedAway = selectedDate ? availabilityByDate.get(selectedDate) ?? [] : [];
-  const selectedTotal = selectedAway.length + selectedEvents.length;
+  const selectedHoliday = selectedDate ? holidays.get(selectedDate) ?? null : null;
+  const selectedTotal =
+    selectedAway.length + selectedEvents.length + (selectedHoliday ? 1 : 0);
 
   return (
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Schedule"
-        title="Calendar"
-        description="Task due dates, sprint milestones, and team PTO / availability in one view."
+        title={mineOnly ? "My calendar" : "Calendar"}
+        description={
+          mineOnly
+            ? "Your task due dates, the sprints you are working in, and your own time off."
+            : "Task due dates, sprint milestones, and team PTO / availability in one view."
+        }
         actions={
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+            {canApproveTimeOff ? (
+              /* Same Mine/Team control as Workload, so the two schedule pages
+                 behave the same way for the same people. */
+              <div className="inline-flex rounded-lg border border-border/60 bg-card/50 p-0.5 text-sm">
+                {(["mine", "team"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setScope(v)}
+                    className={cn(
+                      "rounded-md px-3 py-1 capitalize transition-colors",
+                      scope === v
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {v === "mine" ? "Mine" : "Team"}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             <Button variant="outline" size="sm" className="border-border/60 bg-background/80" onClick={goToday}>
               Today
             </Button>
@@ -233,6 +307,7 @@ export function CalendarClient() {
               {calendarDays.map(({ date, key, isCurrentMonth }) => {
                 const events = eventsByDate.get(key) ?? [];
                 const away = availabilityByDate.get(key) ?? [];
+                const holiday = holidays.get(key) ?? null;
                 const isToday = key === todayKey;
                 const isSelected = key === selectedDate;
                 const taskEvents = events.filter((e) => e.type === "task");
@@ -247,7 +322,13 @@ export function CalendarClient() {
                       "relative flex min-h-16 flex-col gap-0.5 border-b border-r border-border p-1.5 text-left transition-colors hover:bg-muted/50 sm:min-h-20 sm:p-2",
                       !isCurrentMonth && "bg-muted/20 text-muted-foreground/50",
                       isSelected && "ring-2 ring-inset ring-primary",
-                      away.length > 0 && "bg-rose-500/6 dark:bg-rose-500/10",
+                      /* Only granted leave tints the day. A request that has
+                         not been approved must not look like settled fact. */
+                      away.some((a) => a.entry.status !== "pending") &&
+                        "bg-rose-500/6 dark:bg-rose-500/10",
+                      /* A holiday is nobody's leave, so it gets its own neutral
+                         tint rather than borrowing the PTO colour. */
+                      holiday && "bg-muted/60",
                     )}
                   >
                     <span
@@ -258,15 +339,28 @@ export function CalendarClient() {
                     >
                       {date.getDate()}
                     </span>
+                    {holiday ? (
+                      <span
+                        className="mt-0.5 truncate rounded bg-foreground/10 px-1 text-[0.55rem] font-medium text-muted-foreground"
+                        title={`${holiday} — US federal holiday, no work scheduled`}
+                      >
+                        {holiday}
+                      </span>
+                    ) : null}
                     {away.length > 0 && (
                       <div
                         className="mt-0.5 flex flex-wrap gap-0.5"
-                        title="Team time off / away"
+                        title="Time off — dashed outline means it is still awaiting approval"
                       >
                         {away.slice(0, 3).map(({ entry, name }) => (
                           <span
                             key={entry.id + key}
-                            className="max-w-13 truncate rounded bg-rose-500/20 px-1 text-[0.55rem] font-medium text-rose-800 dark:text-rose-200"
+                            className={cn(
+                              "max-w-13 truncate rounded px-1 text-[0.55rem] font-medium",
+                              entry.status === "pending"
+                                ? "border border-dashed border-amber-500/70 text-amber-800 dark:text-amber-200"
+                                : "bg-rose-500/20 text-rose-800 dark:text-rose-200",
+                            )}
                           >
                             {name.split(" ")[0] ?? name}
                           </span>
@@ -326,21 +420,68 @@ export function CalendarClient() {
               </CardDescription>
             </CardHeader>
             <CardContent className="max-h-[60vh] space-y-2 overflow-y-auto pt-0">
-              {selectedAway.map(({ entry, name }) => (
-                <div
-                  key={entry.id}
-                  className="flex items-start gap-2 rounded-lg border border-rose-200/80 bg-rose-500/5 p-2.5 dark:border-rose-900/50 dark:bg-rose-500/10"
-                >
-                  <Palmtree className="mt-0.5 size-3.5 shrink-0 text-rose-600 dark:text-rose-400" />
+              {selectedHoliday ? (
+                <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 p-2.5">
+                  <CalendarDays
+                    className="mt-0.5 size-3.5 shrink-0 text-muted-foreground"
+                    aria-hidden
+                  />
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium">{name}</p>
-                    <p className="text-xs text-rose-800/90 dark:text-rose-200/90">
-                      {AWAY_KIND_LABEL[entry.kind]}
-                      {entry.note ? ` · ${entry.note}` : ""}
+                    <p className="truncate text-sm font-medium">{selectedHoliday}</p>
+                    <p className="text-xs text-muted-foreground">
+                      US federal holiday — excluded from timelines and weekly
+                      capacity
                     </p>
                   </div>
                 </div>
-              ))}
+              ) : null}
+              {selectedAway.map(({ entry, name }) => {
+                const awaiting = entry.status === "pending";
+                return (
+                  <div
+                    key={entry.id}
+                    className={cn(
+                      "flex items-start gap-2 rounded-lg border p-2.5",
+                      awaiting
+                        ? "border-dashed border-amber-400/70 bg-amber-500/5 dark:border-amber-700/60 dark:bg-amber-500/10"
+                        : "border-rose-200/80 bg-rose-500/5 dark:border-rose-900/50 dark:bg-rose-500/10",
+                    )}
+                  >
+                    <Palmtree
+                      className={cn(
+                        "mt-0.5 size-3.5 shrink-0",
+                        awaiting
+                          ? "text-amber-600 dark:text-amber-400"
+                          : "text-rose-600 dark:text-rose-400",
+                      )}
+                    />
+                    <div className="min-w-0">
+                      <p className="flex flex-wrap items-center gap-1.5 truncate text-sm font-medium">
+                        {name}
+                        {awaiting ? (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/40 text-[0.6rem] font-normal text-amber-700 dark:text-amber-400"
+                          >
+                            awaiting approval
+                          </Badge>
+                        ) : null}
+                      </p>
+                      <p
+                        className={cn(
+                          "text-xs",
+                          awaiting
+                            ? "text-amber-800/90 dark:text-amber-200/90"
+                            : "text-rose-800/90 dark:text-rose-200/90",
+                        )}
+                      >
+                        {AWAY_KIND_LABEL[entry.kind]}
+                        {entry.note ? ` · ${entry.note}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
               {selectedEvents.map((ev) => (
                 <Link
                   key={ev.id}
@@ -403,6 +544,14 @@ export function CalendarClient() {
                   <div className="flex items-center gap-2">
                     <span className="size-2 shrink-0 rounded-sm bg-rose-500/70" />
                     <span className="text-muted-foreground">PTO / away</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-sm border border-dashed border-amber-500/80" />
+                    <span className="text-muted-foreground">Awaiting approval</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="size-2 shrink-0 rounded-sm bg-foreground/25" />
+                    <span className="text-muted-foreground">US holiday</span>
                   </div>
                 </div>
               </div>

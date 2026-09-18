@@ -3,6 +3,7 @@
  * caller passes plain snapshots from the stores (team, member_skills,
  * weekly_capacity, availability), so this stays testable and store-agnostic.
  */
+import { countsAgainstCapacity } from "@/lib/constants/workload";
 import type { PlanDev } from "./plan";
 
 export interface RosterMember {
@@ -54,11 +55,20 @@ export function buildRoster(input: RosterInput): PlanDev[] {
  * for v1). Guards against reversed/oversized ranges (caps at 366 days).
  */
 export function ptoDaysByProfile(
-  entries: { user_id: string; start_date: string; end_date: string; kind: string }[],
+  entries: {
+    user_id: string;
+    start_date: string;
+    end_date: string;
+    kind: string;
+    status?: string;
+  }[],
 ): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const e of entries) {
     if (e.kind !== "pto" && e.kind !== "unavailable") continue;
+    // Planning around leave nobody has granted would move real work for a
+    // request that may yet be refused (migration 0034).
+    if (!countsAgainstCapacity(e)) continue;
     const days = (map[e.user_id] ??= []);
     let d = new Date(`${e.start_date}T00:00:00.000Z`);
     const end = new Date(`${e.end_date}T00:00:00.000Z`);

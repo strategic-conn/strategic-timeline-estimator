@@ -3,10 +3,10 @@
   "meta": {
     "title": "Timeline Estimator & PM Tool — Architecture & Flows",
     "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
-    "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read-only) · Tailwind 4 / shadcn",
+    "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
-    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (29 migrations).",
-    "dateMapped": "2026-07-29",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (35 migrations).",
+    "dateMapped": "2026-09-18",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -871,10 +871,11 @@
       "id": "t-tasks",
       "layer": "data",
       "label": "tasks",
-      "sub": "0001",
-      "purpose": "project_id -> projects; sprint_id -> sprints (null=backlog); reporter_id -> profiles. logged_hours (trigger-guarded).",
+      "sub": "0001 +0032/0033",
+      "purpose": "project_id -> projects; sprint_id -> sprints (null=backlog); reporter_id -> profiles. logged_hours (trigger-guarded). source_line_item_id (text, 0032/0033) is the stable link to the proposals.line_items[].id a task was seeded from — NULL means a person made it by hand and no sync may touch it.",
       "files": [
-        "supabase/migrations/0001_init.sql"
+        "supabase/migrations/0001_init.sql",
+        "supabase/migrations/0033_task_source_line_item_is_text.sql"
       ]
     },
     {
@@ -951,10 +952,11 @@
       "id": "t-proposals",
       "layer": "data",
       "label": "proposals",
-      "sub": "0001 +0015/+0022",
-      "purpose": "owner_id, project_id, platform, line_items jsonb, addons jsonb, discovery jsonb, status draft/sent/approved/rejected. `zoho` jsonb (0029) links the quote back to its Zoho Deal / Account / Contact.",
+      "sub": "0001 +0022/0029/0031",
+      "purpose": "owner_id, project_id, platform, line_items jsonb, addons jsonb, discovery jsonb, status draft/sent/approved/rejected. `zoho` jsonb (0029) links the quote to its Deal / Account / Contact; `pbs` jsonb (0031) to its PBS purchase order. Adding a jsonb column means THREE places: quoteUpdatePayload(), the Pick<> on updateProposal, and rowToQuote — miss the first two and edits never persist, miss the third and they persist but never come back.",
       "files": [
-        "supabase/migrations/0022_proposal_discovery.sql"
+        "supabase/migrations/0022_proposal_discovery.sql",
+        "supabase/migrations/0031_proposal_pbs.sql"
       ]
     },
     {
@@ -1222,6 +1224,205 @@
       ],
       "tables": [
         "proposals"
+      ]
+    },
+    {
+      "id": "l-sync",
+      "layer": "bridge",
+      "label": "estimate ↔ project sync",
+      "sub": "pure · two-way",
+      "purpose": "diffEstimateToProject() reconciles a project's tasks against the estimate's line items (create / rename / re-hour / remove), keyed on tasks.source_line_item_id. applyTaskToLineItems() / removeLineItem() carry a task edit the other way, writing hours back through base_hours so the row stays internally consistent. A registry (registerTaskMirror / mirrorTaskChange) lets tasks-store notify the estimator store without an import cycle; withMirrorSuppressed() stops the estimate→project half echoing back. notifyProjectScheduleChanged() / registerScheduleWatcher() close the PBS loop: a sprint date change warns, at that moment, that the purchase order was billed against a range that no longer holds. A task carrying logged time is reported as `orphaned` and KEPT, never removed; mirrorTaskChange() returns a revert closure the tasks store calls on every rollback.",
+      "files": [
+        "lib/sync/estimate-project-sync.ts",
+        "e2e/estimate-project-sync.spec.ts",
+        "e2e/sync-surfaces.spec.ts"
+      ]
+    },
+    {
+      "id": "s-stageboard",
+      "layer": "surfaces",
+      "label": "/proposals · Stages",
+      "sub": "ProposalStageBoard · default view",
+      "purpose": "A Zoho-shaped pipeline of THIS app's estimates only. Columns are the org's own Deal Stage picklist in its own order, coloured by forecast bucket. Dragging a card moves the real deal; the stage that is stored is where the deal SETTLED, not what was asked for.",
+      "files": [
+        "components/features/proposals/ProposalStageBoard.tsx"
+      ],
+      "flags": {
+        "gated": "admin/manager (canExportProposals)"
+      }
+    },
+    {
+      "id": "b-wontransition",
+      "layer": "bridge",
+      "label": "won-transition",
+      "sub": "one rule, three callers",
+      "purpose": "recordStageChange() (store the settled stage, then apply it) and applyWonTransition() (promote draft/sent -> approved, log activity, notify admins+managers) — guarded on the TRANSITION into a won forecast bucket. The poll, the status changer and the stage board all route through it so they cannot drift. Stage + promotion travel in ONE store write (applyDealStage), because persistQuoteDoc sends the whole document and two writes race.",
+      "files": [
+        "lib/zoho/won-transition.ts",
+        "e2e/won-stage.spec.ts"
+      ]
+    },
+    {
+      "id": "api-dealstages",
+      "layer": "bridge",
+      "label": "GET /api/zoho/deal-stages",
+      "sub": "settings.READ · 30-min cache",
+      "purpose": "The org's own Deal Stage picklist (value, sequence_number, forecast_type, probability). One reader for the status changer, the board and the push route's validation, so the menu can never offer a stage the server rejects. The readable bucket is forecast_type — forecast_category is an opaque id.",
+      "files": [
+        "lib/zoho/stages.ts",
+        "lib/zoho/stage-catalog.ts"
+      ]
+    },
+    {
+      "id": "b-zohowrite",
+      "layer": "bridge",
+      "label": "zoho write allow-list",
+      "sub": "deny-by-default",
+      "purpose": "zohoFetch refuses any non-GET not on this list before the request leaves the process. Exactly three writes today: create a deal, move a deal's stage, attach a file to a deal. The OAuth scope string is NOT what limits this app — this is.",
+      "files": [
+        "lib/zoho/write-allowlist.ts"
+      ]
+    },
+    {
+      "id": "x-pbs",
+      "layer": "external",
+      "label": "PBS billing",
+      "sub": "pbsserver.com/api",
+      "purpose": "The billing system. Machine-to-machine JWT, credentials in the JSON body (Bearer is rejected); success is the parsed `status` field, never the HTTP status. CREATE-ONLY for purchase orders: there is no update and no delete endpoint, so a wrong PO is a manual cleanup and a changed schedule can only be REPORTED as drift.",
+      "files": [
+        "lib/pbs/endpoints.ts",
+        "docs/pbs-integration-plan.md"
+      ]
+    },
+    {
+      "id": "b-pbstokens",
+      "layer": "bridge",
+      "label": "PBS token cache",
+      "sub": "server-only · mintOnce",
+      "purpose": "Mints + caches the 1-hour access token in pbs_connection. /refresh is never called (rotation kills the old token instantly). Minting is NOT safe to race — PBS has a unique index on (app_id, refresh_token_hash) — so every caller shares one in-flight promise and re-reads the cache on failure.",
+      "files": [
+        "lib/pbs/tokens.ts"
+      ]
+    },
+    {
+      "id": "api-pbs",
+      "layer": "bridge",
+      "label": "/api/pbs/*",
+      "sub": "health · clients · pos",
+      "purpose": "GET /api/pbs/health (admin). GET /api/pbs/clients (derived from PO history — PBS has no clients endpoint). GET /api/pbs/pos (candidate preview + linked-PO status refresh). POST /api/pbs/pos is the only write: gated on the Zoho deal being won, re-read LIVE and failing closed, refusing a quote that already has a po_no and claiming the row with a 2-min compare-and-set first.",
+      "files": [
+        "app/api/pbs/pos/route.ts",
+        "lib/pbs/clients.ts",
+        "lib/pbs/directory.ts"
+      ],
+      "flags": {
+        "gated": "admin/manager; health admin-only"
+      }
+    },
+    {
+      "id": "t-pbsconn",
+      "layer": "data",
+      "label": "pbs_connection",
+      "sub": "0030 · RLS, NO policies",
+      "purpose": "Singleton token cache. RLS enabled with no policies at all, like zoho_connection — anon/authenticated cannot touch it; only the service-role server routes can. It is a cache, not a source of truth.",
+      "files": [
+        "supabase/migrations/0030_pbs_connection.sql"
+      ]
+    },
+    {
+      "id": "l-workload",
+      "layer": "bridge",
+      "label": "assigned-work",
+      "sub": "one definition, both views",
+      "purpose": "assignedWork() / capacityFor() / utilization() — what one person is carrying and how much room they have. Open = status !== 'done' (in_review and blocked still count). Allocated = accepted + pending; rejected/passed never appear because respondToAssignment DELETES the task_assignees row. Capacity is contracted hours minus this week's time off. Backs BOTH the Mine and Team tabs, which previously each rolled their own and disagreed about the same person in the same week.",
+      "files": [
+        "lib/workload/assigned-work.ts",
+        "e2e/workload-assigned-work.spec.ts"
+      ]
+    },
+    {
+      "id": "l-ptoimpact",
+      "layer": "bridge",
+      "label": "pto-impact",
+      "sub": "pure · preview→confirm",
+      "purpose": "ptoImpact() lists the tasks an absence lands on (due date inside the range), whether anyone else is accepted on them, suggested cover via the assignment engine's own skillTiers, and any sprint that can no longer finish. reschedulePatches() returns the exact writes an 'Approve + reschedule' makes — applied from the rendered object, never recomputed at write time.",
+      "files": [
+        "lib/availability/pto-impact.ts",
+        "e2e/pto-impact.spec.ts"
+      ]
+    },
+    {
+      "id": "c-ptoapproval",
+      "layer": "surfaces",
+      "label": "Time-off approval",
+      "sub": "Settings · admin+manager",
+      "purpose": "The pending queue and the review dialog. Shows the impact before the decision, then Approve only / Approve + reschedule / Decline, with a note the requester sees.",
+      "files": [
+        "components/features/settings/TimeOffApprovalDialog.tsx",
+        "components/features/settings/AdminTeamTimeOffSection.tsx"
+      ],
+      "flags": {
+        "gated": "admin/manager (canApproveTimeOff)"
+      }
+    },
+    {
+      "id": "l-teamcal",
+      "layer": "bridge",
+      "label": "team-calendar",
+      "sub": "pure · PTO → timeline",
+      "purpose": "buildTeamCalendar() turns the roster + APPROVED time off into a per-day availability factor; addWorkingDays() replaces addBusinessDays wherever the tentative timeline converts a business-day offset to a date. Optional everywhere — with no calendar it delegates to addBusinessDays, so a workspace with no leave is byte-identical. totalBusinessDays never changes: leave moves WHEN work lands, not how much there is.",
+      "files": [
+        "lib/discovery/team-calendar.ts",
+        "hooks/useTeamCalendar.ts",
+        "e2e/team-calendar.spec.ts"
+      ]
+    },
+    {
+      "id": "l-holidays",
+      "layer": "bridge",
+      "label": "us-holidays",
+      "sub": "pure · 4 consumers",
+      "purpose": "The eleven US federal holidays with the 5 U.S.C. 6103 observance rule (Saturday -> the Friday before, Sunday -> the Monday after). Read by the timeline walk, weekly capacity, the assignment planner and the PTO impact preview, so none of them can disagree about whether work happens on Christmas. New Year's Day can be observed in the PREVIOUS December, so range lookups scan a year either side.",
+      "files": [
+        "lib/calendar/us-holidays.ts",
+        "e2e/us-holidays.spec.ts"
+      ]
+    },
+    {
+      "id": "c-riskbuffer",
+      "layer": "surfaces",
+      "label": "Risk buffer",
+      "sub": "Estimator Adjust + project page",
+      "purpose": "Schedule contingency 0-100%, on proposals and projects (0036). One shared card. On an estimate it stretches the tentative timeline and the sprints Start project scaffolds; on a project it is a forecast until explicitly applied, which rewrites sprint dates behind a preview and resets the buffer to 0 so it cannot compound. Never touches hours or price - that is requirements_unclear.",
+      "files": [
+        "components/features/proposals/RiskBufferCard.tsx",
+        "components/features/sprints/ProjectRiskBufferSection.tsx",
+        "e2e/risk-buffer.spec.ts"
+      ],
+      "flags": {
+        "gated": "admin/manager"
+      }
+    },
+    {
+      "id": "c-workloadbar",
+      "layer": "surfaces",
+      "label": "WorkloadBar",
+      "sub": "shared · status-coloured",
+      "purpose": "The load bar on both workload views, segmented by task status via statusBreakdown(). A single-colour bar could only say full; full of unstarted work, work in flight and BLOCKED work are three different problems. Over capacity is an amber ring, not a recolour, so the limit and the composition stay separate signals. Colours come from lib/constants/task-status.ts.",
+      "files": [
+        "components/features/workload/WorkloadBar.tsx",
+        "lib/constants/task-status.ts"
+      ]
+    },
+    {
+      "id": "c-taskbadge",
+      "layer": "surfaces",
+      "label": "TaskBadgePopover",
+      "sub": "pending / overdue",
+      "purpose": "Count badges on the workload cards that open the list of tasks behind them, each row linking to its board. A button+popover, not a hover tooltip - hover does not exist on a phone and this is a control. Shared by both workload views; assignedWork returns overdueTasks so the badge and its list cannot disagree.",
+      "files": [
+        "components/features/workload/TaskBadgePopover.tsx",
+        "e2e/workload-badges.spec.ts"
       ]
     }
   ],
@@ -2160,6 +2361,231 @@
       "from": "s-propeditor",
       "to": "api-zohodeals",
       "label": "Link a Zoho deal"
+    },
+    {
+      "from": "st-proposals",
+      "to": "l-sync",
+      "label": "reconciles project <- estimate"
+    },
+    {
+      "from": "st-tasks",
+      "to": "l-sync",
+      "label": "mirrors task edit -> estimate"
+    },
+    {
+      "from": "l-sync",
+      "to": "t-tasks",
+      "label": "keyed on source_line_item_id"
+    },
+    {
+      "from": "l-sync",
+      "to": "t-proposals",
+      "label": "writes line_items back"
+    },
+    {
+      "from": "s-stageboard",
+      "to": "api-dealstages",
+      "label": "reads the org picklist"
+    },
+    {
+      "from": "s-stageboard",
+      "to": "api-zohopush",
+      "label": "drag moves the real deal"
+    },
+    {
+      "from": "s-stageboard",
+      "to": "b-wontransition",
+      "label": "won -> approved + notify"
+    },
+    {
+      "from": "api-zohopush",
+      "to": "b-wontransition",
+      "label": "records the settled stage"
+    },
+    {
+      "from": "api-zohopush",
+      "to": "b-zohowrite",
+      "label": "checked before leaving the process"
+    },
+    {
+      "from": "api-dealstages",
+      "to": "x-zoho",
+      "label": "settings.READ"
+    },
+    {
+      "from": "s-proposals",
+      "to": "api-pbs",
+      "label": "Create PO (once won)"
+    },
+    {
+      "from": "api-pbs",
+      "to": "b-pbstokens",
+      "label": "getAccessToken()"
+    },
+    {
+      "from": "b-pbstokens",
+      "to": "t-pbsconn",
+      "label": "service-role only"
+    },
+    {
+      "from": "b-pbstokens",
+      "to": "x-pbs",
+      "label": "mint (never refresh)"
+    },
+    {
+      "from": "api-pbs",
+      "to": "x-pbs",
+      "label": "create-po / fetch-po"
+    },
+    {
+      "from": "api-pbs",
+      "to": "t-proposals",
+      "label": "records proposals.pbs"
+    },
+    {
+      "from": "api-pbs",
+      "to": "x-zoho",
+      "label": "re-reads the deal stage LIVE (fails closed)"
+    },
+    {
+      "from": "s-workload",
+      "to": "l-workload",
+      "label": "open load + capacity"
+    },
+    {
+      "from": "l-workload",
+      "to": "st-tasks",
+      "label": "reads assignees + status"
+    },
+    {
+      "from": "l-workload",
+      "to": "st-availability",
+      "label": "time off comes off capacity"
+    },
+    {
+      "from": "l-workload",
+      "to": "st-capacity",
+      "label": "contracted weekly hours"
+    },
+    {
+      "from": "c-ptoapproval",
+      "to": "l-ptoimpact",
+      "label": "what this absence costs"
+    },
+    {
+      "from": "c-ptoapproval",
+      "to": "st-availability",
+      "label": "reviewEntry(approve/reject)"
+    },
+    {
+      "from": "c-ptoapproval",
+      "to": "st-tasks",
+      "label": "reschedule due dates"
+    },
+    {
+      "from": "c-ptoapproval",
+      "to": "st-sprints",
+      "label": "extend sprint end"
+    },
+    {
+      "from": "l-ptoimpact",
+      "to": "st-skills",
+      "label": "cover suggestions"
+    },
+    {
+      "from": "s-calendar",
+      "to": "st-availability",
+      "label": "own leave, or the team's"
+    },
+    {
+      "from": "st-availability",
+      "to": "t-availability",
+      "label": "status pending/approved/rejected"
+    },
+    {
+      "from": "l-workload",
+      "to": "st-availability",
+      "label": "approved leave only"
+    },
+    {
+      "from": "l-teamcal",
+      "to": "st-availability",
+      "label": "approved leave only"
+    },
+    {
+      "from": "l-teamcal",
+      "to": "st-team",
+      "label": "roster headcount"
+    },
+    {
+      "from": "st-proposals",
+      "to": "l-teamcal",
+      "label": "phase scaffold dates"
+    },
+    {
+      "from": "c-ptoapproval",
+      "to": "l-teamcal",
+      "label": "approved leave feeds future estimates"
+    },
+    {
+      "from": "l-teamcal",
+      "to": "l-holidays",
+      "label": "skips non-working days"
+    },
+    {
+      "from": "l-workload",
+      "to": "l-holidays",
+      "label": "holidays off the week"
+    },
+    {
+      "from": "l-ptoimpact",
+      "to": "l-holidays",
+      "label": "leave over a holiday costs less"
+    },
+    {
+      "from": "s-calendar",
+      "to": "l-holidays",
+      "label": "marks them on the grid"
+    },
+    {
+      "from": "c-riskbuffer",
+      "to": "t-proposals",
+      "label": "risk_buffer_pct"
+    },
+    {
+      "from": "c-riskbuffer",
+      "to": "t-projects",
+      "label": "carried at conversion"
+    },
+    {
+      "from": "c-riskbuffer",
+      "to": "l-teamcal",
+      "label": "bufferSprintDates / riskAdjustedFinish"
+    },
+    {
+      "from": "c-riskbuffer",
+      "to": "st-sprints",
+      "label": "apply = previewed sprint rewrite"
+    },
+    {
+      "from": "s-workload",
+      "to": "c-workloadbar",
+      "label": "Mine and Team both"
+    },
+    {
+      "from": "c-workloadbar",
+      "to": "l-workload",
+      "label": "statusBreakdown()"
+    },
+    {
+      "from": "s-workload",
+      "to": "c-taskbadge",
+      "label": "pending / overdue lists"
+    },
+    {
+      "from": "c-taskbadge",
+      "to": "st-tasks",
+      "label": "links to the task board"
     }
   ],
   "flows": [
@@ -3495,6 +3921,151 @@
           ]
         }
       ]
+    },
+    {
+      "id": "f-sync-two-way",
+      "name": "Project ↔ Estimate two-way sync",
+      "actor": "Admin / Manager",
+      "summary": "An estimate and the project it became stay in step both ways, keyed on tasks.source_line_item_id. Estimate → project is previewed and confirmed; project → estimate is immediate. Zoho is told by re-sending; PBS cannot be told at all, so its drift is reported.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "s-proposals",
+          "to": "st-proposals",
+          "action": "Edit a line item (rename, hours, or delete it)",
+          "files": [
+            "components/features/proposals/ProposalEditorClient.tsx"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "st-proposals",
+          "to": "l-sync",
+          "action": "previewSchedule() -> diffEstimateToProject(): create / update / remove",
+          "files": [
+            "store/proposal-estimator-store.ts",
+            "lib/sync/estimate-project-sync.ts"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "l-sync",
+          "to": "s-project",
+          "action": "SchedulePreviewPanel shows renames, hour changes and removals BEFORE any write",
+          "files": [
+            "components/features/proposals/SchedulePreviewPanel.tsx"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "st-proposals",
+          "to": "t-tasks",
+          "action": "Confirm -> regenerateSchedule() applies exactly what was reviewed, inside withMirrorSuppressed()",
+          "files": [
+            "store/proposal-estimator-store.ts"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "s-project",
+          "to": "st-tasks",
+          "action": "The other direction: a manager renames a seeded task or changes its hours",
+          "files": [
+            "components/features/tasks/TaskDetailDrawer.tsx"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "st-tasks",
+          "to": "l-sync",
+          "action": "mirrorTaskChange() -> applyTaskToLineItems(): hours go back through base_hours",
+          "files": [
+            "store/tasks-store.ts:797",
+            "lib/sync/estimate-project-sync.ts"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "l-sync",
+          "to": "t-proposals",
+          "action": "Line item updated + persisted; the toast names the Zoho deal still holding the old figures",
+          "files": [
+            "store/proposal-estimator-store.ts"
+          ]
+        },
+        {
+          "n": 8,
+          "from": "s-proposals",
+          "to": "x-zoho",
+          "action": "Send to Zoho re-prices the deal (Packages rows). PBS drift is only SHOWN — no update endpoint exists",
+          "files": [
+            "components/features/proposals/ZohoSendDialog.tsx"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "f-pbs-po",
+      "name": "Deal won → purchase order in PBS",
+      "actor": "Admin / Manager",
+      "summary": "Billing waits for the win. Sales moves the deal to a won stage in Zoho; the app notices by polling, promotes the estimate to approved, and only then offers Create PO.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "x-zoho",
+          "to": "s-proposals",
+          "action": "Sales moves the deal to Closed Won; useZohoStageRefresh notices on the next open",
+          "files": [
+            "hooks/useZohoStageRefresh.ts"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "s-proposals",
+          "to": "b-wontransition",
+          "action": "applyWonTransition(): promote draft/sent -> approved, log activity, notify admins+managers",
+          "files": [
+            "lib/zoho/won-transition.ts"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "s-proposals",
+          "to": "api-pbs",
+          "action": "Create PO dialog: billing client, template, name, project start/end dates",
+          "files": [
+            "components/features/proposals/CreatePoDialog.tsx"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "api-pbs",
+          "to": "x-zoho",
+          "action": "Re-read the deal's stage LIVE and fail closed if it cannot be read",
+          "files": [
+            "app/api/pbs/pos/route.ts"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "api-pbs",
+          "to": "x-pbs",
+          "action": "409 if a candidate PO already exists; otherwise create-po (client's own template)",
+          "files": [
+            "lib/pbs/clients.ts",
+            "lib/pbs/directory.ts"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "api-pbs",
+          "to": "t-proposals",
+          "action": "Record proposals.pbs {po_id, po_no, client, start_date, end_date}",
+          "files": [
+            "store/proposal-estimator-store.ts"
+          ]
+        }
+      ]
     }
   ],
   "invariants": [
@@ -3525,7 +4096,41 @@
     "Zoho write-back writes ONLY Deal.Stage. Amount is a formula field and Quote_number a system autonumber on this org — both accept a write, report SUCCESS, then keep/restore their computed value. Never re-add them to the push payload without re-testing against a real Deal.",
     "Zoho does NOT dedupe attachments — the same filename uploaded twice creates two records. The guard is proposals.zoho.pushes (stage -> timestamp), checked and written SERVER-side; it is per-stage so a deal can advance more than once, but no single stage can be pushed twice. Read it via zohoPushes(), which folds in the legacy pushed_at/pushed_stage fields.",
     "Zoho stages the app may set are whitelisted in lib/zoho/push-state.ts (Proposal Sent, Project Completed). Closed Won / Closed Lost are deliberately excluded: \"approved\" here means the team agreed to start work, not that a client signed, so revenue stages stay a human sales decision.",
-    "The app never CREATES Zoho deals, by choice. Every money field on Deals in this org is formula-driven (Amount, Deal_Amount, Total, Deposit* — all verified unsettable), so an app-created deal would sit in the pipeline permanently at $0 and owned by the OAuth identity. Quotes made by hand attach an EXISTING deal instead (\"Link a Zoho deal\")."
+    "The app never CREATES Zoho deals, by choice. Every money field on Deals in this org is formula-driven (Amount, Deal_Amount, Total, Deposit* — all verified unsettable), so an app-created deal would sit in the pipeline permanently at $0 and owned by the OAuth identity. Quotes made by hand attach an EXISTING deal instead (\"Link a Zoho deal\").",
+    "tasks.source_line_item_id is the ONLY link between a task and its estimate line item (0032/0033). It is a client-generated text id, not a uuid. NULL = made by hand, and no sync may rename, re-hour or delete it.",
+    "Estimate -> project is previewed then confirmed; project -> estimate is immediate. The estimate->project half runs inside withMirrorSuppressed() so it cannot echo back through the registry.",
+    "A task's new estimated_hours is written back through the line item's base_hours, never onto its derived `hours` — otherwise the next recompute silently undoes it. The inversion must honour `requirements_unclear`, which prices every line as Advanced.",
+    "proposals has no realtime channel, on purpose: the row is one JSONB document, so an echoed upsert would replace line_items / addons / discovery under someone mid-edit.",
+    "persistQuoteDoc sends the WHOLE quote document, so any two concurrent writes race and the wider one wins. Anything changing two fields at once must go through a single action (applyDealStage).",
+    "Zoho's Amount is recomputed from the Packages subform within seconds, so a price only reaches the CRM as a priced Packages row — never as an Amount write.",
+    "PBS has no update and no delete endpoint for a purchase order. A schedule that moves after the PO is raised can only be REPORTED (poScheduleDrift) and corrected in PBS by hand.",
+    "PBS token minting is not safe to race (unique index on app_id + refresh_token_hash); every caller shares one in-flight promise and re-reads the cache on failure.",
+    "A stage push records where the deal SETTLED, not what was requested — a push can be held back, and persisting the request is how the badge started lying once before.",
+    "A PBS purchase order is billed against a date range PBS itself will never let this app change, so a sprint date edit must SAY SO when it happens (notifyProjectScheduleChanged), deduped on the resulting range — the persistent badge alone is in the one place nobody looks while rescheduling.",
+    "A sync never deletes a task with logged hours — time_entries.task_id is `on delete cascade` (0017), so it would erase the record that the work happened, and per-person hours come from that table alone. It is reported as `orphaned` and kept.",
+    "The project→estimate mirror is revertible: the task write it follows is optimistic, so every rollback path (live update failure, live delete failure, both demo Undo toasts) must undo the estimate write too, or a refused request silently reprices or drops a line item on a client quote.",
+    "A dev finishes work by moving the task to `done` — the only signal. There is no per-assignee completion flag and logging hours completes nothing. isOpen() (lib/workload/assigned-work.ts) is the single definition of open, and in_review/blocked still count.",
+    "Both workload views compute from lib/workload/assigned-work.ts. Rolling a second definition is how Mine and Team came to show the same person different numbers — one counting pending assignments and time off, the other neither.",
+    "commitTaskMove persists the destination column scoped by status + project_id + sprint_id. Status alone swept in every task in the workspace sharing it, bumping updated_at on rows nobody touched — and that timestamp is read as a completion time.",
+    "Only an APPROVED availability entry reduces capacity or steers scheduling. countsAgainstCapacity() guards this inside awayWorkdaysInWeek and ptoDaysByProfile, not at the call sites, so no consumer can forget. A missing status means the row predates 0034.",
+    "`NULL in (...)` is NULL, not false. 0034's approval guard read `current_user_role() in ('admin','manager')`, which is NULL for the service-role key, so `if not approver` was `not NULL` and both guards were skipped — verified live. Any role check in a trigger must be coalesce(..., false) so it fails closed.",
+    "The calendar is role-scoped: Member/Viewer see only their own tasks, their projects' sprints and their own leave. RLS (0034) narrows the data to match, so hiding it in the UI is a promise, not the enforcement.",
+    "An 'Approve + reschedule' writes reschedulePatches(impact) — the same object the dialog rendered. Recomputing at write time is how a preview and its result come to disagree.",
+    "The tentative timeline's PTO model is TEAM-level (a day at 60% staffing yields 0.6 of a working day) because it is computed before anyone is assigned. Per-person leave is planSchedule's job, via ptoDays.",
+    "addWorkingDays delegates to addBusinessDays when there is no calendar — identical, not merely equivalent — and buildTeamCalendar returns null for an empty roster, so an un-hydrated team store cannot stretch or collapse a timeline.",
+    "`confirmed_at` on a team member is OPTIONAL: test it for truthiness, never `!== null`. An unaccepted invite carries undefined and would be counted as roster capacity it cannot supply.",
+    "US holidays apply with NO team calendar - an empty roster still does not work on Christmas - so addWorkingDays cannot short-circuit to addBusinessDays. It stays byte-identical over a holiday-free window.",
+    "A holiday is not PTO. awayWorkdaysInWeek skips holiday days and holidayWorkdaysInWeek counts them, or a week off over Thanksgiving would cost six days out of five and drive capacity negative. Both are reported separately because a manager can decline leave and cannot decline Christmas.",
+    "The federal observance rule (Sat -> Fri before, Sun -> Mon after) applies to the FIXED-date holidays, and New Year's Day can land in the previous December - range lookups must scan a year either side.",
+    "risk_buffer_pct stretches dates ONLY. Hours and price are untouched - repricing for risk is requirements_unclear. regenerateLineItems must never receive the buffer.",
+    "The buffer scales every timeline offset including STARTS, so the plan stays continuous; buffering only the ends would overlap each phase with the next.",
+    "Applying a buffer to real sprint dates goes through a preview+confirm and then resets the buffer to 0 - it is part of the dates now, and applying 20% twice is 44%.",
+    "The Gantt must convert offsets to dates with addWorkingDays, the SAME function computeTimeline uses for the phase labels. addBusinessDays there drifted the month dividers away from the bars on any plan crossing a holiday.",
+    "Any date this app HANDS SOMEONE (a due date, a sprint end, a PO range) goes through addWorkingDays, never addBusinessDays - the latter only avoids weekends and will happily land a deadline on Christmas.",
+    "A batch of sprint writes fires one schedule notice, not one per sprint: wrap the loop in withMirrorSuppressed and call notifyProjectScheduleChanged once, or the drift dedupe key changes underneath and a single action stacks warnings.",
+    "The workload bar is segmented by task status and shared by both views. Over-capacity is an amber ring, never a recolour of the fill - the limit and what the load is made of are different signals.",
+    "Workload \"Available\" = effective weekly capacity minus hours LOGGED this week. It is not spare capacity: with an unbounded backlog someone can have hours left in the week and still be over-allocated, which is what utilisation reports.",
+    "A count badge must be able to show WHAT it counted. Pending/overdue open a popover listing the tasks, each linking to its board, and the list is derived from the same array the count is - a badge that disagrees with its own list is worse than no list."
   ],
   "permissionsMatrix": {
     "columns": [

@@ -1,6 +1,14 @@
 "use client";
 
-import { CalendarRange, TriangleAlert, UserCheck, UserX } from "lucide-react";
+import {
+  CalendarRange,
+  Clock,
+  PencilLine,
+  Trash2,
+  TriangleAlert,
+  UserCheck,
+  UserX,
+} from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +29,16 @@ function fmt(d: string | null | undefined): string {
  * corrected afterwards. Purely presentational; the caller owns the confirm.
  */
 export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) {
-  const { sprints, tasks, assignedCount, unassignedCount, finishDate } = preview;
+  const {
+    sprints,
+    tasks,
+    assignedCount,
+    unassignedCount,
+    finishDate,
+    edits,
+    removals,
+    kept,
+  } = preview;
 
   // Group tasks under their phase/sprint so the shape matches what gets created.
   const byPhase = React.useMemo(() => {
@@ -34,7 +51,13 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
     return map;
   }, [tasks]);
 
-  if (!tasks.length && !sprints.length) {
+  if (
+    !tasks.length &&
+    !sprints.length &&
+    !edits.length &&
+    !removals.length &&
+    !kept.length
+  ) {
     return (
       <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
         Nothing new to schedule — this project already matches the estimate.
@@ -81,6 +104,75 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
             skill). They&apos;ll be created unassigned for you to staff.
           </span>
         </p>
+      ) : null}
+
+      {/* Existing tasks the estimate has changed under. Deletions are called out
+          separately and in red — the destructive half of the sync is the one
+          somebody needs to actually read before confirming. */}
+      {edits.length || removals.length || kept.length ? (
+        <div className="overflow-hidden rounded-lg border border-border/60">
+          <div className="border-b border-border/50 bg-muted/30 px-3 py-2 text-sm font-medium">
+            Existing tasks
+          </div>
+          <ul className="divide-y divide-border/40">
+            {edits.map((e) => (
+              <li
+                key={e.taskId}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3 py-2 text-xs"
+              >
+                <PencilLine
+                  className="size-3.5 shrink-0 self-center text-muted-foreground"
+                  aria-hidden
+                />
+                <span className="min-w-0 flex-1 font-medium">
+                  {e.newTitle ? (
+                    <>
+                      <span className="text-muted-foreground line-through">
+                        {e.title}
+                      </span>{" "}
+                      → {e.newTitle}
+                    </>
+                  ) : (
+                    e.title
+                  )}
+                </span>
+                {e.toHours !== undefined ? (
+                  <span className="shrink-0 tabular-nums text-muted-foreground">
+                    {e.fromHours ?? 0}h →{" "}
+                    <span className="font-medium text-foreground">{e.toHours}h</span>
+                  </span>
+                ) : null}
+              </li>
+            ))}
+            {removals.map((r) => (
+              <li
+                key={r.taskId}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3 py-2 text-xs text-red-700 dark:text-red-400"
+              >
+                <Trash2 className="size-3.5 shrink-0 self-center" aria-hidden />
+                <span className="min-w-0 flex-1 font-medium line-through">
+                  {r.title}
+                </span>
+                <span className="shrink-0">no longer in the estimate</span>
+              </li>
+            ))}
+            {/* Kept, not removed: deleting one would cascade its time entries
+                away. Amber rather than red — nothing is being destroyed, but
+                somebody has to decide what to do with the work already done. */}
+            {kept.map((k) => (
+              <li
+                key={k.taskId}
+                className="flex flex-wrap items-baseline gap-x-2 gap-y-1 px-3 py-2 text-xs text-amber-700 dark:text-amber-400"
+              >
+                <Clock className="size-3.5 shrink-0 self-center" aria-hidden />
+                <span className="min-w-0 flex-1 font-medium">{k.title}</span>
+                <span className="shrink-0 tabular-nums">
+                  kept — {k.loggedHours}h already logged
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
       ) : null}
 
       {/* Sprint + task breakdown */}

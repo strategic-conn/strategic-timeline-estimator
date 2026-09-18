@@ -142,8 +142,13 @@ lib/
 ├── constants/          # projects, sprints, proposal-estimator, workload, task-focus
 ├── proposal-catalog/   # catalog.json + index (platform → catalog rows)
 ├── discovery/          # guided-scope rules engine (analyzeDiscovery) + to-proposal bridge + from-esther seed
+│                       #   + team-calendar — booked PTO folded into the tentative timeline
 ├── activity/           # workspace-push (append activity/notifications)
 ├── collaboration/      # notify-task-activity
+├── sync/               # estimate-project-sync — the two-way estimate ↔ project reconciler + cross-store registry
+├── calendar/           # us-holidays — the 11 federal holidays + the observance rule (timeline, capacity, calendar)
+├── availability/       # pto-impact — what an absence costs the plan (pure; drives the approval preview)
+├── workload/           # assigned-work — the ONE definition of a person's open load + capacity (both workload views)
 ├── undo/               # offer-undo-toast (one-shot Undo)
 └── supabase/           # client.ts (browser), server.ts (RSC seam), middleware.ts + config.ts + parse-error.ts — wired
 store/                  # Zustand (live via WorkspaceSync + optimistic write-through; demo persists to localStorage):
@@ -156,7 +161,10 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0018 logged-hours guard · 0019/0020 offboarding (deactivate/hard-delete) · 0022 proposals.discovery ·
                         #   0023 migrate+drop discovery_projects · 0024 page-access heal ·
                         #   0025 notification actor · 0026 member_skills · 0027 security phase 1 ·
-                        #   0028 zoho_connection · 0029 proposals.zoho + README — `npm run db:push`
+                        #   0028 zoho_connection · 0029 proposals.zoho · 0030 pbs_connection · 0031 proposals.pbs ·
+                        #   0032/0033 tasks.source_line_item_id (estimate↔project sync key) ·
+                        #   0034/0035 PTO approval (status + reviewer, self-approval guard, narrowed reads) ·
+                        #   0036 risk_buffer_pct on proposals + projects + README — `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 e2e/                    # Playwright suite — `npm run test:e2e` (see e2e/README.md).
                         #   Runs against LIVE Supabase+Zoho, so: everything it creates is
@@ -246,13 +254,13 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `auth.users` + `profiles`             | Supabase Auth + select     | `useAuth` + `auth-store` (bridge) | Wired |
 | `projects`                            | select / insert / update / delete | `projects-store` / `useProjects` | Wired |
 | `sprints`                             | select / insert / update / delete | `sprints-store` / `useSprints` | Wired |
-| `tasks` (+ `task_assignees` w/ status) | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
+| `tasks` (+ `task_assignees` w/ status, `source_line_item_id`) | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
 | `time_entries` (hour attribution)     | select / insert                   | `tasks-store` (logged via accepted assignees) | Wired |
 | `task_comments` (+ `comment_reactions`)| select / insert / update / delete + Realtime | `tasks-store` / `TaskCommentSection` | Wired |
 | `profiles` (team directory)           | select                     | `team-store` / `useTeamMembers` | Wired |
 | `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
 | `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
-| `availability_entries`                | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
+| `availability_entries` (+ `status` approval) | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
 | `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
@@ -361,7 +369,7 @@ interface ClientQuote {
 
 **Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
 
-**Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
+**Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`, and since `0032`/`0033` that sync **reconciles** rather than only adding — see "Estimate ↔ project, both ways" below. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
 
 > ⚠️ **Only the 7 phase labels have delivery meaning.** `phaseLabelForLineItem`
 > returns the row's `module` when it is one of `PHASE_META`'s labels and
@@ -374,6 +382,117 @@ interface ClientQuote {
 > Design/QA/PM phases come from the **add-on percentages**, not from its modules
 > (`resultFromQuote`). Mapping catalog modules onto phases would change that; it
 > is deliberately not done today. This is a **draft schedule** the manager then adjusts (sprint dates, task hours/assignees) into the plan the team follows — the project's timeline **is** its sprints, rendered by the Gantt (embedded on the project overview via `<GanttClient lockedProjectId={…} />`). Links `proposals.project_id`.
+
+**Schedule risk buffer.** `risk_buffer_pct` (0–100, migration `0036`) sits on
+**both** `proposals` and `projects`. A coordinator sets it on the Estimator's
+**Adjust** tab; `convertToProject` carries it onto the project, whose own page
+can re-forecast and apply it.
+
+> ⚠️ **It stretches the TIMELINE and nothing else.** Hours are untouched, so
+> the price is untouched. The distinction is the whole reason it is a separate
+> control:
+>
+> | Control | Effect | Kind of decision |
+> | --- | --- | --- |
+> | `requirements_unclear` | prices every line as Advanced (1.5x) | **pricing** — more hours, more money |
+> | `risk_buffer_pct` | same work, expected to take longer | **scheduling** — dates only |
+>
+> They sit next to each other on the Adjust tab precisely so the contrast is on
+> screen, and the card says "moves dates only" in as many words. Folding risk
+> into hours would quietly inflate a client quote, and there is already a
+> control that does that on purpose. `regenerateLineItems` deliberately does
+> **not** pass the buffer — it turns an estimate into line items, and the buffer
+> must never reach them.
+
+ - **Applied by scaling every offset**, starts included, in `computeTimeline`.
+   Buffering only the END offsets would leave each phase finishing later while
+   the next still began on its original day — the plan has to stay continuous.
+   Offset 0 scales to 0, so the project still starts when it starts.
+ - `DiscoveryTimeline` now carries **`baseBusinessDays`** (pre-buffer) and
+   **`riskBufferPct`** alongside `totalBusinessDays` (post-buffer), so the Gantt
+   can say "54 business days (incl. 20% risk buffer on 45)" rather than just
+   looking bigger than the hours justify.
+ - **On a project it is a FORECAST first.** The section under the Gantt always
+   shows "planned finish / with buffer"; changing the percentage moves nothing.
+   **Applying** it rewrites real sprint dates, so it goes through a preview and a
+   confirm — sprint dates are the plan the team follows, and nothing in this app
+   overwrites them silently. `bufferSprintDates` re-anchors every sprint against
+   the project start so order and gaps hold.
+ - ⚠️ **Applying resets the buffer to 0%.** It is now part of the dates, and a
+   20% buffer applied twice is 44% — which nobody asked for.
+ - ⚠️ `proposals.risk_buffer_pct` needed **all three** whitelists
+   (`rowToQuote`, `quoteUpdatePayload()`, the `Pick<ClientQuote, …>` on
+   `updateProposal`), and `projects` needed `rowToProject` + the `updateProject`
+   field list.
+
+**Estimate ↔ project, both ways.** Once a quote has become a project the two are
+kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items[].id`
+(migrations `0032`/`0033`; the column is **`text`**, because a line-item id is
+`uid()`'s `${Date.now()}-${base36}`, not a uuid). All of it lives in
+**`lib/sync/estimate-project-sync.ts`**.
+
+ - **Estimate → project** is `diffEstimateToProject()`, reached through the
+   existing preview → confirm dialog: line items with no task are **created**,
+   renamed ones **rename** their task, re-houred ones **re-hour** it, and a
+   deleted one **removes** it. The `SchedulePreviewPanel` shows the renames,
+   `12h → 18h` changes and (in red) the removals before anything is written.
+   ⚠️ This replaced an **additive-only** rule that matched on the task's
+   **title**: renaming a line item produced a *second* task, deleting one
+   orphaned its task forever, and changing its hours did nothing at all.
+ - **Project → estimate** is immediate: a seeded task's title or
+   `estimated_hours` changing — or the task being deleted — writes back onto
+   its line item. ⚠️ Hours go back through **`base_hours`**, never onto the
+   derived `hours`, or the next recompute silently undoes them; and the
+   inversion must honour **`requirements_unclear`**, which prices *every* line
+   as Advanced (1.5x).
+ - ⚠️ **A task with a NULL `source_line_item_id` is somebody's own work** and is
+   never renamed, re-houred or deleted by a sync. That is also why `0033`'s
+   backfill only linked titles matching **exactly one** line item (46 of 71).
+ - ⚠️ **A task with LOGGED TIME is never deleted by a sync** — it comes back as
+   `orphaned` and the preview keeps it, in amber, saying how many hours are on
+   it. `time_entries.task_id` is `on delete cascade` (`0017`), so removing one
+   would erase the record that the work happened, and **per-person** hours come
+   from exactly that table. Scoping a line out of a quote is a pricing decision;
+   destroying worked hours is not, and a quote can be re-edited while a deleted
+   time entry cannot be recovered.
+ - ⚠️ **The mirror is revertible, because the task write it follows is
+   optimistic.** `mirrorTaskChange()` returns a **revert** closure and
+   `tasks-store` calls it from every rollback path — the live update failure,
+   the live delete failure, and both demo Undo toasts. Without it a request the
+   server refused would still have dropped a line item from a client quote, or
+   repriced one, with the project already rolled back and nothing on screen
+   saying so.
+ - The bridge is a **registry**, not an import: `proposal-estimator-store`
+   imports `tasks-store`, so the tasks store calls `mirrorTaskChange()` and the
+   estimator store registers the handler. The estimate→project half runs inside
+   **`withMirrorSuppressed()`** so it cannot echo back. It is a silent no-op for
+   a Member/Viewer — RLS scopes `proposals` to admin+manager, and the write
+   would be refused anyway.
+ - **The timeline has one source of truth.** Once a quote has a project, the
+   editor's Timeline tab renders the **live project Gantt**
+   (`<GanttClient lockedProjectId>`), not the estimate's tentative scaffold —
+   drawing both is how the two pages came to disagree the moment a manager moved
+   a sprint. Existing sprint **dates are never overwritten** by a re-sync; the
+   scaffold is a draft the manager adjusts, and silently reverting that is worse
+   than drift.
+ - **Downstream:** a repriced estimate shows up in Zoho through the existing
+   amber **CRM amount** badge and the send dialog's `$old → $new` — the push is
+   still a deliberate button. **PBS cannot be told at all** (no update and no
+   delete endpoint exists for a PO), so `poScheduleDrift()` compares the PO's
+   stored `start_date`/`end_date` against the project's real sprint range and the
+   PO badge gains a "· dates changed" note for someone to fix by hand.
+ - ⚠️ **The PBS notice fires at the moment of the edit, not only on the badge.**
+   Sprint dates *are* the project's range, so `sprints-store` calls
+   `notifyProjectScheduleChanged(projectId)` on create, delete, and any
+   **start/end date** change (not a rename or a status flip — those move
+   nothing). `regenerateSchedule` calls it too, explicitly: the **live** path
+   inserts sprints straight through supabase rather than `createSprint()`, so it
+   never fires the sprint store's own notice and a sync that adds a phase would
+   have extended the project past its billed range in silence. The estimator store's `registerScheduleWatcher` handler warns with
+   both ranges, and dedupes on the resulting range so editing three sprints in a
+   row is **one** toast rather than three. Without it the drift was only
+   discoverable by going back to the estimate, which is the one place nobody
+   looks while rescheduling.
 
 **Output:** in-browser **PDF preview mock** + real **PDF** (jsPDF) and **Excel** (xlsx) export — `lib/utils/proposal-pdf-export.ts`, `proposal-excel-export.ts`. Optional server-side export (Edge Function → Storage) is still a later path.
 
@@ -737,6 +856,216 @@ choice and the act sit together.
 
 ---
 
+## Tasks ↔ Workload
+
+**How a dev "finishes" work: they move the task to `done`.** That is the only
+signal — there is no per-assignee completion flag, and logging hours does not
+complete anything. `isOpen()` (`lib/workload/assigned-work.ts`) is the single
+definition: **open = `status !== "done"`**. Set it by dragging the card to the
+Done column (`commitTaskMove`) or via the status menu on the card / drawer /
+list / table (`updateTask`). Both persist, so Workload updates for that person
+and their manager on the next render — the stores are the shared read seam, so
+no refetch is involved.
+
+`in_review` and `blocked` deliberately still count as open: the work is not
+finished, and a blocked task that vanished from someone's load would hide the
+one thing a manager needs to see.
+
+> ⚠️ **One definition, two views.** `assignedWork()` / `capacityFor()` /
+> `utilization()` back **both** the "Mine" and "Team" tabs. They previously each
+> rolled their own and disagreed about the same person in the same week:
+>  - **Team** counted every `assignee_ids` entry (accepted **and** pending);
+>    **Mine** counted only `accepted`. A dev with three pending assignments read
+>    0 h on their own page while their manager read the full estimate.
+>  - **Team** subtracted time off from weekly capacity; **Mine** did not. Someone
+>    on three days' leave saw 40 h here and 16 h there.
+>
+> Both now show **allocated = accepted + pending**, and both say so (`incl. Nh
+> pending`), because a manager balancing a sprint cannot pretend unanswered work
+> is assigned to nobody, and the person must see the figure being planned against.
+> Pending rows carry a badge in the list so they are still identifiable as
+> declinable. Rejected/passed assignments never appear at all —
+> `respondToAssignment` **deletes** the `task_assignees` row rather than storing a
+> status, so `"rejected"`/`"passed"` exist in the type but never in the data.
+
+> ⚠️ **A board write is scoped to its board.** `commitTaskMove` persists the
+> destination column's positions filtered by `status` **+ `project_id` +
+> `sprint_id`. Filtering on status alone swept in every task in the workspace
+> sharing it, so dropping one card into Done rewrote unrelated tasks in other
+> projects — N pointless writes, and an `updated_at` bump on rows nobody touched.
+> That timestamp is what the on-time-delivery figure reads as a completion time.
+
+**Hours are a separate axis from status.** **Logged this wk** comes from
+`time_entries` (per-logger rows), **never** from `tasks.logged_hours` — that is
+the task's cached total and credits every assignee in full. Only an **accepted**
+assignee (or an admin) may log hours, enforced by the
+`prevent_unauthorized_hours` trigger (`0018`), not just the UI.
+
+> ⚠️ **"Available" is not spare capacity.** It is `effective weekly capacity −
+> logged this week`: the working time left in the week, paired with the logged
+> figure beside it. With an unbounded backlog a person can have 40 h left in the
+> week and still be 328% allocated — **utilisation** is the number that answers
+> that. The label was added because "This wk 0h" read as though it might already
+> mean available hours; it never did.
+
+**The count badges open the list behind them.** `TaskBadgePopover` turns
+"7 pending" / "1 overdue" into buttons that list the actual tasks, each linking
+to its own board (`taskHref`). They were dead ends before: a manager was told a
+problem existed and then had to go hunting for which tasks. A **button + popover**
+rather than a hover tooltip, deliberately — hover has no equivalent on a phone,
+and this is a control, not a hint. The panel is capped at
+`min(20rem, 100vw − 2rem)` so it cannot hang off a 375px screen, and scrolls
+internally rather than pushing the page. `assignedWork` returns
+`overdueTasks` alongside the `overdue` count, derived from it in one place so
+the badge and its list can never disagree.
+
+**The workload bar is coloured by task status** (`statusBreakdown` +
+`WorkloadBar`, shared by both views). A single-colour bar could only say
+"full" — full of work nobody has started, full of work in flight, and full of
+work that is **blocked** are three different problems with three different
+answers. Over-capacity is signalled by an amber **ring** rather than by
+recolouring the fill, so the limit and the composition stay separate signals.
+Status colours live in `lib/constants/task-status.ts`: the task card's menu and
+the calendar's dots had grown byte-identical copies and the bar would have been a
+fourth. `GanttClient` keeps its own on purpose — its bars need tuned opacities so
+text stays readable on top.
+
+---
+
+## Calendar & time-off approval
+
+**The calendar is role-scoped.** Admin/manager get a **Mine / Team** toggle (the
+same control Workload uses, so the two schedule pages behave alike). Member and
+Viewer see **their own** schedule only: their tasks, the sprints of projects they
+have work on, and their own leave. It previously showed everyone everything —
+every person's PTO *including the free-text note*, and every task in every
+project.
+
+**Time off is a REQUEST** (`availability_entries.status`, migration `0034`):
+**pending → approved / rejected**, with `reviewed_by` / `reviewed_at` /
+`review_note`. A member's entry starts `pending`; an admin/manager's starts
+`approved` — they are the approver, so asking them to approve themselves is
+theatre. Requests notify the approvers; decisions notify the requester (with
+`includeSelf`, since an approver may decide their own row). Editing the **dates**
+of a decided request re-opens it as pending; a note-only tweak does not. Pending
+leave renders as a **dashed amber outline** on the calendar and never tints the
+day — a request must not look like settled fact; rejected leave is not drawn at all.
+
+> ⚠️ **Only `approved` counts.** `countsAgainstCapacity()`
+> (`lib/constants/workload.ts`) is the single guard, applied INSIDE
+> `awayWorkdaysInWeek` and `ptoDaysByProfile` rather than at each call site, so
+> nothing can forget: a merely requested absence must not shrink someone's
+> capacity, must not steer the assignment planner, and must not make a manager
+> re-plan around leave that has not been granted. A missing status means the row
+> predates `0034`, when every entry was in force the moment it was saved — which
+> is why the column defaults to `approved` and existing rows were left alone.
+
+> ⚠️ **`NULL in (...)` is NULL, not false — and that voided the first guard.**
+> `0034` wrote `approver boolean := current_user_role() in ('admin','manager')`.
+> `current_user_role()` returns NULL when there is no profile row (the
+> service-role key being the obvious case), so `if not approver` evaluated to
+> `not NULL` = NULL, which is not true, and **both** guards were skipped.
+> Verified live: an insert claiming `status='approved'` was stored as approved,
+> and a follow-up PATCH returned 200. `0035` wraps it in `coalesce(..., false)`
+> so an unrecognised caller **fails closed**. Regression test:
+> `e2e/pto-approval-guard.spec.ts`.
+
+> ⚠️ **Reads narrowed too.** `0034` replaced "any authenticated user" with
+> *self, or an approver*. Everything that needs the whole roster is already
+> admin+manager (Workload's team view, the assignment planner, the admin
+> time-off table), so nothing broke — and leave notes stopped being
+> world-readable inside the workspace.
+
+**The timeline generator accounts for booked leave.**
+`lib/discovery/team-calendar.ts` turns the roster plus everyone's **approved**
+time off into a per-day availability factor (0–1), and `addWorkingDays()`
+replaces `addBusinessDays` wherever the timeline converts a business-day offset
+into a real date. Threaded as an **optional** argument through `computeTimeline`
+→ `analyzeDiscovery` / `resultFromQuote` → `estimateDateRange`, so every caller
+that does not pass one behaves exactly as before.
+
+ - **The model is team-level, on purpose.** The timeline is computed before
+   anyone is assigned, so there is no person whose leave to subtract — only the
+   team's. A day at 60% staffing yields 0.6 of a working day; a day nobody is
+   available yields nothing and the timeline steps over it. It is the same
+   granularity as the estimate it schedules (phase hours for a team). Once work
+   is actually assigned, `planSchedule` does the per-person version with real
+   `ptoDays`.
+ - ⚠️ **`totalBusinessDays` is unchanged** — leave moves *when* work lands, not
+   how much there is. Only the dates shift, which is why the Gantt spells out
+   "N days later for booked time off": a launch date that quietly slipped reads
+   as a bug otherwise.
+ - ⚠️ **With no calendar it DELEGATES to `addBusinessDays`**, rather than
+   reimplementing it. Identical, not merely equivalent — a workspace that
+   records no time off gets byte-identical dates, and `e2e/team-calendar.spec.ts`
+   asserts that across 60 offsets and four start days including weekends.
+ - ⚠️ **An empty roster returns `null`.** The team store hydrates async;
+   stretching a timeline to infinity (or collapsing it) mid-load would be worse
+   than ignoring leave for a moment.
+ - ⚠️ **`confirmed_at` is optional, so test it for truthiness.** An invitee who
+   never accepted carries `undefined`, and a `!== null` check would have counted
+   them as a working body — shrinking everyone else's share of each absence.
+ - `estimateDateRange` takes the calendar too, so the **PBS purchase order** is
+   billed against the range the Gantt actually draws. `useTeamCalendar()` is
+   memoised on its store slices; passing a freshly-built object into
+   `CreatePoDialog`'s date memo would re-fire the pre-fill effect and reset dates
+   the coordinator typed.
+
+**US federal holidays are non-working days everywhere.**
+`lib/calendar/us-holidays.ts` computes the eleven, and **four** consumers read
+it, so they cannot disagree: the timeline walk (`addWorkingDays`), weekly
+capacity (`awayWorkdaysInWeek` + `holidayWorkdaysInWeek`), the assignment
+planner (`isWorkday`), and the PTO impact preview (`workdaysInRange`). The
+calendar marks them, and the Gantt names them.
+
+ - ⚠️ **The observance rule is the whole game** (5 U.S.C. 6103): a holiday on a
+   Saturday is taken the Friday before, on a Sunday the Monday after. Skipping it
+   gets ~2 holidays a year wrong — and always the two people notice, because
+   they are the ones that move. Only the FIXED-date ones can need it; the
+   Monday/Thursday ones are defined as a weekday.
+ - ⚠️ **New Year's Day can be observed in the PREVIOUS December.** Jan 1 2028 is
+   a Saturday, so the office shuts Fri **2027-12-31**. `usHolidaysInRange` scans
+   a year either side for exactly this; building only the years a range names
+   would miss it.
+ - ⚠️ **Holidays apply with NO calendar at all.** An empty roster still does not
+   work on Christmas, so the skip cannot depend on knowing the team — which is
+   why `addWorkingDays` no longer short-circuits to `addBusinessDays`. It is
+   still byte-identical over a holiday-free window (verified across 40 offsets x
+   14 start days, weekend starts included). That shortcut had also been hiding
+   something: the old equivalence test passed by **delegation**, so the walk
+   itself had never actually been compared.
+ - ⚠️ **A holiday is not PTO, and must not be counted twice.**
+   `awayWorkdaysInWeek` skips holiday days and `holidayWorkdaysInWeek` counts
+   them instead, so a week off over Thanksgiving is *4 days leave + 1 holiday* —
+   not 5 + 1, which is six days out of a five-day week and drives capacity
+   negative. Both workload views report the two separately: `(40h − 4 days off
+   − 1 holiday)`. Same reason the Gantt says "3 days later — Thanksgiving +
+   booked time off" rather than one number: a manager can decline somebody's
+   leave and cannot decline Christmas.
+ - **`OBSERVED_HOLIDAYS`** is one exported list. Firms differ most on **Columbus
+   Day** and **Veterans Day** — plenty work both. Changing that is one line
+   there rather than a migration, a settings UI and a per-workspace override
+   nobody has asked for; that constant is the seam if it ever needs to vary.
+
+**Approving shows what it costs, then a human confirms.** `lib/availability/pto-impact.ts`
+(`ptoImpact`, pure) lists the tasks whose **due date falls inside the absence**,
+whether anyone else is accepted on them, suggested cover, and any sprint that can
+no longer finish. The dialog offers **Approve only** or **Approve + reschedule**;
+the reschedule applies `reschedulePatches(impact)` — the same object that was
+rendered, never a recompute at write time. Same preview→confirm shape as Start
+project, Sync schedule and Create PO.
+
+ - Cover comes from the assignment engine's own `skillTiers`, via the task's
+   phase label in `tags`, so a suggestion here and an auto-assignment there
+   cannot disagree. Someone **approved** away over the same window is excluded;
+   someone merely *pending* is not, because that request may yet be refused.
+   A hand-made task has no phase, so nothing is invented.
+ - ⚠️ Each task's slip is measured to the day **after the absence ends**, not
+   by the number of workdays lost — shifting every task by the same five days
+   would leave one due on the absence's first day still inside it.
+
+---
+
 ## State Management Map
 
 > **Live mode:** each store hydrates from Supabase (via `WorkspaceSync`) and writes through
@@ -776,6 +1105,8 @@ choice and the act sit together.
 | Export proposals | Yes   | Yes     | No     | No     |
 | Estimator (scope + client quotes) | Yes | Yes | No | No |
 | Edit others' PTO/availability | Yes | Yes | No | No |
+| Approve / reject time off | Yes | Yes | No | No |
+| See the whole team's calendar | Yes | Yes | No | No |
 | Read Zoho CRM data (deals/accounts/contacts) | Yes | Yes | No | No |
 | Connect / disconnect Zoho CRM | Yes | No | No | No |
 
@@ -947,6 +1278,15 @@ if (!tasks.length) {
    Same rule for hours: **per-person** time comes from `time_entries` (one row per
    logger); `tasks.logged_hours` is the TASK's cached total and credits every assignee
    in full, so summing it per member double-counts shared work.
+   Same rule for **non-working days**: `lib/calendar/us-holidays.ts` is the only
+   definition of a holiday, read by the timeline, weekly capacity, the assignment
+   planner and the PTO impact preview — four places that would otherwise each
+   decide whether work happens on Christmas.
+   Same rule for **workload**: `lib/workload/assigned-work.ts` is the only definition
+   of what a person is carrying. "Mine" and "Team" had drifted into answering it two
+   ways — Team counted pending assignments in the utilisation bar and subtracted time
+   off from capacity, Mine did neither — so the same person in the same week read
+   differently on their own page and their manager's.
 
 ---
 
@@ -964,6 +1304,12 @@ When working inside this project with Claude, you can say things like:
 Claude will use this file as full project context so every response fits the architecture,
 naming conventions, and patterns already established here.
 
+> **2026-09-17 — estimate ↔ project sync made two-way.** `tasks.source_line_item_id`
+> (`0032`/`0033`) gives the pair a stable id, so a re-sync now renames, re-hours and
+> removes instead of only adding, and a task edit writes back onto its line item.
+> The editor's Timeline tab shows the **live project Gantt** once a project exists.
+> Zoho is updated by re-sending; PBS has no update endpoint, so its drift is reported.
+>
 > **2026-08-28 — billing moved behind the win.** Creating the PBS PO left "Send to
 > Zoho" and became its own **Create PO** button + dialog, shown only once the deal
 > is won (Zoho forecast bucket, re-checked live server-side, fails closed). The

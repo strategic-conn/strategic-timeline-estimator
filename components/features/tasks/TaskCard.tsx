@@ -38,6 +38,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useTeamMembers } from "@/store/team-store";
+import { TASK_STATUS_DOT } from "@/lib/constants/task-status";
 import { cn } from "@/lib/utils";
 import type { Task, TeamMember } from "@/types/task.types";
 import {
@@ -88,13 +89,8 @@ function commentCount(task: Task): number {
   return task.comments.length;
 }
 
-const STATUS_MENU_DOT: Record<TaskStatus, string> = {
-  todo: "bg-slate-400",
-  in_progress: "bg-blue-500",
-  in_review: "bg-purple-500",
-  done: "bg-green-500",
-  blocked: "bg-red-500",
-};
+/** Shared, so a status cannot be purple here and blue on the next page. */
+const STATUS_MENU_DOT = TASK_STATUS_DOT;
 
 export function TaskCard({
   task,

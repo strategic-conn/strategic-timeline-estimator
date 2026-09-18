@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { format } from "date-fns";
-import { Plus, Trash2, Users } from "lucide-react";
+import { Inbox, Plus, Trash2, Users } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -45,11 +45,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { TimeOffApprovalDialog } from "@/components/features/settings/TimeOffApprovalDialog";
 import { usePermissions } from "@/hooks/usePermissions";
 import { ymdCompare } from "@/lib/utils/availability-dates";
-import { useActiveTeamMembers } from "@/store/team-store";
+import { useActiveTeamMembers, useTeamMembers } from "@/store/team-store";
 import { useAvailabilityStore } from "@/store/availability-store";
-import type { AvailabilityEntryKind } from "@/types/availability.types";
+import type {
+  AvailabilityEntry,
+  AvailabilityEntryKind,
+} from "@/types/availability.types";
 
 const KIND_LABEL: Record<AvailabilityEntryKind, string> = {
   pto: "PTO / vacation",
@@ -72,7 +76,7 @@ const schema = z
 type FormValues = z.infer<typeof schema>;
 
 export function AdminTeamTimeOffSection() {
-  const { canEditOthersAvailability } = usePermissions();
+  const { canEditOthersAvailability, canApproveTimeOff } = usePermissions();
   /**
    * Active members only, like every other picker.
    *
@@ -85,6 +89,26 @@ export function AdminTeamTimeOffSection() {
   const entries = useAvailabilityStore((s) => s.entries);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
+
+  /**
+   * Requests waiting on a decision, oldest first — a queue, so the person who
+   * asked first is answered first.
+   *
+   * Reads the FULL directory rather than `useActiveTeamMembers`, because a
+   * request from somebody since deactivated still has to be visible; it would
+   * otherwise sit pending forever with no way to clear it.
+   */
+  const allMembers = useTeamMembers();
+  const pending = React.useMemo(
+    () =>
+      entries
+        .filter((e) => e.status === "pending")
+        .sort((a, b) => ymdCompare(a.start_date, b.start_date)),
+    [entries]
+  );
+  const [reviewing, setReviewing] = React.useState<AvailabilityEntry | null>(null);
+  const reviewingName =
+    allMembers.find((m) => m.id === reviewing?.user_id)?.name ?? "This person";
 
   const [selectedUserId, setSelectedUserId] = React.useState<string>("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -151,6 +175,77 @@ export function AdminTeamTimeOffSection() {
 
   return (
     <div className="space-y-6 border-t border-border/60 pt-8">
+      {canApproveTimeOff ? (
+        <section className="space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
+              <Inbox className="size-5 text-muted-foreground" aria-hidden />
+            </div>
+            <div className="min-w-0">
+              <h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">
+                Time-off requests
+                {pending.length > 0 ? (
+                  <Badge className="bg-amber-500/15 font-normal text-amber-700 hover:bg-amber-500/15 dark:text-amber-400">
+                    {pending.length} waiting
+                  </Badge>
+                ) : null}
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                A request changes nothing until it is approved — not capacity, not
+                the plan. Reviewing one shows exactly what it would hit.
+              </p>
+            </div>
+          </div>
+
+          {pending.length === 0 ? (
+            <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
+              Nothing waiting. Requests appear here as soon as someone submits one.
+            </p>
+          ) : (
+            <ul className="divide-y divide-border/40 overflow-hidden rounded-lg border">
+              {pending.map((e) => {
+                const who = allMembers.find((m) => m.id === e.user_id);
+                return (
+                  <li
+                    key={e.id}
+                    className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">
+                        {who?.name ?? "Unknown member"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(`${e.start_date}T12:00:00`), "MMM d")}
+                        {e.end_date !== e.start_date
+                          ? ` – ${format(new Date(`${e.end_date}T12:00:00`), "MMM d, yyyy")}`
+                          : format(new Date(`${e.start_date}T12:00:00`), ", yyyy")}{" "}
+                        · {KIND_LABEL[e.kind]}
+                        {e.note ? ` · ${e.note}` : ""}
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="shrink-0"
+                      onClick={() => setReviewing(e)}
+                    >
+                      Review
+                    </Button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
+      <TimeOffApprovalDialog
+        entry={reviewing}
+        memberName={reviewingName}
+        onClose={() => setReviewing(null)}
+      />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div className="flex items-start gap-3">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">

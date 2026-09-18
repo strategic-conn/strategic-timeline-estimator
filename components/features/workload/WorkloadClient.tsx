@@ -5,9 +5,13 @@ import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 
 import { MemberWeeklyHoursInput } from "@/components/features/workload/MemberWeeklyHoursInput";
+import {
+  TaskBadgePopover,
+  taskHref,
+} from "@/components/features/workload/TaskBadgePopover";
+import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { WorkloadMine } from "@/components/features/workload/WorkloadMine";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -22,13 +26,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import {
   DEFAULT_WEEKLY_CAPACITY_HOURS,
-  awayWorkdaysInWeek,
-  capacityAfterTimeOff,
   startOfWeekIso,
 } from "@/lib/constants/workload";
+import {
+  assignedWork,
+  capacityFor,
+  statusBreakdown,
+  utilization,
+} from "@/lib/workload/assigned-work";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
@@ -40,26 +47,25 @@ import {
   useWeeklyCapacityStore,
 } from "@/store/weekly-capacity-store";
 import { cn } from "@/lib/utils";
-import { isOverdue } from "@/lib/utils/relative-dates";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { Task } from "@/types/task.types";
 
 type ProjectFilter = "all" | string;
 
-function openAssignedTasks(tasks: Task[], memberId: string, projectId: ProjectFilter) {
-  return tasks.filter((t) => {
-    if (t.status === "done") return false;
-    if (!t.assignee_ids.includes(memberId)) return false;
-    if (projectId !== "all" && t.project_id !== projectId) return false;
-    return true;
-  });
-}
-
-function taskHref(t: Task) {
-  if (t.sprint_id) {
-    return sprintTasksHref(t.project_id, t.sprint_id, t.id);
-  }
-  return backlogHref(t.project_id, t.id);
+/**
+ * Every task allocated to this person: accepted AND still-pending.
+ *
+ * Shared with "Mine" via `assignedWork` — this used to read `assignee_ids`
+ * directly, which is the same set, but the two pages then computed their
+ * headline numbers from different definitions and disagreed on screen.
+ */
+function openAssignedTasks(
+  tasks: Task[],
+  memberId: string,
+  projectId: ProjectFilter,
+  now: Date | number,
+) {
+  return assignedWork(tasks, memberId, { projectId, now }).allocated;
 }
 
 export function WorkloadClient() {
@@ -145,23 +151,27 @@ export function WorkloadClient() {
 
   const rows = React.useMemo(() => {
     return members.map((m) => {
-      const contractedCap = getEffectiveWeeklyHours(capacityOverrides, m.id);
       // Time off comes off this week's capacity: planning against contracted
       // hours for someone on leave is how work gets assigned to an empty desk.
-      const awayDays = awayWorkdaysInWeek(availabilityEntries, m.id, now);
-      const weeklyCap = capacityAfterTimeOff(contractedCap, awayDays);
-      const open = openAssignedTasks(tasks, m.id, projectId);
-      const pending = tasks.filter(
-        (t) =>
-          (projectId === "all" || t.project_id === projectId) &&
-          t.assignees.some(
-            (a) => a.profile_id === m.id && a.status === "pending"
-          )
-      ).length;
+      const cap = capacityFor(
+        getEffectiveWeeklyHours(capacityOverrides, m.id),
+        availabilityEntries,
+        m.id,
+        now,
+      );
+      const contractedCap = cap.contracted;
+      const awayDays = cap.awayDays;
+      const holidayDays = cap.holidayDays;
+      const weeklyCap = cap.effective;
+      const work = assignedWork(tasks, m.id, { projectId, now });
+      const open = work.allocated;
+      const pendingTasks = work.pending;
+      const overdueTasks = work.overdueTasks;
+      const pending = pendingTasks.length;
+      const pendingEst = work.pendingHours;
       const loggedWeek = Math.round((weekLogged[m.id] ?? 0) * 10) / 10;
-      const openEst = open.reduce((s, t) => s + (t.estimated_hours ?? 0), 0);
-      const openLogged = open.reduce((s, t) => s + (t.logged_hours ?? 0), 0);
-      const overdue = open.filter((t) => isOverdue(t.due_date, now)).length;
+      const openEst = work.allocatedHours;
+      const overdue = work.overdue;
 
       const byProject = new Map<string, number>();
       for (const t of open) {
@@ -177,33 +187,34 @@ export function WorkloadClient() {
         })
         .join(" · ");
 
-      // Away all week leaves zero capacity. Open work against zero is not "0%
-      // utilised" — it is work with nobody available to do it, so the bar fills
-      // and `overCap` below fires.
-      const utilPct =
-        weeklyCap > 0
-          ? Math.round((openEst / weeklyCap) * 100)
-          : openEst > 0
-            ? 100
-            : 0;
-      const barVisual = Math.min(utilPct, 100);
+      const util = utilization(openEst, weeklyCap);
+      const slices = statusBreakdown(open);
+      // Working time left in the week after what has already been logged.
+      // NOT "spare capacity" - that is what utilisation answers, and with an
+      // unbounded backlog the two can point opposite ways.
+      const availableWeek = Math.max(0, Math.round((weeklyCap - loggedWeek) * 10) / 10);
 
       return {
+        slices,
+        availableWeek,
+        pendingTasks,
+        overdueTasks,
         member: m,
         weeklyCap,
         contractedCap,
         awayDays,
+        holidayDays,
         openTasks: open,
         openCount: open.length,
         pending,
+        pendingEst,
         loggedWeek,
-        openEst: Math.round(openEst * 10) / 10,
-        openLogged: Math.round(openLogged * 10) / 10,
+        openEst,
         overdue,
         breakdown,
-        utilPct,
-        barVisual,
-        overCap: openEst > weeklyCap,
+        utilPct: util.pct,
+        barVisual: util.barPct,
+        overCap: util.over,
       };
     }).sort((a, b) => b.openEst - a.openEst);
   }, [members, tasks, projectId, projectNameMap, capacityOverrides, weekLogged, now, availabilityEntries]);
@@ -223,14 +234,14 @@ export function WorkloadClient() {
     const seen = new Set<string>();
     let sum = 0;
     for (const m of members) {
-      for (const t of openAssignedTasks(tasks, m.id, projectId)) {
+      for (const t of openAssignedTasks(tasks, m.id, projectId, now)) {
         if (seen.has(t.id)) continue;
         seen.add(t.id);
         sum += t.estimated_hours ?? 0;
       }
     }
     return sum;
-  }, [members, tasks, projectId]);
+  }, [members, tasks, projectId, now]);
   const overCapacityCount = rows.filter((r) => r.overCap).length;
 
   if (view === "mine") return <WorkloadMine toggle={toggle} />;
@@ -319,9 +330,12 @@ export function WorkloadClient() {
             Load by person
           </CardTitle>
           <CardDescription>
-            Non-done tasks only. Utilization = open estimated hours ÷ that
-            person’s weekly hours (see table below). Links open the sprint or
-            backlog board for that task.
+            Non-done tasks only — a task leaves this page when someone moves it
+            to <span className="font-medium">Done</span>. The bar is coloured by
+            task status, so a full bar says whether the work is unstarted, in
+            flight or blocked. Utilization = allocated estimated hours (accepted{" "}
+            <span className="font-medium">and</span> still-pending) ÷ that
+            person’s weekly hours after time off and holidays.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-0">
@@ -367,18 +381,24 @@ export function WorkloadClient() {
                     <p className="truncate font-medium">{r.member.name}</p>
                     <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs capitalize text-muted-foreground">
                       {r.member.role}
-                      {r.pending > 0 ? (
-                        <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[0.6rem] font-medium normal-case text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
-                          {r.pending} pending
-                        </span>
-                      ) : null}
+                      <TaskBadgePopover
+                        tasks={r.pendingTasks}
+                        label="pending"
+                        tone="amber"
+                        now={now}
+                        emptyHint={`Waiting on ${r.member.name} to accept, decline or pass.`}
+                      />
                     </div>
                   </div>
-                  {r.overdue > 0 ? (
-                    <Badge variant="destructive" className="shrink-0 tabular-nums">
-                      {r.overdue} overdue
-                    </Badge>
-                  ) : null}
+                  <span className="shrink-0">
+                    <TaskBadgePopover
+                      tasks={r.overdueTasks}
+                      label="overdue"
+                      tone="destructive"
+                      now={now}
+                      emptyHint="Past their due date and still open."
+                    />
+                  </span>
                 </div>
 
                 <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
@@ -389,9 +409,18 @@ export function WorkloadClient() {
                   <span>
                     <span className="text-muted-foreground">Est. </span>
                     <span className="font-medium tabular-nums">{r.openEst}h</span>
+                    {/* Allocation includes work that has been offered and not
+                        yet answered. Leaving that unsaid is what made this
+                        number disagree with the person's own page. */}
+                    {r.pendingEst > 0 ? (
+                      <span className="text-muted-foreground tabular-nums">
+                        {" "}
+                        (incl. {r.pendingEst}h pending)
+                      </span>
+                    ) : null}
                   </span>
-                  <span>
-                    <span className="text-muted-foreground">This wk </span>
+                  <span title="Hours recorded against tasks since Monday.">
+                    <span className="text-muted-foreground">Logged this wk </span>
                     <span
                       className={cn(
                         "font-medium tabular-nums",
@@ -403,26 +432,36 @@ export function WorkloadClient() {
                       {r.loggedWeek}h
                     </span>
                   </span>
+                  <span title="Working hours left in this week after time already logged, and after time off and holidays. It is not spare capacity - see the utilisation figure below.">
+                    <span className="text-muted-foreground">Available </span>
+                    <span className="font-medium tabular-nums">
+                      {r.availableWeek}h
+                    </span>
+                  </span>
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all",
-                        r.overCap ? "bg-amber-500" : "bg-primary"
-                      )}
-                      style={{ width: `${r.barVisual}%` }}
-                    />
-                  </div>
+                  <WorkloadBar
+                    slices={r.slices}
+                    totalHours={r.openEst}
+                    barPct={r.barVisual}
+                    over={r.overCap}
+                  />
                   <span className="text-xs tabular-nums text-muted-foreground">
                     {r.utilPct}% of {r.weeklyCap}h{" "}
-                    {r.awayDays > 0 ? (
-                      /* Say why the number dropped. A capacity that quietly
-                         shrank would read as a bug, not as time off. */
+                    {r.awayDays > 0 || r.holidayDays > 0 ? (
+                      /* Say why the number dropped, and which part is which. A
+                         capacity that quietly shrank reads as a bug; and leave
+                         is a choice somebody made while a holiday is not. */
                       <span className="ml-1 text-rose-600 dark:text-rose-400">
-                        ({r.contractedCap}h &minus; {r.awayDays}{" "}
-                        {r.awayDays === 1 ? "day" : "days"} off)
+                        ({r.contractedCap}h
+                        {r.awayDays > 0
+                          ? ` − ${r.awayDays} ${r.awayDays === 1 ? "day" : "days"} off`
+                          : ""}
+                        {r.holidayDays > 0
+                          ? ` − ${r.holidayDays} ${r.holidayDays === 1 ? "holiday" : "holidays"}`
+                          : ""}
+                        )
                       </span>
                     ) : null}
                   </span>

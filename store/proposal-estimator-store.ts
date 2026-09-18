@@ -26,6 +26,19 @@ import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
+import { currentTeamCalendar } from "@/hooks/useTeamCalendar";
+import {
+  applyTaskToLineItems,
+  diffEstimateToProject,
+  notifyProjectScheduleChanged,
+  poScheduleDrift,
+  projectDateRange,
+  registerScheduleWatcher,
+  registerTaskMirror,
+  removeLineItem,
+  withMirrorSuppressed,
+  type TaskPatch,
+} from "@/lib/sync/estimate-project-sync";
 import type { DiscoveryProject, PhaseId } from "@/types/discovery.types";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -57,10 +70,15 @@ import type {
  * real plan (dates, assignees, hours). Empty when there's no work to schedule.
  */
 function phaseScaffold(quote: ClientQuote) {
+  // Booked time off shapes the sprint dates this scaffolds, so a project that
+  // starts over a shutdown is not planned as if everyone were at their desk.
+  const cal = currentTeamCalendar();
+  // ...and the risk buffer stretches it, so the sprints this scaffolds carry the
+  // schedule the coordinator actually signed off, not the un-buffered one.
   const result = quote.discovery
-    ? analyzeDiscovery(quote.discovery)
+    ? analyzeDiscovery(quote.discovery, cal, quote.risk_buffer_pct ?? 0)
     : quoteHasWork(quote)
-      ? resultFromQuote(quote)
+      ? resultFromQuote(quote, cal)
       : null;
   if (!result) return [];
   return result.timeline.phases.map((ph) => ({
@@ -170,14 +188,39 @@ export interface SchedulePreview {
   unassignedCount: number;
   /** Latest planned end date across all tasks. */
   finishDate: string | null;
+  /** Existing tasks the estimate has changed under — renamed and/or re-houred. */
+  edits: SchedulePreviewEdit[];
+  /** Existing tasks whose line item is gone from the estimate. */
+  removals: { taskId: string; title: string }[];
+  /**
+   * Tasks whose line item is gone but which carry logged time, so they are KEPT.
+   * Deleting one cascades its `time_entries` away (0017) — scoping a line out
+   * of a quote must not erase the record that somebody did the work.
+   */
+  kept: { taskId: string; title: string; loggedHours: number }[];
   /** Internal — the exact plan to persist on confirm. */
   plan: SeedPlan | null;
+}
+
+/** One existing task the re-sync would rewrite, shown before it happens. */
+export interface SchedulePreviewEdit {
+  taskId: string;
+  /** The task's title today. */
+  title: string;
+  /** Set when the line item was renamed. */
+  newTitle?: string;
+  /** Set when its hours changed. */
+  fromHours?: number;
+  toHours?: number;
 }
 
 function toPreview(
   seeds: ProposalLineItem[],
   scaffold: ScaffoldPhase[],
   plan: SeedPlan | null,
+  edits: SchedulePreviewEdit[] = [],
+  removals: { taskId: string; title: string }[] = [],
+  kept: { taskId: string; title: string; loggedHours: number }[] = [],
 ): SchedulePreview {
   const sprints = scaffold.map((ph) => {
     const d = plan?.sprintDates.get(ph.label);
@@ -211,6 +254,9 @@ function toPreview(
     assignedCount,
     unassignedCount: tasks.length - assignedCount,
     finishDate,
+    edits,
+    removals,
+    kept,
     plan,
   };
 }
@@ -282,9 +328,15 @@ async function seedAssignments(
 }
 
 /**
- * What a re-sync would still need to create for a project: the phases with no
- * sprint yet and the line items with no task yet. Shared by `previewSchedule`
- * and `regenerateSchedule` so the preview can never disagree with the write.
+ * Everything a re-sync would change on a project so it matches the estimate:
+ * phases with no sprint yet, line items with no task yet, and — since 0032/0033
+ * gave the pair a stable id — the tasks whose line item was renamed, re-houred
+ * or deleted under them. Shared by `previewSchedule` and `regenerateSchedule`
+ * so the preview can never disagree with the write.
+ *
+ * It used to match on the task's TITLE and only ever ADD, which is why renaming
+ * a line item produced a duplicate task, deleting one left its task behind, and
+ * changing its hours did nothing at all.
  */
 function pendingScheduleWork(projectId: string, quote: ClientQuote) {
   const scaffold = phaseScaffold(quote);
@@ -295,20 +347,50 @@ function pendingScheduleWork(projectId: string, quote: ClientQuote) {
       .sprints.filter((s) => s.project_id === projectId)
       .map((s) => [s.name, s.id] as [string, string]),
   );
-  const existingTitles = new Set(
-    useTasksDataStore
-      .getState()
-      .tasks.filter((t) => t.project_id === projectId)
-      .map((t) => t.title),
+  const projectTasks = useTasksDataStore
+    .getState()
+    .tasks.filter((t) => t.project_id === projectId);
+  const diff = diffEstimateToProject(
+    seeds,
+    projectTasks,
+    quote.requirements_unclear,
   );
   return {
     scaffold,
     seeds,
     sprintByName,
-    existingTitles,
     newPhases: scaffold.filter((ph) => !sprintByName.has(ph.label)),
-    newSeeds: seeds.filter((li) => !existingTitles.has(li.title)),
+    newSeeds: diff.create,
+    taskUpdates: diff.update,
+    taskRemovals: diff.remove,
+    taskOrphans: diff.orphaned,
   };
+}
+
+/** Turn the raw patches into something the review step can read. */
+function describeTaskUpdates(
+  updates: TaskPatch[],
+  projectId: string,
+): SchedulePreviewEdit[] {
+  const byId = new Map(
+    useTasksDataStore
+      .getState()
+      .tasks.filter((t) => t.project_id === projectId)
+      .map((t) => [t.id, t] as const),
+  );
+  return updates.flatMap((u) => {
+    const task = byId.get(u.taskId);
+    if (!task) return [];
+    return [
+      {
+        taskId: u.taskId,
+        title: task.title,
+        newTitle: u.title,
+        fromHours: u.estimated_hours !== undefined ? (task.estimated_hours ?? 0) : undefined,
+        toHours: u.estimated_hours,
+      },
+    ];
+  });
 }
 
 type ProposalRow = Database["public"]["Tables"]["proposals"]["Row"];
@@ -325,6 +407,7 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     line_items: (r.line_items as unknown as ProposalLineItem[]) ?? [],
     addons: { ...DEFAULT_ADDONS, ...(r.addons as unknown as ProposalAddons) },
     requirements_unclear: r.requirements_unclear,
+    risk_buffer_pct: r.risk_buffer_pct ?? 0,
     discovery: (r.discovery as unknown as DiscoveryProject | null) ?? null,
     zoho: (r.zoho as unknown as ProposalZohoLink | null) ?? null,
     // Was missing, and silently: `pbs` was written to Postgres and dropped on
@@ -352,6 +435,7 @@ function quoteUpdatePayload(
     line_items: q.line_items as unknown as Json,
     addons: q.addons as unknown as Json,
     requirements_unclear: q.requirements_unclear,
+    risk_buffer_pct: q.risk_buffer_pct ?? 0,
     discovery: (q.discovery ?? null) as unknown as Json,
     zoho: (q.zoho ?? null) as unknown as Json,
     pbs: (q.pbs ?? null) as unknown as Json,
@@ -502,6 +586,7 @@ interface ProposalEstimatorState {
         | "notes"
         | "platform"
         | "requirements_unclear"
+        | "risk_buffer_pct"
         | "zoho"
         | "pbs"
       >
@@ -654,6 +739,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           line_items: input.discovery ? [] : [emptyLineItem()],
           addons: { ...DEFAULT_ADDONS },
           requirements_unclear: false,
+          risk_buffer_pct: 0,
           discovery: input.discovery ?? null,
           zoho: input.zoho ?? null,
           created_at: now,
@@ -734,6 +820,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           line_items,
           addons: { ...DEFAULT_ADDONS, ...input.addons },
           requirements_unclear: input.requirements_unclear ?? false,
+          risk_buffer_pct: 0,
           created_at: now,
           updated_at: now,
         };
@@ -820,7 +907,10 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       regenerateLineItems: (id) => {
         const quote = get().proposals.find((p) => p.id === id);
         if (!quote?.discovery) return;
-        const result = analyzeDiscovery(quote.discovery);
+        // No buffer here on purpose: this turns the estimate into LINE ITEMS,
+        // and the risk buffer is a schedule lever. Passing it would inflate the
+        // hours — and the price — which is exactly what it must never do.
+        const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
         const draft = proposalDraftFromDiscovery(quote.discovery, result);
         const line_items: ProposalLineItem[] = draft.line_items.map((li) => ({
           id: uid(),
@@ -941,18 +1031,34 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       previewSchedule: (projectId, strategy) => {
         const quote = get().proposals.find((p) => p.project_id === projectId);
         if (!quote) return null;
-        const { scaffold, newPhases, newSeeds } = pendingScheduleWork(
-          projectId,
-          quote,
-        );
-        if (!newPhases.length && !newSeeds.length) {
+        const {
+          scaffold,
+          newPhases,
+          newSeeds,
+          taskUpdates,
+          taskRemovals,
+          taskOrphans,
+        } = pendingScheduleWork(projectId, quote);
+        const edits = describeTaskUpdates(taskUpdates, projectId);
+        const removals = taskRemovals.map((t) => ({
+          taskId: t.id,
+          title: t.title,
+        }));
+        const kept = taskOrphans.map((t) => ({
+          taskId: t.id,
+          title: t.title,
+          loggedHours: t.logged_hours ?? 0,
+        }));
+        // `kept` alone is not work — nothing would be written — so it does not
+        // keep the dialog open; it rides along when there IS something to do.
+        if (!newPhases.length && !newSeeds.length && !edits.length && !removals.length) {
           return toPreview([], [], null); // nothing to do — caller shows "up to date"
         }
         const plan =
           strategy && newSeeds.length
             ? planSeeds(quote, newSeeds, strategy, scaffold)
             : null;
-        return toPreview(newSeeds, newPhases, plan);
+        return toPreview(newSeeds, newPhases, plan, edits, removals, kept);
       },
 
       convertToProject: async (proposalId, input) => {
@@ -986,6 +1092,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             description,
             status: "active",
             owner_id: String(useAuthStore.getState().user.id),
+            // The sprints being scaffolded already carry the buffer; the project
+            // keeps the number so its own page can explain where they came from.
+            risk_buffer_pct: quote.risk_buffer_pct ?? 0,
           });
           // Scaffold the tentative timeline as sprints, then slot tasks in.
           const sprintsStore = useSprintsStore.getState();
@@ -1020,6 +1129,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               estimated_hours: li.hours,
               logged_hours: undefined,
               tags: [phaseLabelForLineItem(li)],
+              // The link both directions of the sync are keyed on (0032/0033).
+              source_line_item_id: li.id,
             });
           }
           set((s) => ({
@@ -1055,6 +1166,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             description: description ?? null,
             status: "active",
             owner_id: ownerId,
+            risk_buffer_pct: quote.risk_buffer_pct ?? 0,
           })
           .select()
           .single();
@@ -1107,6 +1219,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             id: crypto.randomUUID(),
             project_id: projectId,
             sprint_id: phaseSprint.get(phaseLabelForLineItem(li)) ?? null,
+            source_line_item_id: li.id,
             title: li.title,
             description: null,
             status: "todo" as const,
@@ -1165,18 +1278,61 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           toast.error("No estimate is linked to this project.");
           return;
         }
-        const { scaffold, seeds, sprintByName, newPhases, newSeeds } =
-          pendingScheduleWork(projectId, quote);
+        const {
+          scaffold,
+          seeds,
+          sprintByName,
+          newPhases,
+          newSeeds,
+          taskUpdates,
+          taskRemovals,
+        } = pendingScheduleWork(projectId, quote);
         if (!scaffold.length && !seeds.length) {
           toast.error("This estimate has no work to schedule yet.");
           return;
         }
-        if (!newPhases.length && !newSeeds.length) {
+        if (
+          !newPhases.length &&
+          !newSeeds.length &&
+          !taskUpdates.length &&
+          !taskRemovals.length
+        ) {
           toast.info("Schedule is already up to date with the estimate.");
           return;
         }
         const sprintsState = useSprintsStore.getState();
         const tasksState = useTasksDataStore.getState();
+
+        // Bring existing tasks in line with their line items — renames, hours,
+        // and the ones whose line item is gone. `updateTask`/`deleteTask` are
+        // optimistic write-through, so this covers demo and live alike.
+        // Suppressed so the project→estimate mirror doesn't echo the estimate's
+        // own values straight back at it.
+        withMirrorSuppressed(() => {
+          // A reviewed preview wins over recomputing, same rule as the sprints.
+          const edits = preview
+            ? preview.edits.map(
+                (e): TaskPatch => ({
+                  taskId: e.taskId,
+                  title: e.newTitle,
+                  estimated_hours: e.toHours,
+                }),
+              )
+            : taskUpdates;
+          for (const u of edits) {
+            tasksState.updateTask(u.taskId, {
+              ...(u.title !== undefined ? { title: u.title } : {}),
+              ...(u.estimated_hours !== undefined
+                ? { estimated_hours: u.estimated_hours }
+                : {}),
+            });
+          }
+          const gone = preview
+            ? preview.removals.map((r) => r.taskId)
+            : taskRemovals.map((t) => t.id);
+          for (const taskId of gone) tasksState.deleteTask(taskId);
+        });
+
         // A reviewed preview wins over recomputing (see convertToProject).
         const plan =
           preview !== undefined
@@ -1217,8 +1373,14 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               estimated_hours: li.hours,
               logged_hours: undefined,
               tags: [phaseLabelForLineItem(li)],
+              source_line_item_id: li.id,
             });
           }
+// The live path inserts sprints straight through supabase rather than
+          // createSprint(), so it never fires the sprint store's own notice.
+          // Announce it once here instead — a sync that adds a phase can push
+          // the project past the range its PBS purchase order was billed for.
+          notifyProjectScheduleChanged(projectId);
           toast.success("Schedule synced from the estimate");
           return;
         }
@@ -1269,6 +1431,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             id: crypto.randomUUID(),
             project_id: projectId,
             sprint_id: sprintByName.get(phaseLabelForLineItem(li)) ?? null,
+            source_line_item_id: li.id,
             title: li.title,
             description: null,
             status: "todo" as const,
@@ -1294,6 +1457,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           }
         }
 
+        notifyProjectScheduleChanged(projectId);
         toast.success("Schedule synced from the estimate");
       },
 
@@ -1494,3 +1658,105 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
     },
   ),
 );
+
+/**
+ * Project → Estimate: a seeded task's title or hours changing (or the task
+ * being deleted) writes straight back onto its line item.
+ *
+ * Registered through `lib/sync/estimate-project-sync` rather than imported by
+ * `tasks-store`, because the import graph runs the other way — this store
+ * imports the tasks store, so a direct call back would be a cycle.
+ *
+ * Silently a no-op for a Member or Viewer: RLS scopes `proposals` to admin +
+ * manager, so they hold no quote to find. Correct rather than unfortunate —
+ * the write would be refused anyway, and the estimate is the coordinator's
+ * document. Their task edit simply doesn't reprice the quote.
+ */
+registerTaskMirror((event) => {
+  const lineId = event.task.source_line_item_id;
+  if (!lineId) return null;
+  const quote = useProposalEstimatorStore
+    .getState()
+    .proposals.find((p) => p.project_id === event.task.project_id);
+  if (!quote) return null;
+
+  const next =
+    event.kind === "delete"
+      ? removeLineItem(quote.line_items, lineId)
+      : applyTaskToLineItems(
+          quote.line_items,
+          lineId,
+          event.patch,
+          quote.requirements_unclear,
+        );
+  // null = the line item is already what the task says. Skipping the write
+  // keeps a no-op edit from bumping `updated_at` and reshuffling the list.
+  if (!next) return null;
+
+  const before = quote.line_items;
+  const writeLines = (lines: ProposalLineItem[]) => {
+    useProposalEstimatorStore.setState((s) => ({
+      proposals: s.proposals.map((p) =>
+        p.id === quote.id
+          ? { ...p, line_items: lines, updated_at: new Date().toISOString() }
+          : p,
+      ),
+    }));
+    persistQuoteDoc(quote.id, useProposalEstimatorStore.getState);
+  };
+  writeLines(next);
+
+  toast.info(
+    event.kind === "delete"
+      ? `Removed from estimate "${quote.title}"`
+      : `Estimate "${quote.title}" updated to match`,
+    {
+      description: quote.zoho?.deal_id
+        ? "The Zoho deal still has the old figures — send it again to update."
+        : undefined,
+    },
+  );
+
+  // Handed back to the tasks store: the task write this mirrors is optimistic,
+  // and a server refusal must not leave the quote holding the change.
+  return () => writeLines(before);
+});
+
+/**
+ * A project's schedule moved — warn if that pulls it away from the dates a PBS
+ * purchase order was billed against.
+ *
+ * PBS has no update endpoint for a PO (and no delete), so this is the only
+ * thing the app can do: say so at the moment of the edit, while the person who
+ * made it is still looking. The PO badge carries the same drift persistently.
+ */
+const lastPoDriftWarning = new Map<string, string>();
+
+registerScheduleWatcher((projectId) => {
+  const quote = useProposalEstimatorStore
+    .getState()
+    .proposals.find((p) => p.project_id === projectId);
+  const po = quote?.pbs;
+  if (!po?.po_no) return;
+
+  const range = projectDateRange(
+    useSprintsStore.getState().sprints.filter((s) => s.project_id === projectId),
+  );
+  const drift = poScheduleDrift(po, range);
+  if (!drift) {
+    lastPoDriftWarning.delete(projectId);
+    return;
+  }
+  // Editing three sprints in a row is one drift, not three toasts.
+  const key = `${drift.actual.start}|${drift.actual.end}`;
+  if (lastPoDriftWarning.get(projectId) === key) return;
+  lastPoDriftWarning.set(projectId, key);
+
+  toast.warning(`PO ${po.po_no} no longer matches this schedule`, {
+    description:
+      `Billed ${drift.billed.start} → ${drift.billed.end}; the project now runs ` +
+      `${drift.actual.start} → ${drift.actual.end}. PBS has no way to edit a PO, ` +
+      `so update it there by hand.`,
+    duration: 10000,
+  });
+});

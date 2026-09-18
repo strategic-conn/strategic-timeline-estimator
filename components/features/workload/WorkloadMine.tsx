@@ -4,6 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, Clock } from "lucide-react";
 
+import {
+  TaskBadgePopover,
+  taskHref,
+} from "@/components/features/workload/TaskBadgePopover";
+import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,14 +18,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import {
   DEFAULT_WEEKLY_CAPACITY_HOURS,
   startOfWeekIso,
 } from "@/lib/constants/workload";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  assignedWork,
+  capacityFor,
+  statusBreakdown,
+  utilization,
+} from "@/lib/workload/assigned-work";
 import { useAuthStore } from "@/store/auth-store";
+import { useAvailabilityStore } from "@/store/availability-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import {
@@ -31,17 +42,12 @@ import { cn } from "@/lib/utils";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import type { Task } from "@/types/task.types";
 
-function taskHref(t: Task) {
-  return t.sprint_id
-    ? sprintTasksHref(t.project_id, t.sprint_id, t.id)
-    : backlogHref(t.project_id, t.id);
-}
-
 export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const tasks = useTasksDataStore((s) => s.tasks);
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
+  const availabilityEntries = useAvailabilityStore((s) => s.entries);
   const projectName = React.useCallback(
     (id: string) => projects.find((p) => p.id === id)?.name ?? id,
     [projects]
@@ -68,53 +74,83 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
     return () => {
       active = false;
     };
-  }, [me]);
+    // `tasks` is the trigger, not just `me`: logging time writes the task's
+    // cached total, so without it this card kept showing a stale week until the
+    // page was remounted — while the Team view, which does depend on tasks,
+    // updated. Same number, two pages, two answers.
+  }, [me, tasks]);
 
-  const accepted = React.useMemo(
-    () =>
-      tasks.filter(
-        (t) =>
-          t.status !== "done" &&
-          t.assignees.some(
-            (a) => a.profile_id === me && a.status === "accepted"
-          )
-      ),
-    [tasks, me]
+  /**
+   * "Now", read after mount rather than during render — the same rule the Team
+   * view and the dashboard follow. Reading the clock while rendering makes the
+   * component impure, and this renders on the server too, where "today" can
+   * already be tomorrow for the browser.
+   */
+  const [now, setNow] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  const work = React.useMemo(
+    () => assignedWork(tasks, me, { now }),
+    [tasks, me, now]
   );
-  const pendingCount = React.useMemo(
-    () =>
-      tasks.filter((t) =>
-        t.assignees.some((a) => a.profile_id === me && a.status === "pending")
-      ).length,
-    [tasks, me]
+  const pendingCount = work.pending.length;
+
+  // Time off comes off capacity here too. It only did on the Team view, so
+  // someone on three days' leave saw 40h here and 16h on their manager's page.
+  const cap = capacityFor(
+    getEffectiveWeeklyHours(capacityOverrides, me),
+    availabilityEntries,
+    me,
+    now
   );
+  const weeklyCap = cap.effective;
+  const openEst = work.allocatedHours;
+  const overdue = work.overdue;
+  const { pct: utilPct, barPct, over: overCap } = utilization(openEst, weeklyCap);
+  const slices = React.useMemo(
+    () => statusBreakdown(work.allocated),
+    [work.allocated]
+  );
+  /**
+   * Working time left in the week after what has already been logged.
+   *
+   * The card beside it, "Logged this week", is time RECORDED - the two read as a
+   * pair. Deliberately not "spare capacity": with an unbounded backlog you can
+   * have hours left in the week and still be over-allocated, and the utilisation
+   * figure is the one that answers that.
+   */
+  const availableWeek =
+    hoursThisWeek == null
+      ? null
+      : Math.max(0, Math.round((weeklyCap - hoursThisWeek) * 10) / 10);
 
-  const weeklyCap = getEffectiveWeeklyHours(capacityOverrides, me);
-  const openEst =
-    Math.round(accepted.reduce((s, t) => s + (t.estimated_hours ?? 0), 0) * 10) /
-    10;
-  const now = new Date();
-  const overdue = accepted.filter(
-    (t) => isOverdue(t.due_date, now)
-  ).length;
-  const utilPct = weeklyCap > 0 ? Math.round((openEst / weeklyCap) * 100) : 0;
-  const overCap = openEst > weeklyCap;
-
+  /**
+   * Grouped over ALLOCATED work, not just accepted — the cards above count
+   * pending too, and a list that showed fewer tasks than the number beside it
+   * is how someone concludes the page is broken.
+   */
+  const pendingIds = React.useMemo(
+    () => new Set(work.pending.map((t) => t.id)),
+    [work.pending]
+  );
   const byProject = React.useMemo(() => {
     const map = new Map<string, Task[]>();
-    for (const t of accepted) {
+    for (const t of work.allocated) {
       if (!map.has(t.project_id)) map.set(t.project_id, []);
       map.get(t.project_id)!.push(t);
     }
     return [...map.entries()];
-  }, [accepted]);
+  }, [work.allocated]);
 
   return (
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Capacity"
         title="My workload"
-        description={`Your accepted work vs your weekly capacity (${DEFAULT_WEEKLY_CAPACITY_HOURS}h default).`}
+        description={`Work allocated to you vs your weekly capacity (${DEFAULT_WEEKLY_CAPACITY_HOURS}h default, less any time off). A task leaves this page when it is moved to Done.`}
         actions={toggle}
       />
 
@@ -123,9 +159,18 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           <p>
             <span className="font-medium">{pendingCount}</span> task
-            {pendingCount === 1 ? "" : "s"} awaiting your response — open{" "}
-            {pendingCount === 1 ? "it" : "them"} to accept, decline, or pass.
+            {pendingCount === 1 ? "" : "s"} awaiting your response — accept,
+            decline, or pass.
           </p>
+          <span className="ml-auto shrink-0 self-center">
+            <TaskBadgePopover
+              tasks={work.pending}
+              label="pending"
+              tone="amber"
+              now={now}
+              emptyHint="Waiting on you to accept, decline or pass."
+            />
+          </span>
         </div>
       ) : null}
 
@@ -135,7 +180,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
           <CardHeader className="gap-1">
             <CardDescription>Open tasks</CardDescription>
             <CardTitle className="text-2xl font-semibold tabular-nums">
-              {accepted.length}
+              {work.allocated.length}
             </CardTitle>
           </CardHeader>
         </Card>
@@ -145,6 +190,11 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
             <CardTitle className="text-2xl font-semibold tabular-nums">
               {openEst}h
             </CardTitle>
+            {work.pendingHours > 0 ? (
+              <p className="text-xs text-muted-foreground tabular-nums">
+                incl. {work.pendingHours}h pending
+              </p>
+            ) : null}
           </CardHeader>
         </Card>
         <Card size="sm">
@@ -156,6 +206,14 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
             <CardTitle className="text-2xl font-semibold tabular-nums">
               {hoursThisWeek == null ? "—" : `${hoursThisWeek}h`}
             </CardTitle>
+            {availableWeek != null ? (
+              <p
+                className="text-xs text-muted-foreground tabular-nums"
+                title="Working hours left in this week after time already logged, and after time off and holidays."
+              >
+                {availableWeek}h available
+              </p>
+            ) : null}
           </CardHeader>
         </Card>
         <Card size="sm">
@@ -175,27 +233,52 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Your accepted work</CardTitle>
+          <CardTitle className="text-base">Your open work</CardTitle>
           <CardDescription>
-            {openEst}h estimated across {accepted.length} task
-            {accepted.length === 1 ? "" : "s"} · {utilPct}% of {weeklyCap}h/week
-            {overdue > 0 ? ` · ${overdue} overdue` : ""}
+            {openEst}h estimated across {work.allocated.length} task
+            {work.allocated.length === 1 ? "" : "s"} · {utilPct}% of {weeklyCap}
+            h/week
+            {cap.awayDays > 0 || cap.holidayDays > 0 ? (
+              /* Say why the number dropped, and which part is which. A capacity
+                 that quietly shrank reads as a bug; and your leave is yours
+                 while a holiday is everyone's. */
+              <span className="text-rose-600 dark:text-rose-400">
+                {" "}
+                ({cap.contracted}h
+                {cap.awayDays > 0
+                  ? ` − ${cap.awayDays} ${cap.awayDays === 1 ? "day" : "days"} off`
+                  : ""}
+                {cap.holidayDays > 0
+                  ? ` − ${cap.holidayDays} ${cap.holidayDays === 1 ? "holiday" : "holidays"}`
+                  : ""}
+                )
+              </span>
+            ) : null}
           </CardDescription>
+          {overdue > 0 ? (
+            <div className="pt-1">
+              <TaskBadgePopover
+                tasks={work.overdueTasks}
+                label="overdue"
+                tone="destructive"
+                now={now}
+                emptyHint="Past their due date and still open."
+              />
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="space-y-5 pt-0">
-          <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all",
-                overCap ? "bg-amber-500" : "bg-primary"
-              )}
-              style={{ width: `${Math.min(utilPct, 100)}%` }}
-            />
-          </div>
+          <WorkloadBar
+            slices={slices}
+            totalHours={openEst}
+            barPct={barPct}
+            over={overCap}
+          />
 
-          {accepted.length === 0 ? (
+          {work.allocated.length === 0 ? (
             <p className="py-6 text-center text-sm text-muted-foreground">
-              No accepted tasks. Accept an assignment to see it here.
+              Nothing open. Work appears here when it is assigned to you, and
+              leaves when you move it to Done.
             </p>
           ) : (
             byProject.map(([pid, list]) => (
@@ -214,6 +297,14 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
                         >
                           <span className="min-w-0 truncate">{t.title}</span>
                           <span className="flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">
+                            {pendingIds.has(t.id) ? (
+                              <Badge
+                                variant="outline"
+                                className="border-amber-500/40 text-[0.65rem] text-amber-700 dark:text-amber-400"
+                              >
+                                pending
+                              </Badge>
+                            ) : null}
                             {overdueRow ? (
                               <Badge variant="destructive" className="text-[0.65rem]">
                                 overdue

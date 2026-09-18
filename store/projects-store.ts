@@ -30,6 +30,7 @@ function rowToProject(r: ProjectRow): Project {
     description: r.description ?? undefined,
     status: r.status,
     owner_id: r.owner_id,
+    risk_buffer_pct: r.risk_buffer_pct ?? 0,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -237,6 +238,8 @@ export const useProjectsStore = create<ProjectsState>()(
           if (partial.description !== undefined)
             fields.description = partial.description ?? null;
           if (partial.status !== undefined) fields.status = partial.status;
+          if (partial.risk_buffer_pct !== undefined)
+            fields.risk_buffer_pct = partial.risk_buffer_pct;
 
           const { error } = await supabase
             .from("projects")

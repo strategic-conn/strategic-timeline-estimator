@@ -1,3 +1,5 @@
+import { isUsHoliday } from "@/lib/calendar/us-holidays";
+
 /**
  * Default hours per person per week when no override is stored.
  * Per-user values live in `useWeeklyCapacityStore` (Supabase `weekly_capacity`; demo fallback).
@@ -45,7 +47,22 @@ export type AwayEntryLike = {
   /** Inclusive, YYYY-MM-DD */
   end_date: string;
   kind: "pto" | "unavailable" | "partial";
+  /** Absent on rows written before migration 0034 — those were already in force. */
+  status?: "pending" | "approved" | "rejected";
 };
+
+/**
+ * Whether an entry actually removes someone from the roster.
+ *
+ * Guarded HERE rather than at each call site, so nothing can forget: a merely
+ * requested absence must not shrink someone's capacity, must not be fed to the
+ * assignment planner, and must not make a manager re-plan a sprint around leave
+ * that has not been granted. A missing status means the row predates 0034,
+ * when every entry was in force the moment it was saved.
+ */
+export function countsAgainstCapacity(entry: { status?: string | null }): boolean {
+  return (entry.status ?? "approved") === "approved";
+}
 
 /**
  * How many working days this member is away during the week containing `now`.
@@ -54,6 +71,9 @@ export type AwayEntryLike = {
  * range would charge them for a day they were never going to work. Overlapping
  * entries are deduped per day and take the larger weight, so a partial day that
  * also falls inside a full PTO block counts once, as a full day.
+ *
+ * Pending and rejected requests are skipped — see `countsAgainstCapacity`. So
+ * are US holidays, which `holidayWorkdaysInWeek` counts instead.
  */
 export function awayWorkdaysInWeek(
   entries: AwayEntryLike[],
@@ -67,8 +87,13 @@ export function awayWorkdaysInWeek(
     const day = new Date(monday);
     day.setDate(monday.getDate() + i);
     const key = ymdLocal(day);
+    // A holiday is already off everyone's week (`holidayWorkdaysInWeek`), so
+    // leave booked across one must not subtract it a second time — a week
+    // containing Christmas cannot cost six days out of five.
+    if (isUsHoliday(key)) continue;
     for (const e of entries) {
       if (e.user_id !== memberId) continue;
+      if (!countsAgainstCapacity(e)) continue;
       if (key < e.start_date || key > e.end_date) continue;
       const w = e.kind === "partial" ? PARTIAL_DAY_WEIGHT : 1;
       weight.set(key, Math.max(weight.get(key) ?? 0, w));
@@ -76,6 +101,25 @@ export function awayWorkdaysInWeek(
   }
   let total = 0;
   for (const w of weight.values()) total += w;
+  return total;
+}
+
+/**
+ * Observed US holidays falling Mon–Fri in the week containing `now`.
+ *
+ * Counted separately from leave because the two are different facts: one is a
+ * person's choice that a manager can decline, the other is the office being
+ * shut. The workload pages say which is which rather than lumping both into
+ * "days off".
+ */
+export function holidayWorkdaysInWeek(now: Date | number): number {
+  const monday = mondayOf(now);
+  let total = 0;
+  for (let i = 0; i < WORKDAYS_PER_WEEK; i++) {
+    const day = new Date(monday);
+    day.setDate(monday.getDate() + i);
+    if (isUsHoliday(ymdLocal(day))) total += 1;
+  }
   return total;
 }
 

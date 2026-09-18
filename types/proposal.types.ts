@@ -232,6 +232,13 @@ export interface ClientQuote {
    * Advanced (1.5×) for the totals regardless of its own tier (workbook rule).
    */
   requirements_unclear: boolean;
+  /**
+   * Schedule contingency, 0–100 (migration 0036).
+   *
+   * ⚠️ Stretches the TIMELINE only. Hours — and therefore the price — are
+   * untouched; `requirements_unclear` is the control that reprices for risk.
+   */
+  risk_buffer_pct: number;
   /** Set when the quote was imported from a Zoho CRM Deal. */
   zoho?: ProposalZohoLink | null;
   /** Which PBS client this bills to, and the PO once it exists. */

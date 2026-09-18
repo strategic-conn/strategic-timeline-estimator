@@ -18,6 +18,17 @@ production:
 
 1. **Everything created is prefixed `[E2E]`.** `e2eName()` in `helpers.ts` is the
    only way tests name things.
+   > ⚠️ **A fixture name must be unique per worker, not just prefixed.** The
+   > three viewport projects run **in parallel against one shared database**, so
+   > a fixed `[E2E] my thing` gets seeded three times over and every browser
+   > renders all three rows. Any test that finds its fixture **by text** then
+   > breaks: a `.filter({ hasText })` matches three elements (strict-mode
+   > violation) and a "which column is it in" query returns three answers where
+   > the test asserts one. `stage-board.spec.ts` carried exactly this for a
+   > while, misdiagnosed as a timing flake — it now builds names through its own
+   > `fixtureTitle()`, which appends a per-process token. A test that only ever
+   > uses the returned row **id** (`po-dialog`, `po-date-edits`,
+   > `pto-approval-guard`) is unaffected.
 2. **Cleanup deletes only prefixed rows**, and runs in `afterAll` even when a
    test fails. It refuses to run if the prefix is missing or shorter than 4
    chars, so it can never turn into a broad delete.

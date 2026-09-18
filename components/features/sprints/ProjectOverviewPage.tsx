@@ -49,6 +49,7 @@ import {
   useProposalEstimatorStore,
   type SchedulePreview,
 } from "@/store/proposal-estimator-store";
+import { ProjectRiskBufferSection } from "@/components/features/sprints/ProjectRiskBufferSection";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import {
   Dialog,
@@ -187,7 +188,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
       toast.error("No estimate is linked to this project.");
       return;
     }
-    if (!p.sprints.length && !p.tasks.length) {
+    if (!p.sprints.length && !p.tasks.length && !p.edits.length && !p.removals.length) {
       toast.info("Schedule is already up to date with the estimate.");
       return;
     }
@@ -656,6 +657,12 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               </p>
             </div>
             <GanttClient lockedProjectId={projectId} />
+            {/* Under the chart on purpose: the forecast only means something
+                once you can see the schedule it is stretching. Admin/manager
+                only — it rewrites the dates the team works to. */}
+            {canEditProject ? (
+              <ProjectRiskBufferSection projectId={projectId} />
+            ) : null}
           </section>
         ) : null}
       </div>

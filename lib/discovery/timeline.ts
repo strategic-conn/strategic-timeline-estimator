@@ -2,9 +2,10 @@
  * Timeline engine — converts phase hours to business days and sequences phases per
  * the SC Estimator spec §3.2 (with content concurrency and SEO overlap).
  */
-import { addBusinessDays, format, isValid, parseISO } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 
 import { BUSINESS_HOURS_PER_DAY, MILESTONES, PHASE_META } from "@/lib/discovery/constants";
+import { addWorkingDays, type TeamCalendar } from "@/lib/discovery/team-calendar";
 import type {
   DiscoveryProject,
   DiscoveryTimeline,
@@ -41,9 +42,22 @@ function resolveStart(value: string): Date {
   return new Date();
 }
 
+/**
+ * @param cal Booked time off and US holidays, folded in so the dates account
+ *   for who is actually around. Optional and additive: without it the offsets
+ *   convert to dates exactly as they always did. Leave changes WHEN the work
+ *   lands, not how much there is.
+ * @param riskBufferPct Schedule contingency, 0–100. Stretches every offset by
+ *   the same factor, so the whole plan slides out proportionally rather than a
+ *   gap opening at the end. ⚠️ It does NOT touch `estimate` — the hours, and
+ *   therefore the price, are identical. Inflating a client quote for risk is
+ *   `requirements_unclear`'s job and is a deliberate, separate decision.
+ */
 export function computeTimeline(
   p: DiscoveryProject,
   estimate: Estimate,
+  cal?: TeamCalendar | null,
+  riskBufferPct = 0,
 ): DiscoveryTimeline {
   const start = resolveStart(p.project_start_date);
   const buffer = Math.max(0, p.client_review_turnaround ?? 0);
@@ -77,7 +91,7 @@ export function computeTimeline(
   let launchEnd = launchStart + dur("launch") + DNS_BUFFER_DAYS;
   if (p.has_blackout_periods) launchEnd += BLACKOUT_BUFFER_DAYS;
 
-  const offsets: Record<PhaseId, { start: number; end: number }> = {
+  const raw: Record<PhaseId, { start: number; end: number }> = {
     discovery: { start: discoveryStart, end: discoveryEnd },
     content: { start: contentStart, end: contentEnd },
     design: { start: designStart, end: designEnd },
@@ -87,8 +101,22 @@ export function computeTimeline(
     launch: { start: launchStart, end: launchEnd },
   };
 
+  // Stretch every offset by the same factor. Scaling the STARTS too is what
+  // keeps the plan continuous — buffering only the ends would leave each phase
+  // finishing later while the next still began on its original day.
+  // Offset 0 scales to 0, so the project still begins when it begins.
+  const pct = Math.max(0, Math.min(100, Math.round(riskBufferPct)));
+  const scale = 1 + pct / 100;
+  const offsets = Object.fromEntries(
+    Object.entries(raw).map(([id, o]) => [
+      id,
+      { start: Math.round(o.start * scale), end: Math.round(o.end * scale) },
+    ]),
+  ) as Record<PhaseId, { start: number; end: number }>;
+  const bufferedLaunchEnd = Math.round(launchEnd * scale);
+
   const fmt = (offset: number) =>
-    format(addBusinessDays(start, offset), "MMM d, yyyy");
+    format(addWorkingDays(start, offset, cal), "MMM d, yyyy");
 
   const phases: TimelinePhase[] = estimate.phases.map((ph) => {
     const o = offsets[ph.id];
@@ -112,12 +140,15 @@ export function computeTimeline(
     ...Object.values(offsets).map((o) => o.end),
     0,
   );
+  const baseBusinessDays = Math.max(...Object.values(raw).map((o) => o.end), 0);
 
   return {
     phases,
     milestones,
     totalBusinessDays,
+    baseBusinessDays,
+    riskBufferPct: pct,
     totalWeeks: Math.max(1, Math.ceil(totalBusinessDays / 5)),
-    launchDate: fmt(launchEnd),
+    launchDate: fmt(bufferedLaunchEnd),
   };
 }
