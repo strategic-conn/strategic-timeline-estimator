@@ -93,6 +93,26 @@ test.describe("workdaysInRange", () => {
 });
 
 test.describe("what an absence threatens", () => {
+  test("the slip is counted in working days, so a holiday is not a day of it", () => {
+    // Thanksgiving is Thu 2026-11-26. Due the day before, away Wed-Fri: the
+    // first free workday is Mon 30th. Counting the holiday as a workday used to
+    // land this on Tue 1 Dec and report the slip a day too long.
+    const i = ptoImpact(
+      base({
+        entry: {
+          user_id: "dev",
+          start_date: "2026-11-25",
+          end_date: "2026-11-27",
+          kind: "pto",
+        },
+        tasks: [task({ due_date: "2026-11-25" })],
+        sprints: [sprint({ start_date: "2026-11-16", end_date: "2026-11-27" })],
+      }),
+    );
+    expect(i.affected).toHaveLength(1);
+    expect(i.affected[0].suggestedDue).toBe("2026-11-30");
+  });
+
   test("a task due inside the absence is at risk and clears it", () => {
     const i = ptoImpact(base());
     expect(i.workdaysLost).toBe(5);

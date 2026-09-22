@@ -18,14 +18,19 @@ production:
 
 1. **Everything created is prefixed `[E2E]`.** `e2eName()` in `helpers.ts` is the
    only way tests name things.
-   > ⚠️ **A fixture name must be unique per worker, not just prefixed.** The
-   > three viewport projects run **in parallel against one shared database**, so
-   > a fixed `[E2E] my thing` gets seeded three times over and every browser
-   > renders all three rows. Any test that finds its fixture **by text** then
-   > breaks: a `.filter({ hasText })` matches three elements (strict-mode
-   > violation) and a "which column is it in" query returns three answers where
-   > the test asserts one. `stage-board.spec.ts` carried exactly this for a
-   > while, misdiagnosed as a timing flake — it now builds names through its own
+   > ⚠️ **A fixture name must be unique per run, not just prefixed.** The suite
+   > is serial (`workers: 1`), but the three viewport projects run the *same
+   > tests* against **one shared database** — so a fixed `[E2E] my thing` is
+   > created and deleted three times over. If a row from the previous project
+   > lingers for a moment (a `finally` that did not land, or a delete that has
+   > not propagated before the next page hydrates), the next test sees two rows
+   > with its own name.
+   >
+   > Any test that finds its fixture **by text** then breaks: `.filter({ hasText })`
+   > matches two elements (strict-mode violation) and a "which column is it in"
+   > query returns two answers where the test asserts one. `stage-board.spec.ts`
+   > carried exactly this, misdiagnosed first as picklist timing and then by me
+   > as a parallelism race — it now builds names through its own
    > `fixtureTitle()`, which appends a per-process token. A test that only ever
    > uses the returned row **id** (`po-dialog`, `po-date-edits`,
    > `pto-approval-guard`) is unaffected.

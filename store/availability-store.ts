@@ -4,7 +4,10 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 
-import { notifyUsers, pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import {
+  notifyUsers,
+  pushWorkspaceActivity,
+} from "@/lib/activity/workspace-push";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -18,7 +21,8 @@ import type {
   AvailabilityStatus,
 } from "@/types/availability.types";
 
-type AvailabilityRow = Database["public"]["Tables"]["availability_entries"]["Row"];
+type AvailabilityRow =
+  Database["public"]["Tables"]["availability_entries"]["Row"];
 
 function rowToEntry(r: AvailabilityRow): AvailabilityEntry {
   return {
@@ -69,10 +73,11 @@ function rangeLabel(start: string, end: string): string {
 /** Did an edit move the dates? A note-only tweak must not re-open a decision. */
 function datesChanged(
   prev: Pick<AvailabilityEntry, "start_date" | "end_date">,
-  partial: Partial<Pick<AvailabilityEntry, "start_date" | "end_date">>
+  partial: Partial<Pick<AvailabilityEntry, "start_date" | "end_date">>,
 ): boolean {
   return (
-    (partial.start_date !== undefined && partial.start_date !== prev.start_date) ||
+    (partial.start_date !== undefined &&
+      partial.start_date !== prev.start_date) ||
     (partial.end_date !== undefined && partial.end_date !== prev.end_date)
   );
 }
@@ -124,9 +129,20 @@ interface AvailabilityState {
     userId: string,
     partial: Partial<
       Pick<AvailabilityEntry, "start_date" | "end_date" | "kind" | "note">
-    >
+    >,
   ) => void;
   deleteEntry: (id: string, userId: string) => void;
+  /**
+   * Realtime echo (0037). Idempotent, so this store's OWN optimistic write
+   * coming back is a no-op rather than a duplicate.
+   */
+  applyRealtimeUpsert: (row: AvailabilityRow) => void;
+  /**
+   * ⚠️ A DELETE payload carries only the primary key, so Postgres cannot
+   * filter it by RLS — an id for a row this client never held can arrive. That
+   * is fine: filtering by id simply matches nothing.
+   */
+  applyRealtimeDelete: (id: string) => void;
   /**
    * Approve or reject a request. Admin/manager only — the
    * `prevent_self_approval` trigger (0034) is the real gate, this mirrors it.
@@ -134,7 +150,7 @@ interface AvailabilityState {
   reviewEntry: (
     id: string,
     decision: Exclude<AvailabilityStatus, "pending">,
-    note?: string
+    note?: string,
   ) => void;
 }
 
@@ -158,7 +174,11 @@ export const useAvailabilityStore = create<AvailabilityState>()(
           .select("*")
           .order("start_date", { ascending: true });
         if (error) {
-          set({ loading: false, loaded: true, error: parseSupabaseError(error) });
+          set({
+            loading: false,
+            loaded: true,
+            error: parseSupabaseError(error),
+          });
           return;
         }
         set({
@@ -178,9 +198,10 @@ export const useAvailabilityStore = create<AvailabilityState>()(
          * `pending` for a non-approver regardless of what the client sends — so
          * this is the UI telling the truth about what will happen, not the gate.
          */
-        const role = useAuthStore.getState().user.role;
-        const status: AvailabilityStatus =
-          role === "admin" || role === "manager" ? "approved" : "pending";
+        const actor = useAuthStore.getState().user;
+        const role = actor.role;
+        const approver = role === "admin" || role === "manager";
+        const status: AvailabilityStatus = approver ? "approved" : "pending";
         // Real id client-side (see projects-store) so the optimistic row already
         // carries its final UUID — no temp→real swap.
         const id = isSupabaseConfigured ? crypto.randomUUID() : uid();
@@ -192,8 +213,14 @@ export const useAvailabilityStore = create<AvailabilityState>()(
           kind: input.kind,
           note: input.note?.trim() || undefined,
           status,
-          reviewed_by: null,
-          reviewed_at: null,
+          // An auto-approved row still records WHO approved it. Leaving these
+          // null made a manager's own leave indistinguishable from the
+          // pre-0034 rows that were grandfathered in as `approved`, so
+          // "approved by nobody" meant both "legacy" and "approved by the
+          // person who booked it". The 0035 trigger only nulls these for a
+          // NON-approver, so an approver may set them on insert.
+          reviewed_by: approver ? (actor.authId ?? null) : null,
+          reviewed_at: approver ? t : null,
           review_note: null,
           created_at: t,
           updated_at: t,
@@ -203,15 +230,23 @@ export const useAvailabilityStore = create<AvailabilityState>()(
         if (isSupabaseConfigured) {
           void (async () => {
             const supabase = createClient();
-            const { error } = await supabase.from("availability_entries").insert({
-              id,
-              user_id: entry.user_id,
-              start_date: entry.start_date,
-              end_date: entry.end_date,
-              kind: entry.kind,
-              note: entry.note ?? null,
-              status,
-            });
+            const { error } = await supabase
+              .from("availability_entries")
+              .insert({
+                id,
+                user_id: entry.user_id,
+                start_date: entry.start_date,
+                end_date: entry.end_date,
+                kind: entry.kind,
+                note: entry.note ?? null,
+                status,
+                // Must travel WITH the insert. Setting them on the optimistic row
+                // only would have the store claim a reviewer Postgres never
+                // stored — gone on the next hydrate, and the two disagreeing in
+                // the meantime.
+                reviewed_by: entry.reviewed_by,
+                reviewed_at: entry.reviewed_at,
+              });
             if (error) {
               set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
               toast.error("Couldn't save time off", {
@@ -237,7 +272,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
 
       updateEntry: (id, userId, partial) => {
         const prev = get().entries.find(
-          (e) => e.id === id && e.user_id === userId
+          (e) => e.id === id && e.user_id === userId,
         );
         if (!prev) return;
         const snapshot = structuredClone(prev);
@@ -265,7 +300,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
                     : {}),
                   updated_at: nowIso(),
                 }
-              : e
+              : e,
           ),
         }));
 
@@ -276,7 +311,8 @@ export const useAvailabilityStore = create<AvailabilityState>()(
               { updated_at: nowIso() };
             if (partial.start_date !== undefined)
               fields.start_date = partial.start_date;
-            if (partial.end_date !== undefined) fields.end_date = partial.end_date;
+            if (partial.end_date !== undefined)
+              fields.end_date = partial.end_date;
             if (partial.kind !== undefined) fields.kind = partial.kind;
             if (partial.note !== undefined)
               fields.note = partial.note?.trim() || null;
@@ -296,7 +332,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
             if (error) {
               set((s) => ({
                 entries: s.entries.map((e) =>
-                  e.id === id ? structuredClone(snapshot) : e
+                  e.id === id ? structuredClone(snapshot) : e,
                 ),
               }));
               toast.error("Couldn't update time off", {
@@ -305,6 +341,21 @@ export const useAvailabilityStore = create<AvailabilityState>()(
             }
           })();
         }
+      },
+
+      applyRealtimeUpsert: (row) => {
+        const entry = rowToEntry(row);
+        set((s) => {
+          const i = s.entries.findIndex((e) => e.id === entry.id);
+          if (i === -1) return { entries: [entry, ...s.entries] };
+          const next = [...s.entries];
+          next[i] = entry;
+          return { entries: next };
+        });
+      },
+
+      applyRealtimeDelete: (id) => {
+        set((s) => ({ entries: s.entries.filter((e) => e.id !== id) }));
       },
 
       reviewEntry: (id, decision, note) => {
@@ -324,7 +375,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
                   review_note: note?.trim() || null,
                   updated_at: at,
                 }
-              : e
+              : e,
           ),
         }));
 
@@ -361,7 +412,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
             // have the requester and the roster disagreeing about who is away.
             set((s) => ({
               entries: s.entries.map((e) =>
-                e.id === id ? structuredClone(snapshot) : e
+                e.id === id ? structuredClone(snapshot) : e,
               ),
             }));
             toast.error("Couldn't save the decision", {
@@ -375,7 +426,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
         const before = structuredClone(get().entries);
         set((s) => ({
           entries: s.entries.filter(
-            (e) => !(e.id === id && e.user_id === userId)
+            (e) => !(e.id === id && e.user_id === userId),
           ),
         }));
 
@@ -410,6 +461,6 @@ export const useAvailabilityStore = create<AvailabilityState>()(
         }
         return persisted as AvailabilityState;
       },
-    }
-  )
+    },
+  ),
 );

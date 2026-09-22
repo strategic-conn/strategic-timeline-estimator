@@ -4,12 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 
+import { MineTeamToggle } from "@/components/common/mine-team-toggle";
 import { MemberWeeklyHoursInput } from "@/components/features/workload/MemberWeeklyHoursInput";
 import {
   TaskBadgePopover,
   taskHref,
 } from "@/components/features/workload/TaskBadgePopover";
 import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
+import { Skeleton } from "@/components/ui/skeleton";
 import { WorkloadMine } from "@/components/features/workload/WorkloadMine";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
@@ -26,10 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  DEFAULT_WEEKLY_CAPACITY_HOURS,
-  startOfWeekIso,
-} from "@/lib/constants/workload";
+import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import {
   assignedWork,
   capacityFor,
@@ -39,7 +38,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
-import { useJoinedTeamMembers } from "@/store/team-store";
+import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import {
@@ -49,6 +48,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { Task } from "@/types/task.types";
+import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 
 type ProjectFilter = "all" | string;
 
@@ -81,61 +81,26 @@ export function WorkloadClient() {
    * with open tasks still assigned, this is the page that has to show it.
    */
   const members = useJoinedTeamMembers();
+  const teamLoaded = useTeamStore((s) => s.loaded);
   const availabilityEntries = useAvailabilityStore((s) => s.entries);
   const role = useAuthStore((s) => s.user.role);
   const canSeeTeam = role === "admin" || role === "manager";
 
   const [projectId, setProjectId] = React.useState<ProjectFilter>("all");
   const [view, setView] = React.useState<"mine" | "team">(
-    canSeeTeam ? "team" : "mine"
+    canSeeTeam ? "team" : "mine",
   );
-  const toggle = canSeeTeam ? (
-    <div className="inline-flex rounded-lg border border-border/60 bg-card/50 p-0.5 text-sm">
-      {(["mine", "team"] as const).map((v) => (
-        <button
-          key={v}
-          type="button"
-          onClick={() => setView(v)}
-          className={cn(
-            "rounded-md px-3 py-1 capitalize transition-colors",
-            view === v
-              ? "bg-primary text-primary-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {v === "mine" ? "Mine" : "Team"}
-        </button>
-      ))}
-    </div>
-  ) : null;
+  const toggle = (
+    <MineTeamToggle view={view} onChange={setView} canSeeTeam={canSeeTeam} />
+  );
 
   const projectNameMap = React.useMemo(
     () => new Map(projects.map((p) => [p.id, p.name])),
-    [projects]
+    [projects],
   );
 
-  // Actual hours logged this week per person (from time_entries; live only).
-  const [weekLogged, setWeekLogged] = React.useState<Record<string, number>>({});
-  React.useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    let active = true;
-    void (async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("time_entries")
-        .select("profile_id, hours")
-        .gte("logged_at", startOfWeekIso());
-      if (!active) return;
-      const map: Record<string, number> = {};
-      for (const r of data ?? [])
-        map[r.profile_id] = (map[r.profile_id] ?? 0) + Number(r.hours);
-      setWeekLogged(map);
-    })();
-    return () => {
-      active = false;
-    };
-  }, [tasks]);
-
+  // Hours logged this week per person — shared with the dashboard.
+  const weekLogged = useWeekLoggedHours();
 
   /**
    * "Now", read after mount rather than during render — the same rule the
@@ -150,74 +115,88 @@ export function WorkloadClient() {
   }, []);
 
   const rows = React.useMemo(() => {
-    return members.map((m) => {
-      // Time off comes off this week's capacity: planning against contracted
-      // hours for someone on leave is how work gets assigned to an empty desk.
-      const cap = capacityFor(
-        getEffectiveWeeklyHours(capacityOverrides, m.id),
-        availabilityEntries,
-        m.id,
-        now,
-      );
-      const contractedCap = cap.contracted;
-      const awayDays = cap.awayDays;
-      const holidayDays = cap.holidayDays;
-      const weeklyCap = cap.effective;
-      const work = assignedWork(tasks, m.id, { projectId, now });
-      const open = work.allocated;
-      const pendingTasks = work.pending;
-      const overdueTasks = work.overdueTasks;
-      const pending = pendingTasks.length;
-      const pendingEst = work.pendingHours;
-      const loggedWeek = Math.round((weekLogged[m.id] ?? 0) * 10) / 10;
-      const openEst = work.allocatedHours;
-      const overdue = work.overdue;
+    return members
+      .map((m) => {
+        // Time off comes off this week's capacity: planning against contracted
+        // hours for someone on leave is how work gets assigned to an empty desk.
+        const cap = capacityFor(
+          getEffectiveWeeklyHours(capacityOverrides, m.id),
+          availabilityEntries,
+          m.id,
+          now,
+        );
+        const contractedCap = cap.contracted;
+        const awayDays = cap.awayDays;
+        const holidayDays = cap.holidayDays;
+        const weeklyCap = cap.effective;
+        const work = assignedWork(tasks, m.id, { projectId, now });
+        const open = work.allocated;
+        const pendingTasks = work.pending;
+        const overdueTasks = work.overdueTasks;
+        const pending = pendingTasks.length;
+        const pendingEst = work.pendingHours;
+        const loggedWeek = Math.round((weekLogged?.[m.id] ?? 0) * 10) / 10;
+        const openEst = work.allocatedHours;
+        const overdue = work.overdue;
 
-      const byProject = new Map<string, number>();
-      for (const t of open) {
-        const h = t.estimated_hours ?? 0;
-        byProject.set(t.project_id, (byProject.get(t.project_id) ?? 0) + h);
-      }
-      const breakdown = [...byProject.entries()]
-        .sort((a, b) => b[1] - a[1])
-        .map(([pid, h]) => {
-          const label = projectNameMap.get(pid) ?? pid;
-          const rounded = Math.round(h * 10) / 10;
-          return `${label}: ${rounded}h`;
-        })
-        .join(" · ");
+        const byProject = new Map<string, number>();
+        for (const t of open) {
+          const h = t.estimated_hours ?? 0;
+          byProject.set(t.project_id, (byProject.get(t.project_id) ?? 0) + h);
+        }
+        const breakdown = [...byProject.entries()]
+          .sort((a, b) => b[1] - a[1])
+          .map(([pid, h]) => {
+            const label = projectNameMap.get(pid) ?? pid;
+            const rounded = Math.round(h * 10) / 10;
+            return `${label}: ${rounded}h`;
+          })
+          .join(" · ");
 
-      const util = utilization(openEst, weeklyCap);
-      const slices = statusBreakdown(open);
-      // Working time left in the week after what has already been logged.
-      // NOT "spare capacity" - that is what utilisation answers, and with an
-      // unbounded backlog the two can point opposite ways.
-      const availableWeek = Math.max(0, Math.round((weeklyCap - loggedWeek) * 10) / 10);
+        const util = utilization(openEst, weeklyCap);
+        const slices = statusBreakdown(open);
+        // Working time left in the week after what has already been logged.
+        // NOT "spare capacity" - that is what utilisation answers, and with an
+        // unbounded backlog the two can point opposite ways.
+        const availableWeek = Math.max(
+          0,
+          Math.round((weeklyCap - loggedWeek) * 10) / 10,
+        );
 
-      return {
-        slices,
-        availableWeek,
-        pendingTasks,
-        overdueTasks,
-        member: m,
-        weeklyCap,
-        contractedCap,
-        awayDays,
-        holidayDays,
-        openTasks: open,
-        openCount: open.length,
-        pending,
-        pendingEst,
-        loggedWeek,
-        openEst,
-        overdue,
-        breakdown,
-        utilPct: util.pct,
-        barVisual: util.barPct,
-        overCap: util.over,
-      };
-    }).sort((a, b) => b.openEst - a.openEst);
-  }, [members, tasks, projectId, projectNameMap, capacityOverrides, weekLogged, now, availabilityEntries]);
+        return {
+          slices,
+          availableWeek,
+          pendingTasks,
+          overdueTasks,
+          member: m,
+          weeklyCap,
+          contractedCap,
+          awayDays,
+          holidayDays,
+          openTasks: open,
+          openCount: open.length,
+          pending,
+          pendingEst,
+          loggedWeek,
+          openEst,
+          overdue,
+          breakdown,
+          utilPct: util.pct,
+          barVisual: util.barPct,
+          overCap: util.over,
+        };
+      })
+      .sort((a, b) => b.openEst - a.openEst);
+  }, [
+    members,
+    tasks,
+    projectId,
+    projectNameMap,
+    capacityOverrides,
+    weekLogged,
+    now,
+    availabilityEntries,
+  ]);
 
   const peopleWithOpen = rows.filter((r) => r.openCount > 0).length;
 
@@ -256,23 +235,25 @@ export function WorkloadClient() {
           <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:items-end sm:justify-end">
             {toggle}
             <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
-            <span className="text-xs font-medium text-muted-foreground">Project</span>
-            <Select
-              value={projectId}
-              onValueChange={(v) => setProjectId(v as ProjectFilter)}
-            >
-              <SelectTrigger className="w-full border-border/60 bg-background/80">
-                <SelectValue placeholder="All projects" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All projects</SelectItem>
-                {projects.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>
-                    {p.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <span className="text-xs font-medium text-muted-foreground">
+                Project
+              </span>
+              <Select
+                value={projectId}
+                onValueChange={(v) => setProjectId(v as ProjectFilter)}
+              >
+                <SelectTrigger className="w-full border-border/60 bg-background/80">
+                  <SelectValue placeholder="All projects" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All projects</SelectItem>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.id}>
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         }
@@ -314,7 +295,7 @@ export function WorkloadClient() {
             <CardTitle
               className={cn(
                 "text-2xl font-semibold tabular-nums",
-                overCapacityCount > 0 && "text-amber-700 dark:text-amber-400"
+                overCapacityCount > 0 && "text-amber-700 dark:text-amber-400",
               )}
             >
               {overCapacityCount}
@@ -342,8 +323,8 @@ export function WorkloadClient() {
           <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
             <p className="text-sm font-medium">Weekly capacity by person</p>
             <p className="mt-1 text-xs text-muted-foreground">
-              Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter or
-              click away to save (1–168).
+              Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter
+              or click away to save (1–168).
             </p>
             <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {members.map((m) => (
@@ -359,7 +340,7 @@ export function WorkloadClient() {
                       memberId={m.id}
                       committedHours={getEffectiveWeeklyHours(
                         capacityOverrides,
-                        m.id
+                        m.id,
                       )}
                       label={m.name}
                     />
@@ -369,6 +350,21 @@ export function WorkloadClient() {
               ))}
             </ul>
           </div>
+
+          {/* Rule 2: loading and empty are different answers. The roster
+              hydrates async, so an unqualified "no one here" would libel a full
+              team for the first moments of every visit. */}
+          {!teamLoaded ? (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-28 rounded-lg" />
+              ))}
+            </div>
+          ) : rows.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No team members to show yet.
+            </p>
+          ) : null}
 
           <ul className="grid gap-3 xl:grid-cols-2">
             {rows.map((r) => (
@@ -404,11 +400,15 @@ export function WorkloadClient() {
                 <div className="flex flex-wrap gap-x-5 gap-y-1 text-xs">
                   <span>
                     <span className="text-muted-foreground">Open </span>
-                    <span className="font-medium tabular-nums">{r.openCount}</span>
+                    <span className="font-medium tabular-nums">
+                      {r.openCount}
+                    </span>
                   </span>
                   <span>
                     <span className="text-muted-foreground">Est. </span>
-                    <span className="font-medium tabular-nums">{r.openEst}h</span>
+                    <span className="font-medium tabular-nums">
+                      {r.openEst}h
+                    </span>
                     {/* Allocation includes work that has been offered and not
                         yet answered. Leaving that unsaid is what made this
                         number disagree with the person's own page. */}
@@ -420,13 +420,15 @@ export function WorkloadClient() {
                     ) : null}
                   </span>
                   <span title="Hours recorded against tasks since Monday.">
-                    <span className="text-muted-foreground">Logged this wk </span>
+                    <span className="text-muted-foreground">
+                      Logged this wk{" "}
+                    </span>
                     <span
                       className={cn(
                         "font-medium tabular-nums",
                         r.loggedWeek > 0
                           ? "text-foreground"
-                          : "text-muted-foreground"
+                          : "text-muted-foreground",
                       )}
                     >
                       {r.loggedWeek}h

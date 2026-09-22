@@ -206,7 +206,9 @@ function groupLinesByModule(
   return { groups, subtotal };
 }
 
-export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) {
+export function ProposalEditorClient({
+  proposalId,
+}: ProposalEditorClientProps) {
   const { canExportProposals } = usePermissions();
   // Booked time off, folded into every timeline this page draws.
   const teamCalendar = useTeamCalendar();
@@ -348,10 +350,31 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
 
   const totals = quote ? quoteTotals(quote) : null;
   const devHours = quote ? quoteDevHours(quote) : 0;
+  /**
+   * The same lines priced at each row's OWN tier, and all priced as Advanced.
+   *
+   * Shown wherever "Requirements not pinned down yet" changes the total. QA
+   * read "368-568 hrs" on Scope & risk and "708 h" on Line items and could not
+   * reconcile them: the lines summed to 472 h, and the box — ticked on a third
+   * tab — priced every one as Advanced. Nothing on either screen said so.
+   *
+   * Not described as "x 1.5": the box forces every line to Advanced, so a line
+   * already set to Custom (2x) goes DOWN. Both totals come from quoteDevHours,
+   * so they cannot disagree with the figure actually quoted.
+   */
+  const ownTierHours = quote
+    ? quoteDevHours({ ...quote, requirements_unclear: false })
+    : 0;
+  const advancedHours = quote
+    ? quoteDevHours({ ...quote, requirements_unclear: true })
+    : 0;
+  const pricingChangesTotal = quote
+    ? quote.line_items.length > 0 && ownTierHours !== advancedHours
+    : false;
 
   const platformHasCatalog = quote
-    ? PROPOSAL_PLATFORM_OPTIONS.find((p) => p.value === quote.platform)
-        ?.hasCatalog ?? false
+    ? (PROPOSAL_PLATFORM_OPTIONS.find((p) => p.value === quote.platform)
+        ?.hasCatalog ?? false)
     : false;
 
   const alreadyAddedIds = React.useMemo(
@@ -376,7 +399,11 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   const scopeResult = React.useMemo(
     () =>
       quote?.discovery
-        ? analyzeDiscovery(quote.discovery, teamCalendar, quote.risk_buffer_pct ?? 0)
+        ? analyzeDiscovery(
+            quote.discovery,
+            teamCalendar,
+            quote.risk_buffer_pct ?? 0,
+          )
         : null,
     [quote, teamCalendar],
   );
@@ -476,7 +503,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
   };
 
   const strategyArg = () =>
-    convertSeedTasks && convertStrategy !== "none" ? convertStrategy : undefined;
+    convertSeedTasks && convertStrategy !== "none"
+      ? convertStrategy
+      : undefined;
 
   /** Step 1 → 2: compute the plan for review. Writes nothing. */
   const handlePreview = () => {
@@ -610,7 +639,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       : quote.pbs.status
                         ? `Status ${quote.pbs.status}`
                         : null,
-                    quote.pbs.created_at ? `Created ${quote.pbs.created_at}` : null,
+                    quote.pbs.created_at
+                      ? `Created ${quote.pbs.created_at}`
+                      : null,
                     // The range the PO was filed with. PBS keeps it in a
                     // `po_parameter` record nothing here can read back, so this
                     // stored copy is the only place it is visible at all.
@@ -779,7 +810,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   <div className="rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
                     <div className="flex items-start justify-between gap-2">
                       <span className="font-medium text-foreground">
-                        {quote.zoho.deal_id ? "Linked to Zoho CRM" : "Client from Zoho CRM"}
+                        {quote.zoho.deal_id
+                          ? "Linked to Zoho CRM"
+                          : "Client from Zoho CRM"}
                       </span>
                       {quote.zoho.web_url ? (
                         <a
@@ -807,7 +840,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                             proposalId={quote.id}
                             stage={quote.zoho.stage}
                             syncedAt={
-                              quote.zoho.stage_synced_at ?? quote.zoho.imported_at
+                              quote.zoho.stage_synced_at ??
+                              quote.zoho.imported_at
                             }
                             // Records the stage AND applies the win — the same
                             // call the pipeline board makes, so the two cannot
@@ -866,7 +900,9 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                       {quote.zoho.contact ? (
                         <span>Contact: {quote.zoho.contact}</span>
                       ) : null}
-                      {quote.zoho.owner ? <span>Rep: {quote.zoho.owner}</span> : null}
+                      {quote.zoho.owner ? (
+                        <span>Rep: {quote.zoho.owner}</span>
+                      ) : null}
                       {quote.zoho.closing_date ? (
                         <span>Target close: {quote.zoho.closing_date}</span>
                       ) : null}
@@ -1038,6 +1074,22 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                         {formatHours(scopeResult.estimate.total.min)}–
                         {formatHours(scopeResult.estimate.total.max)} hrs
                       </span>
+                      {quote.requirements_unclear && pricingChangesTotal ? (
+                        <span className="text-amber-700 dark:text-amber-400">
+                          {/* One string, not JSX text around expressions: JSX
+                              drops whitespace beside an expression whenever the
+                              formatter wraps there, and it rendered "708h" and
+                              then "708 h—" as the lines moved. */}
+                          {`Line items: ${ownTierHours} h, quoted at ${devHours} h — every line priced as Advanced while requirements aren't pinned down. `}
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() => setTab("adjust")}
+                          >
+                            Change
+                          </button>
+                        </span>
+                      ) : null}
                       <span className="tabular-nums text-muted-foreground">
                         ~{scopeResult.timeline.totalWeeks} wks · launch{" "}
                         {scopeResult.timeline.launchDate}
@@ -1085,7 +1137,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                         )}
                       >
                         {coverageThin ? (
-                          <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                          <TriangleAlert
+                            className="mt-0.5 size-3.5 shrink-0"
+                            aria-hidden
+                          />
                         ) : null}
                         <span>
                           {/* Lead with the required gaps — they're the specific,
@@ -1094,20 +1149,27 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                             <>
                               <span className="font-medium">
                                 {coverage.missingRequired} required question
-                                {coverage.missingRequired === 1 ? "" : "s"} still blank
+                                {coverage.missingRequired === 1 ? "" : "s"}{" "}
+                                still blank
                               </span>
-                              {" — the estimate covers them with industry defaults. "}
+                              {
+                                " — the estimate covers them with industry defaults. "
+                              }
                             </>
                           ) : null}
                           <span
-                            className={coverage.missingRequired > 0 ? "" : "font-medium"}
+                            className={
+                              coverage.missingRequired > 0 ? "" : "font-medium"
+                            }
                           >
-                            {coverage.answered} of {coverage.total} details filled in
+                            {coverage.answered} of {coverage.total} details
+                            filled in
                           </span>
                           {coverage.missingRequired === 0 && coverageThin ? (
                             <>
-                              {" "}— the rest fall back to defaults, so treat this as a
-                              ballpark.
+                              {" "}
+                              — the rest fall back to defaults, so treat this as
+                              a ballpark.
                             </>
                           ) : (
                             <>.</>
@@ -1126,8 +1188,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
               phone gives 351px, so "Review" — where Send to Zoho lives — sat
               off-screen behind a scrollbar nobody sees on touch. */}
-          <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
-                    <TabsTrigger value="questionnaire">Questionnaire</TabsTrigger>
+                  <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
+                    <TabsTrigger value="questionnaire">
+                      Questionnaire
+                    </TabsTrigger>
                     <TabsTrigger value="hours">Hours</TabsTrigger>
                     <TabsTrigger value="timeline">Timeline</TabsTrigger>
                   </TabsList>
@@ -1192,13 +1256,17 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               <Card>
                 <CardHeader className="items-center gap-2 text-center">
                   <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
-                    <Compass className="size-6 text-muted-foreground" aria-hidden />
+                    <Compass
+                      className="size-6 text-muted-foreground"
+                      aria-hidden
+                    />
                   </div>
                   <CardTitle>Scope this estimate to see a timeline</CardTitle>
                   <CardDescription className="max-w-md text-balance">
                     Add line items (Line items tab) for a tentative timeline, or
-                    answer the guided questionnaire for Min/Mid/Max hours, a phased
-                    timeline, and a risk score — then generate the line items for you.
+                    answer the guided questionnaire for Min/Mid/Max hours, a
+                    phased timeline, and a risk score — then generate the line
+                    items for you.
                   </CardDescription>
                   <Button
                     type="button"
@@ -1255,7 +1323,10 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             {quote.discovery && quote.line_items.length === 0 ? (
               <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
                 <p className="flex items-center gap-2 text-sm">
-                  <Compass className="size-4 shrink-0 text-primary" aria-hidden />
+                  <Compass
+                    className="size-4 shrink-0 text-primary"
+                    aria-hidden
+                  />
                   <span>
                     You scoped this with the questionnaire
                     {scopeResult
@@ -1330,8 +1401,13 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
             <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 <span className="text-muted-foreground">Dev hours</span>
+                {quote.requirements_unclear && pricingChangesTotal ? (
+                  <span className="tabular-nums text-muted-foreground">
+                    {`${ownTierHours} h at own tiers →`}
+                  </span>
+                ) : null}
                 <span className="tabular-nums text-base font-semibold">
-                  {devHours} h
+                  {`${devHours} h`}
                 </span>
                 {quote.requirements_unclear ? (
                   <Badge
@@ -1387,6 +1463,23 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                     Prices every line as Advanced (1.5×) for a safer estimate,
                     ignoring each row&apos;s own tier until you firm things up.
                   </span>
+                  {pricingChangesTotal ? (
+                    <span className="mt-1 block text-xs font-normal tabular-nums">
+                      {quote.requirements_unclear ? (
+                        <>
+                          {`On: ${ownTierHours} h at each line's own tier is being quoted as `}
+                          <span className="font-medium">{`${advancedHours} h`}</span>
+                          .
+                        </>
+                      ) : (
+                        <>
+                          {`Ticking this would take the line items from ${ownTierHours} h to `}
+                          <span className="font-medium">{`${advancedHours} h`}</span>
+                          .
+                        </>
+                      )}
+                    </span>
+                  ) : null}
                 </Label>
               </CardContent>
             </Card>
@@ -1465,9 +1558,7 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
                   className="gap-1.5"
                   // Creating needs an account to hang the deal off; updating an
                   // existing deal doesn't, since it already has one.
-                  disabled={
-                    !quote.zoho?.deal_id && !quote.zoho?.account_id
-                  }
+                  disabled={!quote.zoho?.deal_id && !quote.zoho?.account_id}
                   title={
                     quote.zoho?.deal_id
                       ? proposalPushed
@@ -1485,7 +1576,6 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
-
           </TabsContent>
         </Tabs>
       </div>
@@ -1589,7 +1679,8 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               await hydrateProposals();
             } else if (res.skipped && res.currentStage) {
               toast.info(`Zoho deal left at ${res.currentStage}`, {
-                description: "Linking only advances a deal, never moves it back.",
+                description:
+                  "Linking only advances a deal, never moves it back.",
               });
             }
           })();
@@ -1649,64 +1740,68 @@ export function ProposalEditorClient({ proposalId }: ProposalEditorClientProps) 
               <SchedulePreviewPanel preview={convertPreview} />
             </div>
           ) : (
-          <div className="space-y-4 py-1">
-            <div className="space-y-1.5">
-              <Label htmlFor="convert-name">Project name</Label>
-              <Input
-                id="convert-name"
-                value={convertName}
-                onChange={(e) => setConvertName(e.target.value)}
-                autoFocus
-              />
-            </div>
-            <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
-              <Checkbox
-                checked={convertSeedTasks}
-                onCheckedChange={(v) => setConvertSeedTasks(v === true)}
-                className="mt-0.5"
-              />
-              <span>
-                <span className="font-medium">Create tasks from line items</span>
-                <span className="mt-0.5 block text-xs text-muted-foreground">
-                  {quote.line_items.filter((li) => li.title.trim()).length}{" "}
-                  task(s) will be created, each with its estimated hours, and
-                  slotted into phase sprints.
-                </span>
-              </span>
-            </label>
-            {convertSeedTasks ? (
+            <div className="space-y-4 py-1">
               <div className="space-y-1.5">
-                <Label>Auto-assign developers &amp; build the timeline</Label>
-                <div className="grid grid-cols-3 gap-1.5">
-                  {(
-                    [
-                      ["efficient", "Best-fit"],
-                      ["quick", "Fastest"],
-                      ["none", "Manual"],
-                    ] as const
-                  ).map(([val, label]) => (
-                    <Button
-                      key={val}
-                      type="button"
-                      size="sm"
-                      variant={convertStrategy === val ? "default" : "outline"}
-                      className="h-9"
-                      onClick={() => setConvertStrategy(val)}
-                    >
-                      {label}
-                    </Button>
-                  ))}
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  {convertStrategy === "efficient"
-                    ? "Assigns each dev & QA task to the best-skilled available person; sprint dates follow their capacity."
-                    : convertStrategy === "quick"
-                      ? "Spreads work across every qualified dev to finish soonest."
-                      : "Tasks are created unassigned — you'll assign people yourself."}
-                </p>
+                <Label htmlFor="convert-name">Project name</Label>
+                <Input
+                  id="convert-name"
+                  value={convertName}
+                  onChange={(e) => setConvertName(e.target.value)}
+                  autoFocus
+                />
               </div>
-            ) : null}
-          </div>
+              <label className="flex items-start gap-2.5 rounded-lg border border-border bg-muted/20 p-3 text-sm">
+                <Checkbox
+                  checked={convertSeedTasks}
+                  onCheckedChange={(v) => setConvertSeedTasks(v === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  <span className="font-medium">
+                    Create tasks from line items
+                  </span>
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
+                    {quote.line_items.filter((li) => li.title.trim()).length}{" "}
+                    task(s) will be created, each with its estimated hours, and
+                    slotted into phase sprints.
+                  </span>
+                </span>
+              </label>
+              {convertSeedTasks ? (
+                <div className="space-y-1.5">
+                  <Label>Auto-assign developers &amp; build the timeline</Label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        ["efficient", "Best-fit"],
+                        ["quick", "Fastest"],
+                        ["none", "Manual"],
+                      ] as const
+                    ).map(([val, label]) => (
+                      <Button
+                        key={val}
+                        type="button"
+                        size="sm"
+                        variant={
+                          convertStrategy === val ? "default" : "outline"
+                        }
+                        className="h-9"
+                        onClick={() => setConvertStrategy(val)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {convertStrategy === "efficient"
+                      ? "Assigns each dev & QA task to the best-skilled available person; sprint dates follow their capacity."
+                      : convertStrategy === "quick"
+                        ? "Spreads work across every qualified dev to finish soonest."
+                        : "Tasks are created unassigned — you'll assign people yourself."}
+                  </p>
+                </div>
+              ) : null}
+            </div>
           )}
           <DialogFooter className="gap-2 sm:gap-0">
             <Button
@@ -1760,7 +1855,9 @@ function LiveProjectTimeline({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-3">
       <p className="rounded-lg border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
-        <span className="font-medium text-foreground">Live project timeline</span>{" "}
+        <span className="font-medium text-foreground">
+          Live project timeline
+        </span>{" "}
         — this estimate has a project, so its sprints are the schedule. Edit the
         dates on the{" "}
         <Link
@@ -1860,7 +1957,7 @@ function ProductAllocation({
             <tr key={p.id} className="border-t border-border/50">
               <td className="px-2.5 py-1.5">
                 <span className="font-medium">{p.name}</span>
-                {p.tag ?? p.category ? (
+                {(p.tag ?? p.category) ? (
                   <span className="ml-1.5 text-[0.65rem] uppercase tracking-wide text-muted-foreground">
                     {p.tag ?? p.category}
                   </span>
@@ -1877,7 +1974,9 @@ function ProductAllocation({
                   type="button"
                   aria-label={`Remove ${p.name}`}
                   className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
-                  onClick={() => onChange(products.filter((x) => x.id !== p.id))}
+                  onClick={() =>
+                    onChange(products.filter((x) => x.id !== p.id))
+                  }
                 >
                   <X className="size-3" aria-hidden />
                 </button>
@@ -1998,7 +2097,9 @@ function LineItemRow({
           </p>
         </div>
         <div className="shrink-0 text-right leading-none">
-          <span className="tabular-nums text-base font-semibold">{effHours}</span>
+          <span className="tabular-nums text-base font-semibold">
+            {effHours}
+          </span>
           <span className="text-xs text-muted-foreground">h</span>
         </div>
         <Button
@@ -2124,7 +2225,9 @@ function LineItemRow({
                     {otherLines.map((o) => {
                       const inputId = `dep-${line.id}-${o.id}`;
                       const checked = line.depends_on.includes(o.id);
-                      const otherIx = allLines.findIndex((li) => li.id === o.id);
+                      const otherIx = allLines.findIndex(
+                        (li) => li.id === o.id,
+                      );
                       return (
                         <li key={o.id} className="flex items-start gap-2">
                           <Checkbox

@@ -8,6 +8,7 @@ import {
   TaskBadgePopover,
   taskHref,
 } from "@/components/features/workload/TaskBadgePopover";
+import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -18,12 +19,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  DEFAULT_WEEKLY_CAPACITY_HOURS,
-  startOfWeekIso,
-} from "@/lib/constants/workload";
-import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import {
   assignedWork,
   capacityFor,
@@ -50,35 +46,21 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
   const availabilityEntries = useAvailabilityStore((s) => s.entries);
   const projectName = React.useCallback(
     (id: string) => projects.find((p) => p.id === id)?.name ?? id,
-    [projects]
+    [projects],
   );
 
-  const [hoursThisWeek, setHoursThisWeek] = React.useState<number | null>(null);
-  React.useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    let active = true;
-    void (async () => {
-      const supabase = createClient();
-      const { data } = await supabase
-        .from("time_entries")
-        .select("hours")
-        .eq("profile_id", me)
-        .gte("logged_at", startOfWeekIso());
-      if (active) {
-        setHoursThisWeek(
-          Math.round((data ?? []).reduce((s, r) => s + Number(r.hours), 0) * 10) /
-            10
-        );
-      }
-    })();
-    return () => {
-      active = false;
-    };
-    // `tasks` is the trigger, not just `me`: logging time writes the task's
-    // cached total, so without it this card kept showing a stale week until the
-    // page was remounted — while the Team view, which does depend on tasks,
-    // updated. Same number, two pages, two answers.
-  }, [me, tasks]);
+  /**
+   * Same read as the Team view and the dashboard — `useWeekLoggedHours`.
+   *
+   * ⚠️ This used to be a private copy of that query, and it ran *alongside* the
+   * shared one: `WorkloadClient` calls the hook before it returns this
+   * component, so the Mine view fired two requests for one number. Two copies
+   * of "hours logged this week" is also two chances for the two pages to
+   * disagree about the same person in the same week.
+   */
+  const weekLogged = useWeekLoggedHours();
+  const hoursThisWeek =
+    weekLogged == null ? null : Math.round((weekLogged[me] ?? 0) * 10) / 10;
 
   /**
    * "Now", read after mount rather than during render — the same rule the Team
@@ -94,7 +76,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
 
   const work = React.useMemo(
     () => assignedWork(tasks, me, { now }),
-    [tasks, me, now]
+    [tasks, me, now],
   );
   const pendingCount = work.pending.length;
 
@@ -104,15 +86,19 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
     getEffectiveWeeklyHours(capacityOverrides, me),
     availabilityEntries,
     me,
-    now
+    now,
   );
   const weeklyCap = cap.effective;
   const openEst = work.allocatedHours;
   const overdue = work.overdue;
-  const { pct: utilPct, barPct, over: overCap } = utilization(openEst, weeklyCap);
+  const {
+    pct: utilPct,
+    barPct,
+    over: overCap,
+  } = utilization(openEst, weeklyCap);
   const slices = React.useMemo(
     () => statusBreakdown(work.allocated),
-    [work.allocated]
+    [work.allocated],
   );
   /**
    * Working time left in the week after what has already been logged.
@@ -134,7 +120,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
    */
   const pendingIds = React.useMemo(
     () => new Set(work.pending.map((t) => t.id)),
-    [work.pending]
+    [work.pending],
   );
   const byProject = React.useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -222,7 +208,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
             <CardTitle
               className={cn(
                 "text-2xl font-semibold tabular-nums",
-                overCap && "text-amber-700 dark:text-amber-400"
+                overCap && "text-amber-700 dark:text-amber-400",
               )}
             >
               {utilPct}%
@@ -306,7 +292,10 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
                               </Badge>
                             ) : null}
                             {overdueRow ? (
-                              <Badge variant="destructive" className="text-[0.65rem]">
+                              <Badge
+                                variant="destructive"
+                                className="text-[0.65rem]"
+                              >
                                 overdue
                               </Badge>
                             ) : null}

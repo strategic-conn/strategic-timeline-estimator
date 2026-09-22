@@ -8,6 +8,7 @@ import {
   Palmtree,
 } from "lucide-react";
 
+import { MineTeamToggle } from "@/components/common/mine-team-toggle";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -248,27 +249,12 @@ export function CalendarClient() {
         }
         actions={
           <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
-            {canApproveTimeOff ? (
-              /* Same Mine/Team control as Workload, so the two schedule pages
-                 behave the same way for the same people. */
-              <div className="inline-flex rounded-lg border border-border/60 bg-card/50 p-0.5 text-sm">
-                {(["mine", "team"] as const).map((v) => (
-                  <button
-                    key={v}
-                    type="button"
-                    onClick={() => setScope(v)}
-                    className={cn(
-                      "rounded-md px-3 py-1 capitalize transition-colors",
-                      scope === v
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {v === "mine" ? "Mine" : "Team"}
-                  </button>
-                ))}
-              </div>
-            ) : null}
+            {/* Same Mine/Team control as Workload and the Dashboard. */}
+            <MineTeamToggle
+              view={scope}
+              onChange={setScope}
+              canSeeTeam={canApproveTimeOff}
+            />
             <Button variant="outline" size="sm" className="border-border/60 bg-background/80" onClick={goToday}>
               Today
             </Button>

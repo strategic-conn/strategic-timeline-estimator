@@ -47,8 +47,17 @@ const schema = z
     end_date: z.string().min(1, "End date is required"),
   })
   .refine(
-    (d) => !d.start_date || !d.end_date || new Date(d.end_date) > new Date(d.start_date),
-    { message: "End date must be after start date", path: ["end_date"] }
+    // `>=`, not `>`. A one-day sprint is legitimate, and the estimate
+    // scaffolder (`convertToProject` / `regenerateSchedule`) already writes
+    // them — it inserts straight through supabase and never sees this schema.
+    // With `>` those sprints could not be saved from this modal at all: rename
+    // one and it failed validation on dates nobody had touched. Two live
+    // sprints were in exactly that state.
+    (d) =>
+      !d.start_date ||
+      !d.end_date ||
+      new Date(d.end_date) >= new Date(d.start_date),
+    { message: "End date cannot be before start date", path: ["end_date"] },
   );
 
 type FormValues = z.infer<typeof schema>;
@@ -129,7 +138,9 @@ export function CreateSprintModal({
               aria-invalid={!!form.formState.errors.name}
             />
             {form.formState.errors.name ? (
-              <p className="text-xs text-destructive">{form.formState.errors.name.message}</p>
+              <p className="text-xs text-destructive">
+                {form.formState.errors.name.message}
+              </p>
             ) : null}
           </div>
 
@@ -157,7 +168,12 @@ export function CreateSprintModal({
                   <SelectContent>
                     {SPRINT_STATUSES.map((s) => (
                       <SelectItem key={s.value} value={s.value}>
-                        <span className={cn("rounded px-1.5 py-0.5 text-xs", s.color)}>
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-xs",
+                            s.color,
+                          )}
+                        >
                           {s.label}
                         </span>
                       </SelectItem>
@@ -180,7 +196,7 @@ export function CreateSprintModal({
                     variant="outline"
                     className={cn(
                       "w-full justify-start font-normal",
-                      !startDate && "text-muted-foreground"
+                      !startDate && "text-muted-foreground",
                     )}
                   >
                     <CalendarDays className="size-4" />
@@ -220,7 +236,7 @@ export function CreateSprintModal({
                     variant="outline"
                     className={cn(
                       "w-full justify-start font-normal",
-                      !endDate && "text-muted-foreground"
+                      !endDate && "text-muted-foreground",
                     )}
                   >
                     <CalendarDays className="size-4" />

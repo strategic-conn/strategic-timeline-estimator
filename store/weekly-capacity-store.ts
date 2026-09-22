@@ -38,6 +38,13 @@ type WeeklyCapacityState = {
   error: string | null;
   /** Pull all per-person weekly hours from Supabase (live mode). */
   hydrateFromSupabase: () => Promise<void>;
+  /**
+   * Realtime echo (0037) — one manager editing someone's weekly hours moves
+   * every utilisation bar in the workspace, so the other manager watching
+   * Workload should not be reading last page-load's number.
+   */
+  applyRealtimeUpsert: (profileId: string, hoursPerWeek: number) => void;
+  applyRealtimeDelete: (profileId: string) => void;
   setWeeklyHours: (memberId: string, hours: number) => void;
   getWeeklyHours: (memberId: string) => number;
 };
@@ -66,6 +73,23 @@ export const useWeeklyCapacityStore = create<WeeklyCapacityState>()(
           overrides[row.profile_id] = clampHours(row.hours_per_week);
         }
         set({ overrides, loading: false, loaded: true, error: null });
+      },
+
+      applyRealtimeUpsert: (profileId, hoursPerWeek) => {
+        set((s) => ({
+          overrides: { ...s.overrides, [profileId]: clampHours(hoursPerWeek) },
+        }));
+      },
+
+      applyRealtimeDelete: (profileId) => {
+        set((s) => {
+          if (!(profileId in s.overrides)) return s;
+          // Removing the override falls back to DEFAULT_WEEKLY_CAPACITY_HOURS,
+          // which is what `getEffectiveWeeklyHours` does for a missing key.
+          const next = { ...s.overrides };
+          delete next[profileId];
+          return { overrides: next };
+        });
       },
 
       setWeeklyHours: (memberId, hours) => {

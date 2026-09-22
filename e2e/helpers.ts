@@ -77,7 +77,10 @@ export function env(): Record<string, string> {
  * old QA id started returning 404, so two guards silently stopped testing the
  * guard and started testing "quote not found". Read-only.
  */
-export async function linkedQuote(): Promise<{ quoteId: string; dealId: string } | null> {
+export async function linkedQuote(): Promise<{
+  quoteId: string;
+  dealId: string;
+} | null> {
   const e = env();
   const url = (e.NEXT_PUBLIC_SUPABASE_URL || "").replace(/\/$/, "");
   const key = e.SUPABASE_SERVICE_ROLE_KEY;
@@ -87,6 +90,29 @@ export async function linkedQuote(): Promise<{ quoteId: string; dealId: string }
     { headers: { apikey: key, Authorization: `Bearer ${key}` } },
   );
   if (!res.ok) return null;
-  const [row] = (await res.json()) as { id: string; zoho: { deal_id?: string } }[];
-  return row?.zoho?.deal_id ? { quoteId: row.id, dealId: row.zoho.deal_id } : null;
+  const [row] = (await res.json()) as {
+    id: string;
+    zoho: { deal_id?: string };
+  }[];
+  return row?.zoho?.deal_id
+    ? { quoteId: row.id, dealId: row.zoho.deal_id }
+    : null;
+}
+
+/**
+ * Give the realtime channels time to JOIN before writing rows they should catch.
+ *
+ * ⚠️ `postgres_changes` is not a replay log. A row written before the channel
+ * has joined is never delivered — there is no backfill — so a test that writes
+ * the instant the page is interactive is racing the subscription, not testing
+ * it. `liveChannels` (components/layouts/workspace-sync.tsx) has to await the
+ * cookie session before subscribing, because bindings are RLS-checked at join
+ * time, so the join lands a few hundred ms after first paint.
+ *
+ * ponytail: a settle, not a poll — nothing in the UI reports subscription
+ * state. If that ever becomes flaky, have `liveChannels` mark the DOM on
+ * SUBSCRIBED and wait for that instead.
+ */
+export async function settleRealtime(page: Page): Promise<void> {
+  await page.waitForTimeout(3000);
 }

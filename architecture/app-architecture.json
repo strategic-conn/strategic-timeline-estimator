@@ -215,7 +215,8 @@
       "sub": "(dashboard)/layout.tsx",
       "purpose": "Mounts WorkspaceSync, PageAccessGuard, sidebar/header/mobile nav + NotificationBell.",
       "files": [
-        "app/(dashboard)/layout.tsx:27"
+        "app/(dashboard)/layout.tsx:27",
+        "app/(dashboard)/dashboard/page.tsx"
       ]
     },
     {
@@ -223,9 +224,12 @@
       "layer": "surfaces",
       "label": "/dashboard",
       "sub": "always-on",
-      "purpose": "KPI cards, work due soon, quick actions, activity feed.",
+      "purpose": "Mine / Team scopes behind the shared MineTeamToggle (admin+manager get Team). Derives NO numbers of its own - assignedWork / capacityFor / utilization / statusBreakdown, the same four calls Workload makes. Charts are recharts via ui/chart, coloured from TASK_STATUS_META so segments match the board.",
       "files": [
-        "app/(dashboard)/dashboard/page.tsx"
+        "app/(dashboard)/dashboard/page.tsx",
+        "components/features/dashboard/DashboardTeam.tsx",
+        "components/common/mine-team-toggle.tsx",
+        "hooks/useWeekLoggedHours.ts"
       ]
     },
     {
@@ -466,7 +470,7 @@
       "layer": "state",
       "label": "availability-store",
       "sub": "timeline-availability",
-      "purpose": "PTO/availability CRUD; hydrate-only (no realtime).",
+      "purpose": "PTO/availability CRUD incl. the approval lifecycle (0034); live via channel workspace:scheduling (0037).",
       "files": [
         "store/availability-store.ts"
       ],
@@ -479,7 +483,7 @@
       "layer": "state",
       "label": "weekly-capacity-store",
       "sub": "timeline-weekly-capacity",
-      "purpose": "Weekly hours/member; upsert onConflict profile_id.",
+      "purpose": "Weekly hours/member; upsert onConflict profile_id; live via channel workspace:scheduling (0037).",
       "files": [
         "store/weekly-capacity-store.ts:81"
       ],
@@ -627,7 +631,7 @@
       "layer": "bridge",
       "label": "WorkspaceSync",
       "sub": "hydrate + realtime hub",
-      "purpose": "On auth, hydrates all synced stores + opens 3 realtime channels. Gated on isSupabaseConfigured && authId; no-op in demo.",
+      "purpose": "On auth, hydrates all synced stores + opens 4 realtime channels via liveChannels(), which awaits realtime.setAuth() BEFORE subscribing - postgres_changes bindings are RLS-checked at join time, so an unauthed join silently never delivers. Gated on isSupabaseConfigured && authId; no-op in demo.",
       "files": [
         "components/layouts/workspace-sync.tsx:40"
       ]
@@ -1014,9 +1018,19 @@
       "layer": "rt",
       "label": "channel workspace:board",
       "sub": "event *",
-      "purpose": "projects/sprints/tasks/assignees/comments/reactions changes -> respective stores. Idempotent appliers dedupe own echoes.",
+      "purpose": "projects/sprints/tasks/assignees/comments/reactions changes -> respective stores. Idempotent appliers dedupe own echoes. Draws the Gantt and the boards.",
       "files": [
         "components/layouts/workspace-sync.tsx:139"
+      ]
+    },
+    {
+      "id": "rt-scheduling",
+      "layer": "rt",
+      "label": "channel workspace:scheduling",
+      "sub": "event * (0037)",
+      "purpose": "availability_entries / weekly_capacity / profiles changes -> availability, weekly-capacity and team stores. Separate from the board deliberately: the board is what the timeline DRAWS, this is what SHAPES it (PTO, capacity, roster). All three were hydrate-once before 0037 - correct on load, then quietly stale.",
+      "files": [
+        "components/layouts/workspace-sync.tsx"
       ]
     },
     {
@@ -2586,6 +2600,26 @@
       "from": "c-taskbadge",
       "to": "st-tasks",
       "label": "links to the task board"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "rt-scheduling",
+      "label": ""
+    },
+    {
+      "from": "rt-scheduling",
+      "to": "st-availability",
+      "label": ""
+    },
+    {
+      "from": "rt-scheduling",
+      "to": "st-capacity",
+      "label": ""
+    },
+    {
+      "from": "rt-scheduling",
+      "to": "st-team",
+      "label": ""
     }
   ],
   "flows": [
@@ -4130,7 +4164,25 @@
     "A batch of sprint writes fires one schedule notice, not one per sprint: wrap the loop in withMirrorSuppressed and call notifyProjectScheduleChanged once, or the drift dedupe key changes underneath and a single action stacks warnings.",
     "The workload bar is segmented by task status and shared by both views. Over-capacity is an amber ring, never a recolour of the fill - the limit and what the load is made of are different signals.",
     "Workload \"Available\" = effective weekly capacity minus hours LOGGED this week. It is not spare capacity: with an unbounded backlog someone can have hours left in the week and still be over-allocated, which is what utilisation reports.",
-    "A count badge must be able to show WHAT it counted. Pending/overdue open a popover listing the tasks, each linking to its board, and the list is derived from the same array the count is - a badge that disagrees with its own list is worse than no list."
+    "A count badge must be able to show WHAT it counted. Pending/overdue open a popover listing the tasks, each linking to its board, and the list is derived from the same array the count is - a badge that disagrees with its own list is worse than no list.",
+    "e2e fixture names must be unique per run, not merely [E2E]-prefixed. The suite is serial but the three viewport projects run the same tests against one shared database, so a fixed name is created and deleted three times over - any test that finds its fixture BY TEXT breaks on a lingering duplicate. Tests that use the returned row id are unaffected.",
+    "postgres_changes bindings are RLS-checked SERVER-SIDE AT JOIN TIME, against the token the SOCKET carries - not the one REST calls use. Join before the cookie session resolves and the bindings register as anon, match nothing, and stay dead for the life of the channel; handing the socket a token afterwards does not re-evaluate them. It fails silently - the channel reports SUBSCRIBED, the socket token reads authenticated a moment later, Broadcast still works and the replication slots stay caught up. Hence liveChannels(), which awaits realtime.setAuth() before .subscribe(). setAuth takes NO argument: an explicit token is marked manually-set and permanently disables supabase-js's own hourly refresh.",
+    "On a realtime DELETE, payload.old carries ONLY the primary key (REPLICA IDENTITY DEFAULT), so an applier reading any non-PK column from it silently no-ops. Audited: weekly_capacity PK is profile_id, task_assignees (task_id, profile_id), comment_reactions (comment_id, profile_id, emoji), the rest id - each exactly what its handler reads. Check this before publishing a new table; a surrogate id PK on a join table breaks DELETE propagation while INSERT and UPDATE keep working.",
+    "An auto-approved time-off row (admin/manager booking their own) still records reviewed_by = that person and reviewed_at, and both are sent WITH the insert. Null made it indistinguishable from pre-0034 grandfathered rows; client-side-only would have the store claim a reviewer Postgres never stored. 0035's trigger nulls these for a non-approver only.",
+    "The dashboard derives no numbers of its own: both scopes read lib/workload/assigned-work.ts (assignedWork / capacityFor / utilization / statusBreakdown), the same calls Workload makes, and hooks/useWeekLoggedHours.ts for logged hours (time_entries, never tasks.logged_hours). It is the page people quote at each other, so it must agree with every other page; e2e/dashboard-views.spec.ts asserts every 'N% of Mh' it prints also appears on Workload.",
+    "TASK_STATUS_META holds dot (Tailwind class) and hex (for SVG/recharts) on one line per status, because SVG cannot take a Tailwind class and the two drifting is how a status ends up one colour on the board and another in a chart. Chart colours must come from it, never from the chart library's own palette. TASK_STATUS_LABEL lives there too - the dashboard and Reports each had a private copy.",
+    "Per-person task counts credit a shared task to each assignee; workspace-wide counts credit it once. Different questions - 'how loaded is this person' vs 'how much work is there' - and a 6h task with two assignees is 6h of work, not 12h. Applies to Workload's totalOpenEst and the dashboard's workspaceMix alike.",
+    "useWeekLoggedHours returns null until the time_entries read resolves (and always in demo mode), never {}: 'nobody logged anything' and 'not loaded yet' are both 0 otherwise, and the personal card shows an em dash plus full remaining capacity for the second. Callers use weekLogged?.[id] ?? 0. Reports keeps its own time_entries read on purpose - no date filter, because it answers an all-time question.",
+    "An empty state over async data must be gated on the store's `loaded` flag. members is [] while the team store hydrates, so an ungated empty state tells an admin with a full team that they have no team. Dashboard Team and Workload render a skeleton until loaded, then choose between content and empty.",
+    "A sprint may start and end on the same day: both sprint modals validate end >= start. The estimate scaffolder inserts sprints directly and never sees that schema, so it already produces one-day sprints; a strict > made them unsavable from the Edit modal. A rule enforced by only one of two writers of the same table will drift.",
+    "main is itself overflow-x:auto, so a layout check asking 'is this inside any scroller?' skips the whole page and passes by doing nothing - how e2e/layout-integrity.spec.ts first shipped inert. Ask WHICH scroller: overflowing main is the bug, overflowing a deliberate inner one (Gantt, wide table, stage-board strip) is the design. Give any new layout assertion a negative control before trusting it.",
+    "The UI is not a security boundary: the anon key is public, so any signed-in user can call PostgREST directly. RLS + triggers are the only gates. scripts/security-probe.mjs attacks with a real throwaway [E2E] member JWT and must print all PASS after any policy/trigger/constraint change.",
+    "prevent_self_approval (0041): a non-approver may withdraw a leave to pending but never decide it; changing the dates/kind of a decided leave re-opens it as pending server-side; verdict fields (reviewed_by/at, review_note) cannot be written by a non-approver. 0035 had it backwards - it refused the client's honest re-pend and allowed a silent date extension of approved leave.",
+    "prevent_role_self_change guards role, page_access, deactivated_at, confirmed_at and email for non-admins. confirmed_at is what puts a person on the roster and into every capacity figure; it is written only by the auth confirmation trigger (NULL role, so the guard lets it through).",
+    "notifications.href and activity.href carry CHECK constraints: internal paths only (one leading '/', no '//', no backslash - browsers normalise '/\\x' to '//x').",
+    "Probe pitfalls: return=representation turns INSERT into INSERT...RETURNING, which then needs SELECT visibility, so a notification to someone else reports an RLS violation and href probes pass falsely; and the service key cannot approve leave (0035 fails closed on a NULL role), so approval fixtures must use an approver JWT.",
+    "Dashboard workspace figures (Open tasks, status mix, Overdue) come from ALL open tasks counted once - assigned or not - so they match Reports; per-person rows stay per-person. KPI values render an em dash until their store has loaded, never a false 0.",
+    "requirements_unclear must be shown wherever it changes a number: Scope & risk, the Line items bar and the Adjust checkbox all state 'own tiers -> priced as Advanced' using quoteDevHours with the flag forced off/on. Worded 'priced as Advanced', never 'x 1.5' (a Custom 2x line goes down). Sentences containing numbers are built as one template-string expression - JSX drops whitespace beside an expression wherever the formatter wraps."
   ],
   "permissionsMatrix": {
     "columns": [

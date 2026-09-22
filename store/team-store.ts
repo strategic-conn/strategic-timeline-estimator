@@ -52,6 +52,13 @@ interface TeamState {
   loaded: boolean;
   error: string | null;
   hydrateFromSupabase: () => Promise<void>;
+  /**
+   * Realtime echo (0037). The roster is the DENOMINATOR of the availability
+   * factor, so somebody joining or being deactivated changes everyone else's
+   * share of each absence — and therefore every tentative timeline.
+   */
+  applyRealtimeUpsert: (row: ProfileRow) => void;
+  applyRealtimeDelete: (id: string) => void;
 }
 
 /**
@@ -82,6 +89,28 @@ export const useTeamStore = create<TeamState>()((set) => ({
       loaded: true,
       error: null,
     });
+  },
+
+  applyRealtimeUpsert: (row) => {
+    const member = rowToMember(row);
+    set((s) => {
+      const i = s.members.findIndex((m) => m.id === member.id);
+      if (i === -1) {
+        // Keep the alphabetical order `hydrateFromSupabase` established —
+        // a new joiner appearing at the bottom of every picker would read as
+        // a bug the next time somebody scanned the list.
+        const next = [...s.members, member];
+        next.sort((a, b) => a.name.localeCompare(b.name));
+        return { members: next };
+      }
+      const next = [...s.members];
+      next[i] = member;
+      return { members: next };
+    });
+  },
+
+  applyRealtimeDelete: (id) => {
+    set((s) => ({ members: s.members.filter((m) => m.id !== id) }));
   },
 }));
 

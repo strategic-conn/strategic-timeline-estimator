@@ -7,7 +7,7 @@
  * it, the same preview→confirm shape as Start project, Sync schedule and
  * Create PO.
  */
-import { addBusinessDays, differenceInCalendarDays, format, parseISO } from "date-fns";
+import { differenceInCalendarDays, format, parseISO } from "date-fns";
 
 import { skillTiers } from "@/lib/assignment/plan";
 import { isUsHoliday } from "@/lib/calendar/us-holidays";
@@ -182,9 +182,17 @@ function slipFor(dueYmd: string, absenceEnd: string): number {
   const due = parseISO(dueYmd);
   const back = parseISO(absenceEnd);
   const calendarGap = differenceInCalendarDays(back, due) + 1;
-  // Convert to business days by walking forward until we clear the absence.
+  // Convert to working days by walking forward until we clear the absence.
+  //
+  // ⚠️ The SAME helper that applies the slip (`addWorkingDays`, below in
+  // `ptoImpact`). This walk used `addBusinessDays`, which treats a federal
+  // holiday as a workday, while the result was applied with `addWorkingDays`,
+  // which skips it — so across a holiday the two disagreed. Due Wed 25 Nov 2026,
+  // away through Fri 27th: the walk counted Thanksgiving and returned +3, and
+  // +3 working days from the 25th is Tue 1 Dec, a day past the first free
+  // workday (Mon 30th). The preview reported a slip one day too long.
   let days = 1;
-  while (days < 60 && addBusinessDays(due, days) <= back) days += 1;
+  while (days < 60 && addWorkingDays(due, days) <= back) days += 1;
   return calendarGap > 0 ? days : 0;
 }
 

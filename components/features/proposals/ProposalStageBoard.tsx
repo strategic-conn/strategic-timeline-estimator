@@ -178,7 +178,9 @@ export function ProposalStageBoard({
     );
   }, [quotes, stages, stageOf]);
 
-  const activeQuote = activeId ? quotes.find((q) => q.id === activeId) : undefined;
+  const activeQuote = activeId
+    ? quotes.find((q) => q.id === activeId)
+    : undefined;
 
   function handleDragStart(e: DragStartEvent) {
     setActiveId(String(e.active.id));
@@ -225,7 +227,15 @@ export function ProposalStageBoard({
     // enough that a single centred sentence where a whole board is about to
     // appear reads as "this page is broken".
     return (
-      <div className="-mx-1 flex gap-3 overflow-hidden px-1 pb-2" aria-hidden>
+      /* `overflow-x-auto`, matching the real board below — NOT
+         `overflow-hidden`. Six 288px columns are ~1800px wide, so while the
+         picklist loads the last two were clipped with no scrollbar and no
+         way to reach them: the skeleton read as a board that simply ends,
+         which is the one thing the real board is styled to avoid. */
+      <div
+        className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:thin]"
+        aria-hidden
+      >
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
@@ -307,8 +317,9 @@ export function ProposalStageBoard({
         ))}
       </div>
       <p className="mt-1 text-[0.7rem] text-muted-foreground">
-        {columns.length} stage{columns.length === 1 ? "" : "s"} — scroll sideways for
-        the rest of the pipeline. Drag a card, or use its stage menu.
+        {columns.length} stage{columns.length === 1 ? "" : "s"} — scroll
+        sideways for the rest of the pipeline. Drag a card, or use its stage
+        menu.
       </p>
 
       <DragOverlay dropAnimation={null}>
@@ -361,7 +372,9 @@ function StageColumn({
       <div className={cn("h-1 shrink-0", accent.bar)} aria-hidden />
       <header className={cn("shrink-0 border-b px-3 py-2", accent.tint)}>
         <div className="flex items-baseline justify-between gap-2">
-          <h3 className="min-w-0 truncate text-xs font-semibold">{col.label}</h3>
+          <h3 className="min-w-0 truncate text-xs font-semibold">
+            {col.label}
+          </h3>
           {col.probability !== null ? (
             <span className="shrink-0 text-[0.7rem] text-muted-foreground tabular-nums">
               {col.probability}%
@@ -467,10 +480,14 @@ function StageCard({
             {quote.zoho?.deal_name ?? quote.title}
           </Link>
           {client ? (
-            <p className="truncate text-[0.7rem] text-muted-foreground">{client}</p>
+            <p className="truncate text-[0.7rem] text-muted-foreground">
+              {client}
+            </p>
           ) : null}
           {contact ? (
-            <p className="truncate text-[0.7rem] text-muted-foreground">{contact}</p>
+            <p className="truncate text-[0.7rem] text-muted-foreground">
+              {contact}
+            </p>
           ) : null}
           <p className="pt-0.5 text-xs font-semibold tabular-nums">
             {formatAmount(quoteAmount(quote))}
@@ -487,7 +504,9 @@ function StageCard({
             <span
               className={cn(
                 "text-[0.7rem] tabular-nums",
-                closingLate ? "font-medium text-rose-600 dark:text-rose-400" : "text-muted-foreground",
+                closingLate
+                  ? "font-medium text-rose-600 dark:text-rose-400"
+                  : "text-muted-foreground",
               )}
               title={
                 closingLate

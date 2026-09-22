@@ -38,6 +38,7 @@ import { cn } from "@/lib/utils";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import { TASK_STATUS_LABEL } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -46,14 +47,6 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   in_review: "bg-purple-500",
   done: "bg-green-500",
   blocked: "bg-red-500",
-};
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  todo: "To Do",
-  in_progress: "In Progress",
-  in_review: "In Review",
-  done: "Done",
-  blocked: "Blocked",
 };
 
 export function ReportsClient() {
@@ -75,7 +68,6 @@ export function ReportsClient() {
     return () => clearInterval(id);
   }, []);
 
-
   const statusBreakdown = React.useMemo(() => {
     const counts: Record<TaskStatus, number> = {
       todo: 0,
@@ -88,6 +80,10 @@ export function ReportsClient() {
     return counts;
   }, [tasks]);
 
+  // Rule 2: a KPI must not state a number it does not have yet. The stores
+  // hydrate async, and every figure below reads a real-looking 0 until they
+  // arrive — for a moment the page asserted "0 overdue" as fact.
+  const dataReady = useTasksDataStore((s) => s.loaded);
   const totalTasks = tasks.length;
 
   const projectStats = React.useMemo(() => {
@@ -101,7 +97,8 @@ export function ReportsClient() {
         ...p,
         taskCount: pTasks.length,
         doneCount: done,
-        progressPct: pTasks.length > 0 ? Math.round((done / pTasks.length) * 100) : 0,
+        progressPct:
+          pTasks.length > 0 ? Math.round((done / pTasks.length) * 100) : 0,
         estH: Math.round(estH),
         logH: Math.round(logH),
         sprintCount,
@@ -157,10 +154,10 @@ export function ReportsClient() {
   }, [tasks, members, loggedByMember]);
 
   const totalEstimated = Math.round(
-    tasks.reduce((s, t) => s + (t.estimated_hours ?? 0), 0)
+    tasks.reduce((s, t) => s + (t.estimated_hours ?? 0), 0),
   );
   const totalLogged = Math.round(
-    tasks.reduce((s, t) => s + (t.logged_hours ?? 0), 0)
+    tasks.reduce((s, t) => s + (t.logged_hours ?? 0), 0),
   );
 
   const onTimeRate = React.useMemo(() => {
@@ -224,15 +221,18 @@ export function ReportsClient() {
             <CardHeader className="gap-1">
               <CardDescription className="flex items-center justify-between">
                 <span>{kpi.label}</span>
-                <kpi.icon className="size-4 text-muted-foreground" aria-hidden />
+                <kpi.icon
+                  className="size-4 text-muted-foreground"
+                  aria-hidden
+                />
               </CardDescription>
               <CardTitle
                 className={cn(
                   "text-2xl font-semibold tracking-tight",
-                  kpi.warn && "text-red-600 dark:text-red-400"
+                  kpi.warn && "text-red-600 dark:text-red-400",
                 )}
               >
-                {kpi.value}
+                {dataReady ? kpi.value : "—"}
               </CardTitle>
             </CardHeader>
           </Card>
@@ -261,10 +261,10 @@ export function ReportsClient() {
                       <span
                         className={cn(
                           "size-2.5 rounded-full",
-                          STATUS_COLORS[status]
+                          STATUS_COLORS[status],
                         )}
                       />
-                      {STATUS_LABELS[status]}
+                      {TASK_STATUS_LABEL[status]}
                     </span>
                     <span className="tabular-nums text-muted-foreground">
                       {count} ({Math.round(pct)}%)
@@ -272,7 +272,10 @@ export function ReportsClient() {
                   </div>
                   <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                     <div
-                      className={cn("h-full rounded-full transition-all", STATUS_COLORS[status])}
+                      className={cn(
+                        "h-full rounded-full transition-all",
+                        STATUS_COLORS[status],
+                      )}
                       style={{ width: `${(count / maxStatusCount) * 100}%` }}
                     />
                   </div>
@@ -321,7 +324,7 @@ export function ReportsClient() {
                       "h-full rounded-full transition-all",
                       totalLogged / totalEstimated > 1
                         ? "bg-red-500"
-                        : "bg-primary"
+                        : "bg-primary",
                     )}
                     style={{
                       width: `${Math.min((totalLogged / totalEstimated) * 100, 100)}%`,
@@ -341,9 +344,7 @@ export function ReportsClient() {
               <FolderOpen className="size-4" aria-hidden />
               Projects
             </CardTitle>
-            <CardDescription>
-              Progress and effort per project.
-            </CardDescription>
+            <CardDescription>Progress and effort per project.</CardDescription>
           </CardHeader>
           <CardContent className="pt-0">
             <Table>
@@ -380,7 +381,7 @@ export function ReportsClient() {
                               "h-full rounded-full",
                               p.progressPct === 100
                                 ? "bg-green-500"
-                                : "bg-primary"
+                                : "bg-primary",
                             )}
                             style={{ width: `${p.progressPct}%` }}
                           />

@@ -117,6 +117,103 @@
 - [ ] Log hours on an accepted task → "Logged this week" updates on **both** pages without a reload. Try logging as a non-assignee → refused by the DB (`0018` trigger), not just hidden.
 - [ ] Drag a card to Done, then open a **different project** → no task there has a fresh "updated" timestamp. (Board writes used to hit every task in the workspace with that status.)
 
+## 🔐 Security probe (automated, live)
+
+`node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks
+PostgREST with that member's real JWT, reads every result back with the service
+key, and cleans up. **Every line must read PASS**, and the last line must say
+`cleanup: clean`.
+
+- [ ] Run it after ANY change to an RLS policy, trigger or constraint.
+- [ ] As a **member** in the UI: edit the dates of your own *approved* leave →
+      it becomes pending (dashed amber on the calendar) and your capacity goes
+      back up until it is re-approved.
+- [ ] As a **member**: re-request a *rejected* leave → saves, shows pending.
+- [ ] As a **manager**: approve it → reviewer and time are recorded.
+- [ ] Dashboard Team "Overdue" = Reports "Overdue" (also asserted in
+      `dashboard-views.spec.ts`).
+- [ ] Hard-reload the dashboard and Reports: KPI tiles show `—` for a moment,
+      never a `0` that then jumps.
+
+## 🧱 Layout integrity (automated)
+
+`npx playwright test e2e/layout-integrity.spec.ts` walks every page at 1280 /
+768 / 375 and fails on: the document or `main` scrolling sideways, content past
+`main`'s edge with no inner scroller, or two non-nested controls overlapping by
+more than 4px in both axes. Run it after ANY layout change.
+
+- [ ] Green at all three widths.
+- [ ] If you add a layout assertion, **give it a negative control first** —
+      inject the breakage and confirm the check fires. The first version of this
+      spec passed every page while being completely inert.
+- [ ] Loading states count. A skeleton that overflows without a scroller is the
+      same bug as content that does — the stage board's skeleton clipped two of
+      its six columns with no way to reach them.
+
+## 📊 Dashboard — Mine / Team
+
+- [ ] As **admin/manager**: the Mine/Team toggle is in the header and both
+      scopes render. As **member/viewer**: **no toggle at all** (one scope, so a
+      toggle would lie about what is available).
+- [ ] Team view: one row per confirmed member, **busiest first**.
+- [ ] **Cross-page:** pick a person and compare their `N% of Mh` on the
+      dashboard against the same person on `/workload` — they must be
+      identical. This is the check that matters most; both read
+      `assignedWork` / `capacityFor` / `utilization`.
+- [ ] Bar segment colours match the **board's** status dots exactly (todo grey,
+      in progress blue, in review purple, blocked red). A status that is one
+      colour here and another there is the bug this is looking for.
+- [ ] Workspace status mix totals **less than or equal to** the sum of the
+      per-person columns — a task shared by two people is counted once here and
+      twice there, on purpose.
+- [ ] Overdue / pending counts open a popover listing the real tasks, each
+      linking to its own board (backlog tasks included).
+- [ ] "Logged this week" matches Workload for the same person (both from
+      `time_entries`, never `tasks.logged_hours`).
+- [ ] Mine view: "Available hours" is present and is `capacity − logged`, not
+      spare capacity.
+- [ ] 375px: KPI tiles stay two-up, the breakdown table scrolls inside its own
+      container, and the page does not scroll sideways.
+- [ ] Empty roster → "No team members yet" rather than an empty chart.
+
+Automated: `npx playwright test e2e/dashboard-views.spec.ts` (10 across the
+three viewports, including the cross-page consistency assertion).
+
+## 🔄 Realtime — the timeline vs. every other page
+
+Needs **two browsers** (or two profiles) signed in as different members. All of
+these must happen **with no reload** — a refresh proves nothing.
+
+- [ ] B on `/gantt`. A creates a task in a sprint → the bar appears for B.
+- [ ] A **renames** that task → B's bar relabels. (UPDATE delivery; this was the
+      one that had never worked.)
+- [ ] A **reschedules the sprint** (start/end) → B's chart moves.
+- [ ] A deletes the task → B's row disappears.
+- [ ] B on `/workload` (Team tab). A changes B's weekly capacity in Settings →
+      B's `of Nh` and utilisation move. (`0037` scheduling channel.)
+- [ ] B on `/calendar`. An admin **approves** a pending time-off request → the
+      dashed amber outline becomes a solid tinted day for B.
+- [ ] A **deactivates** a member → they leave B's Workload team list.
+- [ ] Notification bell and both activity feeds still stream (regression: the
+      three channels were restructured together).
+- [ ] **Leave a tab open for over an hour**, then have someone else edit a task.
+      It must still arrive — this checks the socket's token refresh survived,
+      i.e. that nothing pinned a manual token.
+
+> ⚠️ **A dead channel looks completely healthy.** It reports `SUBSCRIBED`, the
+> socket's token reads `authenticated`, Broadcast works and the replication
+> slots stay caught up — the handlers just never fire. So the only way to QA
+> realtime is to *watch a second browser move*; never infer it from logs, from
+> the Supabase dashboard, or from the absence of errors.
+
+> ⚠️ **Don't test by writing within a second of page load.** `postgres_changes`
+> has no backfill and the channel joins a few hundred ms after first paint, so a
+> write that fast is racing the subscription, not testing it. (`e2e/helpers.ts`
+> → `settleRealtime()` exists for exactly this.)
+
+Automated: `npx playwright test e2e/realtime-timeline.spec.ts` (7 across the
+three viewports).
+
 ## 🔴 Must-test — could block real flows (RLS / server guards, `0027`)
 
 - [ ] Create a task, post a comment, add a reaction — all succeed.

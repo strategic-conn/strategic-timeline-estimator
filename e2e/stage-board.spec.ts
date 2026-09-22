@@ -34,12 +34,17 @@ const FAKE_DEAL = "9990001112223334445";
 /**
  * A fixture name nobody else can be using.
  *
- * The viewport projects run in parallel against ONE database, so a fixed
- * `[E2E] <label>` is seeded three times over and every browser sees all three
- * rows. Tests here find their card BY TEXT, so the duplicates broke both the
- * `article` filter (strict-mode: three matches) and `columnOf` (three hits
- * against a single expected column). Unique per worker process, so a name is
- * only ever in one browser's DOM.
+ * The three viewport projects run SERIALLY (`workers: 1`) but they run the same
+ * tests, and every fixture was titled a fixed `[E2E] <label>`. So the same name
+ * is created and deleted three times over against one shared database — and if
+ * a row from the previous project lingers for even a moment (a `finally` that
+ * did not land, or a delete that has not propagated before the next board
+ * hydrates) the next test sees two cards with its own name.
+ *
+ * Tests here find their card BY TEXT, so a duplicate breaks both the `article`
+ * filter (strict mode: two matches) and `columnOf`, which then returns two
+ * columns where the test asserts one. Making the name unique per run removes
+ * the whole class, whatever produced the leftover.
  */
 const RUN_TOKEN = `${process.pid.toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 

@@ -36,7 +36,7 @@ not just fast code.
 | 1     | Auth, Projects/Workspaces, Tasks | **Wired** (live Supabase; demo fallback) — real Auth, projects, sprints, tasks/assignees, Kanban/list/table, backlog |
 | 2     | Collaboration, Scheduling, PTO   | **Wired** — comments/reactions, notifications + activity feed (Realtime), calendar, workload, PTO/availability, weekly capacity |
 | 3     | Estimator, Gantt Charts, Pricing | **Wired** — **Estimator** (Discovery + Proposals merged: guided questionnaire *or* catalog → one quote), approval → Start project; Gantt/Timeline + PDF/Excel export (client-side) |
-| 4     | Integrations, Performance, WCAG  | Realtime + Storage (avatars) done; RLS/security audit done. **Perf + WCAG passes still pending** |
+| 4     | Integrations, Performance, WCAG  | Realtime (board + scheduling, via `liveChannels`) + Storage (avatars) done; RLS/security audit done. **Perf + WCAG passes still pending** |
 
 > Update this table when a phase starts or completes. "Wired" means the store hydrates from and
 > writes to Supabase behind the `isSupabaseConfigured` flag, with the demo path kept as a fallback.
@@ -59,6 +59,7 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 | Language     | TypeScript                                              |
 | Styling      | Tailwind CSS 4 (+ `tw-animate-css`)                     |
 | UI kit       | shadcn/ui (generated) on `radix-ui`                     |
+| Charts       | recharts 3 via shadcn `components/ui/chart.tsx`          |
 | Icons        | lucide-react                                            |
 | UI State     | Zustand 5 (+ `persist` to localStorage — demo backend)  |
 | Forms        | React Hook Form 7 + Zod 4 (`@hookform/resolvers`)       |
@@ -164,7 +165,11 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0028 zoho_connection · 0029 proposals.zoho · 0030 pbs_connection · 0031 proposals.pbs ·
                         #   0032/0033 tasks.source_line_item_id (estimate↔project sync key) ·
                         #   0034/0035 PTO approval (status + reviewer, self-approval guard, narrowed reads) ·
-                        #   0036 risk_buffer_pct on proposals + projects + README — `npm run db:push`
+                        #   0036 risk_buffer_pct on proposals + projects ·
+                        #   0037 publish scheduling tables to realtime (0038-0040 are wrong-theory
+                        #   churn that nets to zero - see "Realtime" below) ·
+                        #   0041 member-abuse fixes (leave approval, profile self-edit, internal-only hrefs)
+                        #   + README - `npm run db:push`
 project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
 e2e/                    # Playwright suite — `npm run test:e2e` (see e2e/README.md).
                         #   Runs against LIVE Supabase+Zoho, so: everything it creates is
@@ -383,6 +388,14 @@ interface ClientQuote {
 > (`resultFromQuote`). Mapping catalog modules onto phases would change that; it
 > is deliberately not done today. This is a **draft schedule** the manager then adjusts (sprint dates, task hours/assignees) into the plan the team follows — the project's timeline **is** its sprints, rendered by the Gantt (embedded on the project overview via `<GanttClient lockedProjectId={…} />`). Links `proposals.project_id`.
 
+> ⚠️ **A sprint may start and end on the same day.** Both sprint modals
+> validate `end >= start`, not `end > start`. The estimate scaffolder
+> (`convertToProject` / `regenerateSchedule`) inserts sprints straight through
+> supabase and never sees that schema, so it already produces one-day sprints —
+> two exist live. With the strict `>` those sprints could not be saved from the
+> Edit modal at all: renaming one failed validation on dates nobody had touched.
+> Any rule that only one of the two writers enforces will drift like this.
+
 **Schedule risk buffer.** `risk_buffer_pct` (0–100, migration `0036`) sits on
 **both** `proposals` and `projects`. A coordinator sets it on the Estimator's
 **Adjust** tab; `convertToProject` carries it onto the project, whose own page
@@ -404,6 +417,25 @@ can re-forecast and apply it.
 > **not** pass the buffer — it turns an estimate into line items, and the buffer
 > must never reach them.
 
+ - ⚠️ **"Requirements not pinned down" must be visible wherever it moves a
+   number.** QA read "368–568 hrs" on Scope & risk and "708 h" on Line items
+   and could not reconcile them: the lines summed to 472 h, and the box —
+   ticked on the Adjust tab — priced every one as Advanced. Nothing on either
+   screen said so. All three tabs now state it: Scope & risk ("Line items: 472
+   h, quoted at 708 h … Change"), the Line items bar ("472 h at own tiers →
+   708 h") and the checkbox itself, which also previews its effect *before*
+   it is ticked. Both figures are `quoteDevHours` with the flag forced off/on,
+   so they cannot disagree with the price. It is worded "priced as Advanced",
+   never "× 1.5": the box forces every line TO Advanced, so a Custom (2×) line
+   goes down. With the box on, a guided quote can land above the estimate's
+   own Max (708 vs 568 here) — by design, but a pricing decision worth knowing.
+ - ⚠️ **Build a sentence that contains numbers as ONE string expression.** JSX
+   drops whitespace beside an `{expression}` whenever the formatter wraps the
+   line there, so `quoted at {devHours} h` rendered "708h", then "708 h—" as
+   the line moved. `{`quoted at ${devHours} h — …`}` has no JSX whitespace to
+   lose. (Playwright's `reuseExistingServer: true` means a long-running dev
+   server serves hot-reloaded code, which made the intermediate states
+   confusing to read.)
  - **Applied by scaling every offset**, starts included, in `computeTimeline`.
    Buffering only the END offsets would leave each phase finishing later while
    the next still began on its original day — the plan has to stay continuous.
@@ -493,6 +525,13 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    row is **one** toast rather than three. Without it the drift was only
    discoverable by going back to the estimate, which is the one place nobody
    looks while rescheduling.
+
+> **Esther is built but parked.** `components/features/esther/` holds a working
+> chat client (message list, composer, empty state) over `lib/esther/engine`
+> (`analyzeBrief` → `discoveryFromEstherAnalysis` → a seeded estimate), but the
+> `/esther` route deliberately renders a "coming soon" card and the sidebar
+> marks it *Soon*. Nothing imports `EstherClient` — wiring it in is one line in
+> the route, and a product decision rather than a bug.
 
 **Output:** in-browser **PDF preview mock** + real **PDF** (jsPDF) and **Excel** (xlsx) export — `lib/utils/proposal-pdf-export.ts`, `proposal-excel-export.ts`. Optional server-side export (Edge Function → Storage) is still a later path.
 
@@ -856,6 +895,212 @@ choice and the act sit together.
 
 ---
 
+## Realtime — the timeline, and every page that feeds it
+
+**Three channels, wired in `components/layouts/workspace-sync.tsx`:**
+
+| Channel | Tables | What it keeps live |
+| --- | --- | --- |
+| `workspace:board` | `projects` `sprints` `tasks` `task_assignees` `task_comments` `comment_reactions` | the Gantt, the task boards, the drawer |
+| `workspace:scheduling` (`0037`) | `availability_entries` `weekly_capacity` `profiles` | what *shapes* the timeline — PTO, capacity, roster |
+| `notifications:<uid>` / `activity:workspace` | `notifications` `activity` | the bell and the feeds |
+
+All 11 are published to `supabase_realtime` and all 11 are subscribed — verified
+live against `pg_publication_tables`. `proposals` is the one deliberate
+omission (see the JSONB note under the Zoho section).
+
+> ⚠️ **`postgres_changes` bindings are RLS-checked SERVER-SIDE AT JOIN TIME**,
+> against the token the **socket** carries — not the one REST calls use. Join
+> before the session has resolved and the bindings register as `anon`, match
+> nothing, and **stay dead for the life of the channel**. Handing the socket a
+> token afterwards does not re-evaluate them.
+>
+> This is why every channel is now created by **`liveChannels()`**, which
+> `await`s `supabase.realtime.setAuth()` *before* calling `.subscribe()`. With
+> `@supabase/ssr` the session comes from cookies, so it resolves a tick after
+> mount — it was a **race**, which is the whole explanation for "realtime worked
+> this morning and not this afternoon".
+>
+> ⚠️ **It fails completely silently.** The channel reports `SUBSCRIBED`, the
+> socket's token reads `authenticated` a moment later, Broadcast keeps working
+> (no RLS on it), and the replication slots stay active and fully caught up.
+> Nothing anywhere looks wrong — the handlers simply never fire. Proof, measured
+> in the browser: a channel created *after* page load receives INSERT and UPDATE
+> on the **very same socket** where `workspace:board` receives nothing.
+>
+> ⚠️ **`setAuth()` takes NO ARGUMENT, deliberately.** An explicit token is
+> marked manually-set, which permanently disables supabase-js's own refresh
+> (`RealtimeClient._performAuth`) — the socket would keep a token that expires
+> in an hour and every channel would go quiet mid-session. With no argument it
+> resolves the current session and refreshes itself on each heartbeat.
+
+> ⚠️ **On DELETE, `payload.old` carries ONLY the primary key** (that is what
+> `REPLICA IDENTITY DEFAULT` puts in the WAL). So an applier that reads any
+> non-PK column from `old` silently no-ops. Audited — every table's PK is
+> exactly what its handler reads: `weekly_capacity` is keyed on `profile_id`,
+> `task_assignees` on `(task_id, profile_id)`, `comment_reactions` on
+> `(comment_id, profile_id, emoji)`, and the rest on `id`. **That is also why
+> `0038` was never needed.** Adding a table here means checking this first: a
+> surrogate `id` PK on a join table would break DELETE propagation while INSERT
+> and UPDATE kept working.
+
+**Two wrong theories, recorded so nobody re-runs them.** `0038` set
+`REPLICA IDENTITY FULL` on ten tables on the theory that UPDATEs were dropped
+for want of a full old tuple; it made things worse and `0039` reverted it.
+`0040` refreshed the publication; no effect. **Both premises were false** — with
+plain `REPLICA IDENTITY DEFAULT` a socket carrying a user JWT receives INSERT
+*and* UPDATE, proven from Node against the live project. The net of `0038`–`0040`
+is zero; only `0037` (publishing the scheduling tables) mattered.
+
+**Known bounded gap:** the hydrate effect and the channel join both start at
+mount, so a row written by someone else in that ~300 ms window is neither in the
+snapshot nor streamed. Fixing it means re-hydrating after `SUBSCRIBED`, i.e. a
+second full fetch on every mount, for a window narrower than the request that
+would close it. Left alone on purpose. `e2e/helpers.ts`'s **`settleRealtime()`**
+exists for the same reason: `postgres_changes` has no backfill, so a test that
+writes the instant the page is interactive is racing the subscription rather
+than testing it.
+
+---
+
+## Security — what a signed-in user can do without the UI
+
+**The UI is not a security boundary.** The anon key is public, so any signed-in
+user — a viewer included — can call PostgREST directly and skip every button
+`usePermissions()` hides. RLS and triggers are the only real gates.
+**`scripts/security-probe.mjs`** drives the database the way an attacker would:
+it creates a throwaway `[E2E]` **member**, attempts each abuse with that
+member's real JWT, reads every result back with the service key, and deletes
+everything it made. Every line must read `PASS`. Run it after touching any
+policy, trigger or constraint.
+
+Fixed in **`0041`**, each reproduced live first:
+
+| Abuse | Before | Now |
+| --- | --- | --- |
+| Extend an **approved** leave by changing only its dates | stayed approved — 2 days became 12, capacity shrank, nobody asked | re-opens as pending |
+| Edit your own decided leave the way the client does (send `pending`) | **refused** — `0035` raised on any status change by a non-approver, so members could never edit their own approved/rejected leave | allowed; re-pends |
+| Insert a request with `reviewed_by` = a manager + "Approved by the boss" | stored | verdict fields nulled for a non-approver |
+| Null your own `confirmed_at` | dropped you off the roster, the team calendar and every capacity figure | refused (also `email`) |
+| External link in someone's bell / the workspace feed | `https://evil…`, `//evil…`, `/\evil…` all stored | `CHECK` constraints: internal paths only |
+
+> ⚠️ **Probe pitfalls that produced false PASSes, recorded so they are not
+> repeated.** (1) `Prefer: return=representation` makes PostgREST run
+> `INSERT … RETURNING`, and the new row must then pass the **SELECT** policy —
+> a notification to someone else is invisible to its sender, so the insert is
+> reported as an RLS violation and every href probe "passes". Insert with
+> `return=minimal` and read back with the service key. (2) **The service key
+> cannot approve leave**: `0035` fails closed on a caller with no profile role,
+> so a service-role insert of `status='approved'` is silently forced to
+> `pending` — the first run tested a pending leave and "passed". Approval
+> fixtures use the manager bot's JWT and throw if the row does not reach
+> `approved`.
+
+**Verified safe, no change needed:** all 18 API routes are guarded
+(`requireAdmin` / `requireZohoReader|Writer` / `requirePbsReader|Writer`), every
+guard verifies via `auth.getUser()` and reads the role from `profiles` — never
+from `user_metadata`, which the user can write — and offboarding bans the auth
+user, so a deactivated account fails `getUser()`. Members cannot rewrite a time
+entry or make themselves admin. No redirect parameter is read anywhere (no open
+redirect). Headers: `frame-ancestors 'none'` + `X-Frame-Options: DENY`,
+`nosniff`, strict referrer policy, HSTS, and a report-only CSP being staged.
+Comment HTML goes through DOMPurify.
+
+---
+
+## Dashboard (Mine / Team)
+
+**Two scopes behind the shared `MineTeamToggle`** — admin/manager get both,
+Member and Viewer get their own only. Same gate and same control as Workload and
+the Calendar: `components/common/mine-team-toggle.tsx`, extracted when the
+dashboard was about to become its **third** byte-identical copy. It renders
+nothing when the viewer has one scope, because a toggle with one reachable
+option is a control that lies.
+
+| View | Component | Shows |
+| --- | --- | --- |
+| Mine | `app/(dashboard)/dashboard/page.tsx` | KPIs, **My open work** (status donut + utilisation bar + logged/available), due-soon list, quick actions, activity |
+| Team | `components/features/dashboard/DashboardTeam.tsx` | KPI strip, over-capacity banner, **open tasks per person** (stacked bar), workspace status mix (donut), **breakdown by person** table |
+
+> ⚠️ **The dashboard derives NO numbers of its own.** Every figure on both views
+> comes from `lib/workload/assigned-work.ts` — `assignedWork` / `capacityFor` /
+> `utilization` / `statusBreakdown` — the same four calls Workload makes. This
+> is the page people quote at each other, so it is the page that has to agree
+> with everything else. `e2e/dashboard-views.spec.ts` asserts the overlap: every
+> `N% of Mh` the dashboard prints must also appear on Workload.
+
+**Charts are recharts via `components/ui/chart.tsx`** (shadcn). Colours are
+**not** the chart library's palette — they come from `TASK_STATUS_META`, so a
+bar segment is the same hue as the dot on the board, the calendar and the
+workload bar.
+
+> ⚠️ **`TASK_STATUS_META` keeps `dot` (Tailwind class) and `hex` on one line
+> each, deliberately.** SVG cannot take a Tailwind class and a DOM node should
+> not carry a raw hex, so the colour has to exist twice — and the two drifting
+> is exactly how "blocked" ends up red on the board and purple in a chart.
+> Adjacent means changing one without the other is a visible omission in review.
+> `TASK_STATUS_LABEL` lives there too; the dashboard and Reports each had a
+> private copy.
+
+ - **Per-person counts a shared task for each assignee; the workspace figures
+   count every open task once.** Those answer different questions — "how loaded
+   is this person" vs "how much work is there" — and a 6h task with two
+   assignees is 6h of work, not 12h.
+ - ⚠️ **Workspace figures (Open tasks, status mix, Overdue) come from ALL open
+   tasks, not from the union of per-person allocations.** The union version
+   summed each person's overdue count — double-counting shared tasks — and left
+   out **unassigned** work entirely, the overdue task nobody owns being the one
+   a manager most needs to see. Live it read 4 where Reports read 18. Now both
+   use `status !== "done" && isOverdue`, and `dashboard-views.spec.ts` asserts
+   the two pages print the same number.
+ - ⚠️ **A KPI shows `—` until its data has loaded**, on the dashboard (both
+   views) and Reports. The stores hydrate async and every figure otherwise
+   reads a real-looking `0` first — for a moment the page asserted "0 overdue"
+   as fact. Found because the cross-page test compared a number to a loading
+   state.
+ - Rows sort **busiest first**: the people a manager has to act on belong at the
+   top, not whoever is alphabetically first.
+ - ⚠️ **Chart axis labels are first names, disambiguated only when they collide.**
+   Two people called Daniel drew two identical bars, so the one row a manager
+   needed to act on was unidentifiable; a colliding name gains the surname
+   initial ("Daniel A."), and everyone else keeps a bare first name because
+   surnames on all six rows are just noise.
+ - ⚠️ **Mine is a WIDE main column + a narrow sidebar** (`lg:grid-cols-[1.6fr_1fr]`,
+   two grid children). The due-soon table has six columns and needs the width;
+   the donut, quick actions and activity are compact and stack in the sidebar.
+   Adding the "My open work" card as a *third* child of that two-column grid is
+   what wrapped Quick actions + Activity onto a second row and left the entire
+   right half of the page empty. `items-start` stops the short table stretching
+   to the sidebar's height.
+ - The overdue/pending counts are `TaskBadgePopover`, so they open the task list
+   behind them and link to each task's own board — the same control as Workload.
+ - ⚠️ **Fixed while building this:** `onTimeRate` compared
+   `new Date(updated_at) <= new Date(due_date)`. `due_date` is a DATE column, so
+   that is midnight **UTC** — a task finished at 15:00 local on its own due date
+   counted as **late**, and west of Greenwich so did work finished the evening
+   before. Exactly the trap rule 8 exists for, still live on this page. Now
+   `daysUntil(due, completedAt) >= 0`, i.e. whole calendar days.
+ - **`hooks/useWeekLoggedHours.ts`** is the one read of `time_entries` for
+   "logged this week", shared by Workload (**both** tabs) and both dashboard
+   views. It was an inline effect inside `WorkloadClient` **and a second private
+   copy inside `WorkloadMine`** — which ran *alongside* the shared one, since
+   `WorkloadClient` calls the hook before returning `<WorkloadMine/>`, so the
+   Mine view fired two requests for one number. Never `tasks.logged_hours` —
+   that is the task's cached total and credits every assignee in full.
+ - ⚠️ **The hook returns `null` until the read resolves** (and always in demo
+   mode), not `{}`. "Nobody logged anything this week" and "we don't know yet"
+   are both `0` otherwise, and the personal card renders **—** plus full
+   remaining capacity for the second. Callers use `weekLogged?.[id] ?? 0`.
+ - ⚠️ **Rule 2 applies to the roster too.** `members` is `[]` while the team
+   store hydrates, so an empty state that is not gated on `loaded` tells an
+   admin with a full team that they have no team. Both the dashboard's Team view
+   and Workload now render a **skeleton** until `loaded`, and only then decide
+   between the table and the empty state; the dashboard also surfaces the
+   store's `error`. Reports' `time_entries` read is deliberately **not** this
+   hook — it has no date filter because it answers an all-time question.
+
+---
+
 ## Tasks ↔ Workload
 
 **How a dev "finishes" work: they move the task to `done`.** That is the only
@@ -945,8 +1190,16 @@ project.
 **pending → approved / rejected**, with `reviewed_by` / `reviewed_at` /
 `review_note`. A member's entry starts `pending`; an admin/manager's starts
 `approved` — they are the approver, so asking them to approve themselves is
-theatre. Requests notify the approvers; decisions notify the requester (with
-`includeSelf`, since an approver may decide their own row). Editing the **dates**
+theatre — but it still records **`reviewed_by` = that person** and
+`reviewed_at`, and **both travel with the INSERT**, not just onto the optimistic
+row. Leaving them null made a manager's own leave indistinguishable from the
+pre-`0034` rows grandfathered in as `approved`, so "approved by nobody" meant
+both *legacy* and *approved by whoever booked it*; setting them only client-side
+would have had the store claim a reviewer Postgres never stored, gone on the
+next hydrate. `0035`'s trigger nulls these for a **non**-approver only, so an
+approver may set them on insert (verified live with a manager JWT). Requests
+notify the approvers; decisions notify the requester (with `includeSelf`, since
+an approver may decide their own row). Editing the **dates**
 of a decided request re-opens it as pending; a note-only tweak does not. Pending
 leave renders as a **dashed amber outline** on the calendar and never tints the
 day — a request must not look like settled fact; rejected leave is not drawn at all.
@@ -1063,6 +1316,12 @@ project, Sync schedule and Create PO.
  - ⚠️ Each task's slip is measured to the day **after the absence ends**, not
    by the number of workdays lost — shifting every task by the same five days
    would leave one due on the absence's first day still inside it.
+ - ⚠️ **The slip is counted with `addWorkingDays` — the same helper that applies
+   it.** It used `addBusinessDays`, which treats a federal holiday as a workday,
+   so across a holiday the count and the applied date disagreed: due Wed 25 Nov
+   2026, away through Fri 27th, the preview suggested Tue 1 Dec instead of Mon
+   30th. Pinned in `pto-impact.spec.ts` (negative control: the old line
+   produces `2026-12-01`).
 
 ---
 
@@ -1084,6 +1343,7 @@ project, Sync schedule and Create PO.
 | Weekly capacity overrides      | `store/weekly-capacity-store.ts`           | `timeline-weekly-capacity`                |
 | Notifications + activity feed  | `store/notifications-store.ts`             | `timeline-notifications`                  |
 | Task board pane / active view  | tasks store (ephemeral slice)              | not persisted (`selectedTaskId`, `activeView`) |
+| Dashboard / Workload / Calendar scope | local `useState` in each page          | not persisted — `MineTeamToggle`, defaults to Mine on the dashboard |
 | Task timers                    | `useTaskTimerStore`                        | ephemeral session state                  |
 | Theme (light/dark)             | next-themes                                | client preference                        |
 | Permissions (derived)          | `usePermissions()` over auth role          | not stored — computed from role          |
@@ -1250,6 +1510,21 @@ if (!tasks.length) {
    actions rows should carry `sm:flex-wrap` so they wrap instead of clipping.
    `e2e/page-header-fit.spec.ts` walks every page at all three widths and fails
    on any control outside its header, or any page that scrolls sideways.
+   **`e2e/layout-integrity.spec.ts`** guards the body the same way: the document
+   and `main` must not scroll sideways, nothing may reach past `main` without an
+   inner scroller to bring it back, and no two non-nested controls may overlap
+   by more than 4px in both axes (one of them would be unclickable, and which
+   one is a coin toss).
+
+   > ⚠️ **`main` is itself `overflow-x: auto`.** A scroller check that asks
+   > "is this inside *any* scroller?" therefore skips the entire page and
+   > passes by doing nothing — that is how the first version of this spec
+   > shipped green while being completely inert, caught only by a negative
+   > control (a 5000px div measured at `right=5280` in a 1280 viewport and
+   > scored zero). The question has to be **which** scroller: overflowing
+   > `main` is the bug, overflowing a deliberate inner one (Gantt, wide table,
+   > the stage-board strip) is the design. Any new layout assertion needs a
+   > negative control before it is trusted.
 
    **A strip that scrolls sideways reads as a strip that ends.** Overlay
    scrollbars are invisible on touch and idle desktops, so tabs and filter pills
