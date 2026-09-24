@@ -21,12 +21,46 @@ import type { ProposalPlatform } from "@/lib/proposal-catalog";
 
 export type PlanStrategy = "quick" | "efficient";
 
+/** A discipline + level — the workbook's lookup key, "IT|Level 2". */
+export interface WorkKey {
+  responsible: string;
+  level: 1 | 2;
+}
+
+/**
+ * Are keys in use for this discipline? Once anyone holds an IT key, IT keys
+ * decide who does IT work; a discipline nobody holds a key for keeps the
+ * skill-only rule. Per discipline, so setting one designer's key does not
+ * change how development is assigned.
+ */
+export function keysGovern(
+  people: { keys?: WorkKey[] }[],
+  role: WorkKey | null,
+): boolean {
+  return (
+    role != null &&
+    people.some((p) => (p.keys ?? []).some((k) => k.responsible === role.responsible))
+  );
+}
+
+/** Level 2 may take Level 1 work (plan decision 2); never the reverse. */
+export function holdsKeyFor(
+  keys: WorkKey[] | undefined,
+  role: WorkKey,
+): boolean {
+  return (keys ?? []).some(
+    (k) => k.responsible === role.responsible && k.level >= role.level,
+  );
+}
+
 export interface PlanTask {
   id: string;
   title: string;
   phase: PhaseId;
   /** Estimated effort in hours. */
   hours: number;
+  /** Who the estimate says does this (its line's role). null = no role. */
+  role?: WorkKey | null;
 }
 
 export interface PlanDev {
@@ -38,6 +72,8 @@ export interface PlanDev {
   hoursPerDay: number;
   /** ISO `yyyy-mm-dd` days the dev is fully off (PTO). */
   ptoDays?: string[];
+  /** Admin-set work keys (0043). Matched before skills. */
+  keys?: WorkKey[];
 }
 
 export interface PlanOptions {
@@ -304,15 +340,29 @@ export function planSchedule(
 
     for (const task of phaseTasks) {
       const tiers = skillTiers(task, platform);
+      // Key first (plan decision 2): where keys govern the task's discipline,
+      // only holders of a qualifying key are eligible and skill stars merely
+      // break ties — so a Creative key holder gets design work no skill maps
+      // to, and Level 2 work never falls to a Level 1. Where they don't (every
+      // workspace before keys are set), the skill-only rule runs as it always has.
+      const role = task.role ?? null;
+      const governed = keysGovern(devs, role);
+      const keyed = governed && role ? devs.filter((d) => holdsKeyFor(d.keys, role)) : [];
       let eligible: { dev: PlanDev; fit: { level: number; skill: string | null } }[] = [];
-      for (const tier of tiers) {
-        eligible = devs
-          .map((d) => ({ dev: d, fit: fitLevel(d, tier) }))
-          .filter((c) => c.fit.level > 0);
-        if (eligible.length) break;
+      if (governed) {
+        const tier =
+          tiers.find((t) => keyed.some((d) => fitLevel(d, t).level > 0)) ?? [];
+        eligible = keyed.map((d) => ({ dev: d, fit: fitLevel(d, tier) }));
+      } else {
+        for (const tier of tiers) {
+          eligible = devs
+            .map((d) => ({ dev: d, fit: fitLevel(d, tier) }))
+            .filter((c) => c.fit.level > 0);
+          if (eligible.length) break;
+        }
       }
 
-      if (!tiers.length || !eligible.length) {
+      if (!eligible.length) {
         // No dev skill maps here → reserve time at a default rate, leave unassigned.
         const days = Math.max(1, Math.ceil(task.hours / DEFAULT_HOURS_PER_DAY));
         let cur = notBefore;
@@ -335,9 +385,12 @@ export function planSchedule(
           endDate: end,
           matchedSkill: null,
           confidence: 0,
-          reason: tiers.length
-            ? "No available dev has this skill — assign manually"
-            : "Not auto-assigned (design/planning) — assign manually",
+          reason:
+            governed && role
+              ? `Nobody holds ${role.responsible} Level ${role.level} — assign manually`
+              : tiers.length
+                ? "No available dev has this skill — assign manually"
+                : "Not auto-assigned (design/planning) — assign manually",
         });
         continue;
       }
@@ -372,7 +425,14 @@ export function planSchedule(
         endDate: end,
         matchedSkill: winner.fit.skill,
         confidence: winner.fit.level,
-        reason: `${winner.dev.name} · ${winner.fit.skill} ★${winner.fit.level} · ${winner.dev.hoursPerDay}h/day`,
+        reason: [
+          winner.dev.name,
+          governed && role ? `${role.responsible} L${role.level}` : null,
+          winner.fit.skill ? `${winner.fit.skill} ★${winner.fit.level}` : null,
+          `${winner.dev.hoursPerDay}h/day`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       });
     }
 

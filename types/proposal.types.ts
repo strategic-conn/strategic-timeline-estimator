@@ -32,9 +32,10 @@ export interface ProposalLineItem {
    *
    * Downstream code tells them apart by membership (`module in
    * PHASE_LABEL_TO_ID`), and only phase labels carry delivery meaning — see
-   * `phaseLabelForLineItem`, where every catalog module falls back to
-   * Development. `catalog_id` is the more reliable discriminator when you need
-   * to know which vocabulary a row is using.
+   * `phaseLabelForLineItem`, where a non-phase row is scheduled by its ROLE
+   * (`responsible`: Creative → Design, QA Tester → QA, …, IT → Development).
+   * `catalog_id` is the more reliable discriminator when you need to know which
+   * vocabulary a row is using.
    */
   module?: string | null;
   /** Optional category id from the catalog. */
@@ -54,6 +55,29 @@ export interface ProposalLineItem {
   hours: number;
   /** Ids of other line items on the same quote that this depends on. */
   depends_on: string[];
+  /**
+   * Who does this work and at what seniority — the workbook's Responsible +
+   * Level, i.e. the lookup key into `hourly_rates` ("IT|Level 2"). Set when the
+   * line is created (catalog row → guided phase → IT Level 1 for freehand) and
+   * editable per line. Optional: lines saved before pricing Phase 3 may lack it.
+   */
+  responsible?: string | null;
+  level?: 1 | 2 | null;
+  /**
+   * The hourly rate this line was PRICED AT — a snapshot, never a lookup. An
+   * admin changing a rate must not reprice a quote that was already sent (plan
+   * decision 1); "Update to current rates" re-snapshots on purpose. Missing
+   * means the line predates Phase 3 and was priced at `LEGACY_HOURLY_RATE`.
+   */
+  rate?: number | null;
+}
+
+/** Rate snapshots for the roll-up add-ons (plan decision 3: each uses its role's Level 1 rate). */
+export interface AddonRates {
+  responsive: number;
+  design: number;
+  qa: number;
+  pm: number;
 }
 
 /** How the PM percentage is chosen — preset simple/complex or a manual value. */
@@ -70,6 +94,13 @@ export interface ProposalAddons {
   design_pct: number;
   qa_enabled: boolean;
   qa_pct: number;
+  /**
+   * The rates the add-on hours were priced at (snapshot, like a line's `rate`).
+   * Missing = the quote predates Phase 3 and every add-on hour was priced at
+   * `LEGACY_HOURLY_RATE`. Rides inside the existing `addons` jsonb, so no new
+   * column and no whitelist changes.
+   */
+  rates?: AddonRates;
 }
 
 /**

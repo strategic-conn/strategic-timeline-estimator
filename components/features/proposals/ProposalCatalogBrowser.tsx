@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Lightbulb, Plus, Search } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +24,8 @@ import {
   type ProposalPlatform,
 } from "@/lib/proposal-catalog";
 import { cn } from "@/lib/utils";
+import { formatRate, rateFor } from "@/lib/pricing/hourly-rates";
+import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 
 type ProposalCatalogBrowserProps = {
   open: boolean;
@@ -46,29 +48,53 @@ export function ProposalCatalogBrowser({
   onAdd,
 }: ProposalCatalogBrowserProps) {
   const items = React.useMemo(() => catalogForPlatform(platform), [platform]);
+  // Rates are priced from now on (pricing Phase 3), so the browser shows them.
+  const rates = useHourlyRatesStore((s) => s.rates);
   const [query, setQuery] = React.useState("");
   const [activeCat, setActiveCat] = React.useState<string>(ALL);
   const [selected, setSelected] = React.useState<Set<number>>(new Set());
+  // The workbook's own "how to quote" step: filter by Responsible or Level.
+  const [role, setRole] = React.useState<string | null>(null);
+  const [level, setLevel] = React.useState<1 | 2 | null>(null);
 
   // Reset everything each time it opens (or the platform changes underneath it).
   React.useEffect(() => {
     setQuery("");
     setSelected(new Set());
     setActiveCat(ALL);
+    setRole(null);
+    setLevel(null);
   }, [open, platform]);
+
+  const rolesHere = React.useMemo(
+    () => [...new Set(items.map((it) => it.responsible))],
+    [items],
+  );
+
+  // Everything below works on the role/level-filtered set, so the category
+  // rail's counts, search and "Select all" all agree with what is on screen.
+  const pool = React.useMemo(
+    () =>
+      items.filter(
+        (it) =>
+          (role === null || it.responsible === role) &&
+          (level === null || it.level === level),
+      ),
+    [items, role, level],
+  );
 
   const searching = query.trim().length > 0;
 
   const filtered = React.useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter(
+    if (!q) return pool;
+    return pool.filter(
       (it) =>
         it.name.toLowerCase().includes(q) ||
         it.module.toLowerCase().includes(q) ||
         (it.description ?? "").toLowerCase().includes(q),
     );
-  }, [items, query]);
+  }, [pool, query]);
 
   // Category rail: every category present for this platform, with counts +
   // how many are selected (so you can see where your picks are).
@@ -77,37 +103,40 @@ export function ProposalCatalogBrowser({
       string,
       { key: string; name: string; count: number; selected: number }
     >();
-    for (const it of items) {
+    for (const it of pool) {
       const key = catKey(it);
-      const entry =
-        map.get(key) ??
-        {
-          key,
-          name:
-            it.category_id == null
-              ? "Other"
-              : categoryName(it.category_id) ?? "Other",
-          count: 0,
-          selected: 0,
-        };
+      const entry = map.get(key) ?? {
+        key,
+        name:
+          it.category_id == null
+            ? "Other"
+            : (categoryName(it.category_id) ?? "Other"),
+        count: 0,
+        selected: 0,
+      };
       entry.count += 1;
       if (selected.has(it.id)) entry.selected += 1;
       map.set(key, entry);
     }
     const list = [...map.values()].sort((a, b) => a.name.localeCompare(b.name));
     return [
-      { key: ALL, name: "All items", count: items.length, selected: selected.size },
+      {
+        key: ALL,
+        name: "All items",
+        count: pool.length,
+        selected: selected.size,
+      },
       ...list,
     ];
-  }, [items, selected]);
+  }, [pool, selected]);
 
   // Items shown in the right pane: search is global; otherwise scoped to the
   // active category.
   const shown = React.useMemo(() => {
     if (searching) return filtered;
-    if (activeCat === ALL) return items;
-    return items.filter((it) => catKey(it) === activeCat);
-  }, [searching, filtered, items, activeCat]);
+    if (activeCat === ALL) return pool;
+    return pool.filter((it) => catKey(it) === activeCat);
+  }, [searching, filtered, pool, activeCat]);
 
   const groups = React.useMemo(() => groupCatalogByModule(shown), [shown]);
 
@@ -167,9 +196,51 @@ export function ProposalCatalogBrowser({
                 className="pl-7"
               />
             </div>
-            <Badge variant="secondary" className="shrink-0 tabular-nums" aria-live="polite">
+            <Badge
+              variant="secondary"
+              className="shrink-0 tabular-nums"
+              aria-live="polite"
+            >
               {searching ? filtered.length : shown.length}
             </Badge>
+          </div>
+          {/* Wraps rather than scrolling: a strip that scrolls sideways reads
+              as a strip that ends. */}
+          <div
+            role="group"
+            aria-label="Filter by role and level"
+            className="mt-2 flex flex-wrap items-center gap-1.5"
+          >
+            {[null, ...rolesHere].map((r) => (
+              <FilterChip
+                key={r ?? "all-roles"}
+                active={role === r}
+                onClick={() => setRole(r)}
+              >
+                {r ?? "All roles"}
+              </FilterChip>
+            ))}
+            {/* Hidden on phones: when the chips wrap it can hang alone at a line end. */}
+            <span
+              className="mx-1 hidden h-4 w-px bg-border sm:block"
+              aria-hidden
+            />
+            {([null, 1, 2] as const).map((l) => (
+              <FilterChip
+                key={l ?? "any-level"}
+                active={level === l}
+                onClick={() => setLevel(l)}
+                title={
+                  l === 1
+                    ? "Level 1 — standard build and config work"
+                    : l === 2
+                      ? "Level 2 — senior, custom-coded or higher-risk work"
+                      : undefined
+                }
+              >
+                {l === null ? "Any level" : `Level ${l}`}
+              </FilterChip>
+            ))}
           </div>
         </DialogHeader>
 
@@ -289,6 +360,42 @@ export function ProposalCatalogBrowser({
                                     {it.description}
                                   </p>
                                 ) : null}
+                                <span
+                                  className="text-[0.7rem] text-muted-foreground"
+                                  title={
+                                    it.level === 2
+                                      ? "Level 2 — senior, custom-coded or higher-risk work"
+                                      : "Level 1 — standard build and config work"
+                                  }
+                                >
+                                  {`${it.responsible} · Level ${it.level}`}
+                                </span>
+                                {(() => {
+                                  const r = rateFor(
+                                    rates,
+                                    it.responsible,
+                                    it.level,
+                                  );
+                                  return r === null ? null : (
+                                    <span className="text-[0.7rem] tabular-nums text-muted-foreground">
+                                      {`${formatRate(r)}/h`}
+                                    </span>
+                                  );
+                                })()}
+                                {it.things_to_consider ? (
+                                  <p
+                                    className="flex items-start gap-1 text-xs italic text-amber-800/90 dark:text-amber-300/90"
+                                    title={it.things_to_consider}
+                                  >
+                                    <Lightbulb
+                                      className="mt-0.5 size-3 shrink-0"
+                                      aria-hidden
+                                    />
+                                    <span className="line-clamp-2">
+                                      {it.things_to_consider}
+                                    </span>
+                                  </p>
+                                ) : null}
                               </Label>
                             </li>
                           );
@@ -331,5 +438,35 @@ export function ProposalCatalogBrowser({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** A small toggle pill for the role / level filters. */
+function FilterChip({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      title={title}
+      className={cn(
+        "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+        active
+          ? "border-primary bg-primary/10 font-medium text-primary"
+          : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
+    >
+      {children}
+    </button>
   );
 }

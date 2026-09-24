@@ -53,7 +53,6 @@ test.describe("the Packages row description", () => {
     const rows = packageRows(
       LAYOUT,
       [{ id: "1", name: "Website", hours: 366, amount: 36600, description: "Ten dynamic pages." }],
-      100,
     );
     expect(rows[0].Description_1).toBe("Ten dynamic pages.");
     expect(rows[0].Unit_Price).toBe(36600);
@@ -61,8 +60,8 @@ test.describe("the Packages row description", () => {
   });
 
   test("falls back to the hours note when the catalogue has none", () => {
-    const rows = packageRows(LAYOUT, [{ id: "1", name: "Website", hours: 366, amount: 36600 }], 100);
-    expect(rows[0].Description_1).toBe("366 h at $100/h");
+    const rows = packageRows(LAYOUT, [{ id: "1", name: "Website", hours: 366, amount: 36600 }]);
+    expect(rows[0].Description_1).toBe("366 h");
   });
 
   test("an empty or blank description also falls back", () => {
@@ -70,9 +69,8 @@ test.describe("the Packages row description", () => {
       const rows = packageRows(
         LAYOUT,
         [{ id: "1", name: "W", hours: 10, amount: 1000, description }],
-        100,
       );
-      expect(rows[0].Description_1, JSON.stringify(description)).toBe("10 h at $100/h");
+      expect(rows[0].Description_1, JSON.stringify(description)).toBe("10 h");
     }
   });
 
@@ -109,7 +107,6 @@ test("packageRows bounds the description itself, not just the parser", () => {
         description: "They rely on server-side scripting languages ".repeat(20),
       },
     ],
-    100,
   );
   const out = rows[0].Description_1 as string;
   expect(out.length).toBeLessThanOrEqual(256);

@@ -41,6 +41,10 @@ import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRis
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { RiskBufferCard } from "@/components/features/proposals/RiskBufferCard";
+import { QuoteRatesCard } from "@/components/features/proposals/QuoteRatesCard";
+import { formatRate, rateKey, sortRates } from "@/lib/pricing/hourly-rates";
+import { currentRate } from "@/lib/pricing/line-pricing";
+import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import { ZohoAccountLookup } from "@/components/features/proposals/ZohoAccountLookup";
 import { ZohoDealImport } from "@/components/features/proposals/ZohoDealImport";
@@ -93,16 +97,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
 import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import {
-  HOURLY_RATE,
   TIER_OPTIONS,
-  amountForHours,
   formatAmount,
-  priceForHours,
+  lineAmount,
   lineEffectiveHours,
+  lineRate,
   quoteDevHours,
-  quoteTotals,
+  quotePricing,
+  rateSummary,
+  splitAmount,
   splitHours,
   tierLabel,
+  type QuotePricing,
 } from "@/lib/constants/proposal-estimator";
 import {
   PROPOSAL_STATUS_META,
@@ -348,7 +354,9 @@ export function ProposalEditorClient({
     );
   }, [pbsLink, linkedProjectId, projectSprints]);
 
-  const totals = quote ? quoteTotals(quote) : null;
+  // THE price — every money figure on this page reads it (quotePricing).
+  const pricing = quote ? quotePricing(quote) : null;
+  const totals = pricing ? pricing.totals : null;
   const devHours = quote ? quoteDevHours(quote) : 0;
   /**
    * The same lines priced at each row's OWN tier, and all priced as Advanced.
@@ -543,7 +551,7 @@ export function ProposalEditorClient({
     return <ProposalAccessDenied />;
   }
 
-  if (!hydrated || !quote || !totals) {
+  if (!hydrated || !quote || !totals || !pricing) {
     return (
       <div className="mx-auto max-w-2xl space-y-3 py-8 text-sm text-muted-foreground">
         <p>Loading quote…</p>
@@ -734,10 +742,10 @@ export function ProposalEditorClient({
               />
               <div className="flex items-baseline gap-2 sm:flex-col sm:items-end sm:gap-0 sm:leading-tight">
                 <span className="tabular-nums text-lg font-semibold">
-                  {priceForHours(totals.grandHours)}
+                  {formatAmount(pricing.grandAmount)}
                 </span>
                 <span className="tabular-nums text-[0.7rem] text-muted-foreground">
-                  {totals.grandHours} h @ {formatAmount(HOURLY_RATE)}/h
+                  {`${totals.grandHours} h ${rateSummary(pricing)}`.trim()}
                 </span>
               </div>
             </div>
@@ -879,20 +887,17 @@ export function ProposalEditorClient({
                         <span
                           className={cn(
                             "inline-flex items-center gap-1",
-                            quote.zoho.amount !==
-                              amountForHours(totals.grandHours) &&
+                            quote.zoho.amount !== pricing.grandAmount &&
                               "font-medium text-amber-600 dark:text-amber-500",
                           )}
                           title={
-                            quote.zoho.amount !==
-                            amountForHours(totals.grandHours)
-                              ? `Zoho holds ${formatAmount(quote.zoho.amount)}; this estimate is ${priceForHours(totals.grandHours)}. Send to Zoho to reprice the deal.`
+                            quote.zoho.amount !== pricing.grandAmount
+                              ? `Zoho holds ${formatAmount(quote.zoho.amount)}; this estimate is ${formatAmount(pricing.grandAmount)}. Send to Zoho to reprice the deal.`
                               : "Zoho matches this estimate."
                           }
                         >
                           CRM amount: {formatAmount(quote.zoho.amount)}
-                          {quote.zoho.amount !==
-                          amountForHours(totals.grandHours) ? (
+                          {quote.zoho.amount !== pricing.grandAmount ? (
                             <TriangleAlert className="size-3" aria-hidden />
                           ) : null}
                         </span>
@@ -942,6 +947,7 @@ export function ProposalEditorClient({
                     <ProductAllocation
                       products={quote.zoho.products}
                       totalHours={totals.grandHours}
+                      totalAmount={pricing.grandAmount}
                       onChange={(products) =>
                         updateProposal(quote.id, {
                           zoho: { ...quote.zoho!, products },
@@ -1493,6 +1499,8 @@ export function ProposalEditorClient({
               bufferedDays={activeResult?.timeline.totalBusinessDays}
             />
 
+            <QuoteRatesCard quote={quote} />
+
             <ProposalAddonsCard
               addons={quote.addons}
               onChange={(p) => updateAddons(quote.id, p)}
@@ -1874,7 +1882,8 @@ function LiveProjectTimeline({ projectId }: { projectId: string }) {
 }
 
 function TotalsList({ quote }: { quote: ClientQuote }) {
-  const totals = quoteTotals(quote);
+  const pricing: QuotePricing = quotePricing(quote);
+  const totals = pricing.totals;
   return (
     <dl className="divide-y divide-border/70">
       <TotalsRow label="Dev hours" value={totals.devHours} />
@@ -1911,11 +1920,11 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
         <dt className="text-sm font-medium">
           Price
           <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-            at {formatAmount(HOURLY_RATE)}/h
+            {rateSummary(pricing)}
           </span>
         </dt>
         <dd className="tabular-nums text-base font-semibold">
-          {priceForHours(totals.grandHours)}
+          {formatAmount(pricing.grandAmount)}
         </dd>
       </div>
     </dl>
@@ -1924,7 +1933,8 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
 
 /**
  * How the estimate's hours land on each product — the rows that become the CRM's
- * Packages subform, priced at hours x HOURLY_RATE.
+ * Packages subform. The price column splits the estimate's MONEY evenly
+ * (`splitAmount`) — never "hour share x a rate": lines carry their own rates.
  *
  * Read-only on purpose: the hours come from the estimator, so there is nothing
  * to type and nothing that can drift out of step with the line items. Splitting
@@ -1933,13 +1943,16 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
 function ProductAllocation({
   products,
   totalHours,
+  totalAmount,
   onChange,
 }: {
   products: ZohoProductLink[];
   totalHours: number;
+  totalAmount: number;
   onChange: (products: ZohoProductLink[]) => void;
 }) {
   const shares = splitHours(totalHours, products.length);
+  const amounts = splitAmount(totalAmount, products.length);
 
   return (
     <div className="overflow-x-auto rounded-lg border border-border/60">
@@ -1967,7 +1980,7 @@ function ProductAllocation({
                 {shares[i]}
               </td>
               <td className="px-2 py-1.5 text-right tabular-nums">
-                {priceForHours(shares[i])}
+                {formatAmount(amounts[i])}
               </td>
               <td className="pr-1.5">
                 <button
@@ -1995,7 +2008,7 @@ function ProductAllocation({
               {totalHours} h
             </td>
             <td className="px-2 py-1.5 text-right font-medium tabular-nums">
-              {priceForHours(totalHours)}
+              {formatAmount(totalAmount)}
             </td>
             <td />
           </tr>
@@ -2038,7 +2051,14 @@ type LineItemRowProps = {
     partial: Partial<
       Pick<
         ProposalLineItem,
-        "title" | "tier" | "quantity" | "base_hours" | "depends_on"
+        | "title"
+        | "tier"
+        | "quantity"
+        | "base_hours"
+        | "depends_on"
+        | "responsible"
+        | "level"
+        | "rate"
       >
     >,
   ) => void;
@@ -2060,6 +2080,10 @@ function LineItemRow({
   );
   const effHours = lineEffectiveHours(line, requirementsUnclear);
   const shownTier = requirementsUnclear ? "advanced" : line.tier;
+  const rates = useHourlyRatesStore((s) => s.rates);
+  const roleOptions = React.useMemo(() => sortRates(rates), [rates]);
+  const roleValue =
+    line.responsible && line.level ? rateKey(line.responsible, line.level) : "";
 
   const depPositions = line.depends_on
     .map((id) => {
@@ -2093,6 +2117,10 @@ function LineItemRow({
           <p className="mt-1 truncate text-[0.7rem] tabular-nums text-muted-foreground">
             {tierLabel(shownTier)} · {line.base_hours}h base · ×{line.quantity}
             {requirementsUnclear ? " · priced Advanced" : ""}
+            {line.responsible && line.level
+              ? ` · ${line.responsible} L${line.level}`
+              : ""}
+            {` · ${formatRate(lineRate(line))}/h`}
             {depCount ? ` · needs ${depPositions.join(", ")}` : ""}
           </p>
         </div>
@@ -2101,6 +2129,9 @@ function LineItemRow({
             {effHours}
           </span>
           <span className="text-xs text-muted-foreground">h</span>
+          <div className="mt-1 text-[0.7rem] tabular-nums text-muted-foreground">
+            {formatAmount(lineAmount(line, requirementsUnclear))}
+          </div>
         </div>
         <Button
           type="button"
@@ -2121,6 +2152,51 @@ function LineItemRow({
       {/* Details — tier / base / qty / dependency / remove (collapsed by default) */}
       {open ? (
         <div className="mt-3 flex flex-wrap items-end gap-3 border-t border-border/60 pt-3">
+          <div className="flex flex-col gap-1">
+            <Label
+              htmlFor={`role-${line.id}`}
+              className="text-xs text-muted-foreground"
+            >
+              Role
+            </Label>
+            {/* Picking a role snapshots that role's rate AS OF NOW — choosing a
+                role is choosing its current rate. Other lines keep theirs. */}
+            <Select
+              value={roleValue}
+              onValueChange={(v) => {
+                const opt = roleOptions.find(
+                  (r) => rateKey(r.responsible, r.level) === v,
+                );
+                if (!opt) return;
+                onChange({
+                  responsible: opt.responsible,
+                  level: opt.level,
+                  rate: currentRate(rates, {
+                    responsible: opt.responsible,
+                    level: opt.level,
+                  }),
+                });
+              }}
+              disabled={!roleOptions.length}
+            >
+              <SelectTrigger id={`role-${line.id}`} className="h-8 w-52">
+                <SelectValue placeholder="Choose a role" />
+              </SelectTrigger>
+              <SelectContent>
+                {roleOptions.map((r) => (
+                  <SelectItem
+                    key={rateKey(r.responsible, r.level)}
+                    value={rateKey(r.responsible, r.level)}
+                  >
+                    {`${r.responsible} · Level ${r.level}`}{" "}
+                    <span className="text-[0.7rem] text-muted-foreground">
+                      {`· ${formatRate(r.rate)}/h`}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <div className="flex flex-col gap-1">
             <Label
               htmlFor={`tier-${line.id}`}

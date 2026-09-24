@@ -9,7 +9,13 @@
  */
 import { differenceInCalendarDays, format, parseISO } from "date-fns";
 
-import { skillTiers } from "@/lib/assignment/plan";
+import {
+  holdsKeyFor,
+  keysGovern,
+  skillTiers,
+  type WorkKey,
+} from "@/lib/assignment/plan";
+import { parseWorkKeys } from "@/lib/assignment/roster";
 import { isUsHoliday } from "@/lib/calendar/us-holidays";
 import { addWorkingDays } from "@/lib/discovery/team-calendar";
 import { phaseIdFromLabel } from "@/lib/discovery/from-line-items";
@@ -27,6 +33,8 @@ export interface CoverCandidate {
   confidence: number;
   /** The skill that matched, when one did. */
   skill: string | null;
+  /** The work key that qualified them ("IT L2"), when keys decided it. */
+  key: string | null;
   /** Already on this task and accepted — the strongest kind of cover. */
   alreadyOnTask: boolean;
 }
@@ -63,13 +71,24 @@ export interface ImpactInput {
   entry: Pick<AvailabilityEntry, "user_id" | "start_date" | "end_date" | "kind">;
   tasks: Task[];
   sprints: Sprint[];
-  members: { id: string; name: string; deactivated_at?: string | null }[];
+  members: {
+    id: string;
+    name: string;
+    deactivated_at?: string | null;
+    work_keys?: string[];
+  }[];
   /** profile id → their skills. Used to suggest cover, never to assign it. */
   skills: Record<string, { skill: string; confidence: number }[]>;
   /** Everyone's entries, so a suggested stand-in is not themselves away. */
   availability: AvailabilityEntry[];
   /** Drives the skill matcher's platform fallback. */
   platform?: ProposalPlatform;
+  /**
+   * Estimate line id → its role. A seeded task reads its role from the line it
+   * came from (`source_line_item_id`) rather than a copy on the task, so the
+   * two can never disagree. Hand-made tasks have no role.
+   */
+  roleByLineItem?: Record<string, WorkKey>;
 }
 
 const isWeekday = (ymd: string): boolean => {
@@ -99,7 +118,8 @@ export function workdaysInRange(start: string, end: string): number {
  * an approver say yes quickly when it is fine.
  */
 export function ptoImpact(input: ImpactInput): PtoImpact {
-  const { entry, tasks, sprints, members, skills, availability, platform } = input;
+  const { entry, tasks, sprints, members, skills, availability, platform, roleByLineItem } =
+    input;
   const workdaysLost = workdaysInRange(entry.start_date, entry.end_date);
   const absenceDays = new Set(
     eachYmdInInclusiveRange(entry.start_date, entry.end_date),
@@ -137,6 +157,9 @@ export function ptoImpact(input: ImpactInput): PtoImpact {
         alsoAway,
         excludeId: entry.user_id,
         platform,
+        role: t.source_line_item_id
+          ? (roleByLineItem?.[t.source_line_item_id] ?? null)
+          : null,
       }),
       slipDays,
       // ⚠️ `addWorkingDays`, not `addBusinessDays`: the latter only avoids
@@ -200,14 +223,15 @@ function coverFor(
   task: Task,
   opts: {
     others: { profile_id: string }[];
-    members: { id: string; name: string; deactivated_at?: string | null }[];
+    members: ImpactInput["members"];
     skills: Record<string, { skill: string; confidence: number }[]>;
     alsoAway: Set<string>;
     excludeId: string;
     platform?: ProposalPlatform;
+    role: WorkKey | null;
   },
 ): CoverCandidate[] {
-  const { others, members, skills, alsoAway, excludeId, platform } = opts;
+  const { others, members, skills, alsoAway, excludeId, platform, role } = opts;
   const nameOf = new Map(members.map((m) => [m.id, m.name]));
   const out: CoverCandidate[] = [];
 
@@ -218,44 +242,79 @@ function coverFor(
       name: nameOf.get(o.profile_id) ?? "Someone",
       confidence: 0,
       skill: null,
+      key: null,
       alreadyOnTask: true,
     });
   }
 
-  // Otherwise fall back to the SAME skill matcher the assignment engine uses,
-  // so a suggestion here and an auto-assignment there cannot disagree. A task
-  // seeded from an estimate carries its phase label in `tags`; a hand-made one
-  // has no phase, and then there is nothing honest to match on.
+  // Otherwise the SAME rule the assignment engine uses, so a suggestion here
+  // and an auto-assignment there cannot disagree: work keys first (anyone
+  // holding a key for the task's role), skill stars to rank them; skills alone
+  // when nobody holds a key. A task seeded from an estimate carries its phase
+  // label in `tags`; a hand-made one has no phase and no role, and then there
+  // is nothing honest to match on.
   const phase = task.tags.map(phaseIdFromLabel).find((p) => p != null) ?? null;
-  if (phase) {
-    const wanted = skillTiers(
-      { id: task.id, title: task.title, phase, hours: task.estimated_hours ?? 0 },
-      platform ?? "wordpress",
-    ).flat();
-    if (wanted.length) {
-      const already = new Set(out.map((c) => c.id));
-      for (const m of members) {
-        if (m.id === excludeId || already.has(m.id)) continue;
-        if (m.deactivated_at) continue;
-        if (alsoAway.has(m.id)) continue;
-        let best = 0;
-        let bestSkill: string | null = null;
-        for (const s of skills[m.id] ?? []) {
-          if (!wanted.includes(s.skill.toLowerCase())) continue;
-          if (s.confidence > best) {
-            best = s.confidence;
-            bestSkill = s.skill;
-          }
-        }
-        if (best > 0) {
-          out.push({
-            id: m.id,
-            name: m.name,
-            confidence: best,
-            skill: bestSkill,
-            alreadyOnTask: false,
-          });
-        }
+  const wanted = phase
+    ? skillTiers(
+        { id: task.id, title: task.title, phase, hours: task.estimated_hours ?? 0 },
+        platform ?? "wordpress",
+      ).flat()
+    : [];
+  const already = new Set(out.map((c) => c.id));
+  const pool = members.filter(
+    (m) =>
+      m.id !== excludeId &&
+      !already.has(m.id) &&
+      !m.deactivated_at &&
+      !alsoAway.has(m.id),
+  );
+  const stars = (id: string) => {
+    let best = 0;
+    let bestSkill: string | null = null;
+    for (const s of skills[id] ?? []) {
+      if (!wanted.includes(s.skill.toLowerCase())) continue;
+      if (s.confidence > best) {
+        best = s.confidence;
+        bestSkill = s.skill;
+      }
+    }
+    return { best, bestSkill };
+  };
+  // Governed over the whole active roster (someone away still "uses" the key),
+  // matched over the pool — so a Level 2 task is never offered to a Level 1.
+  const governed = keysGovern(
+    members
+      .filter((m) => !m.deactivated_at)
+      .map((m) => ({ keys: parseWorkKeys(m.work_keys) })),
+    role,
+  );
+  if (governed && role) {
+    const keyed = pool.filter((m) =>
+      holdsKeyFor(parseWorkKeys(m.work_keys), role),
+    );
+    for (const m of keyed) {
+      const { best, bestSkill } = stars(m.id);
+      out.push({
+        id: m.id,
+        name: m.name,
+        confidence: best,
+        skill: bestSkill,
+        key: `${role.responsible} L${role.level}`,
+        alreadyOnTask: false,
+      });
+    }
+  } else if (wanted.length) {
+    for (const m of pool) {
+      const { best, bestSkill } = stars(m.id);
+      if (best > 0) {
+        out.push({
+          id: m.id,
+          name: m.name,
+          confidence: best,
+          skill: bestSkill,
+          key: null,
+          alreadyOnTask: false,
+        });
       }
     }
   }

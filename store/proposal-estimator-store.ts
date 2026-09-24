@@ -12,6 +12,7 @@ import {
 import { analyzeDiscovery } from "@/lib/discovery";
 import {
   phaseIdForLineItem,
+  phaseIdFromLabel,
   phaseLabelForLineItem,
   quoteHasWork,
   resultFromQuote,
@@ -51,6 +52,14 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { useTeamStore } from "@/store/team-store";
 import { useWeeklyCapacityStore } from "@/store/weekly-capacity-store";
+import { useHourlyRatesStore } from "@/store/hourly-rates-store";
+import {
+  currentAddonRates,
+  defaultRoleFor,
+  repriceToCurrentRates,
+  roleOf,
+  withPricing,
+} from "@/lib/pricing/line-pricing";
 import type { Database, Json } from "@/types/database.types";
 import { CURRENT_USER_ID } from "@/types/task.types";
 import type {
@@ -98,12 +107,30 @@ type ScaffoldPhase = {
   end_date: string;
 };
 
+/**
+ * The phases a schedule has — what a line may be placed into. Every call that
+ * places, tags or plans lines for one operation takes the SAME set, so the
+ * preview, the sprint a task lands in, its tag and its planner phase agree.
+ * `extra` adds sprints a project already has (a re-sync can use those too).
+ */
+function phaseSetOf(
+  scaffold: ScaffoldPhase[],
+  extra: Iterable<string> = [],
+): Set<PhaseId> {
+  const out = new Set<PhaseId>(scaffold.map((ph) => ph.id));
+  for (const label of extra) {
+    const id = phaseIdFromLabel(label);
+    if (id) out.add(id);
+  }
+  return out;
+}
+
 /** Dev roster for auto-assignment, snapshotted from the workspace stores. */
 function currentRoster(): PlanDev[] {
   const members = useTeamStore
     .getState()
     .members.filter((m) => !m.deactivated_at && m.confirmed_at)
-    .map((m) => ({ id: m.id, name: m.name }));
+    .map((m) => ({ id: m.id, name: m.name, workKeys: m.work_keys }));
   return buildRoster({
     members,
     skillsByProfile: useMemberSkillsStore.getState().skills,
@@ -130,6 +157,7 @@ function planSeeds(
   seeds: ProposalLineItem[],
   strategy: PlanStrategy,
   scaffold: ScaffoldPhase[],
+  phases: ReadonlySet<PhaseId> = phaseSetOf(scaffold),
 ): SeedPlan {
   const phaseStart: Partial<Record<PhaseId, string>> = {};
   for (const ph of scaffold) phaseStart[ph.id] = ph.start_date;
@@ -138,8 +166,9 @@ function planSeeds(
     seeds.map((li) => ({
       id: li.id,
       title: li.title,
-      phase: phaseIdForLineItem(li),
+      phase: phaseIdForLineItem(li, phases),
       hours: li.hours,
+      role: roleOf(li) ?? defaultRoleFor(li, quote.platform),
     })),
     currentRoster(),
     quote.platform,
@@ -151,7 +180,7 @@ function planSeeds(
   for (const li of seeds) {
     const p = byLineItem.get(li.id);
     if (!p?.startDate || !p?.endDate) continue;
-    const label = phaseLabelForLineItem(li);
+    const label = phaseLabelForLineItem(li, phases);
     const cur = sprintDates.get(label);
     sprintDates.set(label, {
       start: cur && cur.start < p.startDate ? cur.start : p.startDate,
@@ -221,6 +250,7 @@ function toPreview(
   edits: SchedulePreviewEdit[] = [],
   removals: { taskId: string; title: string }[] = [],
   kept: { taskId: string; title: string; loggedHours: number }[] = [],
+  phases: ReadonlySet<PhaseId> = phaseSetOf(scaffold),
 ): SchedulePreview {
   const sprints = scaffold.map((ph) => {
     const d = plan?.sprintDates.get(ph.label);
@@ -236,7 +266,7 @@ function toPreview(
       lineId: li.id,
       title: li.title,
       hours: li.hours,
-      phase: phaseLabelForLineItem(li),
+      phase: phaseLabelForLineItem(li, phases),
       assigneeName: p?.assigneeName ?? null,
       startDate: p?.startDate ?? null,
       endDate: p?.endDate ?? null,
@@ -246,7 +276,8 @@ function toPreview(
   const assignedCount = tasks.filter((t) => t.assigneeName).length;
   let finishDate: string | null = null;
   for (const t of tasks) {
-    if (t.endDate && (!finishDate || t.endDate > finishDate)) finishDate = t.endDate;
+    if (t.endDate && (!finishDate || t.endDate > finishDate))
+      finishDate = t.endDate;
   }
   return {
     sprints,
@@ -274,7 +305,9 @@ function makeSprintDateResolver(
   plan: SeedPlan | null,
 ) {
   const reviewed = preview
-    ? new Map(preview.sprints.map((s) => [s.label, { start: s.start, end: s.end }]))
+    ? new Map(
+        preview.sprints.map((s) => [s.label, { start: s.start, end: s.end }]),
+      )
     : null;
   return (ph: ScaffoldPhase) =>
     reviewed?.get(ph.label) ?? plan?.sprintDates.get(ph.label);
@@ -359,6 +392,7 @@ function pendingScheduleWork(projectId: string, quote: ClientQuote) {
     scaffold,
     seeds,
     sprintByName,
+    phases: phaseSetOf(scaffold, sprintByName.keys()),
     newPhases: scaffold.filter((ph) => !sprintByName.has(ph.label)),
     newSeeds: diff.create,
     taskUpdates: diff.update,
@@ -386,7 +420,10 @@ function describeTaskUpdates(
         taskId: u.taskId,
         title: task.title,
         newTitle: u.title,
-        fromHours: u.estimated_hours !== undefined ? (task.estimated_hours ?? 0) : undefined,
+        fromHours:
+          u.estimated_hours !== undefined
+            ? (task.estimated_hours ?? 0)
+            : undefined,
         toHours: u.estimated_hours,
       },
     ];
@@ -490,6 +527,14 @@ const proposalEstimatorStorage = createJSONStorage(() => {
   return window.localStorage;
 });
 
+/**
+ * Today's hourly rates, read at the moment a line is created. New lines
+ * SNAPSHOT these (pricing plan decision 1) — later rate edits never reach them.
+ */
+function liveRates() {
+  return useHourlyRatesStore.getState().rates;
+}
+
 function emptyLineItem(): ProposalLineItem {
   const tier: ProposalTier = "basic";
   const base_hours = 2;
@@ -507,20 +552,28 @@ function emptyLineItem(): ProposalLineItem {
   };
 }
 
-function lineItemFromCatalog(item: CatalogItem): ProposalLineItem {
+function lineItemFromCatalog(
+  item: CatalogItem,
+  platform: ProposalPlatform,
+): ProposalLineItem {
   const tier: ProposalTier = "basic";
-  return {
-    id: uid(),
-    title: item.name,
-    module: item.module,
-    category_id: item.category_id,
-    catalog_id: item.id,
-    base_hours: item.base_hours,
-    tier,
-    quantity: 1,
-    hours: computeLineHours(item.base_hours, tier, 1),
-    depends_on: [],
-  };
+  // Role + level come from the catalog row; the rate is snapshotted now.
+  return withPricing(
+    {
+      id: uid(),
+      title: item.name,
+      module: item.module,
+      category_id: item.category_id,
+      catalog_id: item.id,
+      base_hours: item.base_hours,
+      tier,
+      quantity: 1,
+      hours: computeLineHours(item.base_hours, tier, 1),
+      depends_on: [],
+    },
+    platform,
+    liveRates(),
+  );
 }
 
 export type CreateQuoteInput = {
@@ -544,10 +597,7 @@ export type ProposalDraftInput = {
   requirements_unclear?: boolean;
   addons?: Partial<ProposalAddons>;
   line_items: Array<
-    Pick<
-      ProposalLineItem,
-      "title" | "base_hours" | "tier" | "quantity"
-    > &
+    Pick<ProposalLineItem, "title" | "base_hours" | "tier" | "quantity"> &
       Partial<Pick<ProposalLineItem, "module" | "category_id" | "catalog_id">>
   >;
 };
@@ -600,6 +650,17 @@ interface ProposalEstimatorState {
    * runs the estimate engine and replaces the line items + scope-derived add-ons.
    */
   regenerateLineItems: (id: string) => void;
+  /**
+   * Re-price a quote at TODAY's rates — the deliberate counterpart to
+   * snapshots (pricing plan decision 1). Writes the exact object the preview
+   * rendered (`repriceToCurrentRates`), never a recompute, and lines + add-on
+   * rates travel in ONE write: two separate writes of the same JSONB document
+   * race, and the later one reverts the earlier.
+   */
+  applyCurrentRates: (
+    id: string,
+    next: ReturnType<typeof repriceToCurrentRates>,
+  ) => void;
   /** Move a proposal through its approval lifecycle (draft/sent/approved/rejected). */
   setProposalStatus: (id: string, status: ProposalStatus) => void;
   /**
@@ -711,7 +772,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           .select("*")
           .order("updated_at", { ascending: false });
         if (error) {
-          set({ loading: false, loaded: true, error: parseSupabaseError(error) });
+          set({
+            loading: false,
+            loaded: true,
+            error: parseSupabaseError(error),
+          });
           return;
         }
         set({
@@ -736,8 +801,17 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           platform: input.platform ?? "react_next",
           status: "draft",
           // Guided quotes start empty (the wizard generates lines); manual keep a starter row.
-          line_items: input.discovery ? [] : [emptyLineItem()],
-          addons: { ...DEFAULT_ADDONS },
+          line_items: input.discovery
+            ? []
+            : [
+                withPricing(
+                  emptyLineItem(),
+                  input.platform ?? "react_next",
+                  liveRates(),
+                ),
+              ],
+          // Add-on hours are priced at their roles' rates as of today (decision 3).
+          addons: { ...DEFAULT_ADDONS, rates: currentAddonRates(liveRates()) },
           requirements_unclear: false,
           risk_buffer_pct: 0,
           discovery: input.discovery ?? null,
@@ -774,7 +848,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               zoho: (quote.zoho ?? null) as unknown as Json,
             });
             if (error) {
-              set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+              set((s) => ({
+                proposals: s.proposals.filter((p) => p.id !== id),
+              }));
               toast.error("Couldn't create quote", {
                 description: parseSupabaseError(error),
               });
@@ -791,24 +867,30 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           ? crypto.randomUUID()
           : nextQuoteId(get().proposals);
         const line_items: ProposalLineItem[] = (
-          input.line_items.length ? input.line_items : [{
-            title: "",
-            base_hours: 2,
-            tier: "basic" as ProposalTier,
-            quantity: 1,
-          }]
-        ).map((li) => ({
-          id: uid(),
-          title: li.title,
-          module: li.module ?? null,
-          category_id: li.category_id ?? null,
-          catalog_id: li.catalog_id ?? null,
-          base_hours: li.base_hours,
-          tier: li.tier,
-          quantity: li.quantity,
-          hours: computeLineHours(li.base_hours, li.tier, li.quantity),
-          depends_on: [],
-        }));
+          input.line_items.length
+            ? input.line_items
+            : [
+                {
+                  title: "",
+                  base_hours: 2,
+                  tier: "basic" as ProposalTier,
+                  quantity: 1,
+                },
+              ]
+        )
+          .map((li) => ({
+            id: uid(),
+            title: li.title,
+            module: li.module ?? null,
+            category_id: li.category_id ?? null,
+            catalog_id: li.catalog_id ?? null,
+            base_hours: li.base_hours,
+            tier: li.tier,
+            quantity: li.quantity,
+            hours: computeLineHours(li.base_hours, li.tier, li.quantity),
+            depends_on: [],
+          }))
+          .map((li) => withPricing(li, input.platform, liveRates()));
         const quote: ClientQuote = {
           id,
           title: input.title.trim() || "Untitled quote",
@@ -818,7 +900,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           platform: input.platform,
           status: "draft",
           line_items,
-          addons: { ...DEFAULT_ADDONS, ...input.addons },
+          addons: {
+            ...DEFAULT_ADDONS,
+            ...input.addons,
+            rates: currentAddonRates(liveRates()),
+          },
           requirements_unclear: input.requirements_unclear ?? false,
           risk_buffer_pct: 0,
           created_at: now,
@@ -851,7 +937,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               requirements_unclear: quote.requirements_unclear,
             });
             if (error) {
-              set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+              set((s) => ({
+                proposals: s.proposals.filter((p) => p.id !== id),
+              }));
               toast.error("Couldn't create quote", {
                 description: parseSupabaseError(error),
               });
@@ -866,12 +954,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         set((s) => ({
           proposals: s.proposals.map((p) => {
             if (p.id !== id) return p;
-            const next = { ...p, ...partial, updated_at: new Date().toISOString() };
+            const next = {
+              ...p,
+              ...partial,
+              updated_at: new Date().toISOString(),
+            };
             // The questionnaire never re-asks what Setup knows (title, client,
             // platform + what the platform implies) — mirror it here so every
             // caller stays in sync, not just the Setup tab.
             return next.discovery
-              ? { ...next, discovery: syncDiscoveryToQuote(next.discovery, next) }
+              ? {
+                  ...next,
+                  discovery: syncDiscoveryToQuote(next.discovery, next),
+                }
               : next;
           }),
         }));
@@ -904,6 +999,22 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         persistQuoteDoc(id, get);
       },
 
+      applyCurrentRates: (id, next) => {
+        set((s) => ({
+          proposals: s.proposals.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  line_items: next.line_items,
+                  addons: { ...p.addons, rates: next.addonRates },
+                  updated_at: new Date().toISOString(),
+                }
+              : p,
+          ),
+        }));
+        persistQuoteDoc(id, get);
+      },
+
       regenerateLineItems: (id) => {
         const quote = get().proposals.find((p) => p.id === id);
         if (!quote?.discovery) return;
@@ -912,18 +1023,20 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // hours — and the price — which is exactly what it must never do.
         const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
         const draft = proposalDraftFromDiscovery(quote.discovery, result);
-        const line_items: ProposalLineItem[] = draft.line_items.map((li) => ({
-          id: uid(),
-          title: li.title,
-          module: li.module ?? null,
-          category_id: li.category_id ?? null,
-          catalog_id: li.catalog_id ?? null,
-          base_hours: li.base_hours,
-          tier: li.tier,
-          quantity: li.quantity,
-          hours: computeLineHours(li.base_hours, li.tier, li.quantity),
-          depends_on: [],
-        }));
+        const line_items: ProposalLineItem[] = draft.line_items
+          .map((li) => ({
+            id: uid(),
+            title: li.title,
+            module: li.module ?? null,
+            category_id: li.category_id ?? null,
+            catalog_id: li.catalog_id ?? null,
+            base_hours: li.base_hours,
+            tier: li.tier,
+            quantity: li.quantity,
+            hours: computeLineHours(li.base_hours, li.tier, li.quantity),
+            depends_on: [],
+          }))
+          .map((li) => withPricing(li, quote.platform, liveRates()));
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id
@@ -962,7 +1075,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             const zoho = { ...p.zoho! };
             if (patch.stage !== undefined) {
               zoho.stage = patch.stage;
-              zoho.stage_synced_at = patch.stageSyncedAt ?? new Date().toISOString();
+              zoho.stage_synced_at =
+                patch.stageSyncedAt ?? new Date().toISOString();
             }
             if (patch.amount !== undefined) zoho.amount = patch.amount;
             return {
@@ -1033,6 +1147,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         if (!quote) return null;
         const {
           scaffold,
+          phases,
           newPhases,
           newSeeds,
           taskUpdates,
@@ -1051,14 +1166,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         }));
         // `kept` alone is not work — nothing would be written — so it does not
         // keep the dialog open; it rides along when there IS something to do.
-        if (!newPhases.length && !newSeeds.length && !edits.length && !removals.length) {
+        if (
+          !newPhases.length &&
+          !newSeeds.length &&
+          !edits.length &&
+          !removals.length
+        ) {
           return toPreview([], [], null); // nothing to do — caller shows "up to date"
         }
         const plan =
           strategy && newSeeds.length
-            ? planSeeds(quote, newSeeds, strategy, scaffold)
+            ? planSeeds(quote, newSeeds, strategy, scaffold, phases)
             : null;
-        return toPreview(newSeeds, newPhases, plan, edits, removals, kept);
+        return toPreview(newSeeds, newPhases, plan, edits, removals, kept, phases);
       },
 
       convertToProject: async (proposalId, input) => {
@@ -1077,11 +1197,12 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // A reviewed preview wins: persist exactly what the user approved rather
         // than recomputing against roster data that may have changed since.
         const scaffold = phaseScaffold(quote);
+        const phases = phaseSetOf(scaffold);
         const plan =
           input.preview !== undefined
             ? (input.preview?.plan ?? null)
             : input.strategy && seeds.length
-              ? planSeeds(quote, seeds, input.strategy, scaffold)
+              ? planSeeds(quote, seeds, input.strategy, scaffold, phases)
               : null;
         const sprintDatesFor = makeSprintDateResolver(input.preview, plan);
 
@@ -1124,11 +1245,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               assignee_ids: p?.assigneeId ? [p.assigneeId] : [],
               reporter_id: CURRENT_USER_ID,
               project_id: projectId,
-              sprint_id: phaseSprint.get(phaseLabelForLineItem(li)) ?? null,
+              sprint_id: phaseSprint.get(phaseLabelForLineItem(li, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
               estimated_hours: li.hours,
               logged_hours: undefined,
-              tags: [phaseLabelForLineItem(li)],
+              tags: [phaseLabelForLineItem(li, phases)],
               // The link both directions of the sync are keyed on (0032/0033).
               source_line_item_id: li.id,
             });
@@ -1218,7 +1339,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const taskRows = seeds.map((li, i) => ({
             id: crypto.randomUUID(),
             project_id: projectId,
-            sprint_id: phaseSprint.get(phaseLabelForLineItem(li)) ?? null,
+            sprint_id: phaseSprint.get(phaseLabelForLineItem(li, phases)) ?? null,
             source_line_item_id: li.id,
             title: li.title,
             description: null,
@@ -1228,7 +1349,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             due_date: plan?.byLineItem.get(li.id)?.endDate ?? null,
             estimated_hours: li.hours,
             logged_hours: null,
-            tags: [phaseLabelForLineItem(li)],
+            tags: [phaseLabelForLineItem(li, phases)],
             position: i,
           }));
           const { data: tData, error: tErr } = await supabase
@@ -1282,6 +1403,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           scaffold,
           seeds,
           sprintByName,
+          phases,
           newPhases,
           newSeeds,
           taskUpdates,
@@ -1311,13 +1433,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         withMirrorSuppressed(() => {
           // A reviewed preview wins over recomputing, same rule as the sprints.
           const edits = preview
-            ? preview.edits.map(
-                (e): TaskPatch => ({
-                  taskId: e.taskId,
-                  title: e.newTitle,
-                  estimated_hours: e.toHours,
-                }),
-              )
+            ? preview.edits.map((e): TaskPatch => ({
+                taskId: e.taskId,
+                title: e.newTitle,
+                estimated_hours: e.toHours,
+              }))
             : taskUpdates;
           for (const u of edits) {
             tasksState.updateTask(u.taskId, {
@@ -1338,7 +1458,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           preview !== undefined
             ? (preview?.plan ?? null)
             : strategy && newSeeds.length
-              ? planSeeds(quote, newSeeds, strategy, scaffold)
+              ? planSeeds(quote, newSeeds, strategy, scaffold, phases)
               : null;
         const sprintDatesFor = makeSprintDateResolver(preview, plan);
 
@@ -1368,15 +1488,15 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               assignee_ids: p?.assigneeId ? [p.assigneeId] : [],
               reporter_id: CURRENT_USER_ID,
               project_id: projectId,
-              sprint_id: sprintByName.get(phaseLabelForLineItem(li)) ?? null,
+              sprint_id: sprintByName.get(phaseLabelForLineItem(li, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
               estimated_hours: li.hours,
               logged_hours: undefined,
-              tags: [phaseLabelForLineItem(li)],
+              tags: [phaseLabelForLineItem(li, phases)],
               source_line_item_id: li.id,
             });
           }
-// The live path inserts sprints straight through supabase rather than
+          // The live path inserts sprints straight through supabase rather than
           // createSprint(), so it never fires the sprint store's own notice.
           // Announce it once here instead — a sync that adds a phase can push
           // the project past the range its PBS purchase order was billed for.
@@ -1430,7 +1550,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const rows = newSeeds.map((li, i) => ({
             id: crypto.randomUUID(),
             project_id: projectId,
-            sprint_id: sprintByName.get(phaseLabelForLineItem(li)) ?? null,
+            sprint_id: sprintByName.get(phaseLabelForLineItem(li, phases)) ?? null,
             source_line_item_id: li.id,
             title: li.title,
             description: null,
@@ -1440,7 +1560,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             due_date: plan?.byLineItem.get(li.id)?.endDate ?? null,
             estimated_hours: li.hours,
             logged_hours: null,
-            tags: [phaseLabelForLineItem(li)],
+            tags: [phaseLabelForLineItem(li, phases)],
             position: i,
           }));
           const { data, error } = await supabase
@@ -1488,7 +1608,10 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             p.id === proposalId
               ? {
                   ...p,
-                  line_items: [...p.line_items, emptyLineItem()],
+                  line_items: [
+                    ...p.line_items,
+                    withPricing(emptyLineItem(), p.platform, liveRates()),
+                  ],
                   updated_at: new Date().toISOString(),
                 }
               : p,
@@ -1506,7 +1629,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                   ...p,
                   line_items: [
                     ...p.line_items,
-                    ...items.map((it) => lineItemFromCatalog(it)),
+                    ...items.map((it) => lineItemFromCatalog(it, p.platform)),
                   ],
                   updated_at: new Date().toISOString(),
                 }
@@ -1553,8 +1676,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               }));
             return {
               ...p,
-              line_items:
-                nextLines.length > 0 ? nextLines : [emptyLineItem()],
+              line_items: nextLines.length > 0 ? nextLines : [emptyLineItem()],
               updated_at: new Date().toISOString(),
             };
           }),
@@ -1618,31 +1740,27 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               const lineItemsRaw = Array.isArray(q.line_items)
                 ? (q.line_items as Array<Record<string, unknown>>)
                 : [];
-              const line_items: ProposalLineItem[] = lineItemsRaw.map(
-                (li) => {
-                  const oldHours =
-                    typeof li.hours === "number" ? li.hours : 2;
-                  const title =
-                    typeof li.title === "string" ? li.title : "";
-                  return {
-                    id:
-                      typeof li.id === "string"
-                        ? li.id
-                        : `${Date.now()}-${Math.random()
-                            .toString(36)
-                            .slice(2, 9)}`,
-                    title,
-                    module: null,
-                    category_id: null,
-                    catalog_id: null,
-                    base_hours: oldHours,
-                    tier: "basic",
-                    quantity: 1,
-                    hours: oldHours,
-                    depends_on: [],
-                  };
-                },
-              );
+              const line_items: ProposalLineItem[] = lineItemsRaw.map((li) => {
+                const oldHours = typeof li.hours === "number" ? li.hours : 2;
+                const title = typeof li.title === "string" ? li.title : "";
+                return {
+                  id:
+                    typeof li.id === "string"
+                      ? li.id
+                      : `${Date.now()}-${Math.random()
+                          .toString(36)
+                          .slice(2, 9)}`,
+                  title,
+                  module: null,
+                  category_id: null,
+                  catalog_id: null,
+                  base_hours: oldHours,
+                  tier: "basic",
+                  quantity: 1,
+                  hours: oldHours,
+                  depends_on: [],
+                };
+              });
               return {
                 ...q,
                 platform: "react_next",
@@ -1740,7 +1858,9 @@ registerScheduleWatcher((projectId) => {
   if (!po?.po_no) return;
 
   const range = projectDateRange(
-    useSprintsStore.getState().sprints.filter((s) => s.project_id === projectId),
+    useSprintsStore
+      .getState()
+      .sprints.filter((s) => s.project_id === projectId),
   );
   const drift = poScheduleDrift(po, range);
   if (!drift) {

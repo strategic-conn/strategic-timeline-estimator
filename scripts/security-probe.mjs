@@ -54,6 +54,8 @@ const record = (name, safe, detail) =>
 
 let memberId = null;
 let projectId = null;
+let adminId = null;
+let adminEmail = null;
 
 try {
   // ── Fixture: a real member account ─────────────────────────────────────────
@@ -290,6 +292,132 @@ try {
   });
   const role = (await call(`/rest/v1/profiles?id=eq.${memberId}&select=role`)).json[0].role;
   record("P9 member cannot make themselves admin", role === "member", `role=${role}`);
+
+  // ── P10-P13: hourly rates (0042) ────────────────────────────────────────────
+  // Rates are commercial data: admin + manager read, admin writes. The admin
+  // write is proven on a throwaway "[E2E]" row so the real rates are never
+  // touched, and the stamp is proven unforgeable by sending someone else's id.
+  const probeRole = `[E2E] probe ${RUN}`;
+  const mRates = await call("/rest/v1/hourly_rates?select=responsible", { headers: mH });
+  record(
+    "P10 member cannot read hourly rates",
+    (mRates.json ?? []).length === 0,
+    `${(mRates.json ?? []).length} rows visible`,
+  );
+  await call("/rest/v1/hourly_rates", {
+    method: "POST",
+    headers: mMin,
+    body: { responsible: probeRole, level: 1, rate: 1 },
+  });
+  await call("/rest/v1/hourly_rates?responsible=eq.IT&level=eq.1", {
+    method: "PATCH",
+    headers: mMin,
+    body: { rate: 1 },
+  });
+  const itAfterMember = (await call("/rest/v1/hourly_rates?responsible=eq.IT&level=eq.1&select=rate")).json[0].rate;
+  const memberRow = (await call(`/rest/v1/hourly_rates?responsible=eq.${encodeURIComponent(probeRole)}&select=responsible`)).json.length;
+  record(
+    "P11 member cannot write hourly rates",
+    memberRow === 0 && Number(itAfterMember) !== 1,
+    `insertStored=${memberRow} IT_L1=${itAfterMember}`,
+  );
+
+  const bRates = await call("/rest/v1/hourly_rates?select=responsible", { headers: bH });
+  const itBefore = (await call("/rest/v1/hourly_rates?responsible=eq.IT&level=eq.2&select=rate")).json[0].rate;
+  await call("/rest/v1/hourly_rates?responsible=eq.IT&level=eq.2", {
+    method: "PATCH",
+    headers: { ...bH, Prefer: "return=minimal" },
+    body: { rate: Number(itBefore) + 1 },
+  });
+  const itAfterMgr = (await call("/rest/v1/hourly_rates?responsible=eq.IT&level=eq.2&select=rate")).json[0].rate;
+  record(
+    "P12 manager can read but not write hourly rates",
+    (bRates.json ?? []).length >= 10 && Number(itAfterMgr) === Number(itBefore),
+    `reads=${(bRates.json ?? []).length} IT_L2 ${itBefore} -> ${itAfterMgr}`,
+  );
+
+  // A throwaway ADMIN, created and removed like the member.
+  const aEmail = `e2e-admin-${RUN}@example.test`;
+  await call("/rest/v1/allowed_emails?on_conflict=email", {
+    method: "POST",
+    headers: { ...svcH, Prefer: "resolution=merge-duplicates" },
+    body: [{ email: aEmail, role: "admin" }],
+  });
+  const aMade = await call("/auth/v1/admin/users", {
+    method: "POST",
+    body: { email: aEmail, password: PASSWORD, email_confirm: true },
+  });
+  adminId = aMade.json?.id ?? null;
+  adminEmail = aEmail;
+  if (!adminId) throw new Error(`admin createUser failed: ${JSON.stringify(aMade.json)}`);
+  await call(`/rest/v1/profiles?id=eq.${adminId}`, {
+    method: "PATCH",
+    body: { name: `[E2E] admin ${RUN}`, role: "admin", confirmed_at: new Date().toISOString() },
+  });
+  const aTok = await call("/auth/v1/token?grant_type=password", {
+    method: "POST",
+    headers: { apikey: ANON, "Content-Type": "application/json" },
+    body: { email: aEmail, password: PASSWORD },
+  });
+  const aH = {
+    apikey: ANON,
+    Authorization: `Bearer ${aTok.json?.access_token}`,
+    "Content-Type": "application/json",
+    Prefer: "return=representation",
+  };
+  const aIns = await call("/rest/v1/hourly_rates", {
+    method: "POST",
+    headers: aH,
+    // updated_by forged as someone else: the 0042 trigger must overwrite it.
+    body: { responsible: probeRole, level: 2, rate: 42, updated_by: other },
+  });
+  const aRow = aIns.json?.[0];
+  record(
+    "P13 admin can write hourly rates; the stamp can't be forged",
+    aIns.ok && aRow?.updated_by === adminId && Number(aRow?.rate) === 42,
+    aIns.ok ? `updated_by=${aRow?.updated_by === adminId ? "ADMIN (stamped)" : aRow?.updated_by}` : JSON.stringify(aIns.json),
+  );
+  await call(`/rest/v1/hourly_rates?responsible=eq.${encodeURIComponent(probeRole)}`, { method: "DELETE" });
+
+  // ── P14-P16: work keys (0043) ────────────────────────────────────────────────
+  // A key decides who gets work and at what seniority, so giving yourself
+  // "IT|Level 2" is a self-promotion. Only an admin may set one. All writes land
+  // on the throwaway member; the manager bot's own profile is never touched.
+  const keysOf = async (id) =>
+    JSON.stringify((await call(`/rest/v1/profiles?id=eq.${id}&select=work_keys`)).json?.[0]?.work_keys);
+  await call(`/rest/v1/profiles?id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: mMin,
+    body: { work_keys: ["IT|Level 2"] },
+  });
+  const k14 = await keysOf(memberId);
+  record("P14 member cannot give themselves a work key", k14 === "[]", `work_keys=${k14}`);
+
+  await call(`/rest/v1/profiles?id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: { ...bH, Prefer: "return=minimal" },
+    body: { work_keys: ["IT|Level 2"] },
+  });
+  const k15 = await keysOf(memberId);
+  record("P15 manager cannot set someone's work keys", k15 === "[]", `work_keys=${k15}`);
+
+  const a16 = await call(`/rest/v1/profiles?id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: { ...aH, Prefer: "return=minimal" },
+    body: { work_keys: ["IT|Level 2", "QA Tester|Level 1"] },
+  });
+  const k16 = await keysOf(memberId);
+  const bad = await call(`/rest/v1/profiles?id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: { ...aH, Prefer: "return=minimal" },
+    body: { work_keys: ["IT|Level 9"] },
+  });
+  const k16b = await keysOf(memberId);
+  record(
+    "P16 admin can set work keys; a malformed key is refused",
+    a16.ok && k16 === '["IT|Level 2","QA Tester|Level 1"]' && !bad.ok && k16b === k16,
+    `set=${k16} malformed=${bad.status} after=${k16b}`,
+  );
 } catch (e) {
   results.push(`ERROR ${e.message}`);
 } finally {
@@ -304,6 +432,10 @@ try {
     await call(`/rest/v1/projects?id=eq.${projectId}`, { method: "DELETE" });
   }
   if (memberId) await call(`/auth/v1/admin/users/${memberId}`, { method: "DELETE" });
+  if (adminId) await call(`/auth/v1/admin/users/${adminId}`, { method: "DELETE" });
+  if (adminEmail)
+    await call(`/rest/v1/allowed_emails?email=eq.${encodeURIComponent(adminEmail)}`, { method: "DELETE" });
+  await call(`/rest/v1/hourly_rates?responsible=like.${encodeURIComponent("[E2E] probe%")}`, { method: "DELETE" });
   await call(`/rest/v1/allowed_emails?email=eq.${encodeURIComponent(EMAIL)}`, { method: "DELETE" });
   const leftover = memberId
     ? (await call(`/rest/v1/profiles?id=eq.${memberId}&select=id`)).json?.length ?? 0

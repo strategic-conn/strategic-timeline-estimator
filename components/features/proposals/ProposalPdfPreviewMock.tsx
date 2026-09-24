@@ -4,14 +4,10 @@ import { format } from "date-fns";
 
 import {
   effectiveTier,
-  lineEffectiveHours,
-  quoteTotals,
-  tierLabel,
-} from "@/lib/constants/proposal-estimator";
-import {
-  HOURLY_RATE,
   formatAmount,
-  priceForHours,
+  lineEffectiveHours,
+  quotePricing,
+  tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
@@ -29,7 +25,8 @@ export function ProposalPdfPreviewMock({
   projectName,
   className,
 }: ProposalPdfPreviewMockProps) {
-  const totals = quoteTotals(quote);
+  const pricing = quotePricing(quote);
+  const totals = pricing.totals;
   const dateStr = format(new Date(quote.updated_at), "MMMM d, yyyy");
   const goal = primaryGoalLabel(
     quote.discovery?.primary_goal ?? "",
@@ -169,14 +166,12 @@ export function ProposalPdfPreviewMock({
             strong
           />
           <div className="col-span-2 mt-2 flex items-baseline justify-between gap-4 border-t border-slate-300 pt-2">
-            <dt className="font-semibold text-slate-800">
-              Price
-              <span className="ml-1.5 text-xs font-normal text-slate-500">
-                at {formatAmount(HOURLY_RATE)}/h
-              </span>
-            </dt>
+            {/* No rate here: this previews the CLIENT document, which shows
+                prices only (pricing plan default). Lines can carry different
+                rates, so a single "at $X/h" would be false anyway. */}
+            <dt className="font-semibold text-slate-800">Price</dt>
             <dd className="text-lg font-semibold tabular-nums text-slate-900">
-              {priceForHours(totals.grandHours)}
+              {formatAmount(pricing.grandAmount)}
             </dd>
           </div>
         </dl>

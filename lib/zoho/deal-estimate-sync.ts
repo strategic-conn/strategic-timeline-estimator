@@ -1,6 +1,5 @@
 import "server-only";
 
-import { HOURLY_RATE } from "@/lib/constants/proposal-estimator";
 import {
   estimateTotalRow,
   isGeneratedDescription,
@@ -155,8 +154,8 @@ export async function applyEstimateToDeal(
   const rows =
     layout && wantsPackages
       ? totalOnly
-        ? [estimateTotalRow(layout, input.total!, HOURLY_RATE)]
-        : packageRows(layout, input.products, HOURLY_RATE)
+        ? [estimateTotalRow(layout, input.total!)]
+        : packageRows(layout, input.products)
       : [];
 
   if (layout && wantsPackages) {

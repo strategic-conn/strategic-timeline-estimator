@@ -237,7 +237,7 @@ test.describe("suggesting cover", () => {
       }),
     );
     expect(i.affected[0].cover).toEqual([
-      { id: "sarah", name: "Sarah", confidence: 4, skill: "WordPress", alreadyOnTask: false },
+      { id: "sarah", name: "Sarah", confidence: 4, skill: "WordPress", key: null, alreadyOnTask: false },
     ]);
   });
 

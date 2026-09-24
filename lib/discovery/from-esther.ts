@@ -1,6 +1,14 @@
 /** Seeds a DiscoveryProject from an Esther brief analysis (chatbot → wizard hand-off). */
+import { categoryIdByName } from "@/lib/proposal-catalog";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import type { EstherAnalysis } from "@/types/esther.types";
+
+/**
+ * Looked up by NAME: categories were renumbered in catalog v3, and this used to
+ * be the literal `5` — which now means Custom Tools, so every Esther brief with
+ * a custom tool would have been read as an online store.
+ */
+const ECOMMERCE_CATEGORY_ID = categoryIdByName("E-Commerce");
 
 type DiscoverySeed = Partial<
   Omit<DiscoveryProject, "id" | "created_at" | "updated_at">
@@ -34,7 +42,7 @@ export function discoveryFromEstherAnalysis(
   const total_pages = pageItems > 0 ? Math.max(pageItems, 5) : 5;
 
   const has_ecommerce =
-    analysis.lineItems.some((li) => li.category_id === 5) ||
+    analysis.lineItems.some((li) => li.category_id === ECOMMERCE_CATEGORY_ID) ||
     /commerce|product|cart|checkout|sku/.test(text);
 
   return {

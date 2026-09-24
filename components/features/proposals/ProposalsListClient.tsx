@@ -62,8 +62,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePermissions } from "@/hooks/usePermissions";
-import { quoteTotals } from "@/lib/constants/proposal-estimator";
-import { priceForHours } from "@/lib/constants/proposal-estimator";
+import {
+  formatAmount,
+  quotePricing,
+} from "@/lib/constants/proposal-estimator";
 import {
   dealTakenMessage,
   findActiveDealHolder,
@@ -432,7 +434,8 @@ export function ProposalsListClient() {
         <ul className="flex max-w-3xl flex-col gap-3">
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
-            const totals = quoteTotals(q);
+            const pricing = quotePricing(q);
+            const totals = pricing.totals;
             return (
               <li key={q.id}>
                 <Card className="transition-colors hover:bg-muted/30">
@@ -460,7 +463,7 @@ export function ProposalsListClient() {
                           {totals.grandHours} h
                         </Badge>
                         <Badge variant="secondary" className="tabular-nums">
-                          {priceForHours(totals.grandHours)}
+                          {formatAmount(pricing.grandAmount)}
                         </Badge>
                         <Badge
                           className={cn(

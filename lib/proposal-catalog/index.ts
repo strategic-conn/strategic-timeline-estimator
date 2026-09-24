@@ -28,6 +28,15 @@ export interface CatalogItem {
   base_hours: number;
   description: string;
   dependencies_note: string | null;
+  /**
+   * Who does the work and at what seniority — the workbook's Responsible +
+   * Level. Together they are the lookup key into `hourly_rates` ("IT|Level 2").
+   * Not yet used for pricing (pricing plan Phase 3) or assignment (Phase 4).
+   */
+  responsible: string;
+  level: 1 | 2;
+  /** What can push the hours up or down. A note only; changes no calculation. */
+  things_to_consider: string | null;
 }
 
 interface CatalogShape {
@@ -61,9 +70,20 @@ export function platformLabel(platform: ProposalPlatform): string {
   );
 }
 
-export function categoryById(id: number | null | undefined): CatalogCategory | null {
+export function categoryById(
+  id: number | null | undefined,
+): CatalogCategory | null {
   if (id == null) return null;
   return CATALOG_CATEGORIES.find((c) => c.id === id) ?? null;
+}
+
+/**
+ * A category's id by its NAME. Categories were renumbered in catalog v3
+ * (19 -> 23), so code must never compare against a literal id: Esther checked
+ * `category_id === 5` for "e-commerce", and 5 now means Custom Tools.
+ */
+export function categoryIdByName(name: string): number | null {
+  return data.categories.find((c) => c.name === name)?.id ?? null;
 }
 
 export function categoryName(id: number | null | undefined): string | null {
@@ -156,7 +176,7 @@ export interface CatalogModuleGroup {
 }
 
 export function groupCatalogByModule(
-  items: CatalogItem[]
+  items: CatalogItem[],
 ): CatalogModuleGroup[] {
   const map = new Map<string, CatalogModuleGroup>();
   const order: string[] = [];

@@ -141,7 +141,7 @@ lib/
 ├── validations/        # Zod schemas (profile.schema.ts so far)
 ├── dummy/              # demo data: projects, sprints, tasks (+ TEAM_MEMBERS)
 ├── constants/          # projects, sprints, proposal-estimator, workload, task-focus
-├── proposal-catalog/   # catalog.json + index (platform → catalog rows)
+├── proposal-catalog/   # catalog.json (built by scripts/build-catalog.mjs from the pricing workbook) + index
 ├── discovery/          # guided-scope rules engine (analyzeDiscovery) + to-proposal bridge + from-esther seed
 │                       #   + team-calendar — booked PTO folded into the tentative timeline
 ├── activity/           # workspace-push (append activity/notifications)
@@ -168,9 +168,12 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0036 risk_buffer_pct on proposals + projects ·
                         #   0037 publish scheduling tables to realtime (0038-0040 are wrong-theory
                         #   churn that nets to zero - see "Realtime" below) ·
-                        #   0041 member-abuse fixes (leave approval, profile self-edit, internal-only hrefs)
+                        #   0041 member-abuse fixes (leave approval, profile self-edit, internal-only hrefs) ·
+                        #   0042 hourly_rates (role+level rates; pricing plan Phase 1) ·
+                        #   0043 profiles.work_keys (admin-set lookup keys; Phase 4)
                         #   + README - `npm run db:push`
-project-csv/            # "tasks and integration.xlsx" — source for the proposal catalog
+project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
+                        #   (the older "tasks and integration.xlsx" is superseded)
 e2e/                    # Playwright suite — `npm run test:e2e` (see e2e/README.md).
                         #   Runs against LIVE Supabase+Zoho, so: everything it creates is
                         #   prefixed "[E2E]" and deleted in teardown, it never touches
@@ -262,11 +265,12 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `tasks` (+ `task_assignees` w/ status, `source_line_item_id`) | select / insert / update / delete + Realtime | `tasks-store` / `useTasks` | Wired |
 | `time_entries` (hour attribution)     | select / insert                   | `tasks-store` (logged via accepted assignees) | Wired |
 | `task_comments` (+ `comment_reactions`)| select / insert / update / delete + Realtime | `tasks-store` / `TaskCommentSection` | Wired |
-| `profiles` (team directory)           | select                     | `team-store` / `useTeamMembers` | Wired |
+| `profiles` (team directory + `work_keys`) | select / update (keys: admin only) + Realtime | `team-store` / `useTeamMembers` (`setWorkKeys`) | Wired |
 | `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
 | `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
 | `availability_entries` (+ `status` approval) | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
+| `hourly_rates` (responsible + level -> rate) | select / upsert + Realtime | `hourly-rates-store` (Settings -> Workspace -> Hourly rates) | Wired - new estimate lines snapshot these rates |
 | `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 | `zoho_connection` (OAuth tokens)      | service-role only (RLS: **no policies**) | `lib/zoho/tokens.ts` via `/api/zoho/*` | Wired |
@@ -368,25 +372,98 @@ interface ClientQuote {
 
 **Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). **Every estimate has both tabs** — the New-estimate dialog does *not* ask which one you want, because the choice was never binding: it only picked a landing tab. A new estimate opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
 
-**Pricing:** every price is **hours × `HOURLY_RATE`** (`lib/constants/proposal-estimator.ts`, currently **$100/h**) — the estimator computes effort, and effort is what's sold. `amountForHours()` / `formatAmount()` / `priceForHours()` are the only money helpers; amounts appear on the editor header, the totals panel, the list cards, the PDF (per line + roll-up) and the Excel export (as **numbers**, so a spreadsheet can sum them). One constant, deliberately — a per-client rate would need a `proposals` column (plus **both** update whitelists), an editor field, and a rule for which rate an existing quote keeps when the default moves.
+**Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header reads "708 h at $100/h" when one rate prices every hour, "avg $104.25/h" otherwise (`rateSummary`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
 
-**Products → Packages rows:** products picked from the CRM (`zoho.products`) get an hours share **derived** from the estimate — `splitHours(total, n)`, even, with rounding drift on the first share so the parts always sum to exactly the total. Nothing is typed: the estimator computed the hours, and a second hand-entered copy could only disagree with it. A row's price is its share x `HOURLY_RATE` — **computed, not the catalogue `unit_price`** (kept for reference only). The Setup table and the create-deal dialog both render from the same call, so the review can't disagree with what's sent. Writing real rows to Zoho is still blocked on the Packages subform's API names (`/api/zoho/health` → `dealSubforms`); until then the priced breakdown goes in the deal's `Description`.
+> ⚠️ **A line with no `rate` is priced at `LEGACY_HOURLY_RATE` ($100)** — that
+> is what every line cost before Phase 3, so a legacy quote reads identically
+> with or without its snapshots (proven over 3,000 random quotes in
+> `e2e/line-pricing.spec.ts`). The live data was nevertheless backfilled once
+> (`scripts/backfill-line-pricing.mjs`, 2026-09-24: 6 quotes / 208 lines at
+> $100 + roles; every price verified unchanged), so the DATA says what each
+> line was priced at and "Update to current rates" knows each legacy line's
+> role. Those quotes now show that button on their Adjust tab — pressing it is
+> a pricing decision about a real client quote, never a migration step.
+>
+> ⚠️ `responsible` / `level` / `rate` ride **inside** the `line_items` jsonb and
+> `rates` inside `addons`, so no whitelist changed. A new top-level `proposals`
+> column still needs all three (`rowToQuote`, `quoteUpdatePayload`, the `Pick`).
+
+**Products → Packages rows:** products picked from the CRM (`zoho.products`) get an hours share **derived** from the estimate — `splitHours(total, n)`, even, with rounding drift on the first share so the parts always sum to exactly the total. Nothing is typed: the estimator computed the hours, and a second hand-entered copy could only disagree with it. A row's price is its share of the estimate's **amount** (`splitAmount`, same drift rule, so the rows sum to exactly the header price) — **computed, not the catalogue `unit_price`** (kept for reference only). The Setup table and the create-deal dialog both render from the same call, so the review can't disagree with what's sent. Writing real rows to Zoho is still blocked on the Packages subform's API names (`/api/zoho/health` → `dealSubforms`); until then the priced breakdown goes in the deal's `Description`.
+
+**Hourly rates by role + level (pricing plan — `docs/pricing-levels-plan.md`).**
+Rates are **data** (the old `HOURLY_RATE` constant is gone). Table
+`hourly_rates` (`0042`), keyed `(responsible, level)`, seeded from
+`project-csv/Project_Pricing_Workbook_v3.xlsx` — IT 100/120, Creative 100/130,
+Project Manager 80/100, QA Tester 80/120, **Project Coordinator 0/0 on purpose**
+(non-billable, still configurable). Edited in **Settings → Workspace → Hourly
+rates** (`HourlyRatesCard`): admin edits, manager reads, members and viewers see
+nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
+`lib/pricing/hourly-rates.ts` (`rateFor`, `rateKey` = the workbook's
+`"IT|Level 2"`, `validateRateDraft`, `DEFAULT_HOURLY_RATES` for demo mode).
+
+> **Estimates price from this table** (Phase 3, see "Pricing" above) — but
+> only NEW lines: each line snapshots its rate when it is added, so editing a
+> rate here never reprices an existing quote. The card says so.
+>
+> ⚠️ **"Level 2 must not be below Level 1" is checked on Save across the whole
+> table, not by a database trigger** — raising both levels of a role one row at
+> a time would briefly break a row rule and be refused half-way. Equal is
+> allowed (Coordinator is $0/$0). `updated_by` / `updated_at` are stamped by a
+> trigger, never sent by the client, so "last changed by" cannot be forged
+> (probe P13 sends someone else's id and checks it is overwritten).
+>
+> The old Workspace-tab **"Placeholder layout — no API yet"** card was removed;
+> the Workspace tab is now shown only to admin + manager (a member or viewer
+> would land on an empty tab). The **Security** tab is still a mock (disabled
+> password field) — flagged, not removed.
+>
+> ⚠️ **Phone width:** the admin table is role + two inputs; at `w-28` that is
+> ~333px against a phone card's ~311px, so inputs are `w-24 sm:w-28`
+> (measured: 0px overflow in 317px). Settings opens on the Profile tab, which is
+> why `layout-integrity` does not see this card — check it by hand after edits.
 
 **Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
 
 **Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`, and since `0032`/`0033` that sync **reconciles** rather than only adding — see "Estimate ↔ project, both ways" below. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
 
-> ⚠️ **Only the 7 phase labels have delivery meaning.** `phaseLabelForLineItem`
-> returns the row's `module` when it is one of `PHASE_META`'s labels and
-> **falls back to `Development`** otherwise — so nothing is ever "unmatched",
-> and nothing lands in the backlog on conversion. The practical consequence is
-> that the **59 catalog modules** (`lib/proposal-catalog/catalog.json` — "Homepage
-> - Standard", "Pre-Launch QA", "SEO"…) are a **scope taxonomy only**: they group
-> rows in the Line items tab and the PDF, and carry no dates, colour or phase.
-> A catalog-built quote therefore schedules as **one Development sprint**, and its
-> Design/QA/PM phases come from the **add-on percentages**, not from its modules
-> (`resultFromQuote`). Mapping catalog modules onto phases would change that; it
-> is deliberately not done today. This is a **draft schedule** the manager then adjusts (sprint dates, task hours/assignees) into the plan the team follows — the project's timeline **is** its sprints, rendered by the Gantt (embedded on the project overview via `<GanttClient lockedProjectId={…} />`). Links `proposals.project_id`.
+> ⚠️ **A line's phase is its guided phase, else its ROLE's** (pricing plan
+> Phase 5, `phaseIdForLineItem` in `lib/discovery/from-line-items.ts`). A guided
+> row's `module` is one of the 7 `PHASE_META` labels and keeps it. Every other
+> row — catalog or freehand — goes to the phase of whoever does it
+> (`ROLE_PHASE`): **Creative → Design & UX, QA Tester → QA & Testing, Project
+> Coordinator → Content & Copy, Project Manager → Discovery & Strategy**; IT,
+> an unknown role and a row with no role → **Development** (where every catalog
+> row sat before). The **59 catalog modules** ("Homepage - Standard", "SEO"…)
+> are still a scope taxonomy only — they group rows in the Line items tab and
+> the PDF and decide nothing about dates.
+>
+>  - **`resultFromQuote` builds a catalog quote's phases from the same rule**,
+>    so a Creative line now draws a Design bar (plus the design add-on, whose
+>    roll-up task comes first), a QA line a QA bar. Totals are unchanged: the
+>    non-dev phases are summed and Development takes the remainder of
+>    `devHours`. ⚠️ With no role phases the old arithmetic is kept EXACTLY —
+>    not re-rounded — because durations round UP to whole days, and removing
+>    float noise would shift an existing timeline by a day. Verified
+>    byte-identical (full result, dates included) against the pre-Phase-5 code
+>    on 200 random IT-only quotes; `e2e/role-phases.spec.ts` pins it.
+>  - ⚠️ **The `available` guard.** A GUIDED quote's sprints come from its
+>    questionnaire, not its lines, so a Creative catalog line on a guided quote
+>    with no design phase would have no sprint and land in the **backlog**.
+>    Every store call that places, tags or plans lines for one operation takes
+>    the same `phaseSetOf(scaffold)` set (a re-sync adds the project's existing
+>    sprints), and a role phase missing from it falls back to Development. One
+>    set per operation is the point: sync's preview is built from the NEW
+>    phases only, and deriving the set per call would let the preview and the
+>    write place a line differently.
+>  - **Existing tasks are never moved.** A re-sync adds new sprints for new
+>    phases (shown in the preview first) and places NEW tasks by role, but a
+>    task that already sits in a sprint stays there — the manager may have put
+>    it there. Live on 2026-09-24 this affected two Creative catalog lines on
+>    test estimates, one on a project (whose task stayed in Development).
+>  - The PBS PO range (`estimateDateRange`) follows automatically — it is the
+>    same analyzer — so a catalog quote with design work bills a longer range.
+
+This is a **draft schedule** the manager then adjusts (sprint dates, task hours/assignees) into the plan the team follows — the project's timeline **is** its sprints, rendered by the Gantt (embedded on the project overview via `<GanttClient lockedProjectId={…} />`). Links `proposals.project_id`.
 
 > ⚠️ **A sprint may start and end on the same day.** Both sprint modals
 > validate `end >= start`, not `end > start`. The estimate scaffolder
@@ -535,7 +612,39 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
 
 **Output:** in-browser **PDF preview mock** + real **PDF** (jsPDF) and **Excel** (xlsx) export — `lib/utils/proposal-pdf-export.ts`, `proposal-excel-export.ts`. Optional server-side export (Edge Function → Storage) is still a later path.
 
-**Data:** `store/proposal-estimator-store.ts` (Zustand + persist demo key `timeline-proposal-estimator`; live via the `proposals` table — `line_items` + `addons` + `discovery` as JSONB). The old standalone `discovery_projects` table was migrated into `proposals.discovery` and dropped (`0022`–`0023`). **Catalog source:** `lib/proposal-catalog/catalog.json` (from `project-csv/tasks and integration.xlsx`).
+**Data:** `store/proposal-estimator-store.ts` (Zustand + persist demo key `timeline-proposal-estimator`; live via the `proposals` table — `line_items` + `addons` + `discovery` as JSONB). The old standalone `discovery_projects` table was migrated into `proposals.discovery` and dropped (`0022`–`0023`).
+
+**Catalog source (v3):** `project-csv/Project_Pricing_Workbook_v3.xlsx` →
+**`node scripts/build-catalog.mjs`** → `lib/proposal-catalog/catalog.json`, then
+**`node scripts/remap-catalog-categories.mjs --apply`** (dry run without the
+flag). The old catalog was a one-off conversion from `tasks and
+integration.xlsx` with no script behind it — which is how the spreadsheet and
+the app drifted. 597 tasks over six platforms, 23 categories. Each task now
+carries **`responsible`** + **`level`** (the lookup key into `hourly_rates`) and
+**`things_to_consider`**; the catalog browser shows them and filters by role and
+level, and shows each task's current rate (the rate a line added now would
+snapshot).
+
+ - ⚠️ **Categories were RE-CLASSIFIED, not just renumbered** (19 → 23). Every
+   old "Design" task is now "Frontend"; old "Integration" split five ways. So
+   an old→new id table by name is wrong — existing lines are remapped through
+   their own `catalog_id` by `remap-catalog-categories.mjs`. It writes only
+   `category_id`, never sends `updated_at` (no list reshuffle, no PDF that looks
+   "edited"), and skips any quote saved while it ran. First run: 17 lines on two
+   TEST estimates; hours, line counts and `updated_at` verified unchanged.
+ - ⚠️ **Never compare a category against a literal id** — use
+   `categoryIdByName()`. Esther checked `category_id === 5` for e-commerce; 5
+   is Custom Tools in v3.
+ - The build **normalises en/em dashes to "-"** in module and task names (the
+   workbook writes "Configurator – 3D"; the catalog always said "Configurator -
+   3D"), **renumbers duplicate ids** (React-NextJS reused 121–123, so ticking one
+   task in the browser ticked its twin too — now 135–137), and **refuses to
+   write** if a task names an unknown role, level or category. Output is
+   deterministic, and task counts and hours match the workbook's Summary tab.
+ - ⚠️ **The workbook's "Base Hours unchanged" is not quite true:** WordPress
+   Hero Section 2 → 1.5 h and Services or Product Grid 3 → 2.5 h; task 117 moved
+   module General → Environment Setup. Existing quotes are unaffected — a line
+   stores its own `base_hours` when it is added.
 
 **Permissions:** **Admin + Manager only** — gate with **`canExportProposals`** from `usePermissions()`. Member/Viewer must not see entry points or mutating controls. Enforced by RLS on `proposals`.
 
@@ -576,7 +685,7 @@ covers webhook *channels*, not records.)
 | **Products** | `/api/zoho/products` | Estimator → Setup → "Add from Zoho": the live **Products** module behind category filter pills (same pattern as the deal picker), multi-select, stored on the quote as `zoho.products`. Covered by the existing `ZohoCRM.modules.READ` — no new scope, no CSV snapshot. Records are fetched **without** a `fields` filter because this org files products under two things: the standard `Product_Category` (Creative/Sysdev/Phone/…) **and** a custom `CATEGORY` field (ONBOARDING/SEO/…), whose API name can't be assumed — `lib/zoho/products.ts` picks both out case-insensitively and groups by the custom one first. **Not written onto the Deal** yet: the "Packages" subform's API name is unknown, so for now the picked names ride along in the new deal's `Description` |
 | **Client lookup** | `/api/zoho/accounts` | "Find in Zoho" on the Client field — available in **both** the New-estimate dialog and the editor's Setup tab. Search **Accounts** (companies), then pick a **Contact** (a company has many). Falls back to searching people when no company matches. Each company shows its **prior deals** — enriched with ONE batched `Account_Name:in:<ids>` query (never per-account: that would be 25 calls per search) |
 | **Create deal** (write) | `POST /api/zoho/deals` | The inverse of import: a hand-made estimate opens a **new** Deal. **One button does both directions**: editor **Review** tab → **"Send to Zoho"** creates the deal when none is linked and updates the linked one when there is (`ZohoSendDialog`), always behind a preview of exactly what will be written. Deliberately the last step, and deliberately not two buttons in two places — which of the two you needed was bookkeeping the user shouldn't have to work out. Setup only offers *linking* an existing deal. Writes `Deal_Name`, `Stage`, `Closing_Date`, `Account_Name`, optional `Contact_Name` + `Description` — never `Amount`/`Quote_number`. **Requires an existing Account** (`zoho.account_id` via "Find in Zoho"); this app never creates a company. Stage is limited to `Discovery` or `Proposal Sent`, and **the proposal PDF is attached either way** — sales reads it during Discovery, not only once the quote is formally sent. **Duplicate-proof**: refuses a quote that already has `deal_id`, and claims the row with a compare-and-set (`zoho.creating_at`, 2-min TTL) before calling Zoho — there is no DELETE scope, so a duplicate deal is a manual cleanup. Needs `ZohoCRM.modules.deals.CREATE`, so it 401s until someone does Disconnect → Connect with the wider scopes |
-| **Estimate → Deal content** | `lib/zoho/deal-estimate-sync.ts` | Both "Create deal" and "Push to Zoho" put the estimate's **Packages rows** (one per `zoho.products` entry: Product lookup + Unit Price = its `splitHours` share x `HOURLY_RATE`) onto the Deal, plus the Description on push. **The row's Description column carries the product's own catalogue description**, read live from the Products module — that is what someone opening the deal wants to read; the "N h at $R/h" note is only the fallback for a catalogue entry that has none. It is shown in the send dialog under each product, so the review matches what is written. Both the picker and the row bound it with `truncateAtWord` (`lib/zoho/products.ts`) rather than a hard `slice`: a sentence cut mid-word ("…server-side scripting lang") reads as corrupted data in a CRM field, not as an excerpt. **A quote with no products still carries its price**: `estimateTotalRow` writes ONE row with `Unit_Price` = the whole estimate and no Product lookup (`Product` is `required: false` on this subform, verified live) — and that price only reaches Zoho this way, because `Amount` is recomputed from these rows. **Nothing is hardcoded**: the subform and its columns are resolved from live field metadata by LABEL and type (`findPackagesSubform`), because custom API names can't be guessed — this org's "CATEGORY" field is reachable only as `CATEGORY1`. **Verifies the replace**: after a replacing write it re-reads the row count and warns if it differs from what was sent — a subform PUT is documented to replace, and if it ever appended the deal would silently show double the estimate while the call still reported success. **Overwrites only when asked**: the deal is read first, and by default any existing rows/description are left alone with a warning, since a subform write replaces every row and sales may have typed their own. That default made the price **write-once** — `Amount` is derived from the rows, so an edited estimate could never reprice a deal that already had any — which is why the send dialog (and only the send dialog) passes **`replace=1`**, after showing the deal's live amount and row count. Import, the status changer and mark-complete keep the safe default. The free-text `Description` is narrower still: `replace` rewrites it only when this app wrote it (`isGeneratedDescription`, matching the `Estimate: … line item…` roll-up) — a rep's own notes are never deleted. Can't resolve the subform → skips, warns, and the products still ride in the Description |
+| **Estimate → Deal content** | `lib/zoho/deal-estimate-sync.ts` | Both "Create deal" and "Push to Zoho" put the estimate's **Packages rows** (one per `zoho.products` entry: Product lookup + Unit Price = its `splitAmount` share of the estimate's amount) onto the Deal, plus the Description on push. **The row's Description column carries the product's own catalogue description**, read live from the Products module — that is what someone opening the deal wants to read; the "N h" note is only the fallback for a catalogue entry that has none. It is shown in the send dialog under each product, so the review matches what is written. Both the picker and the row bound it with `truncateAtWord` (`lib/zoho/products.ts`) rather than a hard `slice`: a sentence cut mid-word ("…server-side scripting lang") reads as corrupted data in a CRM field, not as an excerpt. **A quote with no products still carries its price**: `estimateTotalRow` writes ONE row with `Unit_Price` = the whole estimate and no Product lookup (`Product` is `required: false` on this subform, verified live) — and that price only reaches Zoho this way, because `Amount` is recomputed from these rows. **Nothing is hardcoded**: the subform and its columns are resolved from live field metadata by LABEL and type (`findPackagesSubform`), because custom API names can't be guessed — this org's "CATEGORY" field is reachable only as `CATEGORY1`. **Verifies the replace**: after a replacing write it re-reads the row count and warns if it differs from what was sent — a subform PUT is documented to replace, and if it ever appended the deal would silently show double the estimate while the call still reported success. **Overwrites only when asked**: the deal is read first, and by default any existing rows/description are left alone with a warning, since a subform write replaces every row and sales may have typed their own. That default made the price **write-once** — `Amount` is derived from the rows, so an edited estimate could never reprice a deal that already had any — which is why the send dialog (and only the send dialog) passes **`replace=1`**, after showing the deal's live amount and row count. Import, the status changer and mark-complete keep the safe default. The free-text `Description` is narrower still: `replace` rewrites it only when this app wrote it (`isGeneratedDescription`, matching the `Estimate: … line item…` roll-up) — a rep's own notes are never deleted. Can't resolve the subform → skips, warns, and the products still ride in the Description |
 | **Stage picklist** | `/api/zoho/deal-stages` | The org's own Deal `Stage` list (value + pipeline order + forecast bucket + probability), read via `ZohoCRM.settings.READ` and cached 30 min in `lib/zoho/stages.ts`. **One reader, deliberately**: the status changer offers exactly what the push route accepts, so the menu can never show a stage the server then rejects. ⚠️ The readable bucket is **`forecast_type`** ("Open" / "Closed Won" / "Closed Lost"). `forecast_category` looks right and is **an opaque id** — matching on it classifies every stage as not-won |
 | **In-app status changer** (write) | via the push route | The stage badge on the editor's Setup panel is a dropdown (`ZohoStageSelect`): pick any stage in the org pipeline and the deal moves, without opening Zoho. **All stages, revenue ones included** — a stage is reversible in Zoho, and the irreversible half (the PO) has its own gate. No confirm dialog; the result is toasted |
 | **Stage board** (write) | via the push route | Estimator → **Stages**: the same estimates as the list, arranged as a Zoho-shaped pipeline (`ProposalStageBoard`) so someone who works the deal in the CRM recognises the layout. Columns are the org's own picklist in Zoho's order with its probabilities, headed by that column's estimate total and count. Dragging a card moves the real deal. **Only this app's estimates appear** — the rest of that pipeline is sales' business, and rendering it would imply this app could act on it. See the rules below |
@@ -902,10 +1011,10 @@ choice and the act sit together.
 | Channel | Tables | What it keeps live |
 | --- | --- | --- |
 | `workspace:board` | `projects` `sprints` `tasks` `task_assignees` `task_comments` `comment_reactions` | the Gantt, the task boards, the drawer |
-| `workspace:scheduling` (`0037`) | `availability_entries` `weekly_capacity` `profiles` | what *shapes* the timeline — PTO, capacity, roster |
+| `workspace:scheduling` (`0037`) | `availability_entries` `weekly_capacity` `profiles` `hourly_rates` (`0042`) | what *shapes* the timeline and the price — PTO, capacity, roster, rates |
 | `notifications:<uid>` / `activity:workspace` | `notifications` `activity` | the bell and the feeds |
 
-All 11 are published to `supabase_realtime` and all 11 are subscribed — verified
+All 12 are published to `supabase_realtime` and all 12 are subscribed — verified
 live against `pg_publication_tables`. `proposals` is the one deliberate
 omission (see the JSONB note under the Zoho section).
 
@@ -995,6 +1104,17 @@ Fixed in **`0041`**, each reproduced live first:
 > `pending` — the first run tested a pending leave and "passed". Approval
 > fixtures use the manager bot's JWT and throw if the row does not reach
 > `approved`.
+
+**Hourly rates (`0042`)** are covered by probes P10–P13: a member reads 0 rows
+and cannot insert or update; a manager reads every row but cannot write; an
+admin can write, proven on a throwaway `[E2E] probe` row so the real rates are
+never touched.
+
+**Work keys (`0043`)** are covered by P14–P16: a member cannot give themselves
+a key (the guard raises), a manager cannot set anyone's (RLS: a manager updates
+only their own profile), and an admin can — while a malformed key (`IT|Level 9`)
+is refused by the column's CHECK. P16 is also the positive control for P14: the
+same body the member was refused is accepted from an admin.
 
 **Verified safe, no change needed:** all 18 API routes are guarded
 (`requireAdmin` / `requireZohoReader|Writer` / `requirePbsReader|Writer`), every
@@ -1098,6 +1218,60 @@ workload bar.
    between the table and the empty state; the dashboard also surfaces the
    store's `error`. Reports' `time_entries` read is deliberately **not** this
    hook — it has no date filter because it answers an all-time question.
+
+---
+
+## Work keys — who can be given a task (pricing plan Phase 4)
+
+A **work key** is the workbook's lookup key on a person — `"IT|Level 2"` —
+stored in **`profiles.work_keys text[]`** (`0043`). A person may hold several,
+one level per discipline (Level 2 already covers Level 1, so holding both says
+nothing more). Set in **Team → a member's star button → "Work keys & skills"**
+(`WorkKeysEditor`): **admin edits**, everyone else reads. The member row shows
+them ("IT L2 · QA Tester L1").
+
+**Matching (`planSchedule` + PTO cover, one rule):** a task's role comes from
+its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
+ - **Keys govern per discipline** (`keysGovern`). Once anyone on the roster
+   holds an IT key, only people holding a qualifying IT key are eligible for IT
+   work — **Level 2 may take Level 1, never the reverse** (`holdsKeyFor`) — and
+   platform skill stars only break ties. A task nobody qualifies for is left
+   unassigned with *"Nobody holds IT Level 2 — assign manually"* rather than
+   handed to a junior.
+ - **A discipline nobody holds a key in keeps the skill-only rule, exactly.**
+   That is every workspace before an admin sets keys, and it is asserted
+   byte-identical in `e2e/work-keys.spec.ts`. Per discipline on purpose:
+   giving one designer a Creative key must not change how development is
+   assigned.
+ - Keys reach work that no skill maps to: a Creative key holder now gets
+   design tasks, which were always left for a human before.
+ - `buildRoster` keeps someone with keys but no skills (it used to drop anyone
+   without skills).
+
+> ⚠️ **No role columns on `tasks`, deliberately** (the plan proposed
+> `tasks.responsible/level`). A seeded task already links to its line through
+> `source_line_item_id`, and the line carries the role — a copy on the task
+> would need seeding on convert, a new kind of sync edit, and a backfill, and
+> could still drift. Hand-made tasks have no role, as the plan said. Revisit
+> only if something outside the estimator (which members cannot read) needs a
+> task's role.
+
+> ⚠️ **Admin-set only, enforced by the database.** A key decides who gets work
+> and at what seniority, so a member giving themselves `IT|Level 2` is a
+> self-promotion. `prevent_role_self_change` refuses any non-admin change to
+> `work_keys`; the format is a CHECK (`valid_work_keys`: at most 10, each
+> `<role>|Level 1|2`). Role NAMES are validated by the app against
+> `RESPONSIBLE_ROLES`, so a future role still needs no migration. Keys are
+> readable by every signed-in user, like the rest of the team directory.
+
+> ⚠️ **Stale echoes.** Two quick clicks send two writes, and the realtime echo
+> of the first can land after the second's optimistic update and revert the
+> store — the next click then saves from the stale list and silently drops a
+> key (reproduced ~1 run in 3). `team-store` keeps `pendingKeys` per person and
+> ignores echoes that don't match this tab's latest write until the matching
+> one arrives; a hydrate clears it. `e2e/work-keys-ui.spec.ts` (12 repeats
+> green after the fix) signs in as a throwaway **admin**, because the suite's
+> own bot is a manager and managers may only read keys.
 
 ---
 
@@ -1308,9 +1482,13 @@ the reschedule applies `reschedulePatches(impact)` — the same object that was
 rendered, never a recompute at write time. Same preview→confirm shape as Start
 project, Sync schedule and Create PO.
 
- - Cover comes from the assignment engine's own `skillTiers`, via the task's
-   phase label in `tags`, so a suggestion here and an auto-assignment there
-   cannot disagree. Someone **approved** away over the same window is excluded;
+ - Cover comes from the assignment engine's own rule — **work keys first**
+   (see "Work keys" under Tasks ↔ Workload), then `skillTiers` via the task's
+   phase label in `tags` — so a suggestion here and an auto-assignment there
+   cannot disagree. A seeded task's role is read from **its estimate line**
+   (`source_line_item_id` → `line_items[].responsible/level`, passed in as
+   `roleByLineItem`), and a suggestion shows the key that qualified it
+   ("Creative L2"). Someone **approved** away over the same window is excluded;
    someone merely *pending* is not, because that request may yet be refused.
    A hand-made task has no phase, so nothing is invented.
  - ⚠️ Each task's slip is measured to the day **after the absence ends**, not
@@ -1341,6 +1519,7 @@ project, Sync schedule and Create PO.
 | Proposal quotes & line items   | `store/proposal-estimator-store.ts`        | `timeline-proposal-estimator`             |
 | PTO / availability             | `store/availability-store.ts`              | `timeline-availability`                   |
 | Weekly capacity overrides      | `store/weekly-capacity-store.ts`           | `timeline-weekly-capacity`                |
+| Hourly rates (role + level)    | `store/hourly-rates-store.ts`              | `timeline-hourly-rates`                   |
 | Notifications + activity feed  | `store/notifications-store.ts`             | `timeline-notifications`                  |
 | Task board pane / active view  | tasks store (ephemeral slice)              | not persisted (`selectedTaskId`, `activeView`) |
 | Dashboard / Workload / Calendar scope | local `useState` in each page          | not persisted — `MineTeamToggle`, defaults to Mine on the dashboard |
@@ -1369,6 +1548,9 @@ project, Sync schedule and Create PO.
 | See the whole team's calendar | Yes | Yes | No | No |
 | Read Zoho CRM data (deals/accounts/contacts) | Yes | Yes | No | No |
 | Connect / disconnect Zoho CRM | Yes | No | No | No |
+| See hourly rates | Yes | Yes | No | No |
+| Change hourly rates | Yes | No | No | No |
+| Set work keys (who can be given a task) | Yes | No | No | No |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
 > **Offboarding** (deactivate/reactivate + permanent delete) and **invites** are admin-only, via

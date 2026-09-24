@@ -1,11 +1,10 @@
 import { format } from "date-fns";
 
 import {
-  HOURLY_RATE,
-  amountForHours,
   effectiveTier,
+  lineAmount,
   lineEffectiveHours,
-  quoteTotals,
+  quotePricing,
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
@@ -27,7 +26,8 @@ export async function downloadProposalExcel(
 ): Promise<void> {
   const XLSX = await import("xlsx");
 
-  const totals = quoteTotals(quote);
+  const pricing = quotePricing(quote);
+  const totals = pricing.totals;
 
   const idIndex = new Map(quote.line_items.map((li, i) => [li.id, i + 1]));
 
@@ -45,8 +45,6 @@ export async function downloadProposalExcel(
     ],
     ["Last updated", format(new Date(quote.updated_at), "yyyy-MM-dd")],
     [],
-    ["Rate ($/h)", HOURLY_RATE],
-    [],
     ["#", "Module", "Description", "Category", "Tier", "Base h", "Qty", "Hours", "Amount ($)", "Depends on"],
   ];
 
@@ -60,7 +58,7 @@ export async function downloadProposalExcel(
       li.base_hours,
       li.quantity,
       lineEffectiveHours(li, quote.requirements_unclear),
-      amountForHours(lineEffectiveHours(li, quote.requirements_unclear)),
+      lineAmount(li, quote.requirements_unclear),
       li.depends_on
         .map((d) => `#${idIndex.get(d) ?? "?"}`)
         .join(", "),
@@ -77,7 +75,7 @@ export async function downloadProposalExcel(
     "",
     "Dev hours",
     totals.devHours,
-    amountForHours(totals.devHours),
+    pricing.devAmount,
   ]);
   if (quote.addons.responsive_enabled)
     rows.push([
@@ -89,7 +87,7 @@ export async function downloadProposalExcel(
       "",
       `Responsive (${quote.addons.responsive_pct}%)`,
       totals.responsiveHours,
-      amountForHours(totals.responsiveHours),
+      pricing.responsiveAmount,
     ]);
   if (quote.addons.design_enabled)
     rows.push([
@@ -101,7 +99,7 @@ export async function downloadProposalExcel(
       "",
       `Design (${quote.addons.design_pct}%)`,
       totals.designHours,
-      amountForHours(totals.designHours),
+      pricing.designAmount,
     ]);
   if (quote.addons.qa_enabled)
     rows.push([
@@ -113,7 +111,7 @@ export async function downloadProposalExcel(
       "",
       `QA (${quote.addons.qa_pct}%)`,
       totals.qaHours,
-      amountForHours(totals.qaHours),
+      pricing.qaAmount,
     ]);
   if (quote.addons.pm_enabled)
     rows.push([
@@ -125,7 +123,7 @@ export async function downloadProposalExcel(
       "",
       `PM (${quote.addons.pm_pct}%)`,
       totals.pmHours,
-      amountForHours(totals.pmHours),
+      pricing.pmAmount,
     ]);
   rows.push([
     "",
@@ -136,7 +134,7 @@ export async function downloadProposalExcel(
     "",
     "Total",
     totals.grandHours,
-    amountForHours(totals.grandHours),
+    pricing.grandAmount,
   ]);
 
   if (quote.notes?.trim()) {

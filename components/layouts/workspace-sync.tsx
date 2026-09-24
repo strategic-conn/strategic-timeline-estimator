@@ -15,6 +15,7 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { useTeamStore } from "@/store/team-store";
 import { useWeeklyCapacityStore } from "@/store/weekly-capacity-store";
+import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import type { Database } from "@/types/database.types";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 
@@ -115,6 +116,7 @@ export function WorkspaceSync() {
     (s) => s.hydrateFromSupabase,
   );
   const hydrateCapacity = useWeeklyCapacityStore((s) => s.hydrateFromSupabase);
+  const hydrateRates = useHourlyRatesStore((s) => s.hydrateFromSupabase);
   const hydrateProposals = useProposalEstimatorStore(
     (s) => s.hydrateFromSupabase,
   );
@@ -130,6 +132,7 @@ export function WorkspaceSync() {
     void hydrateActivity();
     void hydrateAvailability();
     void hydrateCapacity();
+    void hydrateRates();
     void hydrateProposals();
     void hydrateSkills();
   }, [
@@ -142,6 +145,7 @@ export function WorkspaceSync() {
     hydrateActivity,
     hydrateAvailability,
     hydrateCapacity,
+    hydrateRates,
     hydrateProposals,
     hydrateSkills,
   ]);
@@ -315,6 +319,24 @@ export function WorkspaceSync() {
             if (p.eventType === "DELETE")
               store.applyRealtimeDelete((p.old as { id: string }).id);
             else store.applyRealtimeUpsert(p.new as AvailabilityRow);
+          },
+        )
+        .on(
+          "postgres_changes",
+          // Hourly rates (0042) — live so a rate an admin changes reaches a
+          // manager's open estimator before new lines snapshot it. RLS delivers
+          // nothing to members and viewers, which is correct for them.
+          { event: "*", schema: "public", table: "hourly_rates" },
+          (p) => {
+            const store = useHourlyRatesStore.getState();
+            if (p.eventType === "DELETE") {
+              const o = p.old as { responsible: string; level: 1 | 2 };
+              store.applyRealtimeDelete(o.responsible, o.level);
+            } else {
+              store.applyRealtimeUpsert(
+                p.new as Database["public"]["Tables"]["hourly_rates"]["Row"],
+              );
+            }
           },
         )
         .on(

@@ -21,9 +21,8 @@ import { ZohoStageSelect } from "@/components/features/proposals/ZohoStageSelect
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
-  amountForHours,
   formatAmount,
-  quoteTotals,
+  quotePricing,
 } from "@/lib/constants/proposal-estimator";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import { cn } from "@/lib/utils";
@@ -67,7 +66,7 @@ type Column = {
 };
 
 function quoteAmount(q: ClientQuote): number {
-  return amountForHours(quoteTotals(q).grandHours);
+  return quotePricing(q).grandAmount;
 }
 
 /**

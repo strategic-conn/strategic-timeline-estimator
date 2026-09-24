@@ -4,13 +4,16 @@
  * weekly_capacity, availability), so this stays testable and store-agnostic.
  */
 import { countsAgainstCapacity } from "@/lib/constants/workload";
-import type { PlanDev } from "./plan";
+import { parseRateKey } from "@/lib/pricing/hourly-rates";
+import type { PlanDev, WorkKey } from "./plan";
 
 export interface RosterMember {
   id: string;
   name: string;
   /** Offboarded members are excluded. */
   deactivated?: boolean;
+  /** Admin-set work keys, "IT|Level 2" (0043). */
+  workKeys?: string[];
 }
 
 export interface RosterInput {
@@ -24,9 +27,17 @@ export interface RosterInput {
   ptoByProfile: Record<string, string[]>;
 }
 
+/** "IT|Level 2" strings → structured keys; malformed entries are dropped. */
+export function parseWorkKeys(keys: string[] | undefined): WorkKey[] {
+  return (keys ?? []).flatMap((k) => {
+    const p = parseRateKey(k);
+    return p ? [p] : [];
+  });
+}
+
 /**
- * One PlanDev per active member WITH at least one skill (a person with no
- * skills can't be skill-matched, so they're not part of auto-assignment).
+ * One PlanDev per active member with at least one skill OR work key (someone
+ * with neither can't be matched, so they're not part of auto-assignment).
  * Hours/day = weekly ÷ 5 working days.
  */
 export function buildRoster(input: RosterInput): PlanDev[] {
@@ -44,9 +55,10 @@ export function buildRoster(input: RosterInput): PlanDev[] {
         skills,
         hoursPerDay: Math.max(1, Math.round((weekly / 5) * 10) / 10),
         ptoDays: input.ptoByProfile[m.id] ?? [],
+        keys: parseWorkKeys(m.workKeys),
       } satisfies PlanDev;
     })
-    .filter((d) => Object.keys(d.skills).length > 0);
+    .filter((d) => Object.keys(d.skills).length > 0 || d.keys.length > 0);
 }
 
 /**

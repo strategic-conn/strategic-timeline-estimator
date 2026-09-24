@@ -15,6 +15,10 @@ import { toast } from "sonner";
 import { AdminInvitesSection } from "@/components/features/settings/AdminInvitesSection";
 import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import { MemberAccessDialog } from "@/components/features/team/MemberAccessDialog";
+import {
+  formatWorkKeys,
+  WorkKeysEditor,
+} from "@/components/features/team/WorkKeysEditor";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
   AlertDialog,
@@ -261,6 +265,11 @@ export function TeamClientPage() {
                         <p className="truncate text-xs text-muted-foreground">
                           {m.email}
                         </p>
+                        {m.work_keys?.length ? (
+                          <p className="truncate text-xs text-muted-foreground">
+                            {formatWorkKeys(m.work_keys)}
+                          </p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 pl-10 sm:shrink-0 sm:justify-end sm:pl-0">
@@ -301,7 +310,7 @@ export function TeamClientPage() {
                         variant="ghost"
                         size="icon-sm"
                         className="text-muted-foreground hover:text-foreground"
-                        title="Skills & tech stack"
+                        title="Work keys & skills"
                         aria-label={`Skills for ${m.name}`}
                         onClick={() => setSkillsMember(m)}
                       >
@@ -462,15 +471,31 @@ export function TeamClientPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
-              {skillsMember?.name}
-              {skillsMember && skillsMember.id === selfId ? " (you)" : ""} — Skills
+              {`${skillsMember?.name ?? ""}${skillsMember && skillsMember.id === selfId ? " (you)" : ""} — Work keys & skills`}
             </DialogTitle>
             <DialogDescription>
-              {skillsMember && (skillsMember.id === selfId || canEditMemberSkills)
-                ? "Add technologies and rate confidence (1–5 stars)."
-                : "Tech stack and confidence, as reported."}
+              Work keys decide who can be given a task; skill stars only break
+              ties between people who hold the right key. Level 2 also covers
+              Level 1 work.
             </DialogDescription>
           </DialogHeader>
+          {skillsMember ? (
+            <section className="flex flex-col gap-2">
+              <h3 className="text-sm font-medium">Work keys</h3>
+              <WorkKeysEditor
+                profileId={skillsMember.id}
+                editable={canManageTeam}
+              />
+              {canManageTeam ? null : (
+                <p className="text-xs text-muted-foreground">
+                  Only admins can change work keys.
+                </p>
+              )}
+            </section>
+          ) : null}
+          {skillsMember ? (
+            <h3 className="text-sm font-medium">Skills</h3>
+          ) : null}
           {skillsMember ? (
             <MemberSkillsEditor
               profileId={skillsMember.id}

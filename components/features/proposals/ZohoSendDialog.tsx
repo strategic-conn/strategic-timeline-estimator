@@ -17,11 +17,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  HOURLY_RATE,
-  amountForHours,
   formatAmount,
-  priceForHours,
-  quoteTotals,
+  quotePricing,
+  rateSummary,
+  splitAmount,
   splitHours,
 } from "@/lib/constants/proposal-estimator";
 import {
@@ -189,11 +188,14 @@ export function ZohoSendDialog({
   }, [open, dealId]);
 
   const accountId = quote.zoho?.account_id ?? null;
-  const totals = quoteTotals(quote);
+  const pricing = quotePricing(quote);
+  const totals = pricing.totals;
   const products = quote.zoho?.products ?? [];
   // The same derivation the Setup tab shows, so the review can't disagree with
-  // what gets sent.
+  // what gets sent. MONEY is split directly, never "hour share x a rate": lines
+  // carry their own rates now, so there is no single rate to multiply by.
   const shares = splitHours(totals.grandHours, products.length);
+  const amounts = splitAmount(pricing.grandAmount, products.length);
   // "Sent" = this estimate's document reached the deal. Keying it on a stage
   // stopped working once every send targets Discovery, which an import records
   // on its own — the attachment is the thing that actually marks a send.
@@ -226,7 +228,7 @@ export function ZohoSendDialog({
   const priceMoves =
     isUpdate &&
     live?.amount != null &&
-    live.amount !== amountForHours(totals.grandHours);
+    live.amount !== pricing.grandAmount;
 
   // A quote already at Proposal Sent can still be re-sent: the stage write is a
   // no-op and the PDF is deduped by filename, so an edited estimate's updated
@@ -243,7 +245,7 @@ export function ZohoSendDialog({
         id: p.id,
         name: p.name,
         hours: shares[i],
-        amount: amountForHours(shares[i]),
+        amount: amounts[i],
         description: descriptions[p.id] ?? null,
       })),
     );
@@ -253,11 +255,11 @@ export function ZohoSendDialog({
       quote.notes?.trim(),
       `Estimate: ${totals.grandHours} h across ${quote.line_items.length} line item${
         quote.line_items.length === 1 ? "" : "s"
-      } — ${priceForHours(totals.grandHours)}.`,
+      } — ${formatAmount(pricing.grandAmount)}.`,
       products.length
         ? `Products:\n${products
             .map((p, i) => {
-              const line = `  - ${p.name}: ${shares[i]} h, ${priceForHours(shares[i])}`;
+              const line = `  - ${p.name}: ${shares[i]} h, ${formatAmount(amounts[i])}`;
               const desc = descriptions[p.id];
               // The catalogue copy, indented under its product — the same text
               // the Packages row carries, so the deal reads consistently
@@ -297,7 +299,7 @@ export function ZohoSendDialog({
       // The estimate's price. It reaches Zoho as a Packages row, never as a
       // direct `Amount` write — Zoho recomputes that field from the subform.
       form.append("totalHours", String(totals.grandHours));
-      form.append("totalAmount", String(amountForHours(totals.grandHours)));
+      form.append("totalAmount", String(pricing.grandAmount));
       // The estimate owns its own pricing, so a re-send reprices the deal rather
       // than skipping a table that already has rows — which is what made an
       // edited estimate silently fail to update its deal. Safe only because the
@@ -383,10 +385,10 @@ export function ZohoSendDialog({
             →{" "}
           </>
         ) : null}
-        {priceForHours(totals.grandHours)}
+        {formatAmount(pricing.grandAmount)}
       </span>,
     ],
-    ["Hours", `${totals.grandHours} h at ${formatAmount(HOURLY_RATE)}/h`],
+    ["Hours", `${totals.grandHours} h ${rateSummary(pricing)}`.trim()],
     [
       "Packages",
       <>
@@ -394,7 +396,7 @@ export function ZohoSendDialog({
           <>
             {products.length} row{products.length === 1 ? "" : "s"} ·{" "}
             <span className="font-medium text-foreground">
-              {priceForHours(totals.grandHours)}
+              {formatAmount(pricing.grandAmount)}
             </span>
           </>
         ) : (
@@ -496,7 +498,7 @@ export function ZohoSendDialog({
                     <div className="flex justify-between gap-3">
                       <span className="min-w-0 truncate">{p.name}</span>
                       <span className="shrink-0 tabular-nums">
-                        {shares[i]} h · {priceForHours(shares[i])}
+                        {shares[i]} h · {formatAmount(amounts[i])}
                       </span>
                     </div>
                     {/* The exact text that lands in the row's Description
@@ -505,8 +507,7 @@ export function ZohoSendDialog({
                     <p className="mt-0.5 line-clamp-2 text-[0.65rem] text-muted-foreground/80">
                       {loadingDescriptions
                         ? "Reading the catalogue description…"
-                        : (descriptions[p.id] ??
-                          `${shares[i]} h at ${formatAmount(HOURLY_RATE)}/h`)}
+                        : (descriptions[p.id] ?? `${shares[i]} h`)}
                     </p>
                   </li>
                 ))}

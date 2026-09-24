@@ -117,6 +117,94 @@
 - [ ] Log hours on an accepted task → "Logged this week" updates on **both** pages without a reload. Try logging as a non-assignee → refused by the DB (`0018` trigger), not just hidden.
 - [ ] Drag a card to Done, then open a **different project** → no task there has a fresh "updated" timestamp. (Board writes used to hit every task in the workspace with that status.)
 
+## 💲 Hourly rates (Settings → Workspace)
+
+- [ ] **Admin:** all 10 rates show as editable fields (Coordinator at $0).
+      Change one, Save → "Hourly rates saved", and the footer says "Last
+      changed by <you>".
+- [ ] **Admin:** set a Level 2 below its Level 1 → that cell says "Level 2
+      can't be below Level 1" and Save is disabled. Equal is allowed.
+- [ ] **Admin:** blank, negative, `abc`, `10.555`, `10001` are refused.
+- [ ] **Admin:** Reset restores the saved values without saving.
+- [ ] **Admin + manager open at once:** a saved change appears on the other
+      screen without a refresh — but never over an admin who is mid-edit.
+- [ ] **Manager:** sees rates as text (`$120/h`), no fields, no Save, and
+      "Only admins can change rates."
+- [ ] **Member / viewer:** the Hourly rates card is not there at all.
+- [ ] **Phone (375px), as admin:** the table fits with no sideways scroll.
+- [ ] Changing a rate does NOT change any existing estimate's price.
+
+## 📚 Catalog v3 (Estimator → Line items → Browse catalog)
+
+- [ ] Each task shows **role · Level** (e.g. "IT · Level 2") and, where the
+      workbook has one, an amber **Things to consider** note.
+- [ ] Role chips (All roles / IT / Creative / QA Tester / Project Coordinator)
+      and level chips (Any / Level 1 / Level 2) filter the list; the category
+      rail counts and "Select all" follow the filter.
+- [ ] React / Next.js: tick "CPT & Fields Setup" — only that task is selected
+      (it used to tick "Database Setup & Configuration" too).
+- [ ] An existing estimate's PDF / Excel shows sensible categories for catalog
+      lines (e.g. Hero Section → Frontend), not "Accessibility".
+- [ ] Each task shows its current rate (e.g. "$120/h").
+- [ ] 375px: the filter chips wrap, nothing scrolls sideways.
+- [ ] Rebuild check: `node scripts/build-catalog.mjs` prints counts matching
+      the workbook's Summary tab.
+
+## 💲 Price per line (Estimator)
+
+- [ ] Add a catalog task → its line reads "… · IT L2 · $120/h" and shows its
+      price under the hours; the header total goes up by exactly that price.
+- [ ] Open a line's details → change **Role** → the rate and price follow;
+      other lines don't move.
+- [ ] Header says "N h at $X/h" when every line shares a rate, "avg $Y/h"
+      when they don't.
+- [ ] An OLD estimate (e.g. Patrick's, $70,800) still shows its old price.
+      Adjust tab → "At today's rates this estimate would be …" + **Update to
+      current rates**. Open the dialog and **Cancel** on real quotes — only
+      press Update on a test estimate.
+- [ ] On a test estimate: Update → price changes to the previewed figure; the
+      card then says "Matches today's rates."
+- [ ] PDF / preview / Excel: line prices add up to the total; no rate or role
+      printed anywhere.
+- [ ] Send to Zoho dialog: product rows add up to the header price.
+- [ ] 375px: the Role picker and the Adjust card fit, nothing scrolls sideways.
+
+## 🔑 Work keys (Team → star button)
+
+- [ ] **Admin:** open a member's "Work keys & skills" → set IT to L2 → the row
+      under their email shows "IT L2". Set QA Tester to L1 too → "IT L2 · QA
+      Tester L1". "None" removes one.
+- [ ] **Manager / member:** the same dialog shows the keys as text and "Only
+      admins can change work keys." — no buttons.
+- [ ] **Before any keys are set:** Start project assigns exactly as it did
+      before (nothing changes until an admin sets keys).
+- [ ] **With keys:** give one person an IT Level 2 key → on a new project, IT
+      tasks go only to IT key holders; an IT Level 2 task with only Level 1
+      holders shows "Nobody holds IT Level 2 — assign manually".
+- [ ] Give someone a Creative key → design tasks now get assigned to them.
+- [ ] Approving time off: cover suggestions for a seeded task show the key
+      ("Creative L2") and never offer a lower level.
+- [ ] 375px: the key buttons fit inside the dialog, nothing scrolls sideways.
+
+## 🗓️ Catalog estimates scheduled by role (Estimator → Timeline)
+
+- [ ] A catalog-only estimate with only IT tasks: the timeline looks exactly as
+      it did before (Design/QA bars only from the add-ons).
+- [ ] Add a Creative catalog task (e.g. a banner/visuals task) → a Design & UX
+      bar appears (or grows), before Development; the Development bar shrinks by
+      the same hours. The header total hours do not change.
+- [ ] Add a QA Tester task → it shows under QA & Testing, after Development.
+- [ ] Change a line's Role (line details) from IT to Creative → it moves from
+      the Development bar to Design.
+- [ ] Start project on that estimate → sprints Design & UX / Development /
+      QA & Testing, each task in its role's sprint, **nothing in the backlog**.
+- [ ] A GUIDED estimate with a Creative catalog line: Start project puts it in
+      Design & UX if the questionnaire has a design phase, otherwise in
+      Development — never the backlog.
+- [ ] Sync schedule on an existing project: tasks already in a sprint stay
+      where they are; only new tasks go to their role's sprint.
+- [ ] Create PO date range matches the timeline's launch date.
+
 ## 🔐 Security probe (automated, live)
 
 `node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks

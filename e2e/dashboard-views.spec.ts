@@ -109,7 +109,7 @@ test.describe("dashboard scopes", () => {
         .locator('main [data-slot="card"]')
         .filter({
           has: page.locator('[data-slot="card-description"]', {
-            hasText: new RegExp(`^\s*${label}\s*$`),
+            hasText: new RegExp(String.raw`^\s*${label}\s*$`),
           }),
         })
         .first();

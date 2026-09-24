@@ -110,7 +110,6 @@ const MAX_ROW_DESCRIPTION = 255;
 export function packageRows(
   layout: PackagesLayout,
   products: PackageInput[],
-  rate: number,
 ): Record<string, unknown>[] {
   return products.map((p) => {
     const row: Record<string, unknown> = {
@@ -119,10 +118,11 @@ export function packageRows(
     if (layout.priceField) row[layout.priceField] = p.amount;
     if (layout.descriptionField) {
       // The product's own catalogue description, which is what someone reading
-      // the deal wants to see. Falls back to saying where the number came from
-      // when the catalogue entry has no description of its own.
+      // the deal wants to see. Falls back to the hours when the catalogue entry
+      // has no description of its own. No "at $R/h": lines carry their own
+      // rates now (pricing Phase 3), so there is no single rate to quote.
       const own = truncateAtWord(p.description ?? "", MAX_ROW_DESCRIPTION);
-      row[layout.descriptionField] = own || `${p.hours} h at $${rate}/h`;
+      row[layout.descriptionField] = own || `${p.hours} h`;
     }
     return row;
   });
@@ -146,12 +146,11 @@ export type EstimateTotal = { hours: number; amount: number };
 export function estimateTotalRow(
   layout: PackagesLayout,
   total: EstimateTotal,
-  rate: number,
 ): Record<string, unknown> {
   const row: Record<string, unknown> = {};
   if (layout.priceField) row[layout.priceField] = total.amount;
   if (layout.descriptionField) {
-    row[layout.descriptionField] = `Estimate — ${total.hours} h at $${rate}/h`;
+    row[layout.descriptionField] = `Estimate — ${total.hours} h`;
   }
   return row;
 }

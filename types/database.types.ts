@@ -181,6 +181,38 @@ export type Database = {
           },
         ]
       }
+      hourly_rates: {
+        Row: {
+          level: number
+          rate: number
+          responsible: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          level: number
+          rate: number
+          responsible: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          level?: number
+          rate?: number
+          responsible?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "hourly_rates_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       member_skills: {
         Row: {
           confidence: number
@@ -304,6 +336,7 @@ export type Database = {
           page_access: string[] | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
+          work_keys: string[]
         }
         Insert: {
           avatar_url?: string | null
@@ -316,6 +349,7 @@ export type Database = {
           page_access?: string[] | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          work_keys?: string[]
         }
         Update: {
           avatar_url?: string | null
@@ -328,6 +362,7 @@ export type Database = {
           page_access?: string[] | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
+          work_keys?: string[]
         }
         Relationships: []
       }
@@ -792,6 +827,7 @@ export type Database = {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      valid_work_keys: { Args: { keys: string[] }; Returns: boolean }
     }
     Enums: {
       availability_kind: "pto" | "unavailable" | "partial"

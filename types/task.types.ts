@@ -90,6 +90,8 @@ export interface TeamMember {
   deactivated_at?: string | null;
   /** Set when the invite was accepted. null/undefined = invited, not yet joined. */
   confirmed_at?: string | null;
+  /** Admin-set lookup keys, "IT|Level 2" (0043). What the planner matches first. */
+  work_keys?: string[];
 }
 
 export const TASK_STATUSES: { value: TaskStatus; label: string; color: string }[] = [

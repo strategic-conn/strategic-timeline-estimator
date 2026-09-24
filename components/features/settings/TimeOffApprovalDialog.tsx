@@ -23,7 +23,9 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import type { WorkKey } from "@/lib/assignment/plan";
 import { ptoImpact, reschedulePatches } from "@/lib/availability/pto-impact";
+import { roleOf } from "@/lib/pricing/line-pricing";
 import { cn } from "@/lib/utils";
 import { useAvailabilityStore } from "@/store/availability-store";
 import { useMemberSkillsStore } from "@/store/member-skills-store";
@@ -91,6 +93,15 @@ export function TimeOffApprovalDialog({
     )?.project_id;
     const platform = quotes.find((q) => q.project_id === affectedProject)?.platform;
 
+    // Each estimate line's role, so a seeded task is matched on its line's.
+    const roleByLineItem: Record<string, WorkKey> = {};
+    for (const q of quotes) {
+      for (const li of q.line_items) {
+        const r = roleOf(li);
+        if (r) roleByLineItem[li.id] = r;
+      }
+    }
+
     return ptoImpact({
       entry,
       platform,
@@ -100,9 +111,11 @@ export function TimeOffApprovalDialog({
         id: m.id,
         name: m.name,
         deactivated_at: m.deactivated_at,
+        work_keys: m.work_keys,
       })),
       skills,
       availability,
+      roleByLineItem,
     });
   }, [entry, tasks, sprints, members, skills, availability, quotes]);
 
@@ -212,16 +225,22 @@ export function TimeOffApprovalDialog({
                           {c.name}
                           {c.alreadyOnTask
                             ? " · already on it"
-                            : c.skill
-                              ? ` · ${c.skill} ${"★".repeat(c.confidence)}`
-                              : ""}
+                            : [
+                                c.key,
+                                c.skill
+                                  ? `${c.skill} ${"★".repeat(c.confidence)}`
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .map((x) => ` · ${x}`)
+                                .join("")}
                         </Badge>
                       ))}
                     </p>
                   ) : (
                     <p className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
                       <ShieldAlert className="size-3 shrink-0" aria-hidden />
-                      No cover — nobody else is on this task or free with the skill
+                      No cover — nobody else is on this task or free with the role or skill
                     </p>
                   )}
                 </li>

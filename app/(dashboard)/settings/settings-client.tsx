@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { Building2, CalendarOff, Lock, Star, User } from "lucide-react";
+import { HourlyRatesCard } from "@/components/features/settings/HourlyRatesCard";
+import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
@@ -23,6 +25,7 @@ import { useAuthStore } from "@/store/auth-store";
 export function SettingsClient() {
   const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const isAdmin = useAuthStore((s) => s.user.role) === "admin";
+  const { canViewHourlyRates } = usePermissions();
   // Land on Workspace after the Zoho OAuth redirect (?zoho=...).
   const [defaultTab] = React.useState(() =>
     typeof window !== "undefined" &&
@@ -36,7 +39,7 @@ export function SettingsClient() {
       <WorkspacePageHeader
         eyebrow="Account"
         title="Settings"
-        description="Manage your profile and preview where workspace and security settings will live."
+        description="Your profile, skills and time off — plus workspace settings for admins and managers."
       />
 
       <Tabs defaultValue={defaultTab} className="w-full gap-6">
@@ -62,13 +65,18 @@ export function SettingsClient() {
             <CalendarOff className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Time off</span>
           </TabsTrigger>
-          <TabsTrigger
-            value="workspace"
-            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
-          >
-            <Building2 className="size-4 shrink-0" aria-hidden />
-            <span className="truncate">Workspace</span>
-          </TabsTrigger>
+          {/* Only roles with something in it: admin (rates + Zoho) and
+              manager (rates, read-only). A member or viewer would land on an
+              empty tab now the placeholder card is gone. */}
+          {canViewHourlyRates ? (
+            <TabsTrigger
+              value="workspace"
+              className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            >
+              <Building2 className="size-4 shrink-0" aria-hidden />
+              <span className="truncate">Workspace</span>
+            </TabsTrigger>
+          ) : null}
           <TabsTrigger
             value="security"
             className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
@@ -107,47 +115,22 @@ export function SettingsClient() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="workspace" className="mt-0 outline-none">
-          <div className="space-y-6">
-            {isAdmin ? <ZohoConnectionCard /> : null}
-            <Card>
-              <CardHeader>
-                <CardTitle>Workspace</CardTitle>
-              <CardDescription>
-                Placeholder layout — no API yet. Typical fields: workspace name, default
-                timezone, week start, and notification defaults.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="ws-name">Workspace display name</Label>
-                <Input
-                  id="ws-name"
-                  disabled
-                  placeholder="Acme Corp"
-                  defaultValue="Demo workspace"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="ws-tz">Default timezone</Label>
-                <Input id="ws-tz" disabled placeholder="e.g. America/New_York" />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                These controls will wire to Supabase once the backend is connected. Profile changes
-                above already persist locally for the signed-in demo user.
-              </p>
-            </CardContent>
-            </Card>
-          </div>
-        </TabsContent>
+        {canViewHourlyRates ? (
+          <TabsContent value="workspace" className="mt-0 outline-none">
+            <div className="space-y-6">
+              <HourlyRatesCard />
+              {isAdmin ? <ZohoConnectionCard /> : null}
+            </div>
+          </TabsContent>
+        ) : null}
 
         <TabsContent value="security" className="mt-0 outline-none">
           <Card>
             <CardHeader>
               <CardTitle>Security</CardTitle>
               <CardDescription>
-                Password change, active sessions, and two-factor authentication will be
-                configured here with the backend.
+                Password change, active sessions, and two-factor authentication
+                will be configured here with the backend.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -162,8 +145,8 @@ export function SettingsClient() {
               </div>
               <p className="text-xs text-muted-foreground">
                 This app uses cookie-based sessions in production (
-                <span className="font-mono">httpOnly</span>). No password UI is wired in
-                this demo.
+                <span className="font-mono">httpOnly</span>). No password UI is
+                wired in this demo.
               </p>
             </CardContent>
           </Card>

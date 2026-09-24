@@ -25,10 +25,20 @@ interface Permissions {
   canExportProposals: boolean;
   /** Edit another person's skill profile (self-edit is always allowed via RLS). */
   canEditMemberSkills: boolean;
+  /**
+   * See the hourly rates table (admin + manager — managers build quotes).
+   * Mirrors the "read hourly rates" RLS policy in 0042.
+   */
+  canViewHourlyRates: boolean;
+  /** Change hourly rates. Admin only — mirrors "admin writes hourly rates". */
+  canEditHourlyRates: boolean;
   isViewer: boolean;
 }
 
-const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> = {
+const PERMISSION_MAP: Record<
+  UserRole,
+  Omit<Permissions, "role" | "isViewer">
+> = {
   admin: {
     canCreateProject: true,
     canEditProject: true,
@@ -41,6 +51,8 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canApproveTimeOff: true,
     canExportProposals: true,
     canEditMemberSkills: true,
+    canViewHourlyRates: true,
+    canEditHourlyRates: true,
   },
   manager: {
     canCreateProject: true,
@@ -54,6 +66,8 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canApproveTimeOff: true,
     canExportProposals: true,
     canEditMemberSkills: true,
+    canViewHourlyRates: true,
+    canEditHourlyRates: false,
   },
   member: {
     canCreateProject: false,
@@ -67,6 +81,8 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canApproveTimeOff: false,
     canExportProposals: false,
     canEditMemberSkills: false,
+    canViewHourlyRates: false,
+    canEditHourlyRates: false,
   },
   viewer: {
     canCreateProject: false,
@@ -80,6 +96,8 @@ const PERMISSION_MAP: Record<UserRole, Omit<Permissions, "role" | "isViewer">> =
     canApproveTimeOff: false,
     canExportProposals: false,
     canEditMemberSkills: false,
+    canViewHourlyRates: false,
+    canEditHourlyRates: false,
   },
 };
 
@@ -91,6 +109,6 @@ export function usePermissions(): Permissions {
       ...PERMISSION_MAP[role],
       isViewer: role === "viewer",
     }),
-    [role]
+    [role],
   );
 }

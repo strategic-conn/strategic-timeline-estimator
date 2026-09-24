@@ -1122,7 +1122,7 @@
       "layer": "state",
       "label": "assignment engine",
       "sub": "pure · deterministic",
-      "purpose": "planSchedule(tasks, devs, platform, {strategy, phaseStart}) -> per-task assignee + capacity-aware dates + finishDate. NOT AI. skillTiers() maps a task to required skills (platform skill for dev work; keyword rules for plugin/DNS/domain/go-live; Quality Assurance for QA); specialists win, generalists are a fallback tier. Strategies: quick (spread across qualified devs, earliest finish) vs efficient (highest-skilled, fewer hands). buildRoster() assembles devs from team + skills + weekly_capacity/5 + PTO. Self-check: lib/assignment/plan.check.ts (48 asserts).",
+      "purpose": "planSchedule(tasks, devs, platform, {strategy, phaseStart}) -> per-task assignee + capacity-aware dates + finishDate. NOT AI. skillTiers() maps a task to required skills (platform skill for dev work; keyword rules for plugin/DNS/domain/go-live; Quality Assurance for QA); specialists win, generalists are a fallback tier. Strategies: quick (spread across qualified devs, earliest finish) vs efficient (highest-skilled, fewer hands). Work keys first (0043): where anyone holds a key in the task's discipline, only qualifying key holders are eligible (Level 2 covers Level 1) and stars break ties; other disciplines keep the skill-only rule. buildRoster() assembles devs from team + skills + work keys + weekly_capacity/5 + PTO. Self-check: lib/assignment/plan.check.ts (48 asserts). Keys: e2e/work-keys.spec.ts.",
       "files": [
         "lib/assignment/plan.ts",
         "lib/assignment/roster.ts",
@@ -1437,6 +1437,28 @@
       "files": [
         "components/features/workload/TaskBadgePopover.tsx",
         "e2e/workload-badges.spec.ts"
+      ]
+    },
+    {
+      "id": "t-hourly-rates",
+      "layer": "data",
+      "label": "hourly_rates",
+      "sub": "0042",
+      "purpose": "Rate per (responsible, level), seeded from the pricing workbook. RLS: admin+manager read, admin write. updated_by/updated_at stamped by trigger. Realtime. Not yet used for pricing (Phase 3 snapshots it onto lines).",
+      "files": [
+        "supabase/migrations/0042_hourly_rates.sql"
+      ]
+    },
+    {
+      "id": "st-hourly-rates",
+      "layer": "state",
+      "label": "hourly-rates-store",
+      "sub": "live + demo",
+      "purpose": "Hydrates hourly_rates (empty for members by RLS); realtime appliers keyed (responsible, level); saveRates = one optimistic upsert with rollback. Rules in lib/pricing/hourly-rates.ts.",
+      "files": [
+        "store/hourly-rates-store.ts",
+        "lib/pricing/hourly-rates.ts",
+        "components/features/settings/HourlyRatesCard.tsx"
       ]
     }
   ],
@@ -2619,6 +2641,21 @@
     {
       "from": "rt-scheduling",
       "to": "st-team",
+      "label": ""
+    },
+    {
+      "from": "st-hourly-rates",
+      "to": "t-hourly-rates",
+      "label": ""
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-hourly-rates",
+      "label": ""
+    },
+    {
+      "from": "rt-scheduling",
+      "to": "st-hourly-rates",
       "label": ""
     }
   ],
@@ -4182,7 +4219,13 @@
     "notifications.href and activity.href carry CHECK constraints: internal paths only (one leading '/', no '//', no backslash - browsers normalise '/\\x' to '//x').",
     "Probe pitfalls: return=representation turns INSERT into INSERT...RETURNING, which then needs SELECT visibility, so a notification to someone else reports an RLS violation and href probes pass falsely; and the service key cannot approve leave (0035 fails closed on a NULL role), so approval fixtures must use an approver JWT.",
     "Dashboard workspace figures (Open tasks, status mix, Overdue) come from ALL open tasks counted once - assigned or not - so they match Reports; per-person rows stay per-person. KPI values render an em dash until their store has loaded, never a false 0.",
-    "requirements_unclear must be shown wherever it changes a number: Scope & risk, the Line items bar and the Adjust checkbox all state 'own tiers -> priced as Advanced' using quoteDevHours with the flag forced off/on. Worded 'priced as Advanced', never 'x 1.5' (a Custom 2x line goes down). Sentences containing numbers are built as one template-string expression - JSX drops whitespace beside an expression wherever the formatter wraps."
+    "requirements_unclear must be shown wherever it changes a number: Scope & risk, the Line items bar and the Adjust checkbox all state 'own tiers -> priced as Advanced' using quoteDevHours with the flag forced off/on. Worded 'priced as Advanced', never 'x 1.5' (a Custom 2x line goes down). Sentences containing numbers are built as one template-string expression - JSX drops whitespace beside an expression wherever the formatter wraps.",
+    "Hourly rates are data (hourly_rates, 0042). Every estimate line SNAPSHOTS its role+level rate when added (withPricing), so a rate edit never reprices an existing quote; 'Update to current rates' on the Adjust tab re-prices only after an old->new preview and writes the object it rendered. Level 2 >= Level 1 is validated across the table on save; updated_by/updated_at are trigger-stamped (probe P13).",
+    "Catalog v3 is built, never hand-edited: node scripts/build-catalog.mjs (workbook -> catalog.json; normalises dashes, renumbers duplicate ids, refuses unknown role/level/category) then node scripts/remap-catalog-categories.mjs --apply. v3 re-classified tasks between categories, so existing lines are remapped through their own catalog_id - an old->new id table by name is wrong.",
+    "Never compare a catalog category against a literal id; use categoryIdByName(). Ids were renumbered in v3 (old 5 = E-Commerce, new 5 = Custom Tools) and Esther's hardcoded 5 would have misread briefs.",
+    "A line with no rate prices at LEGACY_HOURLY_RATE ($100) - what every line cost before Phase 3 - so legacy quotes are identical with or without snapshots. Lines round to whole dollars and the total is their sum; Zoho Packages rows use splitAmount so they sum to the header. Client PDF/preview/Excel show prices, never rates.",
+    "Work keys (profiles.work_keys, 0043) are admin-set only (prevent_role_self_change; probes P14-P16). Keys govern per discipline: once anyone holds an IT key, only qualifying IT key holders get IT work (Level 2 covers Level 1, never the reverse) and skill stars break ties; a discipline with no keys keeps the skill-only planner byte-identical. A task's role is read from its estimate line via source_line_item_id - no copy on tasks.",
+    "A line's delivery phase is its guided phase label, else its ROLE's (Phase 5: Creative->Design, QA Tester->QA, Project Coordinator->Content, Project Manager->Discovery, IT/none->Development). resultFromQuote builds catalog timelines from the same rule; IT-only quotes are byte-identical to before. Every placement/tag/plan call in one operation takes the same phaseSetOf(scaffold) set, and a role phase the schedule lacks falls back to Development, so nothing lands in the backlog. A re-sync never moves an existing task between sprints."
   ],
   "permissionsMatrix": {
     "columns": [

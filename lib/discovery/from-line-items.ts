@@ -2,9 +2,10 @@
  * Tentative timeline for a catalog / manual estimate (no guided scope).
  *
  * Reuses the SAME hours→days engine + Gantt as the guided path, so the launch
- * date is COMPUTED from the work, never hand-picked. Maps the quote's roll-up
- * structure into phases: dev line items (+ responsive) → Development, the design
- * add-on → Design, the QA add-on → QA. Sequenced by `computeTimeline`.
+ * date is COMPUTED from the work, never hand-picked. Each line lands in the
+ * phase of the role that does it (Creative → Design, QA Tester → QA, …; IT →
+ * Development), responsive folds into Development, and the design / QA add-ons
+ * join their phases. Sequenced by `computeTimeline`.
  */
 
 import { analyzeDiscovery } from "@/lib/discovery";
@@ -15,7 +16,11 @@ import {
 import { computeTimeline, resolveProjectStart } from "@/lib/discovery/timeline";
 import { addWorkingDays, type TeamCalendar } from "@/lib/discovery/team-calendar";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
-import { quoteTotals } from "@/lib/constants/proposal-estimator";
+import {
+  lineEffectiveHours,
+  quoteTotals,
+  roundHours,
+} from "@/lib/constants/proposal-estimator";
 import type {
   DiscoveryProject,
   DiscoveryResult,
@@ -33,19 +38,45 @@ const PHASE_LABEL_TO_ID = Object.fromEntries(
 ) as Record<string, PhaseId>;
 
 /**
+ * Catalog / freehand lines are scheduled by WHO does them (pricing plan
+ * Phase 5): the role decides the phase. IT — and any role not listed — is
+ * Development, which is where every catalog line sat before.
+ */
+export const ROLE_PHASE: Partial<Record<string, PhaseId>> = {
+  Creative: "design",
+  "QA Tester": "qa",
+  "Project Coordinator": "content",
+  "Project Manager": "discovery",
+};
+
+/**
  * The delivery phase a line item belongs to — the shared spine that lets Guided
  * and Catalog estimates produce the same phase-organised project tasks. Guided
- * lines carry a phase label as `module`; catalog features are Development work.
+ * lines carry a phase label as `module` and keep it; every other line goes to
+ * its role's phase.
+ *
+ * ⚠️ `available` is the phases the schedule actually has. A GUIDED estimate's
+ * sprints come from its questionnaire, not its lines, so a Creative catalog
+ * line on a guided quote with no design phase would have no sprint to land in
+ * and fall into the backlog. Passing the scaffold's phases sends it to
+ * Development instead — where it always went. Omit it only when the caller is
+ * building the phases from these lines (`resultFromQuote`).
  */
-export function phaseLabelForLineItem(li: ProposalLineItem): string {
-  if (li.module && li.module in PHASE_LABEL_TO_ID) return li.module;
-  return PHASE_META.development.label;
+export function phaseIdForLineItem(
+  li: Pick<ProposalLineItem, "module" | "responsible">,
+  available?: ReadonlySet<PhaseId>,
+): PhaseId {
+  if (li.module && li.module in PHASE_LABEL_TO_ID) return PHASE_LABEL_TO_ID[li.module];
+  const byRole = (li.responsible && ROLE_PHASE[li.responsible]) || "development";
+  return available && !available.has(byRole) ? "development" : byRole;
 }
 
-/** The delivery-phase id for a line item (for the assignment engine). */
-export function phaseIdForLineItem(li: ProposalLineItem): PhaseId {
-  if (li.module && li.module in PHASE_LABEL_TO_ID) return PHASE_LABEL_TO_ID[li.module];
-  return "development";
+/** `phaseIdForLineItem` as its label — the sprint name and the task's tag. */
+export function phaseLabelForLineItem(
+  li: Pick<ProposalLineItem, "module" | "responsible">,
+  available?: ReadonlySet<PhaseId>,
+): string {
+  return PHASE_META[phaseIdForLineItem(li, available)].label;
 }
 
 /** Reverse of PHASE_META label → id (e.g. a sprint name back to its phase). */
@@ -101,52 +132,57 @@ export function resultFromQuote(
 ): DiscoveryResult {
   const t = quoteTotals(quote);
 
-  // Only non-empty phases become bars; sequencing (Design → Dev → QA) and the
-  // launch date come from computeTimeline. Responsive folds into dev work.
-  // Each phase carries its "tasks" so the timeline bars are clickable-into:
-  // the Development bar lists the actual line items; Design/QA are roll-ups.
+  // Each line's hours go to its role's phase; sequencing (Discovery/Content →
+  // Design → Dev → QA) and the launch date come from computeTimeline. The
+  // add-ons join their own phases and responsive folds into Development.
+  // Totals are exactly what they were: the non-dev phases are summed and
+  // Development takes the remainder of `t.devHours`, so rounding each phase
+  // separately cannot drift the whole by a cent of an hour.
   const a = quote.addons;
+  const ORDER: PhaseId[] = ["discovery", "content", "design", "development", "qa"];
+  const lineHours: Partial<Record<PhaseId, number>> = {};
+  const lineTasks: Partial<Record<PhaseId, EstimateTask[]>> = {};
+  for (const li of quote.line_items) {
+    const id = phaseIdForLineItem(li);
+    lineHours[id] = (lineHours[id] ?? 0) + lineEffectiveHours(li, quote.requirements_unclear);
+    if (li.title.trim() && li.hours > 0) {
+      (lineTasks[id] ??= []).push(mkTask(li.id, id, li.title, li.hours, li.module ?? undefined));
+    }
+  }
+  const nonDev = ORDER.filter((id) => id !== "development").reduce(
+    (sum, id) => sum + roundHours(lineHours[id] ?? 0),
+    0,
+  );
+  // No role phases → `t.devHours` untouched, so an IT-only quote is
+  // byte-identical to before (float noise included: durations round UP to days).
+  const devLines = nonDev > 0 ? roundHours(t.devHours - nonDev) : t.devHours;
+
+  const addon: Partial<Record<PhaseId, EstimateTask>> = {};
+  if (t.designHours > 0)
+    addon.design = mkTask("design:rollup", "design", "Design & UX", t.designHours, `${a.design_pct}% of dev hours`);
+  if (t.responsiveHours > 0)
+    addon.development = mkTask(
+      "development:responsive",
+      "development",
+      "Responsive / mobile",
+      t.responsiveHours,
+      `${a.responsive_pct}% of dev hours`,
+    );
+  if (t.qaHours > 0)
+    addon.qa = mkTask("qa:rollup", "qa", "QA & Testing", t.qaHours, `${a.qa_pct}% of dev hours`);
+
   const phases: EstimatePhase[] = [];
-
-  if (t.designHours > 0) {
-    phases.push(
-      phase("design", t.designHours, [
-        mkTask(
-          "design:rollup",
-          "design",
-          "Design & UX",
-          t.designHours,
-          `${a.design_pct}% of dev hours`,
-        ),
-      ]),
-    );
-  }
-
-  const devTasks: EstimateTask[] = quote.line_items
-    .filter((li) => li.title.trim() && li.hours > 0)
-    .map((li) =>
-      mkTask(li.id, "development", li.title, li.hours, li.module ?? undefined),
-    );
-  if (t.responsiveHours > 0) {
-    devTasks.push(
-      mkTask(
-        "development:responsive",
-        "development",
-        "Responsive / mobile",
-        t.responsiveHours,
-        `${a.responsive_pct}% of dev hours`,
-      ),
-    );
-  }
-  const devTotal = t.devHours + t.responsiveHours;
-  if (devTotal > 0) phases.push(phase("development", devTotal, devTasks));
-
-  if (t.qaHours > 0) {
-    phases.push(
-      phase("qa", t.qaHours, [
-        mkTask("qa:rollup", "qa", "QA & Testing", t.qaHours, `${a.qa_pct}% of dev hours`),
-      ]),
-    );
+  for (const id of ORDER) {
+    const hours =
+      (id === "development" ? devLines : roundHours(lineHours[id] ?? 0)) +
+      (addon[id]?.mid ?? 0);
+    if (hours <= 0) continue;
+    // Roll-ups first where they come first today (Design, QA); responsive last.
+    const tasks =
+      id === "development"
+        ? [...(lineTasks[id] ?? []), ...(addon[id] ? [addon[id]!] : [])]
+        : [...(addon[id] ? [addon[id]!] : []), ...(lineTasks[id] ?? [])];
+    phases.push(phase(id, hours, tasks));
   }
 
   const total = { min: t.grandHours, mid: t.grandHours, max: t.grandHours };
