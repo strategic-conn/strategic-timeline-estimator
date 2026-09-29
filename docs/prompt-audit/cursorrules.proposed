@@ -1,0 +1,451 @@
+# ============================================================
+# .cursorrules — Timeline Estimator & Project Management Tool
+# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Supabase (Postgres + Auth + RLS + Realtime + Storage)
+# Last updated: 2026-09-30 | Maintainer: Frontend Dev
+# Backend: Supabase. CLAUDE.md is the canonical onboarding doc — architecture, status,
+# project structure, data access map and state map live THERE, not here.
+# ============================================================
+
+
+# ===========================================================
+# SELF-MAINTENANCE RULES
+# ===========================================================
+#
+# This file holds coding, UI, security and testing standards. Facts that change
+# with the code (phase status, folder tree, which store is wired, the table →
+# store map) live only in CLAUDE.md, so the two files cannot disagree.
+#
+# Update this file whenever:
+#
+#   1. A dependency is added, removed, or swapped
+#      → Update the TECH STACK summary (full table: CLAUDE.md)
+#
+#   2. A security policy changes
+#      → Update SECURITY section immediately (highest priority)
+#
+#   3. A UI pattern is standardized
+#      → Add it to UI/UX STANDARDS so it's used everywhere
+#
+#   4. A naming or file convention changes
+#      → Update NAMING CONVENTIONS
+#
+# HOW TO UPDATE:
+#   - Edit this file directly in the relevant section
+#   - Update the "Last updated" date at the top
+#   - Commit: "chore: update .cursorrules — [what changed]"
+#
+# ===========================================================
+
+
+# ===========================================================
+# PROJECT CONTEXT
+# ===========================================================
+
+You are an expert Next.js developer working on a full-scale
+Project Management & Timeline Estimator application. The backend is
+Supabase (Postgres + Auth + Row-Level Security), owned in this repo as
+SQL migrations under supabase/. You build the UI, manage client-side
+state, and talk to Supabase via @supabase/supabase-js (no separate REST API).
+
+This is a production-grade multi-tenant SaaS dashboard used by project
+managers, team leads, and developers to track tasks, manage timelines,
+generate proposals, and visualize project schedules via Gantt charts.
+
+Development is AI-assisted (Cursor + Claude). Always write clean,
+readable, maintainable code. AI speed does not justify messy code.
+
+Phase status: see CLAUDE.md → Current Status.
+Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
+
+
+# ===========================================================
+# TECH STACK
+# ===========================================================
+# UPDATE whenever a package is added, removed, or swapped.
+# Full table: CLAUDE.md → Tech Stack.
+
+| Layer               | Technology                                      |
+|---------------------|-------------------------------------------------|
+| Framework           | Next.js 16.2.1 (App Router)                     |
+| UI                  | React 19.2.4                                    |
+| Language            | TypeScript                                      |
+| Styling             | Tailwind CSS 4                                  |
+| UI Components       | shadcn/ui (generated in `components/ui`)        |
+| Classnames          | clsx + tailwind-merge + class-variance-authority|
+| Icons               | lucide-react                                    |
+| Animations          | tw-animate-css                                  |
+
+Backend SDK (wired): @supabase/supabase-js + @supabase/ssr
+Also installed: Zustand, React Hook Form, Zod, @dnd-kit/*, date-fns, Sonner, recharts 3
+(charts via components/ui/chart.tsx), DOMPurify, jsPDF, xlsx.
+- TanStack Query is installed but NOT wired — the synced-store bridge covers caching.
+- NOT using: Axios (Supabase replaces it). FullCalendar and Vitest are not installed.
+
+
+# ===========================================================
+# PROJECT STRUCTURE
+# ===========================================================
+# See CLAUDE.md → Project Structure (kept current there).
+
+
+# ===========================================================
+# CODING STANDARDS
+# ===========================================================
+
+## TypeScript
+- Strict mode ON. Zero `any` types — use `unknown` and narrow it
+- All functions have explicit return types
+- `interface` for object shapes, `type` for unions/primitives
+- Entity types live in types/*.types.ts (e.g. types/task.types.ts)
+- Database row types are generated into types/database.types.ts (`npm run db:types`)
+- Use optional chaining ?. and nullish coalescing ?? everywhere
+
+## Components
+- Functional components only — no class components
+- PascalCase file names: TaskCard.tsx
+- kebab-case folder names: /features/task-board/
+- Split a component when a part of it has its own job and can stand alone
+- Never fetch data directly in JSX — delegate to a store or custom hook
+- Never call Supabase from a component or event handler — go through the store action or hook
+- Named exports for components, default exports for pages only
+
+## Colocation Rule
+- Used in one feature only → components/features/[feature]/
+- Used in 2+ features → promote to components/common/
+- Hook used in one component → can live next to it
+- Hook used in 2+ places → promote to hooks/
+
+
+# ===========================================================
+# DATA LAYER — SUPABASE
+# ===========================================================
+# Backend = Supabase. Schema + RLS are in supabase/migrations/ (we own them).
+# Full reference: CLAUDE.md (Data Access Map, State Management Map) + docs/backend-supabase.md.
+
+## Base Setup
+- Clients come from lib/supabase/ — never construct ad-hoc clients:
+  - createClient() from lib/supabase/client.ts  → Client Components
+  - createClient() from lib/supabase/server.ts  → RSC / Route Handlers / Server Actions
+  - lib/supabase/admin.ts (service role) → server-only; bypasses RLS
+- Config from env (see .env.example): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
+  - The anon key is public by design — RLS protects data. Never ship SUPABASE_SERVICE_ROLE_KEY to the browser.
+- Dates: ISO 8601 (timestamptz) / YYYY-MM-DD (date) — always parse with date-fns.
+
+## Query & Error Handling
+- Read/write via supabase.from("table") (PostgREST), scoped automatically by RLS.
+- Stores write through optimistically: update the store, write to Supabase, and on
+  error roll back and toast.error(..., { description: parseSupabaseError(error) }).
+- RLS denial returns a Postgres error (no row / permission) → toast a friendly message; do NOT redirect.
+- Auth: supabase.auth.signInWithPassword / signOut; session lives in httpOnly cookies via @supabase/ssr.
+- 401 / expired session: handled by the root proxy.ts refresh (Next 16's renamed middleware); gate protected routes there.
+
+## Authorization
+- Enforced by RLS in supabase/migrations/0002_rls.sql and later migrations (the real wall).
+- usePermissions() mirrors the matrix for UX only — keep the two in lockstep.
+
+## Tables → stores
+# See CLAUDE.md → Data Access Map (kept current there).
+
+
+# ===========================================================
+# STATE MANAGEMENT
+# ===========================================================
+# TanStack Query owns ALL server state.
+# Zustand owns ONLY client/UI state.
+# Never duplicate server data in Zustand.
+
+## Zustand Stores
+# See CLAUDE.md → State Management Map for every store and what it owns.
+
+
+# ===========================================================
+# FORMS & VALIDATION
+# ===========================================================
+
+- Every form: React Hook Form + Zod schema
+- Zod schemas: lib/validations/[feature].schema.ts
+- RHF mode: onBlur (not onChange)
+- Always show field-level error messages below each input
+- Mark required fields with * in label
+- Disable submit button while isPending — show spinner inside button
+- Validate with Zod before writing; map Supabase/Postgres errors to RHF field errors where possible
+- Multi-step forms: show "Step N of N" progress bar
+
+
+# ===========================================================
+# SECURITY STANDARDS
+# ===========================================================
+# Non-negotiable. Highest priority rules.
+# UPDATE immediately when auth strategy or policies change.
+
+## Authentication
+- Supabase Auth via @supabase/ssr → session in httpOnly cookies ONLY
+  NEVER localStorage, NEVER sessionStorage for tokens
+- Sign in: supabase.auth.signInWithPassword (or OAuth / magic link)
+- Token refresh: handled by root proxy.ts on each request (lib/supabase/middleware.ts)
+- Logout: supabase.auth.signOut() → clears cookies → clear Zustand UI state
+- Session expiry: modal warning at 5 min remaining
+
+## RBAC
+- Roles: admin | manager | member | viewer (profiles.role)
+- usePermissions() hook: canCreate, canEdit, canDelete, canManageTeam, canExportProposals
+- VIEWER role: HIDE action buttons entirely (not just disabled)
+- Protected routes: gated in proxy.ts; data scoped by RLS
+- UI RBAC is for UX only — RLS (supabase/migrations/0002_rls.sql) enforces real access
+
+## Input Sanitization
+- DOMPurify on ALL user-generated content rendered as HTML
+- Never dangerouslySetInnerHTML without DOMPurify
+- All inputs validated with Zod before writing to Supabase
+
+## Request Security
+- RLS on every table is the authorization wall — never disable it
+- Service-role key is server-only — never expose it to the browser (no NEXT_PUBLIC_ prefix)
+- Rate-limit login: disable button 30s after 5 failures (Supabase also rate-limits auth)
+
+## Security Headers (next.config.js)
+- X-Frame-Options: SAMEORIGIN
+- X-Content-Type-Options: nosniff
+- Referrer-Policy: strict-origin-when-cross-origin
+- Permissions-Policy: camera=(), microphone=(), geolocation=()
+- Content-Security-Policy: defined in next.config.js
+
+## Sensitive Data Rules
+- Never log PII to console
+- Never pre-fill password fields from stored values
+- Exports: stream from server, never assemble client-side fully
+- Never expose user ID or role in URL params
+
+## Dependencies
+- npm audit before every deployment — fix HIGH/CRITICAL immediately
+- Pin major versions in package.json
+
+
+# ===========================================================
+# UI/UX STANDARDS
+# ===========================================================
+
+## Visual Hierarchy
+- One primary CTA per page (shadcn variant="default")
+- Spacing scale: 4, 8, 12, 16, 24, 32, 48px (p-1 through p-12)
+- Always left-align body text and table data — never center
+- Group content with whitespace, not just borders
+
+## Typography Scale
+- Page title:      text-2xl font-semibold
+- Section header:  text-lg font-medium
+- Body / labels:   text-sm
+- Meta / captions: text-xs text-muted-foreground
+- Max 2 font weights per page
+
+## Color Tokens
+Use shadcn semantic tokens only — never raw hex in classNames
+- Text:     text-foreground / text-muted-foreground
+- Surfaces: bg-background / bg-card / bg-muted
+- Borders:  border
+- Danger:   text-destructive / bg-destructive
+- Brand:    text-primary / bg-primary
+
+## Task/Project Status Colors
+- Defined once in lib/constants/task-status.ts (TASK_STATUS_META: Tailwind class + hex
+  side by side). Read them from there; never write a status colour inline.
+
+## Loading States
+- Every data-fetching component MUST have a Skeleton matching its shape
+- Never full-page spinners — skeleton the content region only
+- Mutations: disable button + spinner inside
+- 200ms minimum delay before skeleton (prevents flicker on fast connections)
+
+## Empty States
+- Every list, table, and board MUST have a designed empty state
+- Structure: Lucide icon (size=48) + heading + subtext + CTA button
+- Use text-muted-foreground for copy
+
+## Feedback & Micro-interactions
+- All actions: immediate visual feedback < 100ms
+- Success: toast.success() — auto-dismiss 3s
+- Error: toast.error() — persist, show retry if relevant
+- Destructive actions: ALWAYS confirmation dialog first
+- Use optimistic updates for status changes and drag-drop reordering
+
+## Tables
+- Required: column sorting, row hover, skeleton, empty state
+- Show: "Showing 1–20 of 143 results"
+- Truncate long cells with truncate + Tooltip for full text
+- Sticky header on scroll
+- Bulk actions: floating action bar above table
+
+## Modals
+- Always use shadcn Dialog — never a custom modal
+- Always X close button top-right
+- Form modals: do NOT close on backdrop click (data loss risk)
+- shadcn built-in transitions only
+
+## Confirmations
+- Destructive dialog must name exactly what will be deleted
+- Provide Undo via Sonner toast (5s window) before permanent action
+
+
+# ===========================================================
+# MOBILE RESPONSIVENESS
+# ===========================================================
+
+## Breakpoints
+- base (0–639px):  Mobile — single column, stacked, full-width
+- sm   (640px+):   Large mobile tweaks
+- md   (768px+):   Tablet (iPad portrait) — still narrow once the rail is shown
+- lg   (1024px+):  Desktop — full sidebar + content layout
+- xl   (1280px+):  Wide desktop
+
+## Navigation
+- < md:  no sidebar — bottom tab bar + slide-over drawer
+- md–lg: 64px icon rail (w-16; labels hidden, title tooltips keep icons identifiable)
+- lg+:   full sidebar with labels (lg:w-56, xl:w-64)
+
+## Layout Rules
+- Never fixed pixel widths — use w-full max-w-[X] mx-auto
+- Tables: wrap in overflow-x-auto w-full div
+- Cards: grid grid-cols-1 lg:grid-cols-2 / lg:grid-cols-3 — gate multi-column grids on lg:,
+  because the content area on a tablet is far narrower than its viewport
+- Forms: single column always on mobile
+- Check every page at 375px before calling it done (CLAUDE.md rule 5)
+
+## Touch Targets
+- All interactive elements: minimum 44x44px (min-h-11 min-w-11)
+- List item links: py-3 px-4 minimum padding
+- Drag-and-drop: enable @dnd-kit pointer sensor for touch
+
+## Input Types for Mobile Keyboards
+- Email: type="email"
+- Phone: type="tel"
+- Numbers: type="number"
+- URL: type="url"
+
+## Heavy Views on Mobile
+- Gantt: keeps its chart on mobile, inside its own horizontal scroller with swipe hints
+- Calendar: keeps its month grid (it fits 375px)
+- Task tables: card-stack as mobile alternative
+
+## Performance on Mobile
+- Lazy-load heavy components via dynamic():
+  Gantt, export modals, rich text editors
+- Respect prefers-reduced-motion
+- loading="lazy" on all below-fold images
+- Test on throttled 3G before marking complete
+
+
+# ===========================================================
+# ACCESSIBILITY (WCAG 2.1 AA)
+# ===========================================================
+
+- All interactive elements: keyboard-navigable + visible focus ring
+- All images: descriptive alt text
+- Semantic HTML: nav, main, aside, section, article, button
+- Never div/span as clickable without role and tabIndex
+- Color contrast: AA minimum — verify all custom colors
+- Never convey info through color alone — pair with icon or label
+- ARIA labels on icon-only buttons
+- Focus trap in open modals (shadcn handles this — do not override)
+
+
+# ===========================================================
+# PERFORMANCE
+# ===========================================================
+
+- Lazy-load heavy components with dynamic():
+  const GanttView = dynamic(() => import('../gantt/GanttView'), { ssr: false })
+- React.memo for expensive list item components
+- useMemo / useCallback only for proven bottlenecks — not by default
+- Next.js Image component for all images
+- Paginate ALL lists — never fetch unlimited records
+- Prefetch on hover for predictable navigation routes
+
+
+# ===========================================================
+# TESTING
+# ===========================================================
+
+- Playwright (`npm run test:e2e`, specs in e2e/ — see e2e/README.md). It runs against
+  LIVE Supabase + Zoho: everything a test creates is prefixed "[E2E]" and deleted in
+  teardown, it never touches pre-existing data, and the Zoho push is never automated.
+- Pure logic (lib/) is tested directly in Playwright specs, without a browser.
+- Required per feature:
+  - Happy path (data loads, renders correctly)
+  - Loading state renders skeleton
+  - Empty state renders when no data
+  - Error state shows error message
+  - Form validation blocks submission with invalid data
+- Never test implementation details — test behavior only
+
+
+# ===========================================================
+# NAMING CONVENTIONS
+# ===========================================================
+# UPDATE when new file types or patterns are introduced
+
+| Thing              | Convention               | Example                  |
+|--------------------|--------------------------|--------------------------|
+| Components         | PascalCase               | TaskCard.tsx             |
+| Page files         | lowercase                | page.tsx, layout.tsx     |
+| Hooks              | camelCase + use prefix   | useProjects.ts           |
+| Supabase helpers   | lib/supabase/*.ts        | client.ts, server.ts     |
+| Zustand stores     | kebab-case + -store.ts   | tasks-store.ts           |
+| Zod schemas        | camelCase + .schema.ts   | profile.schema.ts        |
+| Route paths        | kebab-case               | /projects/[projectId]    |
+| Utility functions  | camelCase                | formatDate.ts            |
+| Types/Interfaces   | PascalCase               | interface TaskResponse   |
+| Env variables      | SCREAMING_SNAKE_CASE     | NEXT_PUBLIC_SUPABASE_URL  |
+
+
+# ===========================================================
+# ENVIRONMENT VARIABLES
+# ===========================================================
+# Never commit .env.local
+# UPDATE when new env vars are added
+
+Example `.env.local` (see .env.example; never commit real values):
+- NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
+- NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key      # public; RLS protects data
+- SUPABASE_SERVICE_ROLE_KEY=your-service-role-key         # server-only; never NEXT_PUBLIC_
+- NEXT_PUBLIC_APP_NAME=Timeline Estimator
+- NEXT_PUBLIC_APP_ENV=development
+- Zoho and PBS server-only variables: see CLAUDE.md → Zoho / PBS sections
+
+
+# ===========================================================
+# WHAT NOT TO DO
+# ===========================================================
+
+- Never fetch data directly in a component — always use a store or hook
+- Never store tokens in localStorage or sessionStorage
+- Never use useEffect to sync server state — that is React Query
+- Never use the any type
+- Never hardcode strings that belong in constants or env vars
+- Never install moment.js — use date-fns
+- Never put business logic in components — hooks or utils
+- Never skip loading, error, and empty states
+- Never use dangerouslySetInnerHTML without DOMPurify
+- Never delete on first click — always confirmation dialog
+- Never push directly to main — feature branches and PRs only
+- Never use raw hex colors — use semantic Tailwind tokens
+- Never build a custom modal — use shadcn Dialog
+- Never render user HTML without sanitization
+- Never fetch unlimited records — always paginate
+
+
+# ===========================================================
+# BUILD ORDER & OPEN WORK
+# ===========================================================
+# Always complete the data layer (store/hook + types) before UI.
+# Done work and phase status: CLAUDE.md → Current Status.
+
+## Still open (Phase 4 — Scalability & Integrations)
+- [ ] Slack notification UI (connect + preferences)
+- [ ] Google Calendar OAuth + sync UI
+- [ ] Advanced filtering UI (multi-select, date ranges)
+- [ ] Customizable dashboard (widget drag-drop)
+- [ ] RBAC refinements (permission-gated UI audit)
+- [ ] WCAG 2.1 AA audit and fixes
+- [ ] Performance pass
+- [ ] Monitoring/error tracking integration
+- [ ] Documentation + admin training materials

@@ -1,44 +1,33 @@
 # ============================================================
 # .cursorrules — Timeline Estimator & Project Management Tool
-# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Supabase (Postgres + Auth + RLS)
-# Last updated: 2026-06-22 | Maintainer: Frontend Dev
-# Backend: Supabase. Full plan in docs/backend-supabase.md; CLAUDE.md is the canonical onboarding doc.
+# Stack (installed): Next.js 16.2.1 / React 19.2.4 / TypeScript / Tailwind 4 / shadcn-ui / Supabase (Postgres + Auth + RLS + Realtime + Storage)
+# Last updated: 2026-09-30 | Maintainer: Frontend Dev
+# Backend: Supabase. CLAUDE.md is the canonical onboarding doc — architecture, status,
+# project structure, data access map and state map live THERE, not here.
 # ============================================================
 
 
 # ===========================================================
-# SELF-MAINTENANCE RULES — READ THIS FIRST
+# SELF-MAINTENANCE RULES
 # ===========================================================
 #
-# This file is a LIVING DOCUMENT. Update it whenever:
+# This file holds coding, UI, security and testing standards. Facts that change
+# with the code (phase status, folder tree, which store is wired, the table →
+# store map) live only in CLAUDE.md, so the two files cannot disagree.
 #
-#   1. A new feature is added to scope
-#      → Add to PHASE PRIORITIES, COMPONENT STANDARDS, API table
+# Update this file whenever:
 #
-#   2. A dependency is added, removed, or swapped
-#      → Update the TECH STACK table immediately
-#      → Remove outdated library references
+#   1. A dependency is added, removed, or swapped
+#      → Update the TECH STACK summary (full table: CLAUDE.md)
 #
-#   3. A new route or page is created
-#      → Add it to the PROJECT STRUCTURE app/ tree
-#
-#   4. The backend API contract changes
-#      → Update the Endpoint Map table
-#      → Update affected Zod schemas
-#      → Update shared Postman collection
-#
-#   5. A new Zustand store is created
-#      → Document it in STATE MANAGEMENT section
-#
-#   6. A security policy changes
+#   2. A security policy changes
 #      → Update SECURITY section immediately (highest priority)
 #
-#   7. A UI pattern is standardized
+#   3. A UI pattern is standardized
 #      → Add it to UI/UX STANDARDS so it's used everywhere
 #
-#   8. A phase is completed
-#      → Mark it done in PHASE PRIORITIES
-#      → Move learnings into the relevant permanent sections
+#   4. A naming or file convention changes
+#      → Update NAMING CONVENTIONS
 #
 # HOW TO UPDATE:
 #   - Edit this file directly in the relevant section
@@ -65,16 +54,7 @@ generate proposals, and visualize project schedules via Gantt charts.
 Development is AI-assisted (Cursor + Claude). Always write clean,
 readable, maintainable code. AI speed does not justify messy code.
 
-## Project Phases & Status
-# UPDATE this table when phases start, complete, or scope changes
-
-| Phase | Description                          | Status         |
-|-------|--------------------------------------|----------------|
-| 1     | Auth, Projects/Workspaces, Tasks     | Not started    |
-| 2     | Collaboration, Scheduling, PTO       | Not started    |
-| 3     | Proposals, Gantt Charts, Pricing     | Not started    |
-| 4     | Integrations, Performance, WCAG      | Not started    |
-
+Phase status: see CLAUDE.md → Current Status.
 Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 
 
@@ -82,7 +62,7 @@ Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 # TECH STACK
 # ===========================================================
 # UPDATE whenever a package is added, removed, or swapped.
-# Never leave outdated packages in this list.
+# Full table: CLAUDE.md → Tech Stack.
 
 | Layer               | Technology                                      |
 |---------------------|-------------------------------------------------|
@@ -95,115 +75,17 @@ Estimated Frontend Hours (AI-Assisted): ~232 hours across all phases.
 | Icons               | lucide-react                                    |
 | Animations          | tw-animate-css                                  |
 
-Backend SDK (installed, not yet wired): @supabase/supabase-js + @supabase/ssr
-Planned / optional (add when needed; keep this section honest):
-- TanStack Query (React Query) — cache layer over Supabase queries at integration
-- Zustand, React Hook Form, Zod, @dnd-kit/* (all installed); date-fns, Sonner (installed)
-- NOT using: Axios (Supabase replaces it). FullCalendar/Recharts/Vitest are not installed.
+Backend SDK (wired): @supabase/supabase-js + @supabase/ssr
+Also installed: Zustand, React Hook Form, Zod, @dnd-kit/*, date-fns, Sonner, recharts 3
+(charts via components/ui/chart.tsx), DOMPurify, jsPDF, xlsx.
+- TanStack Query is installed but NOT wired — the synced-store bridge covers caching.
+- NOT using: Axios (Supabase replaces it). FullCalendar and Vitest are not installed.
 
 
 # ===========================================================
 # PROJECT STRUCTURE
 # ===========================================================
-# UPDATE whenever a new folder, route group, or major
-# component directory is added.
-
-app/
-├── (auth)/
-│   ├── login/
-│   ├── register/
-│   └── forgot-password/
-├── (dashboard)/
-│   ├── layout.tsx
-│   ├── dashboard/page.tsx
-│   ├── projects/
-│   │   ├── page.tsx                           # project list
-│   │   └── [projectId]/
-│   │       ├── page.tsx                       # project overview (sprint list + backlog)
-│   │       ├── sprints/[sprintId]/page.tsx    # sprint task board
-│   │       ├── backlog/page.tsx               # backlog tasks
-│   │       └── tasks/page.tsx                 # legacy redirect → project overview
-│   ├── calendar/
-│   ├── reports/
-│   ├── team/
-│   └── settings/
-├── not-found.tsx
-├── error.tsx
-└── layout.tsx
-middleware.ts             # Supabase session refresh (no-op until env vars set)
-# Auth uses Supabase Auth directly — no app/api/auth BFF routes needed.
-components/
-├── ui/                    # shadcn/ui — generated components; avoid manual edits
-├── common/
-│   ├── DataTable/
-│   ├── PageHeader/
-│   ├── EmptyState/
-│   ├── ConfirmDialog/
-│   ├── StatusBadge/
-│   └── LoadingSkeleton/
-├── features/
-│   ├── auth/
-│   ├── projects/          # ProjectsPage, ProjectCard, Create/Edit/Delete modals
-│   ├── sprints/           # ProjectOverviewPage, SprintCard, Create/Edit/Delete modals
-│   ├── tasks/             # TasksPage, KanbanBoard, TaskCard, TaskDetailDrawer, modals
-│   ├── calendar/
-│   ├── gantt/
-│   ├── proposals/
-│   ├── team/
-│   └── notifications/
-│   └── layouts/
-│       ├── AppLayout.tsx
-│       ├── AuthLayout.tsx
-│       ├── Sidebar.tsx
-│       ├── TopBar.tsx
-│       └── MobileNav.tsx
-hooks/
-├── useAuth.ts
-├── useProjects.ts
-├── useSprints.ts
-├── useTasks.ts
-├── usePermissions.ts
-├── useDebounce.ts
-└── useMediaQuery.ts
-lib/
-├── supabase/
-│   ├── client.ts         # browser client (Client Components)
-│   ├── server.ts         # server client (RSC / Route Handlers / Server Actions)
-│   └── middleware.ts     # session-refresh helper used by root middleware.ts
-├── utils/
-│   ├── cn.ts
-│   ├── date.ts
-│   ├── format.ts
-│   ├── work-hours.ts
-│   └── error.ts
-├── dummy/
-│   ├── projects.data.ts
-│   ├── sprints.data.ts
-│   └── tasks.data.ts
-├── validations/
-│   ├── auth.schema.ts
-│   ├── project.schema.ts
-│   ├── sprint.schema.ts
-│   ├── task.schema.ts
-│   └── proposal.schema.ts
-└── constants/
-    ├── projects.ts
-    ├── sprints.ts
-    ├── query-keys.ts
-    └── config.ts
-store/
-├── projects-store.ts
-├── sprints-store.ts
-├── auth.store.ts
-├── ui.store.ts
-└── notification.store.ts
-types/
-├── project.types.ts
-├── sprint.types.ts
-├── task.types.ts
-├── api.types.ts
-└── ui.types.ts
-middleware.ts
+# See CLAUDE.md → Project Structure (kept current there).
 
 
 # ===========================================================
@@ -214,17 +96,17 @@ middleware.ts
 - Strict mode ON. Zero `any` types — use `unknown` and narrow it
 - All functions have explicit return types
 - `interface` for object shapes, `type` for unions/primitives
-- Entity types live in src/types/models.ts
-- API response shapes in src/types/api.types.ts
+- Entity types live in types/*.types.ts (e.g. types/task.types.ts)
+- Database row types are generated into types/database.types.ts (`npm run db:types`)
 - Use optional chaining ?. and nullish coalescing ?? everywhere
 
 ## Components
 - Functional components only — no class components
 - PascalCase file names: TaskCard.tsx
 - kebab-case folder names: /features/task-board/
-- Max 200 lines per component — split if longer
-- Never fetch data directly in JSX — delegate to a custom hook
-- Never call API functions in event handlers — go through hooks
+- Split a component when a part of it has its own job and can stand alone
+- Never fetch data directly in JSX — delegate to a store or custom hook
+- Never call Supabase from a component or event handler — go through the store action or hook
 - Named exports for components, default exports for pages only
 
 ## Colocation Rule
@@ -238,82 +120,42 @@ middleware.ts
 # DATA LAYER — SUPABASE
 # ===========================================================
 # Backend = Supabase. Schema + RLS are in supabase/migrations/ (we own them).
-# Full reference: docs/backend-supabase.md. Keep both in sync with the schema.
+# Full reference: CLAUDE.md (Data Access Map, State Management Map) + docs/backend-supabase.md.
 
 ## Base Setup
 - Clients come from lib/supabase/ — never construct ad-hoc clients:
   - createClient() from lib/supabase/client.ts  → Client Components
   - createClient() from lib/supabase/server.ts  → RSC / Route Handlers / Server Actions
+  - lib/supabase/admin.ts (service role) → server-only; bypasses RLS
 - Config from env (see .env.example): NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY
   - The anon key is public by design — RLS protects data. Never ship SUPABASE_SERVICE_ROLE_KEY to the browser.
 - Dates: ISO 8601 (timestamptz) / YYYY-MM-DD (date) — always parse with date-fns.
 
-## Query & Error Handling (replaces axios interceptors)
+## Query & Error Handling
 - Read/write via supabase.from("table") (PostgREST), scoped automatically by RLS.
-- Every call: destructure { data, error }; if (error) throw error — surface in TanStack onError.
+- Stores write through optimistically: update the store, write to Supabase, and on
+  error roll back and toast.error(..., { description: parseSupabaseError(error) }).
 - RLS denial returns a Postgres error (no row / permission) → toast a friendly message; do NOT redirect.
 - Auth: supabase.auth.signInWithPassword / signOut; session lives in httpOnly cookies via @supabase/ssr.
-- 401 / expired session: handled by root middleware refresh; gate protected routes there.
+- 401 / expired session: handled by the root proxy.ts refresh (Next 16's renamed middleware); gate protected routes there.
 
 ## Authorization
-- Enforced by RLS in supabase/migrations/0002_rls.sql (the real wall).
+- Enforced by RLS in supabase/migrations/0002_rls.sql and later migrations (the real wall).
 - usePermissions() mirrors the matrix for UX only — keep the two in lockstep.
 
-## Tables → hooks (Status: Demo = Zustand/local | Wired = live Supabase)
-# UPDATE as each store is swapped to Supabase.
-
-| Table(s)                                  | Hook(s)                  | Status  |
-|-------------------------------------------|--------------------------|---------|
-| auth.users + profiles                     | useAuth (todo)           | Demo    |
-| projects                                  | useProjects              | Demo    |
-| sprints                                   | useSprints               | Demo    |
-| tasks (+ task_assignees)                  | useTasks                 | Demo    |
-| task_comments (+ comment_reactions)       | useTasks / comments      | Demo    |
-| profiles (team directory)                 | useTeam (todo)           | Demo    |
-| notifications (+ Realtime)                | useNotifications (todo)  | Demo    |
-| availability_entries / weekly_capacity    | calendar / workload      | Demo    |
-| proposals (jsonb)                         | useProposals (todo)      | Demo    |
-
-## TanStack Query Rules
-- All query keys in src/lib/constants/query-keys.ts (factory pattern)
-- Always handle isLoading, isError, isEmpty in UI — never skip these
-- invalidateQueries after every successful mutation
-- staleTime guide:
-  - User profile: 10 minutes
-  - Projects list: 2 minutes
-  - Task boards: 30 seconds
-  - Notifications: 15 seconds
+## Tables → stores
+# See CLAUDE.md → Data Access Map (kept current there).
 
 
 # ===========================================================
 # STATE MANAGEMENT
 # ===========================================================
-# TanStack Query owns ALL server state.
-# Zustand owns ONLY client/UI state.
-# Never duplicate server data in Zustand.
+# Zustand stores are the single read seam for server AND UI state: each store
+# hydrates from Supabase (WorkspaceSync) and writes through optimistically with
+# rollback — the synced-store bridge. TanStack Query is installed but not wired.
 
 ## Zustand Stores
-# UPDATE when a new store is created — document what it owns
-
-### auth.store.ts
-Owns: user object, isAuthenticated, role
-Does NOT own: tokens (httpOnly cookie), permissions logic
-
-### ui.store.ts
-Owns: sidebarOpen, activeModal, theme (light/dark)
-Does NOT own: any server data
-
-### projects-store.ts (demo — will become Supabase + TanStack Query)
-Owns: projects array, CRUD actions
-Demo only: seeded from dummy data. Becomes Supabase queries (TanStack cache) when wired.
-
-### sprints-store.ts (demo — will become Supabase + TanStack Query)
-Owns: sprints array, CRUD actions, setSprintStatus
-Demo only: seeded from dummy data. Sprints are scoped by project_id.
-
-### notification.store.ts
-Owns: unreadCount, isNotificationPanelOpen
-Does NOT own: notification list data (that is React Query)
+# See CLAUDE.md → State Management Map for every store and what it owns.
 
 
 # ===========================================================
@@ -321,7 +163,7 @@ Does NOT own: notification list data (that is React Query)
 # ===========================================================
 
 - Every form: React Hook Form + Zod schema
-- Zod schemas: src/lib/validations/[feature].schema.ts
+- Zod schemas: lib/validations/[feature].schema.ts
 - RHF mode: onBlur (not onChange)
 - Always show field-level error messages below each input
 - Mark required fields with * in label
@@ -340,15 +182,15 @@ Does NOT own: notification list data (that is React Query)
 - Supabase Auth via @supabase/ssr → session in httpOnly cookies ONLY
   NEVER localStorage, NEVER sessionStorage for tokens
 - Sign in: supabase.auth.signInWithPassword (or OAuth / magic link)
-- Token refresh: handled by root middleware.ts on each request (lib/supabase/middleware.ts)
+- Token refresh: handled by root proxy.ts on each request (lib/supabase/middleware.ts)
 - Logout: supabase.auth.signOut() → clears cookies → clear Zustand UI state
-- Session expiry: modal warning at 5 min remaining
+- Session expiry: modal warning at 5 min remaining (planned — not built yet)
 
 ## RBAC
 - Roles: admin | manager | member | viewer (profiles.role)
 - usePermissions() hook: canCreate, canEdit, canDelete, canManageTeam, canExportProposals
 - VIEWER role: HIDE action buttons entirely (not just disabled)
-- Protected routes: gated in middleware.ts; data scoped by RLS
+- Protected routes: gated in proxy.ts; data scoped by RLS
 - UI RBAC is for UX only — RLS (supabase/migrations/0002_rls.sql) enforces real access
 
 ## Input Sanitization
@@ -359,19 +201,23 @@ Does NOT own: notification list data (that is React Query)
 ## Request Security
 - RLS on every table is the authorization wall — never disable it
 - Service-role key is server-only — never expose it to the browser (no NEXT_PUBLIC_ prefix)
-- Rate-limit login: disable button 30s after 5 failures (Supabase also rate-limits auth)
+- Rate-limit login: disable button 30s after 5 failures (planned — not built yet; Supabase
+  already rate-limits auth server-side)
 
-## Security Headers (next.config.js)
-- X-Frame-Options: SAMEORIGIN
+## Security Headers (next.config.ts)
+- X-Frame-Options: DENY + Content-Security-Policy: frame-ancestors 'none' (anti-clickjacking)
 - X-Content-Type-Options: nosniff
 - Referrer-Policy: strict-origin-when-cross-origin
-- Permissions-Policy: camera=(), microphone=(), geolocation=()
-- Content-Security-Policy: defined in next.config.js
+- Strict-Transport-Security: max-age=15552000; includeSubDomains
+- Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+- Full CSP ships as Content-Security-Policy-Report-Only while it is staged; promote it
+  to enforcing (prefer nonces over 'unsafe-inline') once the console is clean
 
 ## Sensitive Data Rules
 - Never log PII to console
 - Never pre-fill password fields from stored values
-- Exports: stream from server, never assemble client-side fully
+- Exports: proposal PDF/Excel are built client-side by design, from data the viewer can
+  already see (admin + manager only). Any export of data beyond that must come from the server
 - Never expose user ID or role in URL params
 
 ## Dependencies
@@ -405,12 +251,8 @@ Use shadcn semantic tokens only — never raw hex in classNames
 - Brand:    text-primary / bg-primary
 
 ## Task/Project Status Colors
-# UPDATE if statuses are added or renamed
-- Todo:        bg-slate-100  text-slate-600
-- In Progress: bg-blue-100   text-blue-700
-- In Review:   bg-yellow-100 text-yellow-700
-- Done:        bg-green-100  text-green-700
-- Blocked:     bg-red-100    text-red-700
+- Defined once in lib/constants/task-status.ts (TASK_STATUS_META: Tailwind class + hex
+  side by side). Read them from there; never write a status colour inline.
 
 ## Loading States
 - Every data-fetching component MUST have a Skeleton matching its shape
@@ -455,20 +297,22 @@ Use shadcn semantic tokens only — never raw hex in classNames
 ## Breakpoints
 - base (0–639px):  Mobile — single column, stacked, full-width
 - sm   (640px+):   Large mobile tweaks
-- md   (768px+):   Tablet — 2-column where appropriate
-- lg   (1024px+):  Desktop — sidebar + content layout
+- md   (768px+):   Tablet (iPad portrait) — still narrow once the rail is shown
+- lg   (1024px+):  Desktop — full sidebar + content layout
 - xl   (1280px+):  Wide desktop
 
 ## Navigation
-- Desktop: fixed left sidebar 240px wide
-- Mobile:  sidebar as slide-over shadcn Drawer via hamburger
-- Mobile bottom nav: 4 icon tabs (Dashboard, Projects, Tasks, Calendar)
+- < md:  no sidebar — bottom tab bar + slide-over drawer
+- md–lg: 64px icon rail (w-16; labels hidden, title tooltips keep icons identifiable)
+- lg+:   full sidebar with labels (lg:w-56, xl:w-64)
 
 ## Layout Rules
 - Never fixed pixel widths — use w-full max-w-[X] mx-auto
 - Tables: wrap in overflow-x-auto w-full div
-- Cards: grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3
+- Cards: grid grid-cols-1 lg:grid-cols-2 / lg:grid-cols-3 — gate multi-column grids on lg:,
+  because the content area on a tablet is far narrower than its viewport
 - Forms: single column always on mobile
+- Check every page at 375px before calling it done (CLAUDE.md rule 5)
 
 ## Touch Targets
 - All interactive elements: minimum 44x44px (min-h-11 min-w-11)
@@ -482,13 +326,13 @@ Use shadcn semantic tokens only — never raw hex in classNames
 - URL: type="url"
 
 ## Heavy Views on Mobile
-- Gantt: list view on mobile (< md), Gantt on md+
-  Pattern: hidden md:block / block md:hidden
+- Gantt: keeps its chart on mobile, inside its own horizontal scroller with swipe hints
+- Calendar: keeps its month grid (it fits 375px)
 - Task tables: card-stack as mobile alternative
 
 ## Performance on Mobile
 - Lazy-load heavy components via dynamic():
-  Gantt, FullCalendar, export modals, rich text editors
+  Gantt, export modals, rich text editors
 - Respect prefers-reduced-motion
 - loading="lazy" on all below-fold images
 - Test on throttled 3G before marking complete
@@ -517,7 +361,8 @@ Use shadcn semantic tokens only — never raw hex in classNames
 - React.memo for expensive list item components
 - useMemo / useCallback only for proven bottlenecks — not by default
 - Next.js Image component for all images
-- Paginate ALL lists — never fetch unlimited records
+- Cap or paginate lists that grow without bound (activity feed .limit(80), notifications
+  .limit(50)); the workspace stores hydrate whole tables by design — see CLAUDE.md
 - Prefetch on hover for predictable navigation routes
 
 
@@ -525,15 +370,16 @@ Use shadcn semantic tokens only — never raw hex in classNames
 # TESTING
 # ===========================================================
 
-- Vitest + React Testing Library
-- Test files colocated: ComponentName.test.tsx next to component
+- Playwright (`npm run test:e2e`, specs in e2e/ — see e2e/README.md). It runs against
+  LIVE Supabase + Zoho: everything a test creates is prefixed "[E2E]" and deleted in
+  teardown, it never touches pre-existing data, and the Zoho push is never automated.
+- Pure logic (lib/) is tested directly in Playwright specs, without a browser.
 - Required per feature:
   - Happy path (data loads, renders correctly)
   - Loading state renders skeleton
   - Empty state renders when no data
   - Error state shows error message
   - Form validation blocks submission with invalid data
-- Mock API calls with MSW (Mock Service Worker)
 - Never test implementation details — test behavior only
 
 
@@ -548,9 +394,8 @@ Use shadcn semantic tokens only — never raw hex in classNames
 | Page files         | lowercase                | page.tsx, layout.tsx     |
 | Hooks              | camelCase + use prefix   | useProjects.ts           |
 | Supabase helpers   | lib/supabase/*.ts        | client.ts, server.ts     |
-| Zustand stores     | camelCase + .store.ts    | auth.store.ts            |
-| Zod schemas        | camelCase + .schema.ts   | task.schema.ts           |
-| Query key consts   | SCREAMING_SNAKE_CASE     | QUERY_KEYS.TASKS         |
+| Zustand stores     | kebab-case + -store.ts   | tasks-store.ts           |
+| Zod schemas        | camelCase + .schema.ts   | profile.schema.ts        |
 | Route paths        | kebab-case               | /projects/[projectId]    |
 | Utility functions  | camelCase                | formatDate.ts            |
 | Types/Interfaces   | PascalCase               | interface TaskResponse   |
@@ -569,15 +414,16 @@ Example `.env.local` (see .env.example; never commit real values):
 - SUPABASE_SERVICE_ROLE_KEY=your-service-role-key         # server-only; never NEXT_PUBLIC_
 - NEXT_PUBLIC_APP_NAME=Timeline Estimator
 - NEXT_PUBLIC_APP_ENV=development
+- Zoho and PBS server-only variables: see CLAUDE.md → Zoho / PBS sections
 
 
 # ===========================================================
 # WHAT NOT TO DO
 # ===========================================================
 
-- Never fetch data directly in a component — always use a hook
+- Never fetch data directly in a component — always use a store or hook
 - Never store tokens in localStorage or sessionStorage
-- Never use useEffect to sync server state — that is React Query
+- Never fetch server data in a component's useEffect — read it from the store (the store hydrates it)
 - Never use the any type
 - Never hardcode strings that belong in constants or env vars
 - Never install moment.js — use date-fns
@@ -589,54 +435,22 @@ Example `.env.local` (see .env.example; never commit real values):
 - Never use raw hex colors — use semantic Tailwind tokens
 - Never build a custom modal — use shadcn Dialog
 - Never render user HTML without sanitization
-- Never fetch unlimited records — always paginate
+- Never fetch an unbounded, ever-growing list (feeds, logs) without a limit
 
 
 # ===========================================================
-# PHASE PRIORITIES & BUILD ORDER
+# BUILD ORDER & OPEN WORK
 # ===========================================================
-# UPDATE status as features are completed.
-# Always complete the data layer (hook + types) before UI.
+# Always complete the data layer (store/hook + types) before UI.
+# Done work and phase status: CLAUDE.md → Current Status.
 
-## Phase 1 — Core Foundations
-- [ ] Supabase clients wired (lib/supabase/* — scaffolded) + env configured
-- [ ] Supabase Auth + useAuth hook (replace demo auth store)
-- [ ] Login / Register / Forgot Password pages
-- [ ] Route protection via middleware.ts
-- [x] Projects CRUD (list, create, edit, delete)
-- [x] Dashboard layout (sidebar + topbar + mobile nav)
-- [x] Sprint management (create, edit, delete, status, per-project)
-- [x] Task CRUD (create, edit, delete, status change)
-- [x] Task board (kanban / list / table views)
-- [x] Basic filtering and search on tasks
-- [x] Sprint → Task hierarchy (backlog + sprint-scoped boards)
-
-## Phase 2 — Collaboration & Scheduling
-- [ ] Comments on tasks and projects
-- [ ] In-app notification panel + bell icon
-- [ ] Activity feed per project
-- [ ] Drag-and-drop Kanban board (@dnd-kit)
-- [ ] FullCalendar integration
-- [ ] Resource allocation view
-- [ ] Weekly schedule input UI per user
-- [ ] PTO / off-days admin UI + calendar display
-- [ ] Workload adjustment on PTO
-
-## Phase 3 — Advanced Features
-- [ ] **Proposal estimator (workflow coordinators):** line-item table, complexity presets (e.g. Easy → Very complex), single fixed hours per tier, roll-up totals, PDF **preview mock** (same permission gates as export proposals → `canExportProposals`)
-- [ ] Proposal creation form + preview (full server-backed flow when API ready)
-- [ ] PDF export (jsPDF) + Excel export (SheetJS)
-- [ ] Gantt chart with task dependencies
-- [ ] Gantt interactivity: zoom, drag, milestones
-- [ ] Pricing/configuration input UI
-- [ ] Pricing integration with proposal output
-
-## Phase 4 — Scalability & Integrations
+## Still open (Phase 4 — Scalability & Integrations)
 - [ ] Slack notification UI (connect + preferences)
 - [ ] Google Calendar OAuth + sync UI
 - [ ] Advanced filtering UI (multi-select, date ranges)
 - [ ] Customizable dashboard (widget drag-drop)
 - [ ] RBAC refinements (permission-gated UI audit)
 - [ ] WCAG 2.1 AA audit and fixes
+- [ ] Performance pass
 - [ ] Monitoring/error tracking integration
 - [ ] Documentation + admin training materials

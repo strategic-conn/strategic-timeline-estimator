@@ -122,8 +122,10 @@ proxy.ts                                       # Next 16 root middleware — Sup
 # NOTE: auth is wired to Supabase Auth via a bridge; auth-store mirrors the session for demo compatibility.
 components/
 ├── ui/                 # shadcn/ui — generated components; avoid manual edits
-├── common/             # coming-soon, shared bits
+├── common/             # help-tip, mine-team-toggle, password-input
 ├── features/
+│   ├── auth/           # invite-hash-catcher
+│   ├── dashboard/      # DashboardTeam (the Team view)
 │   ├── projects/       # ProjectsPage, ProjectCard, Create/Edit/Delete modals
 │   ├── proposals/      # Estimator: editor (Scope & risk + Line items tabs), StageBoard (Zoho pipeline kanban), CatalogBrowser, AddonsCard, DependencyAlert, PDF preview mock, access-denied
 │   ├── discovery/      # guided-scope UI reused BY the Estimator (no standalone route): DiscoveryWizard, Gantt, HoursBreakdown, RiskBadge, Field
@@ -133,9 +135,14 @@ components/
 │   ├── workload/       # WorkloadClient, MemberWeeklyHoursInput
 │   ├── activity/       # ActivityFeedClient/List
 │   ├── notifications/  # NotificationBell
-│   └── settings/       # ProfileForm, TimeOffSettingsSection, AdminTeamTimeOffSection
-└── layouts/            # dashboard-header, sidebar-nav, mobile-menu, mobile-tab-bar, nav-config, page-header, app-providers, app-atmosphere
-hooks/                  # usePermissions, useProjects, useSprints, useTasks, useTimeTrackingAccess
+│   ├── settings/       # ProfileForm, TimeOffSettingsSection, AdminTeamTimeOffSection, HourlyRatesCard, TimeOffApprovalDialog
+│   ├── skills/         # MemberSkillsEditor, StarRating
+│   ├── team/           # MemberAccessDialog, PageAccessChecklist, WorkKeysEditor
+│   └── esther/         # parked chat client (see "Esther is built but parked")
+└── layouts/            # dashboard-header / -sidebar-nav / -mobile-menu / -mobile-tab-bar / -nav-config, workspace-page-header,
+                        #   workspace-sync (hydrate + realtime), auth-provider, page-access-guard, sidebar-user-card, app-providers, app-atmosphere
+hooks/                  # usePermissions, useAuth, useProjects, useSprints, useTasks, useTimeTrackingAccess, useNavAccess,
+                        #   useTeamCalendar, useWeekLoggedHours, useZohoStageRefresh, usePbsClients, usePbsPoRefresh
 lib/
 ├── utils/              # cn, dates, initials, activity-feed, gantt-layout, share-links, proposal-pdf/excel-export, availability-dates
 ├── validations/        # Zod schemas (profile.schema.ts so far)
@@ -151,10 +158,17 @@ lib/
 ├── availability/       # pto-impact — what an absence costs the plan (pure; drives the approval preview)
 ├── workload/           # assigned-work — the ONE definition of a person's open load + capacity (both workload views)
 ├── undo/               # offer-undo-toast (one-shot Undo)
-└── supabase/           # client.ts (browser), server.ts (RSC seam), middleware.ts + config.ts + parse-error.ts — wired
+├── assignment/         # plan.ts (assignment planner: work keys, then skills) + roster.ts
+├── pricing/            # hourly-rates.ts (rate rules) + line-pricing.ts (who does a line, what it costs)
+├── zoho/               # OAuth tokens, write-allowlist, deal stages/products/packages, won-transition
+├── pbs/                # tokens (mintOnce), endpoint allowlist, clients/directory, PO status
+├── esther/             # parked brief engine
+└── supabase/           # client.ts (browser), server.ts (API route guards), admin.ts (service role, server-only),
+                        #   require-admin.ts, middleware.ts + config.ts + parse-error.ts — wired
 store/                  # Zustand (live via WorkspaceSync + optimistic write-through; demo persists to localStorage):
                         #   projects, sprints, tasks, auth, team, availability, activity,
-                        #   notifications, weekly-capacity, proposal-estimator
+                        #   notifications, weekly-capacity, proposal-estimator, hourly-rates,
+                        #   member-skills, esther, nav-drawer
 types/                  # project, sprint, task, proposal, availability, database (generated — `npm run db:types`)
 docs/                   # data-mapping.md (data shapes) + backend-supabase.md + supabase-integration-plan.md
 supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 mentions/realtime/activity/storage/role-guard ·
@@ -201,7 +215,7 @@ scoped by RLS.
 
 **Connection:** `@supabase/supabase-js` + `@supabase/ssr`, via the helpers in `lib/supabase/`:
 - `client.ts` — browser client for Client Components.
-- `server.ts` — server client for Server Components / Route Handlers / Server Actions (seam; not yet imported).
+- `server.ts` — server client for Server Components / Route Handlers / Server Actions; used by the API route guards (`lib/supabase/require-admin.ts`, `lib/zoho/guard.ts`, `lib/pbs/guard.ts`).
 - `lib/supabase/middleware.ts` (+ root `proxy.ts`) — refreshes the auth-session cookie each request.
 
 **Auth flow (Supabase Auth / cookie-based):**
@@ -275,6 +289,9 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 | `zoho_connection` (OAuth tokens)      | service-role only (RLS: **no policies**) | `lib/zoho/tokens.ts` via `/api/zoho/*` | Wired |
 | `proposals.zoho` (CRM link jsonb)     | select / insert / update   | `proposal-estimator-store` (deal/account/contact link) | Wired |
+| `proposals.pbs` (PO link jsonb)       | select / update            | `proposal-estimator-store` (Create PO, PO status refresh) | Wired |
+| `pbs_connection` (PBS token cache)    | service-role only (RLS: **no policies**) | `lib/pbs/tokens.ts` via `/api/pbs/*` | Wired |
+| `member_skills` (skill + 1–5 stars)   | select / upsert / delete   | `member-skills-store` (Team → star button) | Wired |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
 Supabase **Edge Function** → Storage bucket. The client-side jsPDF/xlsx export works today and is unchanged.
@@ -374,7 +391,7 @@ interface ClientQuote {
 
 **Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header reads "708 h at $100/h" when one rate prices every hour, "avg $104.25/h" otherwise (`rateSummary`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
 
-> ⚠️ **A line with no `rate` is priced at `LEGACY_HOURLY_RATE` ($100)** — that
+> **A line with no `rate` is priced at `LEGACY_HOURLY_RATE` ($100)** — that
 > is what every line cost before Phase 3, so a legacy quote reads identically
 > with or without its snapshots (proven over 3,000 random quotes in
 > `e2e/line-pricing.spec.ts`). The live data was nevertheless backfilled once
@@ -384,11 +401,11 @@ interface ClientQuote {
 > role. Those quotes now show that button on their Adjust tab — pressing it is
 > a pricing decision about a real client quote, never a migration step.
 >
-> ⚠️ `responsible` / `level` / `rate` ride **inside** the `line_items` jsonb and
+> `responsible` / `level` / `rate` ride **inside** the `line_items` jsonb and
 > `rates` inside `addons`, so no whitelist changed. A new top-level `proposals`
 > column still needs all three (`rowToQuote`, `quoteUpdatePayload`, the `Pick`).
 
-**Products → Packages rows:** products picked from the CRM (`zoho.products`) get an hours share **derived** from the estimate — `splitHours(total, n)`, even, with rounding drift on the first share so the parts always sum to exactly the total. Nothing is typed: the estimator computed the hours, and a second hand-entered copy could only disagree with it. A row's price is its share of the estimate's **amount** (`splitAmount`, same drift rule, so the rows sum to exactly the header price) — **computed, not the catalogue `unit_price`** (kept for reference only). The Setup table and the create-deal dialog both render from the same call, so the review can't disagree with what's sent. Writing real rows to Zoho is still blocked on the Packages subform's API names (`/api/zoho/health` → `dealSubforms`); until then the priced breakdown goes in the deal's `Description`.
+**Products → Packages rows:** products picked from the CRM (`zoho.products`) get an hours share **derived** from the estimate — `splitHours(total, n)`, even, with rounding drift on the first share so the parts always sum to exactly the total. Nothing is typed: the estimator computed the hours, and a second hand-entered copy could only disagree with it. A row's price is its share of the estimate's **amount** (`splitAmount`, same drift rule, so the rows sum to exactly the header price) — **computed, not the catalogue `unit_price`** (kept for reference only). The Setup table and the create-deal dialog both render from the same call, so the review can't disagree with what's sent. These rows are written onto the Deal's Packages subform by `lib/zoho/deal-estimate-sync.ts` (see "Estimate → Deal content" under Zoho).
 
 **Hourly rates by role + level (pricing plan — `docs/pricing-levels-plan.md`).**
 Rates are **data** (the old `HOURLY_RATE` constant is gone). Table
@@ -405,7 +422,7 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 > only NEW lines: each line snapshots its rate when it is added, so editing a
 > rate here never reprices an existing quote. The card says so.
 >
-> ⚠️ **"Level 2 must not be below Level 1" is checked on Save across the whole
+> **"Level 2 must not be below Level 1" is checked on Save across the whole
 > table, not by a database trigger** — raising both levels of a role one row at
 > a time would briefly break a row rule and be refused half-way. Equal is
 > allowed (Coordinator is $0/$0). `updated_by` / `updated_at` are stamped by a
@@ -417,7 +434,7 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 > would land on an empty tab). The **Security** tab is still a mock (disabled
 > password field) — flagged, not removed.
 >
-> ⚠️ **Phone width:** the admin table is role + two inputs; at `w-28` that is
+> **Phone width:** the admin table is role + two inputs; at `w-28` that is
 > ~333px against a phone card's ~311px, so inputs are `w-24 sm:w-28`
 > (measured: 0px overflow in 317px). Settings opens on the Profile tab, which is
 > why `layout-integrity` does not see this card — check it by hand after edits.
@@ -426,7 +443,7 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 
 **Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`, and since `0032`/`0033` that sync **reconciles** rather than only adding — see "Estimate ↔ project, both ways" below. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
 
-> ⚠️ **A line's phase is its guided phase, else its ROLE's** (pricing plan
+> **A line's phase is its guided phase, else its ROLE's** (pricing plan
 > Phase 5, `phaseIdForLineItem` in `lib/discovery/from-line-items.ts`). A guided
 > row's `module` is one of the 7 `PHASE_META` labels and keeps it. Every other
 > row — catalog or freehand — goes to the phase of whoever does it
@@ -441,12 +458,12 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 >    so a Creative line now draws a Design bar (plus the design add-on, whose
 >    roll-up task comes first), a QA line a QA bar. Totals are unchanged: the
 >    non-dev phases are summed and Development takes the remainder of
->    `devHours`. ⚠️ With no role phases the old arithmetic is kept EXACTLY —
+>    `devHours`. With no role phases the old arithmetic is kept EXACTLY —
 >    not re-rounded — because durations round UP to whole days, and removing
 >    float noise would shift an existing timeline by a day. Verified
 >    byte-identical (full result, dates included) against the pre-Phase-5 code
 >    on 200 random IT-only quotes; `e2e/role-phases.spec.ts` pins it.
->  - ⚠️ **The `available` guard.** A GUIDED quote's sprints come from its
+>  - **The `available` guard.** A GUIDED quote's sprints come from its
 >    questionnaire, not its lines, so a Creative catalog line on a guided quote
 >    with no design phase would have no sprint and land in the **backlog**.
 >    Every store call that places, tags or plans lines for one operation takes
@@ -465,7 +482,7 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 
 This is a **draft schedule** the manager then adjusts (sprint dates, task hours/assignees) into the plan the team follows — the project's timeline **is** its sprints, rendered by the Gantt (embedded on the project overview via `<GanttClient lockedProjectId={…} />`). Links `proposals.project_id`.
 
-> ⚠️ **A sprint may start and end on the same day.** Both sprint modals
+> **A sprint may start and end on the same day.** Both sprint modals
 > validate `end >= start`, not `end > start`. The estimate scaffolder
 > (`convertToProject` / `regenerateSchedule`) inserts sprints straight through
 > supabase and never sees that schema, so it already produces one-day sprints —
@@ -478,7 +495,7 @@ This is a **draft schedule** the manager then adjusts (sprint dates, task hours/
 **Adjust** tab; `convertToProject` carries it onto the project, whose own page
 can re-forecast and apply it.
 
-> ⚠️ **It stretches the TIMELINE and nothing else.** Hours are untouched, so
+> **It stretches the TIMELINE and nothing else.** Hours are untouched, so
 > the price is untouched. The distinction is the whole reason it is a separate
 > control:
 >
@@ -494,7 +511,7 @@ can re-forecast and apply it.
 > **not** pass the buffer — it turns an estimate into line items, and the buffer
 > must never reach them.
 
- - ⚠️ **"Requirements not pinned down" must be visible wherever it moves a
+ - **"Requirements not pinned down" must be visible wherever it moves a
    number.** QA read "368–568 hrs" on Scope & risk and "708 h" on Line items
    and could not reconcile them: the lines summed to 472 h, and the box —
    ticked on the Adjust tab — priced every one as Advanced. Nothing on either
@@ -506,7 +523,7 @@ can re-forecast and apply it.
    never "× 1.5": the box forces every line TO Advanced, so a Custom (2×) line
    goes down. With the box on, a guided quote can land above the estimate's
    own Max (708 vs 568 here) — by design, but a pricing decision worth knowing.
- - ⚠️ **Build a sentence that contains numbers as ONE string expression.** JSX
+ - **Build a sentence that contains numbers as ONE string expression.** JSX
    drops whitespace beside an `{expression}` whenever the formatter wraps the
    line there, so `quoted at {devHours} h` rendered "708h", then "708 h—" as
    the line moved. `{`quoted at ${devHours} h — …`}` has no JSX whitespace to
@@ -527,9 +544,9 @@ can re-forecast and apply it.
    confirm — sprint dates are the plan the team follows, and nothing in this app
    overwrites them silently. `bufferSprintDates` re-anchors every sprint against
    the project start so order and gaps hold.
- - ⚠️ **Applying resets the buffer to 0%.** It is now part of the dates, and a
+ - **Applying resets the buffer to 0%.** It is now part of the dates, and a
    20% buffer applied twice is 44% — which nobody asked for.
- - ⚠️ `proposals.risk_buffer_pct` needed **all three** whitelists
+ - `proposals.risk_buffer_pct` needed **all three** whitelists
    (`rowToQuote`, `quoteUpdatePayload()`, the `Pick<ClientQuote, …>` on
    `updateProposal`), and `projects` needed `rowToProject` + the `updateProject`
    field list.
@@ -545,26 +562,26 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    renamed ones **rename** their task, re-houred ones **re-hour** it, and a
    deleted one **removes** it. The `SchedulePreviewPanel` shows the renames,
    `12h → 18h` changes and (in red) the removals before anything is written.
-   ⚠️ This replaced an **additive-only** rule that matched on the task's
+   This replaced an **additive-only** rule that matched on the task's
    **title**: renaming a line item produced a *second* task, deleting one
    orphaned its task forever, and changing its hours did nothing at all.
  - **Project → estimate** is immediate: a seeded task's title or
    `estimated_hours` changing — or the task being deleted — writes back onto
-   its line item. ⚠️ Hours go back through **`base_hours`**, never onto the
+   its line item. Hours go back through **`base_hours`**, never onto the
    derived `hours`, or the next recompute silently undoes them; and the
    inversion must honour **`requirements_unclear`**, which prices *every* line
    as Advanced (1.5x).
- - ⚠️ **A task with a NULL `source_line_item_id` is somebody's own work** and is
+ - **A task with a NULL `source_line_item_id` is somebody's own work** and is
    never renamed, re-houred or deleted by a sync. That is also why `0033`'s
    backfill only linked titles matching **exactly one** line item (46 of 71).
- - ⚠️ **A task with LOGGED TIME is never deleted by a sync** — it comes back as
+ - **A task with LOGGED TIME is never deleted by a sync** — it comes back as
    `orphaned` and the preview keeps it, in amber, saying how many hours are on
    it. `time_entries.task_id` is `on delete cascade` (`0017`), so removing one
    would erase the record that the work happened, and **per-person** hours come
    from exactly that table. Scoping a line out of a quote is a pricing decision;
    destroying worked hours is not, and a quote can be re-edited while a deleted
    time entry cannot be recovered.
- - ⚠️ **The mirror is revertible, because the task write it follows is
+ - **The mirror is revertible, because the task write it follows is
    optimistic.** `mirrorTaskChange()` returns a **revert** closure and
    `tasks-store` calls it from every rollback path — the live update failure,
    the live delete failure, and both demo Undo toasts. Without it a request the
@@ -590,7 +607,7 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    delete endpoint exists for a PO), so `poScheduleDrift()` compares the PO's
    stored `start_date`/`end_date` against the project's real sprint range and the
    PO badge gains a "· dates changed" note for someone to fix by hand.
- - ⚠️ **The PBS notice fires at the moment of the edit, not only on the badge.**
+ - **The PBS notice fires at the moment of the edit, not only on the badge.**
    Sprint dates *are* the project's range, so `sprints-store` calls
    `notifyProjectScheduleChanged(projectId)` on create, delete, and any
    **start/end date** change (not a rename or a status flip — those move
@@ -625,14 +642,14 @@ carries **`responsible`** + **`level`** (the lookup key into `hourly_rates`) and
 level, and shows each task's current rate (the rate a line added now would
 snapshot).
 
- - ⚠️ **Categories were RE-CLASSIFIED, not just renumbered** (19 → 23). Every
+ - **Categories were RE-CLASSIFIED, not just renumbered** (19 → 23). Every
    old "Design" task is now "Frontend"; old "Integration" split five ways. So
    an old→new id table by name is wrong — existing lines are remapped through
    their own `catalog_id` by `remap-catalog-categories.mjs`. It writes only
    `category_id`, never sends `updated_at` (no list reshuffle, no PDF that looks
    "edited"), and skips any quote saved while it ran. First run: 17 lines on two
    TEST estimates; hours, line counts and `updated_at` verified unchanged.
- - ⚠️ **Never compare a category against a literal id** — use
+ - **Never compare a category against a literal id** — use
    `categoryIdByName()`. Esther checked `category_id === 5` for e-commerce; 5
    is Custom Tools in v3.
  - The build **normalises en/em dashes to "-"** in module and task names (the
@@ -641,7 +658,7 @@ snapshot).
    task in the browser ticked its twin too — now 135–137), and **refuses to
    write** if a task names an unknown role, level or category. Output is
    deterministic, and task counts and hours match the workbook's Summary tab.
- - ⚠️ **The workbook's "Base Hours unchanged" is not quite true:** WordPress
+ - **The workbook's "Base Hours unchanged" is not quite true:** WordPress
    Hero Section 2 → 1.5 h and Services or Product Grid 3 → 2.5 h; task 117 moved
    module General → Environment Setup. Existing quotes are unaffected — a line
    stores its own `base_hours` when it is added.
@@ -650,7 +667,7 @@ snapshot).
 
 ---
 
-## Zoho CRM Integration (read-only)
+## Zoho CRM Integration
 
 **Connection.** Server-side OAuth2 authorization-code flow. One **admin** connects once
 (Settings → Workspace → Connect Zoho CRM); the refresh token is stored **workspace-wide** in
@@ -671,7 +688,7 @@ requested at any tier: any `.DELETE`, `modules.ALL`, or `settings.ALL`** — a d
 has no undo, and `.ALL` implies DELETE. (`notifications.ALL` is the exception and is safe: it
 covers webhook *channels*, not records.)
 
-> ⚠️ The scope string is **not** what limits this app. **`lib/zoho/write-allowlist.ts`** is:
+> The scope string is **not** what limits this app. **`lib/zoho/write-allowlist.ts`** is:
 > `zohoFetch` refuses any non-GET that isn't on it, before the request leaves the process.
 > Today that's exactly three writes — create a deal, move a deal's stage, attach a file to a
 > deal. Adding a write means adding a line there, which is the point: it shows up in review.
@@ -682,16 +699,16 @@ covers webhook *channels*, not records.)
 | ------- | ----- | ------------ |
 | **Deal → Estimate import** | `/api/zoho/deals` | Estimator → "Import from Zoho": pick a Deal (by stage — *Proposal Requested* is the quote trigger — or free-text) → creates a pre-filled quote, **and advances the Deal to "Discovery"** (see the push row: scoping starts here, so the CRM says so). Linking a deal to an existing quote from the editor does the same |
 | **Deal refresh (Zoho → app)** | `/api/zoho/deals/stages` | Opening the Estimator list or an estimate re-reads the linked Deals' `Stage`, `Amount` **and Packages row count** in one batched call (`useZohoStageRefresh`) and stores stage/amount only when they actually changed — writing every view would bump `updated_at` and reshuffle the list. This is what keeps `ZohoStageBadge` honest when **sales** moves a deal; there is no push/webhook (that needs `ZohoCRM.notifications.ALL` + re-consent + a channel-renewal cron). Zoho has no by-ids read on our scopes, so it fans out over single-record GETs, capped at 25. **`Amount` is stored, never applied**: it is Zoho's number (derived from the Packages subform) and the estimate's line items are this app's, so a CRM reprice shows up beside the estimate — amber, on the Setup panel — instead of silently rewriting it. The row count is what lets the send dialog say how many rows it is about to replace — and it is `null`, never `0`, when the subform can't be resolved: reporting 0 there would tell the dialog "nothing to replace" and drop the warning before an irreversible overwrite |
-| **Products** | `/api/zoho/products` | Estimator → Setup → "Add from Zoho": the live **Products** module behind category filter pills (same pattern as the deal picker), multi-select, stored on the quote as `zoho.products`. Covered by the existing `ZohoCRM.modules.READ` — no new scope, no CSV snapshot. Records are fetched **without** a `fields` filter because this org files products under two things: the standard `Product_Category` (Creative/Sysdev/Phone/…) **and** a custom `CATEGORY` field (ONBOARDING/SEO/…), whose API name can't be assumed — `lib/zoho/products.ts` picks both out case-insensitively and groups by the custom one first. **Not written onto the Deal** yet: the "Packages" subform's API name is unknown, so for now the picked names ride along in the new deal's `Description` |
+| **Products** | `/api/zoho/products` | Estimator → Setup → "Add from Zoho": the live **Products** module behind category filter pills (same pattern as the deal picker), multi-select, stored on the quote as `zoho.products`. Covered by the existing `ZohoCRM.modules.READ` — no new scope, no CSV snapshot. Records are fetched **without** a `fields` filter because this org files products under two things: the standard `Product_Category` (Creative/Sysdev/Phone/…) **and** a custom `CATEGORY` field (ONBOARDING/SEO/…), whose API name can't be assumed — `lib/zoho/products.ts` picks both out case-insensitively and groups by the custom one first. Picked products become the Deal's Packages rows (see "Estimate → Deal content") |
 | **Client lookup** | `/api/zoho/accounts` | "Find in Zoho" on the Client field — available in **both** the New-estimate dialog and the editor's Setup tab. Search **Accounts** (companies), then pick a **Contact** (a company has many). Falls back to searching people when no company matches. Each company shows its **prior deals** — enriched with ONE batched `Account_Name:in:<ids>` query (never per-account: that would be 25 calls per search) |
 | **Create deal** (write) | `POST /api/zoho/deals` | The inverse of import: a hand-made estimate opens a **new** Deal. **One button does both directions**: editor **Review** tab → **"Send to Zoho"** creates the deal when none is linked and updates the linked one when there is (`ZohoSendDialog`), always behind a preview of exactly what will be written. Deliberately the last step, and deliberately not two buttons in two places — which of the two you needed was bookkeeping the user shouldn't have to work out. Setup only offers *linking* an existing deal. Writes `Deal_Name`, `Stage`, `Closing_Date`, `Account_Name`, optional `Contact_Name` + `Description` — never `Amount`/`Quote_number`. **Requires an existing Account** (`zoho.account_id` via "Find in Zoho"); this app never creates a company. Stage is limited to `Discovery` or `Proposal Sent`, and **the proposal PDF is attached either way** — sales reads it during Discovery, not only once the quote is formally sent. **Duplicate-proof**: refuses a quote that already has `deal_id`, and claims the row with a compare-and-set (`zoho.creating_at`, 2-min TTL) before calling Zoho — there is no DELETE scope, so a duplicate deal is a manual cleanup. Needs `ZohoCRM.modules.deals.CREATE`, so it 401s until someone does Disconnect → Connect with the wider scopes |
 | **Estimate → Deal content** | `lib/zoho/deal-estimate-sync.ts` | Both "Create deal" and "Push to Zoho" put the estimate's **Packages rows** (one per `zoho.products` entry: Product lookup + Unit Price = its `splitAmount` share of the estimate's amount) onto the Deal, plus the Description on push. **The row's Description column carries the product's own catalogue description**, read live from the Products module — that is what someone opening the deal wants to read; the "N h" note is only the fallback for a catalogue entry that has none. It is shown in the send dialog under each product, so the review matches what is written. Both the picker and the row bound it with `truncateAtWord` (`lib/zoho/products.ts`) rather than a hard `slice`: a sentence cut mid-word ("…server-side scripting lang") reads as corrupted data in a CRM field, not as an excerpt. **A quote with no products still carries its price**: `estimateTotalRow` writes ONE row with `Unit_Price` = the whole estimate and no Product lookup (`Product` is `required: false` on this subform, verified live) — and that price only reaches Zoho this way, because `Amount` is recomputed from these rows. **Nothing is hardcoded**: the subform and its columns are resolved from live field metadata by LABEL and type (`findPackagesSubform`), because custom API names can't be guessed — this org's "CATEGORY" field is reachable only as `CATEGORY1`. **Verifies the replace**: after a replacing write it re-reads the row count and warns if it differs from what was sent — a subform PUT is documented to replace, and if it ever appended the deal would silently show double the estimate while the call still reported success. **Overwrites only when asked**: the deal is read first, and by default any existing rows/description are left alone with a warning, since a subform write replaces every row and sales may have typed their own. That default made the price **write-once** — `Amount` is derived from the rows, so an edited estimate could never reprice a deal that already had any — which is why the send dialog (and only the send dialog) passes **`replace=1`**, after showing the deal's live amount and row count. Import, the status changer and mark-complete keep the safe default. The free-text `Description` is narrower still: `replace` rewrites it only when this app wrote it (`isGeneratedDescription`, matching the `Estimate: … line item…` roll-up) — a rep's own notes are never deleted. Can't resolve the subform → skips, warns, and the products still ride in the Description |
-| **Stage picklist** | `/api/zoho/deal-stages` | The org's own Deal `Stage` list (value + pipeline order + forecast bucket + probability), read via `ZohoCRM.settings.READ` and cached 30 min in `lib/zoho/stages.ts`. **One reader, deliberately**: the status changer offers exactly what the push route accepts, so the menu can never show a stage the server then rejects. ⚠️ The readable bucket is **`forecast_type`** ("Open" / "Closed Won" / "Closed Lost"). `forecast_category` looks right and is **an opaque id** — matching on it classifies every stage as not-won |
+| **Stage picklist** | `/api/zoho/deal-stages` | The org's own Deal `Stage` list (value + pipeline order + forecast bucket + probability), read via `ZohoCRM.settings.READ` and cached 30 min in `lib/zoho/stages.ts`. **One reader, deliberately**: the status changer offers exactly what the push route accepts, so the menu can never show a stage the server then rejects. The readable bucket is **`forecast_type`** ("Open" / "Closed Won" / "Closed Lost"). `forecast_category` looks right and is **an opaque id** — matching on it classifies every stage as not-won |
 | **In-app status changer** (write) | via the push route | The stage badge on the editor's Setup panel is a dropdown (`ZohoStageSelect`): pick any stage in the org pipeline and the deal moves, without opening Zoho. **All stages, revenue ones included** — a stage is reversible in Zoho, and the irreversible half (the PO) has its own gate. No confirm dialog; the result is toasted |
 | **Stage board** (write) | via the push route | Estimator → **Stages**: the same estimates as the list, arranged as a Zoho-shaped pipeline (`ProposalStageBoard`) so someone who works the deal in the CRM recognises the layout. Columns are the org's own picklist in Zoho's order with its probabilities, headed by that column's estimate total and count. Dragging a card moves the real deal. **Only this app's estimates appear** — the rest of that pipeline is sales' business, and rendering it would imply this app could act on it. See the rules below |
 | **Push to Zoho** (write) | `POST /api/zoho/deals/[id]/push` | The app's only writes: **two explicit buttons plus one on import**. **Import / link a deal** → **"Discovery"**, no attachment. **Quote editor → "Send to Zoho"**: also **"Discovery"** — a finished estimate means scoping is done, and sales walks the deal up the pipeline from there. The PDF is attached and the Packages rows filled either way. **Project page → "Mark complete in Zoho"** (only once the project is `completed`): Deal → **"Project Completed"**, no attachment. Gated by `requireZohoWriter()`. **Any stage in the org picklist is settable** (the status changer above); the guard is that it must EXIST — validated against `lib/zoho/stages.ts` before the request leaves the process, not a hardcoded list. **`Stage` is the only plain field written** — `Quote_number` is a system *autonumber*, and `Amount` **reports itself writable but is not**: a write returns SUCCESS, reads back correctly, then Zoho recomputes it from the **Packages subform** within seconds (verified live — 43,833 reverted to the subform's 20,000 in under 4 s). So the estimate's price travels as a priced Packages row, never as an `Amount` write. **Idempotent against the LIVE deal**: the route reads the deal's current stage before writing and skips the PUT when it is already there (`stageAlreadySet`). That replaced replaying the quote's own `pushes` history, which blocked two legitimate things — a status changer moving A→B→A, and re-attaching an edited estimate's PDF to a deal already at Proposal Sent. **Forward-only for side-effect stages**: a push carries `explicit=1` only when a human picked the stage from the in-app status changer — that may move a deal anywhere, backwards included. Everything else is a side effect and may only move a deal FORWARD, judged by the org's own `sequence_number` (`stageOrder`), not a static list. This matters most for "Send to Zoho", which sets *Discovery*: on a deal sales had already moved to Negotiation or Closed Won, that would silently drag it back to the start of the pipeline in order to re-attach a PDF. Only the **stage** is held back — the PDF and Packages rows still go up, because losing those would be the worse bug. `AUTO_ADVANCE_FROM` additionally pins the import's Discovery advance to `Proposal Requested`. `proposals.zoho.pushes` (`stage → timestamp`) is still recorded — the sibling guard and the badge read it — but no longer gates a re-push. **Attachments are deduped separately, by filename** (`proposals.zoho.attachments`, `filename → timestamp`, via `shouldAttach()`): the PDF now goes up at whichever stage a deal is opened at, so "was this stage pushed?" is no longer the right question. `proposalPdfFilename` embeds the estimate's date, so re-sending an unchanged quote is skipped while an estimate edited later attaches its updated PDF. This matters because Zoho does **not** dedupe (same filename twice = two records) and there is no DELETE scope. Read it via `zohoPushes()`, which folds in the legacy `pushed_at`/`pushed_stage` fields. Every push (and every skip) records the live `stage` + `stage_synced_at`, which is what `ZohoStageBadge` renders on the Estimator list and the editor's Setup panel |
 
-> ⚠️ **One settle rule, shared** (`lib/zoho/stage-catalog.ts`). The picklist
+> **One settle rule, shared** (`lib/zoho/stage-catalog.ts`). The picklist
 > cache and `moveDealStage` were lifted out of `ZohoStageSelect` when the board
 > arrived: two surfaces that move deals must not each carry their own copy.
 > `moveDealStage` returns where the deal **settled**, which is not always what
@@ -743,7 +760,7 @@ covers webhook *channels*, not records.)
 >    the column the cursor is inside is the one `isOver` highlights, so the drop
 >    matches what the user is looking at.
 
-> ⚠️ **This org's pipeline order is not the obvious one.** Read live:
+> **This org's pipeline order is not the obvious one.** Read live:
 > Discovery (1, 25%) · Negotiation (2, 35%) · Proposal Requested (3, 45%) ·
 > Proposal Sent (4, 50%) · Verbal Yes (5, 60%) · Proposal Signed (6, 90%) ·
 > Closed Won (7, 100%) · Closed Lost (8, 0%) · Not at this time maybe later
@@ -755,7 +772,7 @@ covers webhook *channels*, not records.)
 > Use **Accounts + Contacts** (~4.0k / ~3.7k qualified records) for client data — **not Leads**
 > (~122k raw, full of test/spam rows). A Lead converts into Account + Contact (+ Deal).
 
-> ⚠️ **One active estimate per deal** (`lib/zoho/deal-exclusivity.ts`). Two quotes
+> **One active estimate per deal** (`lib/zoho/deal-exclusivity.ts`). Two quotes
 > sharing a `deal_id` breaks quietly: the push guard reads *that quote's* own
 > `pushes`, so the second one pushes as if it were the first — the stage moves
 > again, a **second PDF is attached** (Zoho doesn't dedupe), and the Packages
@@ -771,7 +788,7 @@ covers webhook *channels*, not records.)
 `{deal_id?, deal_name?, account_id?, account?, contact_id?, contact?, contact_email?, contact_phone?, owner?, closing_date?, amount?, currency?, quote_number?, stage?, stage_synced_at?, web_url?, imported_at}`.
 Every field is optional except `imported_at` — a quote may come from a deal, from an account, or both.
 
-> ⚠️ **`proposals` has no realtime channel, on purpose.** The row is one JSONB
+> **`proposals` has no realtime channel, on purpose.** The row is one JSONB
 > document, so an echoed upsert would replace `line_items` / `addons` /
 > `discovery` wholesale — under someone mid-edit. Two consequences to respect:
 > the estimator refreshes by re-reading (`hydrateFromSupabase`), and the one
@@ -783,9 +800,10 @@ Every field is optional except `imported_at` — a quote may come from a deal, f
 > link shows **Start project** rather than a **View project** button pointing at
 > a page that no longer exists.
 
-> ⚠️ **Adding any column to `proposals` means updating two whitelists** — `quoteUpdatePayload()`
-> and the `Pick<ClientQuote, …>` param type of `updateProposal`. Miss either and the edit updates
-> the store but **silently never persists**.
+> **Adding any column to `proposals` means updating three places** — `quoteUpdatePayload()`,
+> the `Pick<ClientQuote, …>` param type of `updateProposal`, and `rowToQuote`. Miss either of the
+> first two and the edit updates the store but **silently never persists**; miss `rowToQuote` and it
+> persists but never comes back on hydrate.
 
 **Env** (server-only, never `NEXT_PUBLIC_`): `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, optional
 `ZOHO_REDIRECT_URI` / `ZOHO_ACCOUNTS_DOMAIN` / `ZOHO_SCOPES`. The redirect URI must match the Zoho
@@ -809,7 +827,7 @@ instantly with no reuse window, while minting is unconditional and non-revoking,
 so an expiring token is simply re-minted. The table is a cache, not a source of
 truth.
 
-> ⚠️ **Minting is NOT safe to race** — this file used to claim it was. PBS keeps
+> **Minting is NOT safe to race.** PBS keeps
 > a unique index on `(app_id, refresh_token_hash)`, so two `/token` calls landing
 > together get a raw driver error back:
 > `SQLSTATE[23000] … columns app_id, refresh_token_hash are not unique`.
@@ -821,7 +839,7 @@ truth.
 > token. Reproduced and re-verified live by forcing `expires_at` into the past
 > and firing two concurrent batched requests.
 
-> ⚠️ Three things the PBS reference doc gets wrong, all verified live:
+> Three things the PBS reference doc gets wrong, all verified live:
 > the base path is **`/api`**, not `/pbs/api` (which answers **HTTP 200** with an
 > HTML login redirect); **`Authorization: Bearer` is rejected**; and the reads
 > accept POST — so every call sends credentials in the **JSON body**, keeping
@@ -833,7 +851,7 @@ truth.
 | **Health** | `/api/pbs/health` | Admin-only, read-only. Token + reads + the derived client list |
 | **Clients** | `/api/pbs/clients` | The billing clients, **derived from PO history** — PBS has no clients endpoint (nine paths probed, all 404). A PO number's first 3 letters are the client's code |
 | **Candidate PO preview** | `GET /api/pbs/pos?proposalId=&clientId=` | Read-only. A PO can outlive its link (created in PBS *first*, recorded *second*), so before creating, the dialog asks whether PBS already holds one. Matched by `pickPoCandidate` on the estimate's **title within one client**; writes nothing |
-| **PO status refresh** (PBS → app) | `GET /api/pbs/pos?proposalIds=…` | The PBS→app direction, `usePbsPoRefresh`. Reads each linked PO with `fetchPoById` (`fetch-po` + `po_id`) and stores `status` / `missing` only when they changed. **Exact, so it applies automatically** — the id was recorded at creation, unlike the name-matching that keeps *linking* manual. Live history uses five status codes (B 440, C 27, N 19, A 8, E 6 of 500), so a PO does move after this app creates it. ⚠️ `fetch-po` **without** `po_id` answers HTTP 200 with 200 arbitrary POs (verified live) — same shape as a success; a not-found is an explicit `400 / "PO not found."`, which is why "gone" and "couldn't read" stay distinct. Only status code **N = New** is confirmed (from the PBS UI); the rest render as their raw letter rather than a guessed label |
+| **PO status refresh** (PBS → app) | `GET /api/pbs/pos?proposalIds=…` | The PBS→app direction, `usePbsPoRefresh`. Reads each linked PO with `fetchPoById` (`fetch-po` + `po_id`) and stores `status` / `missing` only when they changed. **Exact, so it applies automatically** — the id was recorded at creation, unlike the name-matching that keeps *linking* manual. Live history uses five status codes (B 440, C 27, N 19, A 8, E 6 of 500), so a PO does move after this app creates it. `fetch-po` **without** `po_id` answers HTTP 200 with 200 arbitrary POs (verified live) — same shape as a success; a not-found is an explicit `400 / "PO not found."`, which is why "gone" and "couldn't read" stay distinct. Only status code **N = New** is confirmed (from the PBS UI); the rest render as their raw letter rather than a guessed label |
 | **Create PO** (write) | `POST /api/pbs/pos` | The only PBS write. Sends `name` + `client_id` + `project_template_id` + `start_date`/`end_date`; PBS generates the PO number. **Gated on the deal being won** — see below. **Refuses (409) when a candidate exists**, handing it back for a human to confirm; `linkExisting=<po_no>` then records the link and calls PBS not at all. A PBS read it can't complete returns 502 rather than proceeding — the quote's own `pbs` field is not proof a PO doesn't exist |
 
 **Endpoint allowlist.** `lib/pbs/endpoints.ts` is deny-by-default —
@@ -862,7 +880,7 @@ separate `po_parameter` record written in the **same transaction** as the PO, an
 nothing this app may call reads or edits it — `fetch-po` returns the PO row
 alone. Three consequences:
 
-- ⚠️ **Both are optional to PBS and default to the current UTC date**, so
+- **Both are optional to PBS and default to the current UTC date**, so
   omitting them files a months-long project as starting *and ending today*. The
   Create PO dialog therefore always sends them.
 - They are pre-filled from **`estimateDateRange`** (`lib/discovery/from-line-items.ts`)
@@ -877,7 +895,7 @@ alone. Three consequences:
   instead of inventing a range.
 - They are **editable** in the dialog (the billed schedule is the coordinator's
   call), and validated both there and in the route — before the row claim, so a
-  rejected range leaves no dangling `creating_at` lock. ⚠️ The route round-trips
+  rejected range leaves no dangling `creating_at` lock. The route round-trips
   each value rather than trusting `Date.parse`, which **rolls over**:
   `2026-02-31` parses happily as March 3rd and `2026-04-31` as May 1st (verified),
   so a typo would become a different, permanent date in a record with no edit
@@ -892,7 +910,7 @@ alone. Three consequences:
   against the estimate on screen: PO `2026-09-04 → 2026-12-10` beside the Gantt's
   "69 business days · launches Dec 10, 2026".
 
-> ⚠️ **The pre-fill effect must depend on the derived STRINGS, not the object.**
+> **The pre-fill effect must depend on the derived STRINGS, not the object.**
 > `estimateDateRange` returns a fresh object per call, so an effect keyed on it
 > re-ran whenever the quote's identity changed — and picking the billing client
 > writes `pbs` through the store, which does exactly that. The dialog then
@@ -902,12 +920,12 @@ alone. Three consequences:
 > (`discovery`, `line_items`, `addons`, `requirements_unclear`), never on
 > `quote`. Regression test: `e2e/po-date-edits.spec.ts`.
 
-> ⚠️ **PBS has no delete endpoint.** A duplicate PO is a manual cleanup in a live
+> **PBS has no delete endpoint.** A duplicate PO is a manual cleanup in a live
 > billing system, so `POST /api/pbs/pos` refuses a quote that already has a
 > `po_no`, claims the row with a compare-and-set (`pbs.creating_at`, 2-min TTL)
 > before calling PBS, releases the claim on failure, and retries the link write
-> once. **Adding a column to `proposals` means updating two whitelists** —
-> `quoteUpdatePayload()` and the `Pick<ClientQuote, …>` on `updateProposal`.
+> once. **Adding a column to `proposals` means updating three places** —
+> `quoteUpdatePayload()`, the `Pick<ClientQuote, …>` on `updateProposal`, and `rowToQuote`.
 
 **Default billing client:** `PBS_DEFAULT_CLIENT` (a three-letter **code**, default
 `STR`) is used when an estimate has no client of its own. It's resolved against
@@ -920,7 +938,7 @@ changes future estimates without rewriting past ones.
 `{client_id, client_code, po_id, po_no, created_at, creating_at, adopted, status,
 status_synced_at, missing, start_date, end_date}`.
 
-> ⚠️ **A PO is never linked on a name match alone.** PBS has no get-by-name, so
+> **A PO is never linked on a name match alone.** PBS has no get-by-name, so
 > the only thing to match on is the `name` this app set at create time — and a
 > name is not an identifier. Two estimates can share a title ("Website
 > Redesign") for different clients, and a repeat client can have the same job
@@ -932,7 +950,7 @@ status_synced_at, missing, start_date, end_date}`.
 > Deliberately asymmetric — a duplicate PO is a visible mess someone cleans up,
 > while billing work against the wrong PO is silent and nobody notices.
 >
-> ⚠️ **`rowToQuote` must map every jsonb column, and `pbs` was missing.** It was
+> **`rowToQuote` must map every jsonb column, and `pbs` was missing.** It was
 > written to Postgres and dropped on every hydrate, so a reload forgot the PO:
 > the number vanished from the UI *and* `canRaisePo` (gated on `po_no`) offered
 > **Create PO** again on an already-billed estimate — into a system with no
@@ -961,7 +979,7 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    app open each raise one.
 3. Reaching a won stage also promotes the estimate from `draft`/`sent` to **`approved`** — winning the deal *is* the approval, so **Start project** appears beside **Create PO** instead of waiting for someone to flip a dropdown. A `rejected` estimate is left alone; that was a deliberate call about the quote.
 
-   > ⚠️ **Stage and promotion travel in ONE store write** (`applyDealStage`).
+   > **Stage and promotion travel in ONE store write** (`applyDealStage`).
    > Doing it as `updateProposal` + `setProposalStatus` is a race, not a
    > sequence: `persistQuoteDoc` sends the **whole document**, `status`
    > included, so the stage write — built while the quote was still `draft` —
@@ -970,12 +988,11 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    > poll. Anything that changes two fields of a quote at once must go through a
    > single action for the same reason.
    >
-   > ⚠️ **However the deal got there.** That promotion lived inline in
+   > **However the deal got there.** That promotion lived inline in
    > `useZohoStageRefresh`, so only the **poll** ran it: moving a deal to Closed
    > Won from the status changer — or, once it shipped, by dragging a card on the
    > stage board — wrote the stage and nothing else, leaving the estimate `draft`
-   > with no **Start project**. Found live on an estimate that already had a PO
-   > raised against it. The rule now lives in **`lib/zoho/won-transition.ts`**:
+   > with no **Start project**. The rule lives in **`lib/zoho/won-transition.ts`**:
    > `applyWonTransition` (promote + activity + notify, guarded on the
    > *transition*) and `recordStageChange` (record the settled stage, then apply
    > it) — the poll calls the first, both in-app surfaces call the second, so the
@@ -1018,7 +1035,7 @@ All 12 are published to `supabase_realtime` and all 12 are subscribed — verifi
 live against `pg_publication_tables`. `proposals` is the one deliberate
 omission (see the JSONB note under the Zoho section).
 
-> ⚠️ **`postgres_changes` bindings are RLS-checked SERVER-SIDE AT JOIN TIME**,
+> **`postgres_changes` bindings are RLS-checked SERVER-SIDE AT JOIN TIME**,
 > against the token the **socket** carries — not the one REST calls use. Join
 > before the session has resolved and the bindings register as `anon`, match
 > nothing, and **stay dead for the life of the channel**. Handing the socket a
@@ -1030,20 +1047,20 @@ omission (see the JSONB note under the Zoho section).
 > mount — it was a **race**, which is the whole explanation for "realtime worked
 > this morning and not this afternoon".
 >
-> ⚠️ **It fails completely silently.** The channel reports `SUBSCRIBED`, the
+> **It fails completely silently.** The channel reports `SUBSCRIBED`, the
 > socket's token reads `authenticated` a moment later, Broadcast keeps working
 > (no RLS on it), and the replication slots stay active and fully caught up.
 > Nothing anywhere looks wrong — the handlers simply never fire. Proof, measured
 > in the browser: a channel created *after* page load receives INSERT and UPDATE
 > on the **very same socket** where `workspace:board` receives nothing.
 >
-> ⚠️ **`setAuth()` takes NO ARGUMENT, deliberately.** An explicit token is
+> **`setAuth()` takes NO ARGUMENT, deliberately.** An explicit token is
 > marked manually-set, which permanently disables supabase-js's own refresh
 > (`RealtimeClient._performAuth`) — the socket would keep a token that expires
 > in an hour and every channel would go quiet mid-session. With no argument it
 > resolves the current session and refreshes itself on each heartbeat.
 
-> ⚠️ **On DELETE, `payload.old` carries ONLY the primary key** (that is what
+> **On DELETE, `payload.old` carries ONLY the primary key** (that is what
 > `REPLICA IDENTITY DEFAULT` puts in the WAL). So an applier that reads any
 > non-PK column from `old` silently no-ops. Audited — every table's PK is
 > exactly what its handler reads: `weekly_capacity` is keyed on `profile_id`,
@@ -1093,7 +1110,7 @@ Fixed in **`0041`**, each reproduced live first:
 | Null your own `confirmed_at` | dropped you off the roster, the team calendar and every capacity figure | refused (also `email`) |
 | External link in someone's bell / the workspace feed | `https://evil…`, `//evil…`, `/\evil…` all stored | `CHECK` constraints: internal paths only |
 
-> ⚠️ **Probe pitfalls that produced false PASSes, recorded so they are not
+> **Probe pitfalls that produced false PASSes, recorded so they are not
 > repeated.** (1) `Prefer: return=representation` makes PostgREST run
 > `INSERT … RETURNING`, and the new row must then pass the **SELECT** policy —
 > a notification to someone else is invisible to its sender, so the insert is
@@ -1142,7 +1159,7 @@ option is a control that lies.
 | Mine | `app/(dashboard)/dashboard/page.tsx` | KPIs, **My open work** (status donut + utilisation bar + logged/available), due-soon list, quick actions, activity |
 | Team | `components/features/dashboard/DashboardTeam.tsx` | KPI strip, over-capacity banner, **open tasks per person** (stacked bar), workspace status mix (donut), **breakdown by person** table |
 
-> ⚠️ **The dashboard derives NO numbers of its own.** Every figure on both views
+> **The dashboard derives NO numbers of its own.** Every figure on both views
 > comes from `lib/workload/assigned-work.ts` — `assignedWork` / `capacityFor` /
 > `utilization` / `statusBreakdown` — the same four calls Workload makes. This
 > is the page people quote at each other, so it is the page that has to agree
@@ -1154,7 +1171,7 @@ option is a control that lies.
 bar segment is the same hue as the dot on the board, the calendar and the
 workload bar.
 
-> ⚠️ **`TASK_STATUS_META` keeps `dot` (Tailwind class) and `hex` on one line
+> **`TASK_STATUS_META` keeps `dot` (Tailwind class) and `hex` on one line
 > each, deliberately.** SVG cannot take a Tailwind class and a DOM node should
 > not carry a raw hex, so the colour has to exist twice — and the two drifting
 > is exactly how "blocked" ends up red on the board and purple in a chart.
@@ -1166,26 +1183,25 @@ workload bar.
    count every open task once.** Those answer different questions — "how loaded
    is this person" vs "how much work is there" — and a 6h task with two
    assignees is 6h of work, not 12h.
- - ⚠️ **Workspace figures (Open tasks, status mix, Overdue) come from ALL open
+ - **Workspace figures (Open tasks, status mix, Overdue) come from ALL open
    tasks, not from the union of per-person allocations.** The union version
    summed each person's overdue count — double-counting shared tasks — and left
    out **unassigned** work entirely, the overdue task nobody owns being the one
-   a manager most needs to see. Live it read 4 where Reports read 18. Now both
-   use `status !== "done" && isOverdue`, and `dashboard-views.spec.ts` asserts
-   the two pages print the same number.
- - ⚠️ **A KPI shows `—` until its data has loaded**, on the dashboard (both
+   a manager most needs to see. Both pages use `status !== "done" && isOverdue`,
+   and `dashboard-views.spec.ts` asserts they print the same number.
+ - **A KPI shows `—` until its data has loaded**, on the dashboard (both
    views) and Reports. The stores hydrate async and every figure otherwise
    reads a real-looking `0` first — for a moment the page asserted "0 overdue"
    as fact. Found because the cross-page test compared a number to a loading
    state.
  - Rows sort **busiest first**: the people a manager has to act on belong at the
    top, not whoever is alphabetically first.
- - ⚠️ **Chart axis labels are first names, disambiguated only when they collide.**
+ - **Chart axis labels are first names, disambiguated only when they collide.**
    Two people called Daniel drew two identical bars, so the one row a manager
    needed to act on was unidentifiable; a colliding name gains the surname
    initial ("Daniel A."), and everyone else keeps a bare first name because
    surnames on all six rows are just noise.
- - ⚠️ **Mine is a WIDE main column + a narrow sidebar** (`lg:grid-cols-[1.6fr_1fr]`,
+ - **Mine is a WIDE main column + a narrow sidebar** (`lg:grid-cols-[1.6fr_1fr]`,
    two grid children). The due-soon table has six columns and needs the width;
    the donut, quick actions and activity are compact and stack in the sidebar.
    Adding the "My open work" card as a *third* child of that two-column grid is
@@ -1194,7 +1210,7 @@ workload bar.
    to the sidebar's height.
  - The overdue/pending counts are `TaskBadgePopover`, so they open the task list
    behind them and link to each task's own board — the same control as Workload.
- - ⚠️ **Fixed while building this:** `onTimeRate` compared
+ - **Fixed while building this:** `onTimeRate` compared
    `new Date(updated_at) <= new Date(due_date)`. `due_date` is a DATE column, so
    that is midnight **UTC** — a task finished at 15:00 local on its own due date
    counted as **late**, and west of Greenwich so did work finished the evening
@@ -1207,11 +1223,11 @@ workload bar.
    `WorkloadClient` calls the hook before returning `<WorkloadMine/>`, so the
    Mine view fired two requests for one number. Never `tasks.logged_hours` —
    that is the task's cached total and credits every assignee in full.
- - ⚠️ **The hook returns `null` until the read resolves** (and always in demo
+ - **The hook returns `null` until the read resolves** (and always in demo
    mode), not `{}`. "Nobody logged anything this week" and "we don't know yet"
    are both `0` otherwise, and the personal card renders **—** plus full
    remaining capacity for the second. Callers use `weekLogged?.[id] ?? 0`.
- - ⚠️ **Rule 2 applies to the roster too.** `members` is `[]` while the team
+ - **Rule 2 applies to the roster too.** `members` is `[]` while the team
    store hydrates, so an empty state that is not gated on `loaded` tells an
    admin with a full team that they have no team. Both the dashboard's Team view
    and Workload now render a **skeleton** until `loaded`, and only then decide
@@ -1248,7 +1264,7 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
  - `buildRoster` keeps someone with keys but no skills (it used to drop anyone
    without skills).
 
-> ⚠️ **No role columns on `tasks`, deliberately** (the plan proposed
+> **No role columns on `tasks`, deliberately** (the plan proposed
 > `tasks.responsible/level`). A seeded task already links to its line through
 > `source_line_item_id`, and the line carries the role — a copy on the task
 > would need seeding on convert, a new kind of sync edit, and a backfill, and
@@ -1256,7 +1272,7 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
 > only if something outside the estimator (which members cannot read) needs a
 > task's role.
 
-> ⚠️ **Admin-set only, enforced by the database.** A key decides who gets work
+> **Admin-set only, enforced by the database.** A key decides who gets work
 > and at what seniority, so a member giving themselves `IT|Level 2` is a
 > self-promotion. `prevent_role_self_change` refuses any non-admin change to
 > `work_keys`; the format is a CHECK (`valid_work_keys`: at most 10, each
@@ -1264,7 +1280,7 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
 > `RESPONSIBLE_ROLES`, so a future role still needs no migration. Keys are
 > readable by every signed-in user, like the rest of the team directory.
 
-> ⚠️ **Stale echoes.** Two quick clicks send two writes, and the realtime echo
+> **Stale echoes.** Two quick clicks send two writes, and the realtime echo
 > of the first can land after the second's optimistic update and revert the
 > store — the next click then saves from the stale list and silently drops a
 > key (reproduced ~1 run in 3). `team-store` keeps `pendingKeys` per person and
@@ -1290,7 +1306,7 @@ no refetch is involved.
 finished, and a blocked task that vanished from someone's load would hide the
 one thing a manager needs to see.
 
-> ⚠️ **One definition, two views.** `assignedWork()` / `capacityFor()` /
+> **One definition, two views.** `assignedWork()` / `capacityFor()` /
 > `utilization()` back **both** the "Mine" and "Team" tabs. They previously each
 > rolled their own and disagreed about the same person in the same week:
 >  - **Team** counted every `assignee_ids` entry (accepted **and** pending);
@@ -1307,7 +1323,7 @@ one thing a manager needs to see.
 > `respondToAssignment` **deletes** the `task_assignees` row rather than storing a
 > status, so `"rejected"`/`"passed"` exist in the type but never in the data.
 
-> ⚠️ **A board write is scoped to its board.** `commitTaskMove` persists the
+> **A board write is scoped to its board.** `commitTaskMove` persists the
 > destination column's positions filtered by `status` **+ `project_id` +
 > `sprint_id`. Filtering on status alone swept in every task in the workspace
 > sharing it, so dropping one card into Done rewrote unrelated tasks in other
@@ -1320,7 +1336,7 @@ the task's cached total and credits every assignee in full. Only an **accepted**
 assignee (or an admin) may log hours, enforced by the
 `prevent_unauthorized_hours` trigger (`0018`), not just the UI.
 
-> ⚠️ **"Available" is not spare capacity.** It is `effective weekly capacity −
+> **"Available" is not spare capacity.** It is `effective weekly capacity −
 > logged this week`: the working time left in the week, paired with the logged
 > figure beside it. With an unbounded backlog a person can have 40 h left in the
 > week and still be 328% allocated — **utilisation** is the number that answers
@@ -1378,7 +1394,7 @@ of a decided request re-opens it as pending; a note-only tweak does not. Pending
 leave renders as a **dashed amber outline** on the calendar and never tints the
 day — a request must not look like settled fact; rejected leave is not drawn at all.
 
-> ⚠️ **Only `approved` counts.** `countsAgainstCapacity()`
+> **Only `approved` counts.** `countsAgainstCapacity()`
 > (`lib/constants/workload.ts`) is the single guard, applied INSIDE
 > `awayWorkdaysInWeek` and `ptoDaysByProfile` rather than at each call site, so
 > nothing can forget: a merely requested absence must not shrink someone's
@@ -1387,7 +1403,7 @@ day — a request must not look like settled fact; rejected leave is not drawn a
 > predates `0034`, when every entry was in force the moment it was saved — which
 > is why the column defaults to `approved` and existing rows were left alone.
 
-> ⚠️ **`NULL in (...)` is NULL, not false — and that voided the first guard.**
+> **`NULL in (...)` is NULL, not false — and that voided the first guard.**
 > `0034` wrote `approver boolean := current_user_role() in ('admin','manager')`.
 > `current_user_role()` returns NULL when there is no profile row (the
 > service-role key being the obvious case), so `if not approver` evaluated to
@@ -1397,7 +1413,7 @@ day — a request must not look like settled fact; rejected leave is not drawn a
 > so an unrecognised caller **fails closed**. Regression test:
 > `e2e/pto-approval-guard.spec.ts`.
 
-> ⚠️ **Reads narrowed too.** `0034` replaced "any authenticated user" with
+> **Reads narrowed too.** `0034` replaced "any authenticated user" with
 > *self, or an approver*. Everything that needs the whole roster is already
 > admin+manager (Workload's team view, the assignment planner, the admin
 > time-off table), so nothing broke — and leave notes stopped being
@@ -1418,18 +1434,18 @@ that does not pass one behaves exactly as before.
    granularity as the estimate it schedules (phase hours for a team). Once work
    is actually assigned, `planSchedule` does the per-person version with real
    `ptoDays`.
- - ⚠️ **`totalBusinessDays` is unchanged** — leave moves *when* work lands, not
+ - **`totalBusinessDays` is unchanged** — leave moves *when* work lands, not
    how much there is. Only the dates shift, which is why the Gantt spells out
    "N days later for booked time off": a launch date that quietly slipped reads
    as a bug otherwise.
- - ⚠️ **With no calendar it DELEGATES to `addBusinessDays`**, rather than
-   reimplementing it. Identical, not merely equivalent — a workspace that
-   records no time off gets byte-identical dates, and `e2e/team-calendar.spec.ts`
-   asserts that across 60 offsets and four start days including weekends.
- - ⚠️ **An empty roster returns `null`.** The team store hydrates async;
+ - **With no calendar the dates match `addBusinessDays` over any
+   holiday-free window** — a workspace that records no time off gets
+   byte-identical dates there (`e2e/team-calendar.spec.ts`). It walks the days
+   itself rather than delegating, because holidays still apply (next section).
+ - **An empty roster returns `null`.** The team store hydrates async;
    stretching a timeline to infinity (or collapsing it) mid-load would be worse
    than ignoring leave for a moment.
- - ⚠️ **`confirmed_at` is optional, so test it for truthiness.** An invitee who
+ - **`confirmed_at` is optional, so test it for truthiness.** An invitee who
    never accepted carries `undefined`, and a `!== null` check would have counted
    them as a working body — shrinking everyone else's share of each absence.
  - `estimateDateRange` takes the calendar too, so the **PBS purchase order** is
@@ -1445,23 +1461,23 @@ capacity (`awayWorkdaysInWeek` + `holidayWorkdaysInWeek`), the assignment
 planner (`isWorkday`), and the PTO impact preview (`workdaysInRange`). The
 calendar marks them, and the Gantt names them.
 
- - ⚠️ **The observance rule is the whole game** (5 U.S.C. 6103): a holiday on a
+ - **The observance rule is the whole game** (5 U.S.C. 6103): a holiday on a
    Saturday is taken the Friday before, on a Sunday the Monday after. Skipping it
    gets ~2 holidays a year wrong — and always the two people notice, because
    they are the ones that move. Only the FIXED-date ones can need it; the
    Monday/Thursday ones are defined as a weekday.
- - ⚠️ **New Year's Day can be observed in the PREVIOUS December.** Jan 1 2028 is
+ - **New Year's Day can be observed in the PREVIOUS December.** Jan 1 2028 is
    a Saturday, so the office shuts Fri **2027-12-31**. `usHolidaysInRange` scans
    a year either side for exactly this; building only the years a range names
    would miss it.
- - ⚠️ **Holidays apply with NO calendar at all.** An empty roster still does not
+ - **Holidays apply with NO calendar at all.** An empty roster still does not
    work on Christmas, so the skip cannot depend on knowing the team — which is
    why `addWorkingDays` no longer short-circuits to `addBusinessDays`. It is
    still byte-identical over a holiday-free window (verified across 40 offsets x
    14 start days, weekend starts included). That shortcut had also been hiding
    something: the old equivalence test passed by **delegation**, so the walk
    itself had never actually been compared.
- - ⚠️ **A holiday is not PTO, and must not be counted twice.**
+ - **A holiday is not PTO, and must not be counted twice.**
    `awayWorkdaysInWeek` skips holiday days and `holidayWorkdaysInWeek` counts
    them instead, so a week off over Thanksgiving is *4 days leave + 1 holiday* —
    not 5 + 1, which is six days out of a five-day week and drives capacity
@@ -1483,7 +1499,7 @@ rendered, never a recompute at write time. Same preview→confirm shape as Start
 project, Sync schedule and Create PO.
 
  - Cover comes from the assignment engine's own rule — **work keys first**
-   (see "Work keys" under Tasks ↔ Workload), then `skillTiers` via the task's
+   (see the "Work keys" section), then `skillTiers` via the task's
    phase label in `tags` — so a suggestion here and an auto-assignment there
    cannot disagree. A seeded task's role is read from **its estimate line**
    (`source_line_item_id` → `line_items[].responsible/level`, passed in as
@@ -1491,10 +1507,10 @@ project, Sync schedule and Create PO.
    ("Creative L2"). Someone **approved** away over the same window is excluded;
    someone merely *pending* is not, because that request may yet be refused.
    A hand-made task has no phase, so nothing is invented.
- - ⚠️ Each task's slip is measured to the day **after the absence ends**, not
+ - Each task's slip is measured to the day **after the absence ends**, not
    by the number of workdays lost — shifting every task by the same five days
    would leave one due on the absence's first day still inside it.
- - ⚠️ **The slip is counted with `addWorkingDays` — the same helper that applies
+ - **The slip is counted with `addWorkingDays` — the same helper that applies
    it.** It used `addBusinessDays`, which treats a federal holiday as a workday,
    so across a holiday the count and the applied date disagreed: due Wed 25 Nov
    2026, away through Fri 27th, the preview suggested Tue 1 Dec instead of Mon
@@ -1698,7 +1714,7 @@ if (!tasks.length) {
    by more than 4px in both axes (one of them would be unclickable, and which
    one is a coin toss).
 
-   > ⚠️ **`main` is itself `overflow-x: auto`.** A scroller check that asks
+   > **`main` is itself `overflow-x: auto`.** A scroller check that asks
    > "is this inside *any* scroller?" therefore skips the entire page and
    > passes by doing nothing — that is how the first version of this spec
    > shipped green while being completely inert, caught only by a negative
@@ -1747,38 +1763,5 @@ if (!tasks.length) {
 
 ---
 
-## How To Use This File With Claude
-
-When working inside this project with Claude, you can say things like:
-
-- **"Using the patterns in CLAUDE.md, help me build the task creation form"**
-- **"Following the API layer pattern, write the useProjects hook"**
-- **"Create the EmptyState component for the tasks board"**
-- **"Scaffold the /projects/[projectId]/tasks page with loading, error, and empty states"**
-- **"Write the Axios interceptor setup from scratch following this project's auth flow"**
-- **"Add the Kanban board drag-and-drop using @dnd-kit as described in the stack"**
-
-Claude will use this file as full project context so every response fits the architecture,
-naming conventions, and patterns already established here.
-
-> **2026-09-17 — estimate ↔ project sync made two-way.** `tasks.source_line_item_id`
-> (`0032`/`0033`) gives the pair a stable id, so a re-sync now renames, re-hours and
-> removes instead of only adding, and a task edit writes back onto its line item.
-> The editor's Timeline tab shows the **live project Gantt** once a project exists.
-> Zoho is updated by re-sending; PBS has no update endpoint, so its drift is reported.
->
-> **2026-08-28 — billing moved behind the win.** Creating the PBS PO left "Send to
-> Zoho" and became its own **Create PO** button + dialog, shown only once the deal
-> is won (Zoho forecast bucket, re-checked live server-side, fails closed). The
-> stage badge became an **in-app status changer** over the org's real picklist
-> (`/api/zoho/deal-stages`), so the push route validates against that list instead
-> of a hardcoded whitelist, and idempotency now comes from the deal's live stage
-> rather than this app's own push history.
->
-> Last updated: 2026-07-14 — **Discovery + Proposals merged into one Estimator** (guided questionnaire
-> *or* catalog → one quote; `proposals.discovery` JSONB; `/discovery` redirects). Also since 2026-07-01:
-> invite-only onboarding + pending state, two-tier user offboarding (deactivate / hard-delete), and the
-> sales→delivery workflow (proposal approval → project, task-assignment accept/reject/pass, `time_entries`,
-> personal vs team Workload). Supabase remains wired via the synced-store bridge with the demo fallback.
-> Maintainer: Frontend Dev
+> Maintainer: Frontend Dev · Last updated: 2026-09-30
 > Update this file whenever the project scope, stack, or patterns change.

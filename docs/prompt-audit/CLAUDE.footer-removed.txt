@@ -1,0 +1,20 @@
+> **2026-09-17 — estimate ↔ project sync made two-way.** `tasks.source_line_item_id`
+> (`0032`/`0033`) gives the pair a stable id, so a re-sync now renames, re-hours and
+> removes instead of only adding, and a task edit writes back onto its line item.
+> The editor's Timeline tab shows the **live project Gantt** once a project exists.
+> Zoho is updated by re-sending; PBS has no update endpoint, so its drift is reported.
+>
+> **2026-08-28 — billing moved behind the win.** Creating the PBS PO left "Send to
+> Zoho" and became its own **Create PO** button + dialog, shown only once the deal
+> is won (Zoho forecast bucket, re-checked live server-side, fails closed). The
+> stage badge became an **in-app status changer** over the org's real picklist
+> (`/api/zoho/deal-stages`), so the push route validates against that list instead
+> of a hardcoded whitelist, and idempotency now comes from the deal's live stage
+> rather than this app's own push history.
+>
+> Last updated: 2026-07-14 — **Discovery + Proposals merged into one Estimator** (guided questionnaire
+> *or* catalog → one quote; `proposals.discovery` JSONB; `/discovery` redirects). Also since 2026-07-01:
+> invite-only onboarding + pending state, two-tier user offboarding (deactivate / hard-delete), and the
+> sales→delivery workflow (proposal approval → project, task-assignment accept/reject/pass, `time_entries`,
+> personal vs team Workload). Supabase remains wired via the synced-store bridge with the demo fallback.
+> Maintainer: Frontend Dev
