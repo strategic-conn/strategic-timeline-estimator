@@ -317,6 +317,12 @@ export function DashboardTeam() {
                   width={88}
                   tickLine={false}
                   axisLine={false}
+                  // An 88px axis clips long handles from the LEFT ("paragas.shopify"
+                  // for "danielparagas.shopify"), hiding the start of the name.
+                  // Truncate at the end instead; the tooltip keeps the full label.
+                  tickFormatter={(v: string) =>
+                    v.length > 12 ? `${v.slice(0, 11)}…` : v
+                  }
                 />
                 <ChartTooltip content={<ChartTooltipContent />} />
                 {OPEN_TASK_STATUSES.map((s) => (
@@ -340,12 +346,16 @@ export function DashboardTeam() {
               Every open task, counted once — assigned or not.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          {/* The card stretches to the bar chart beside it, so the donut grows
+              into that height (flex-1) instead of sitting at 180px above a hole;
+              the legend stays pinned under it. Radii are percentages so the ring
+              keeps its proportions at any size. */}
+          <CardContent className="flex flex-1 flex-col">
             {workspaceMix.length ? (
               <>
                 <ChartContainer
                   config={chartConfig}
-                  className="mx-auto h-[180px] w-full"
+                  className="mx-auto aspect-auto min-h-[180px] w-full flex-1"
                 >
                   <PieChart>
                     <ChartTooltip content={<ChartTooltipContent />} />
@@ -353,7 +363,8 @@ export function DashboardTeam() {
                       data={workspaceMix}
                       dataKey="count"
                       nameKey="status"
-                      innerRadius={45}
+                      innerRadius="58%"
+                      outerRadius="85%"
                     >
                       {workspaceMix.map((s) => (
                         <Cell
@@ -407,7 +418,10 @@ export function DashboardTeam() {
                 <th className="py-2 pr-3 font-medium">Overdue</th>
                 <th className="py-2 pr-3 font-medium">Pending</th>
                 <th className="py-2 pr-3 font-medium">Logged wk</th>
-                <th className="py-2 font-medium">Utilisation</th>
+                {/* The widest column on purpose: the bar is the one cell that carries a
+                    picture, and with a fixed 7rem bar the right third of the
+                    card sat empty while the breakdown stacked one status per line. */}
+                <th className="w-[38%] py-2 font-medium">Utilisation</th>
               </tr>
             </thead>
             <tbody>
@@ -449,23 +463,26 @@ export function DashboardTeam() {
                   </td>
                   <td className="py-2.5 pr-3 tabular-nums">{r.loggedWeek}h</td>
                   <td className="py-2.5">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-start gap-3">
                       <WorkloadBar
                         slices={r.slices}
                         totalHours={r.work.allocatedHours}
                         barPct={r.util.barPct}
                         over={r.util.over}
-                        className="w-28"
+                        className="min-w-32 flex-1"
                       />
-                      <span className="tabular-nums text-xs text-muted-foreground">
-                        {r.util.pct}% of {r.cap.effective}h
+                      {/* Fixed width so every row's figure lines up in one column. */}
+                      <span className="-mt-1 flex w-28 shrink-0 items-center justify-end gap-1.5 tabular-nums text-xs text-muted-foreground">
+                        {`${r.util.pct}% of ${r.cap.effective}h`}
+                        {r.util.over ? (
+                          <Scale
+                            className="size-3.5 text-amber-600"
+                            aria-hidden="true"
+                          />
+                        ) : (
+                          <span className="size-3.5" aria-hidden />
+                        )}
                       </span>
-                      {r.util.over ? (
-                        <Scale
-                          className="size-3.5 text-amber-600"
-                          aria-hidden="true"
-                        />
-                      ) : null}
                     </div>
                   </td>
                 </tr>

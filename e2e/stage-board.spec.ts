@@ -529,4 +529,26 @@ test.describe("stage board", () => {
     const strip = page.locator("section[aria-label]").first().locator("..");
     expect(await strip.evaluate((n) => n.scrollWidth > n.clientWidth)).toBe(true);
   });
+
+  test("a full column scrolls on its own — the page does not grow with it", async ({ page }) => {
+    await openBoard(page);
+    const column = page.locator("section[aria-label]").first();
+    const list = column.locator(":scope > div").last();
+    const pageHeight = () => page.evaluate(() => document.documentElement.scrollHeight);
+    const before = await pageHeight();
+    // Stuff the first column with 40 card-sized blocks — far more than fits.
+    // DOM-only, nothing is written: this measures the layout, not the data.
+    await list.evaluate((n) => {
+      for (let i = 0; i < 40; i++) {
+        const d = document.createElement("div");
+        d.style.height = "96px";
+        d.dataset.probe = "1";
+        n.appendChild(d);
+      }
+    });
+    expect(await list.evaluate((n) => n.scrollHeight > n.clientHeight + 1000)).toBe(true);
+    expect(await pageHeight()).toBeLessThanOrEqual(before + 2);
+    const box = await column.boundingBox();
+    expect(box!.height).toBeLessThanOrEqual((page.viewportSize()?.height ?? 900) * 1.2);
+  });
 });

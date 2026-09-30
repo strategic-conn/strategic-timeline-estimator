@@ -728,9 +728,13 @@ covers webhook *channels*, not records.)
 >    An estimate that silently disappears from the board is the worst outcome.
 >    Estimates with no `deal_id` sit in a **"Not in Zoho"** column that is not a
 >    drop target — there is no deal to move.
->  - **It has to look like a pipeline.** The strip is `min-h-[min(62vh,680px)]`
->    (the Gantt's trick) so columns read as columns rather than a row of chips,
->    and its scrollbar is deliberately made visible — overlay scrollbars fade
+>  - **It has to look like a pipeline, and fit the screen.** The strip has a
+>    FIXED height, `h-[clamp(26rem,calc(100dvh-14rem),52rem)]`, and each column's
+>    card list scrolls on its own (`min-h-0 flex-1 overflow-y-auto` — without
+>    `min-h-0` the list grows the column instead). It used to be a `min-h`, so
+>    the tallest column set the page height and a busy Closed Won pushed every
+>    header off screen; `stage-board.spec.ts` now stuffs a column and asserts the
+>    page does not grow. Its scrollbar is deliberately made visible — overlay scrollbars fade
 >    when idle and the last column is cut mid-card at most widths, so without it
 >    the board reads as a board that simply ends. A line under it names the
 >    stage count and both ways to move a card. Loading shows **skeleton
@@ -1201,13 +1205,22 @@ workload bar.
    needed to act on was unidentifiable; a colliding name gains the surname
    initial ("Daniel A."), and everyone else keeps a bare first name because
    surnames on all six rows are just noise.
- - **Mine is a WIDE main column + a narrow sidebar** (`lg:grid-cols-[1.6fr_1fr]`,
-   two grid children). The due-soon table has six columns and needs the width;
-   the donut, quick actions and activity are compact and stack in the sidebar.
-   Adding the "My open work" card as a *third* child of that two-column grid is
-   what wrapped Quick actions + Activity onto a second row and left the entire
-   right half of the page empty. `items-start` stops the short table stretching
-   to the sidebar's height.
+ - **Mine is a WIDE main column + a narrow sidebar** (`lg:grid-cols-[1.6fr_1fr]`)
+   with **explicit placement**: due-soon table (col 1, row 1), Activity (col 1,
+   row 2), and the sidebar — My open work + Quick actions — spanning both rows
+   in col 2. The table needs the width; the sidebar cards are compact. With
+   Activity in the sidebar the right side ran three cards deep beside one short
+   table and the page leaned right. The DOM order (due soon → my work → quick
+   actions → activity) is what a phone reads; the `lg:` placement only changes
+   desktop. Adding a card means giving it a column and row, or it auto-places
+   into a gap. `items-start` stops the short table stretching, and
+   **`lg:grid-rows-[auto_1fr]`** is required: with plain auto rows, a tall
+   sidebar (spanning both rows) spread its height over BOTH, opening a ~600px
+   hole under the table. `dashboard-views.spec.ts` pins it.
+ - The **due-soon list includes overdue work** (the most due thing there is), and
+   its description says so. A missed milestone relabels its KPI tile
+   **"Milestone overdue"** in red rather than "Next milestone · 37 days ago",
+   which read as a bug.
  - The overdue/pending counts are `TaskBadgePopover`, so they open the task list
    behind them and link to each task's own board — the same control as Workload.
  - **Fixed while building this:** `onTimeRate` compared

@@ -238,7 +238,7 @@ export function ProposalStageBoard({
         {Array.from({ length: 6 }).map((_, i) => (
           <div
             key={i}
-            className="flex h-[min(62vh,680px)] w-72 shrink-0 flex-col overflow-hidden rounded-lg border bg-muted/15"
+            className="flex h-[clamp(26rem,calc(100dvh-14rem),52rem)] w-72 shrink-0 flex-col overflow-hidden rounded-lg border bg-muted/15"
           >
             <div className="h-1 shrink-0 bg-border" />
             <div className="space-y-2 border-b bg-muted/30 px-3 py-2">
@@ -299,9 +299,12 @@ export function ProposalStageBoard({
           "[scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]",
           "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
           "[&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2",
-          // Tall enough to read as a pipeline rather than a strip of chips, and
-          // capped so the page still scrolls normally on a short window.
-          "min-h-[min(62vh,680px)]",
+          // A FIXED height sized to the screen, not a minimum: the board stays
+          // inside the viewport and each column scrolls on its own, like Zoho's.
+          // With a min-height the tallest column set the page height, so a busy
+          // Closed Won pushed every other column's header off screen. The clamp
+          // keeps it a real board on short windows and stops it sprawling on tall ones.
+          "h-[clamp(26rem,calc(100dvh-14rem),52rem)]",
         )}
       >
         {columns.map((col) => (
@@ -390,7 +393,9 @@ function StageColumn({
         </div>
       </header>
 
-      <div className="min-h-32 flex-1 space-y-2 overflow-y-auto p-2 [scrollbar-gutter:stable]">
+      {/* `min-h-0` lets this flex child shrink below its content so it scrolls;
+          without it the list grows the column instead. */}
+      <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2 [scrollbar-gutter:stable]">
         {col.quotes.length === 0 ? (
           <p className="px-1 py-6 text-center text-[0.7rem] text-muted-foreground">
             {col.droppable ? "Drop an estimate here" : "Nothing here"}

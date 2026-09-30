@@ -144,3 +144,24 @@ test.describe("dashboard scopes", () => {
       .toBe(onDashboard);
   });
 });
+
+// The narrow column spans both grid rows. With plain `auto` rows a tall sidebar
+// (a full donut + utilisation card) shared its extra height across BOTH rows and
+// opened a ~600px hole under the due-soon table; `lg:grid-rows-[auto_1fr]` gives
+// all of it to row 2. Negative control: 618px without the fix, 24px (the gap) with.
+test("a tall sidebar never opens a gap under the due-soon table", async ({ page }) => {
+  test.skip((page.viewportSize()?.width ?? 0) < 1024, "two columns only at lg+");
+  await page.goto("/dashboard");
+  await waitForApp(page);
+  const gap = await page.evaluate(() => {
+    const sec = [...document.querySelectorAll("section")].find((s) =>
+      s.className.includes("lg:grid-cols-[1.6fr_1fr]"),
+    )!;
+    const [due, side, activity] = [...sec.children] as HTMLElement[];
+    const tall = document.createElement("div");
+    tall.style.height = "1400px";
+    side.appendChild(tall); // DOM-only: measures layout, writes nothing
+    return activity.getBoundingClientRect().top - due.getBoundingClientRect().bottom;
+  });
+  expect(gap).toBeLessThanOrEqual(32);
+});

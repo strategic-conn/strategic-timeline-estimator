@@ -35,8 +35,6 @@ import {
   statusBreakdown,
   utilization,
 } from "@/lib/workload/assigned-work";
-import { createClient } from "@/lib/supabase/client";
-import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
 import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import { useProjectsStore } from "@/store/projects-store";
@@ -320,37 +318,6 @@ export function WorkloadClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6 pt-0">
-          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
-            <p className="text-sm font-medium">Weekly capacity by person</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter
-              or click away to save (1–168).
-            </p>
-            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {members.map((m) => (
-                <li
-                  key={m.id}
-                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2"
-                >
-                  <span className="min-w-0 truncate text-sm font-medium">
-                    {m.name}
-                  </span>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    <MemberWeeklyHoursInput
-                      memberId={m.id}
-                      committedHours={getEffectiveWeeklyHours(
-                        capacityOverrides,
-                        m.id,
-                      )}
-                      label={m.name}
-                    />
-                    <span className="text-xs text-muted-foreground">h/wk</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-
           {/* Rule 2: loading and empty are different answers. The roster
               hydrates async, so an unqualified "no one here" would libel a full
               team for the first moments of every visit. */}
@@ -499,6 +466,39 @@ export function WorkloadClient() {
               </li>
             ))}
           </ul>
+
+          {/* The capacity editor sits last: the page is read for who is
+              loaded, and hours are adjusted far less often than they are read. */}
+          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+            <p className="text-sm font-medium">Weekly capacity by person</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter
+              or click away to save (1–168).
+            </p>
+            <ul className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {members.map((m) => (
+                <li
+                  key={m.id}
+                  className="flex items-center justify-between gap-3 rounded-lg border border-border/50 bg-card/50 px-3 py-2"
+                >
+                  <span className="min-w-0 truncate text-sm font-medium">
+                    {m.name}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <MemberWeeklyHoursInput
+                      memberId={m.id}
+                      committedHours={getEffectiveWeeklyHours(
+                        capacityOverrides,
+                        m.id,
+                      )}
+                      label={m.name}
+                    />
+                    <span className="text-xs text-muted-foreground">h/wk</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -273,11 +273,28 @@ export default function DashboardPage() {
     return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
   }, [sprints, now]);
 
+  // The nearest open sprint end is in the past: it is a missed milestone, and
+  // "Next milestone · 37 days ago" read as a bug rather than a warning.
+  const milestoneLate = useMemo(
+    () =>
+      sprints.some(
+        (s) =>
+          (s.status === "active" || s.status === "planning") &&
+          daysUntil(s.end_date, now) < 0,
+      ),
+    [sprints, now],
+  );
+
   const kpis = [
     { label: "Active projects", value: activeProjects.length, icon: Flame },
     { label: "Your tasks due soon", value: tasksDueSoonCount, icon: Timer },
     { label: "On-time delivery", value: onTimeRate, icon: CheckCircle2 },
-    { label: "Next milestone", value: nextMilestone, icon: CalendarClock },
+    {
+      label: milestoneLate ? "Milestone overdue" : "Next milestone",
+      value: nextMilestone,
+      icon: CalendarClock,
+      late: milestoneLate,
+    },
   ];
 
   const sprintHrefForTask = (task: (typeof tasks)[0]) => {
@@ -333,7 +350,12 @@ export default function DashboardPage() {
                       aria-hidden="true"
                     />
                   </CardDescription>
-                  <CardTitle className="text-2xl font-semibold tracking-tight">
+                  <CardTitle
+                    className={cn(
+                      "text-2xl font-semibold tracking-tight",
+                      "late" in kpi && kpi.late && dataReady && "text-destructive",
+                    )}
+                  >
                     {dataReady ? kpi.value : "—"}
                   </CardTitle>
                 </CardHeader>
@@ -341,15 +363,23 @@ export default function DashboardPage() {
             ))}
           </section>
 
-          <section className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr]">
-            <Card>
+          {/* Wide column: due-soon table, then Activity. Narrow column: My open
+              work + Quick actions, spanning both rows. Explicit placement keeps
+              the two columns a similar height on desktop (the sidebar used to
+              hold three cards beside one short table) while the DOM order —
+              due soon → my work → quick actions → activity — stays the order a
+              phone reads. `grid-rows-[auto_1fr]`: row 1 fits the table exactly and the
+              spanning sidebar's extra height goes to row 2 — with auto rows it split
+              across both and left a hole under the table. */}
+          <section className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr] lg:grid-rows-[auto_1fr]">
+            <Card className="lg:col-start-1 lg:row-start-1">
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
                     <CardTitle>Your work due soon</CardTitle>
                     <CardDescription>
-                      Assigned to you, within 7 days — highest priority and
-                      nearest due dates first.
+                      Assigned to you — overdue or due within 7 days, highest
+                      priority and nearest due dates first.
                     </CardDescription>
                   </div>
                   <Badge variant="outline" className="shrink-0 tabular-nums">
@@ -446,7 +476,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>
 
-            <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
               <Card>
                 <CardHeader>
                   <CardTitle className="text-base">My open work</CardTitle>
@@ -582,40 +612,41 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Activity</CardTitle>
-                  <CardDescription>
-                    Recent changes across your workspace.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="pt-0">
-                  {recentActivity.length === 0 ? (
-                    <p className="py-4 text-center text-sm text-muted-foreground">
-                      No recent activity.
-                    </p>
-                  ) : (
-                    <ul className="space-y-3">
-                      {recentActivity.map((a) => (
-                        <li key={a.id} className="flex items-start gap-3">
-                          <div className="mt-1 shrink-0 rounded-md bg-muted px-2 py-0.5 text-[0.625rem] text-muted-foreground">
-                            {timeAgo(a.at)}
-                          </div>
-                          <div className="text-sm leading-6">{a.text}</div>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                  <Separator className="my-4" />
-                  <Button variant="ghost" className="w-full" asChild>
-                    <Link href="/activity">View all activity</Link>
-                  </Button>
-                  <Button variant="ghost" className="w-full" asChild>
-                    <Link href="/reports">View reports</Link>
-                  </Button>
-                </CardContent>
-              </Card>
             </div>
+
+            <Card className="lg:col-start-1 lg:row-start-2">
+              <CardHeader>
+                <CardTitle>Activity</CardTitle>
+                <CardDescription>
+                  Recent changes across your workspace.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                {recentActivity.length === 0 ? (
+                  <p className="py-4 text-center text-sm text-muted-foreground">
+                    No recent activity.
+                  </p>
+                ) : (
+                  <ul className="space-y-3">
+                    {recentActivity.map((a) => (
+                      <li key={a.id} className="flex items-start gap-3">
+                        <div className="mt-1 shrink-0 rounded-md bg-muted px-2 py-0.5 text-[0.625rem] text-muted-foreground">
+                          {timeAgo(a.at)}
+                        </div>
+                        <div className="text-sm leading-6">{a.text}</div>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <Separator className="my-4" />
+                <Button variant="ghost" className="w-full" asChild>
+                  <Link href="/activity">View all activity</Link>
+                </Button>
+                <Button variant="ghost" className="w-full" asChild>
+                  <Link href="/reports">View reports</Link>
+                </Button>
+              </CardContent>
+            </Card>
           </section>
         </>
       )}

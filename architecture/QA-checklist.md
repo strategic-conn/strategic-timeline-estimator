@@ -205,6 +205,16 @@
       where they are; only new tasks go to their role's sprint.
 - [ ] Create PO date range matches the timeline's launch date.
 
+## 🗂️ Stage board (Estimator → Stages)
+
+- [ ] With many estimates in one stage (e.g. Closed Won), the board stays inside
+      the screen: that column scrolls on its own, and every column header and
+      total stays visible. The page itself does not get longer.
+- [ ] Scroll a long column to the bottom, then keep scrolling: the page scrolls
+      normally (nothing traps the scroll).
+- [ ] Drag a card from far down a long column into another column: it lands.
+- [ ] 375px: the board fits, the column scrolls vertically, and the board swipes sideways.
+
 ## 🔐 Security probe (automated, live)
 
 `node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks
