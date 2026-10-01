@@ -28,6 +28,7 @@ import {
 } from "@/lib/sync/estimate-project-sync";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
+import { AppHelp } from "@/components/common/app-help";
 
 function fmt(ymd: string | null): string {
   if (!ymd) return "—";
@@ -108,6 +109,7 @@ export function ProjectRiskBufferSection({ projectId }: { projectId: string }) {
         title="Schedule risk buffer"
         description="A forecast, not a change. Nothing moves until you apply it."
         tourId="project.risk-buffer"
+        help={<AppHelp section="project.risk-buffer" />}
         baseDays={range ? baseDays : undefined}
         bufferedDays={
           range && pct > 0 ? Math.round(baseDays * (1 + pct / 100)) : undefined

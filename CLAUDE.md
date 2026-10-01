@@ -394,6 +394,28 @@ interface ClientQuote {
 - **Guided** — "Start guided scoping", then answer the questionnaire (the former Discovery wizard, 67 fields — anything the Setup tab already knows is mirrored by `syncDiscoveryToQuote`, never re-asked: title/client, and what the platform implies, e.g. Shopify ⇒ e-commerce + goal + hosting). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). Primary Business Goal is context only — not required, drives no hours or risk, printed on the PDF/Excel/preview meta block. The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
+**Section help ("?" in each section's top-right corner).** Every page header
+(`WorkspacePageHeader`'s `help` prop) and every main section on every page has
+a click popover explaining it in plain words. Non-Estimator copy is in
+**`components/common/app-help.tsx`** (`<AppHelp section="page.…" />`). Every
+Estimator section has one too — Quote details,
+the guided summary / empty state / tentative timeline, Line items,
+Requirements not pinned down, Risk buffer, Rates, Roll-up add-ons, Totals,
+Client preview. All the copy is in **`components/features/proposals/estimator-help.tsx`**
+(one voice, one place); the button is the shared **`SectionHelp`**
+(`components/common/section-help.tsx`) — a Popover, not `HelpTip`'s hover
+tooltip, because it has to open on a phone. In a card header it goes in
+`<CardAction>`; a headerless card uses `corner` (`absolute right-4 top-4`, the
+same spot CardAction lands) and gives its content `pr-12`. **The copy restates
+behaviour: change it in the same commit as pricing / add-ons / buffer / Zoho
+send**, like the tour copy.
+
+> **Every space beside a `<strong>`/`<em>` is an explicit `{" "}`.** The
+> compiler drops it when the neighbouring JSX text holds an entity
+> (`&apos;`): `work?</strong> It isn&apos;t` rendered "work?It isn't" while the
+> source looked fine. `e2e/estimator-help.spec.ts` checks the source and the
+> rendered text of every popover (with a negative control).
+
 **Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). **Every estimate has both tabs** — the New-estimate dialog does *not* ask which one you want, because the choice was never binding: it only picked a landing tab. A new estimate opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
 
 **Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header reads "708 h at $100/h" when one rate prices every hour, "avg $104.25/h" otherwise (`rateSummary`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
@@ -1234,6 +1256,9 @@ workload bar.
    which read as a bug.
  - The overdue/pending counts are `TaskBadgePopover`, so they open the task list
    behind them and link to each task's own board — the same control as Workload.
+ - **Reports had the same bug until 2026-10-01** — its own `onTimeRate`
+   still compared instants, so Reports and the dashboard could disagree about
+   the same finished tasks. Both now use `daysUntil(due, completedAt) >= 0`.
  - **Fixed while building this:** `onTimeRate` compared
    `new Date(updated_at) <= new Date(due_date)`. `due_date` is a DATE column, so
    that is midnight **UTC** — a task finished at 15:00 local on its own due date

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -38,6 +39,7 @@ import Link from "next/link";
 import { TASK_STATUS_DOT } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 /** Shared, so a status cannot be purple here and blue on the next page. */
 const STATUS_DOT = TASK_STATUS_DOT;
@@ -242,6 +244,7 @@ export function CalendarClient() {
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Schedule"
+        help={<AppHelp section="page.calendar" />}
         title={mineOnly ? "My calendar" : "Calendar"}
         description={
           mineOnly
@@ -407,6 +410,9 @@ export function CalendarClient() {
                     ? "Nothing scheduled"
                     : "Click a day on the calendar"}
               </CardDescription>
+              <CardAction>
+                <AppHelp section="calendar.day" />
+              </CardAction>
             </CardHeader>
             <CardContent className="max-h-[60vh] space-y-2 overflow-y-auto pt-0">
               {selectedHoliday ? (
@@ -504,6 +510,9 @@ export function CalendarClient() {
           <Card {...tourAnchor("calendar.legend")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Legend</CardTitle>
+              <CardAction>
+                <AppHelp section="calendar.legend" />
+              </CardAction>
             </CardHeader>
             <CardContent className="space-y-3 pt-0">
               <div>

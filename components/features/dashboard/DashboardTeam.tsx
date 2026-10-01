@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -43,6 +44,7 @@ import {
   getEffectiveWeeklyHours,
   useWeeklyCapacityStore,
 } from "@/store/weekly-capacity-store";
+import { AppHelp } from "@/components/common/app-help";
 
 /**
  * The admin/manager dashboard: who is carrying what, at a glance.
@@ -300,6 +302,9 @@ export function DashboardTeam() {
             <CardDescription>
               Segments are task status, in the same colours as the board.
             </CardDescription>
+            <CardAction>
+              <AppHelp section="dash.team-chart" />
+            </CardAction>
           </CardHeader>
           <CardContent>
             {/* Height grows with the roster so the bars stay readable instead
@@ -350,6 +355,9 @@ export function DashboardTeam() {
             <CardDescription>
               Every open task, counted once — assigned or not.
             </CardDescription>
+            <CardAction>
+              <AppHelp section="dash.status-mix" />
+            </CardAction>
           </CardHeader>
           {/* The card stretches to the bar chart beside it, so the donut grows
               into that height (flex-1) instead of sitting at 180px above a hole;
@@ -413,6 +421,9 @@ export function DashboardTeam() {
             Open is accepted + pending — the figure a sprint is planned against.
             The counts open the task list behind them.
           </CardDescription>
+          <CardAction>
+            <AppHelp section="dash.team-table" />
+          </CardAction>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <table className="w-full min-w-[640px] text-sm">

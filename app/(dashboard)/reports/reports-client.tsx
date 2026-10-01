@@ -16,6 +16,7 @@ import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header"
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -35,12 +36,13 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { useJoinedTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
-import { isOverdue } from "@/lib/utils/relative-dates";
+import { daysUntil, isOverdue } from "@/lib/utils/relative-dates";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { TASK_STATUS_LABEL } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
   todo: "bg-slate-400",
@@ -164,11 +166,12 @@ export function ReportsClient() {
   const onTimeRate = React.useMemo(() => {
     const completed = tasks.filter((t) => t.status === "done" && t.due_date);
     if (completed.length === 0) return null;
-    const onTime = completed.filter((t) => {
-      const done = new Date(t.updated_at);
-      const due = new Date(t.due_date!);
-      return done <= due;
-    }).length;
+    // Calendar days, the same rule as the dashboard's tile (CLAUDE.md rule 8).
+    // `new Date(due_date)` is midnight UTC, so comparing instants called work
+    // finished during its own due day LATE — and the two pages disagreed.
+    const onTime = completed.filter(
+      (t) => daysUntil(t.due_date!, new Date(t.updated_at)) >= 0,
+    ).length;
     return Math.round((onTime / completed.length) * 100);
   }, [tasks]);
 
@@ -209,6 +212,7 @@ export function ReportsClient() {
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Insights"
+        help={<AppHelp section="page.reports" />}
         title="Reports"
         description="Workspace-wide stats, computed from live project data."
       />
@@ -253,6 +257,9 @@ export function ReportsClient() {
             <CardDescription>
               Distribution of all {totalTasks} tasks across statuses.
             </CardDescription>
+            <CardAction>
+              <AppHelp section="reports.status" />
+            </CardAction>
           </CardHeader>
           <CardContent className="space-y-3 pt-0">
             {(Object.keys(statusBreakdown) as TaskStatus[]).map((status) => {
@@ -298,6 +305,9 @@ export function ReportsClient() {
             <CardDescription>
               Estimated vs. logged hours across all tasks.
             </CardDescription>
+            <CardAction>
+              <AppHelp section="reports.time" />
+            </CardAction>
           </CardHeader>
           <CardContent className="space-y-4 pt-0">
             <div className="grid grid-cols-2 gap-4">
@@ -349,6 +359,9 @@ export function ReportsClient() {
               Projects
             </CardTitle>
             <CardDescription>Progress and effort per project.</CardDescription>
+            <CardAction>
+              <AppHelp section="reports.projects" />
+            </CardAction>
           </CardHeader>
           <CardContent className="pt-0">
             <Table>
@@ -422,6 +435,9 @@ export function ReportsClient() {
                 Resource allocation →
               </Link>
             </CardDescription>
+            <CardAction>
+              <AppHelp section="reports.people" />
+            </CardAction>
           </CardHeader>
           <CardContent className="pt-0">
             <Table>

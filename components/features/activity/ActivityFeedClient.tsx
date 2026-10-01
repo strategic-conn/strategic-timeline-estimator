@@ -33,6 +33,7 @@ import {
 import { useProjectsStore } from "@/store/projects-store";
 import { useTeamMembers } from "@/store/team-store";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 export type ActivityFeedClientProps = {
   /** When set, only events for this project are listed. */
@@ -156,6 +157,7 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
 
       <WorkspacePageHeader
         eyebrow={projectId ? "Project" : "Workspace"}
+        help={<AppHelp section="page.activity" />}
         title={title}
         description={description}
       />

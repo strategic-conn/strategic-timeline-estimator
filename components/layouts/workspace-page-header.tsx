@@ -10,6 +10,11 @@ export type WorkspacePageHeaderProps = {
   meta?: React.ReactNode;
   /** Primary actions (right side on desktop). */
   actions?: React.ReactNode;
+  /**
+   * The page's "?" (`<AppHelp section="page.…" />`), pinned top-right. The
+   * content row keeps clear of it, so it never sits on an action button.
+   */
+  help?: React.ReactNode;
   className?: string;
 };
 
@@ -19,6 +24,7 @@ export function WorkspacePageHeader({
   description,
   meta,
   actions,
+  help,
   className,
 }: WorkspacePageHeaderProps) {
   return (
@@ -37,7 +43,15 @@ export function WorkspacePageHeader({
         aria-hidden
       />
 
-      <div className="relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8">
+      {help ? (
+        <div className="absolute right-2.5 top-2.5 z-10 sm:right-3 sm:top-3">{help}</div>
+      ) : null}
+      <div
+        className={cn(
+          "relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8",
+          help && "pr-8 sm:pr-9",
+        )}
+      >
         <div className="w-full min-w-0 space-y-1 xl:flex-1 xl:min-w-0">
           {eyebrow ? (
             <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">

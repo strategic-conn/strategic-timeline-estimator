@@ -23,6 +23,7 @@ import { useProjects } from "@/hooks/useProjects";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import type { Project, ProjectStatus } from "@/types/project.types";
+import { AppHelp } from "@/components/common/app-help";
 
 type StatusFilter = ProjectStatus | "all";
 type SortKey = "updated_desc" | "name_asc" | "name_desc";
@@ -197,6 +198,7 @@ export function ProjectsPage() {
       <div className="flex flex-col gap-6">
         <WorkspacePageHeader
           eyebrow="Workspaces"
+          help={<AppHelp section="page.projects" />}
           title="Projects"
           description={
             isSupabaseConfigured

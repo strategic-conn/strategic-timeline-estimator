@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -31,6 +32,7 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 function userToFormValues(u: {
   name: string;
@@ -181,6 +183,9 @@ export function ProfileForm() {
             ? "Name and photo sync to your Supabase profile. Email is managed by your sign-in account."
             : "Name, email, and photo are stored in this browser for the demo."}
         </CardDescription>
+        <CardAction>
+          <AppHelp section="settings.profile" />
+        </CardAction>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

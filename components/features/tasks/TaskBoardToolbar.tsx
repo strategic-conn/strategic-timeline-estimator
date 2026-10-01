@@ -33,6 +33,7 @@ import { useTasksStore } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TASK_STATUSES, type TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 export type BacklogSprintMoveTarget = {
   id: string;
@@ -81,7 +82,8 @@ export function TaskBoardToolbar({
   return (
     <>
       <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-[auto_minmax(14rem,1fr)_auto] lg:items-center lg:gap-6">
-        <div className="min-w-0 rounded-2xl border border-border/60 bg-card/35 px-4 py-3 shadow-sm backdrop-blur-md dark:bg-card/25 sm:px-4">
+        <div className="relative min-w-0 rounded-2xl border border-border/60 bg-card/35 py-3 pl-4 pr-11 shadow-sm backdrop-blur-md dark:bg-card/25">
+          <AppHelp section="board" corner className="right-2.5 top-2.5" />
           <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
             Board
           </p>

@@ -265,9 +265,18 @@ can't see.
       tour on the right step. × hides it for good; ? → *Getting started
       checklist* (or Settings → Profile → *Open Getting started*) brings it back.
 - [ ] Settings → Profile → *Reset all tours*: every page's dot comes back.
-- [ ] Estimator → Adjust → **Roll-up add-ons ?**: opens on click/tap (not
-      hover), explains all four add-ons in plain words, and stays fully on
-      screen at 375px (scrolls inside itself if the screen is short).
+- [ ] Estimator editor: every section has a **?** in its top-right corner
+      (Setup: Quote details · Scope & risk: summary / empty state / tentative
+      timeline · Line items · Adjust: Requirements, Risk buffer, Rates, Add-ons,
+      Totals · Review). Each opens on click/tap (not hover), reads correctly,
+      and stays fully on screen at 375px (scrolls inside itself if short).
+      The ? buttons line up down the Adjust tab's column of cards.
+- [ ] Every other page: a **?** top-right of the page header, and on each main
+      section (Dashboard Mine + Team, Projects, project page + timeline + risk
+      buffer, the board's title box, Calendar day + legend, Timeline, Workload
+      Mine + Team + weekly capacity, Team, Activity, Reports, each Settings
+      tab, Estimator list). None sits on top of a header button at 375 / 768 /
+      1280 (`e2e/estimator-help.spec.ts` opens them all).
 
 ## 🔐 Security probe (automated, live)
 

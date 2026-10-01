@@ -14,6 +14,7 @@ import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header"
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -38,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import type { Task } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
@@ -137,6 +139,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
       <WorkspacePageHeader
         eyebrow="Capacity"
         title="My workload"
+        help={<AppHelp section="page.workload-mine" />}
         description={`Work allocated to you vs your weekly capacity (${DEFAULT_WEEKLY_CAPACITY_HOURS}h default, less any time off). A task leaves this page when it is moved to Done.`}
         actions={toggle}
       />
@@ -258,6 +261,9 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
               />
             </div>
           ) : null}
+          <CardAction>
+            <AppHelp section="workload.mine-work" />
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-5 pt-0">
           <WorkloadBar

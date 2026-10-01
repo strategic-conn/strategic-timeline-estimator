@@ -48,6 +48,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -75,6 +76,7 @@ import {
   type TaskPriority,
   type TaskStatus,
 } from "@/types/task.types";
+import { AppHelp } from "@/components/common/app-help";
 
 const statusVariant: Record<
   TaskStatus,
@@ -312,6 +314,7 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Overview"
+        help={<AppHelp section="page.dashboard" />}
         title={
           <>
             Welcome back,{" "}
@@ -397,6 +400,7 @@ export default function DashboardPage() {
                         ? `${dueSoonTasks.length} of ${userDueSoonTasks.length}`
                         : `${userDueSoonTasks.length} assigned`}
                   </Badge>
+                  <AppHelp section="dash.due-soon" />
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
@@ -496,6 +500,9 @@ export default function DashboardPage() {
                     Accepted plus pending — the figure your sprint is planned
                     against.
                   </CardDescription>
+                  <CardAction>
+                    <AppHelp section="dash.my-work" />
+                  </CardAction>
                 </CardHeader>
                 <CardContent>
                   {mine.slices.length ? (
@@ -635,6 +642,9 @@ export default function DashboardPage() {
                 <CardDescription>
                   Recent changes across your workspace.
                 </CardDescription>
+                <CardAction>
+                  <AppHelp section="dash.activity" />
+                </CardAction>
               </CardHeader>
               <CardContent className="pt-0">
                 {recentActivity.length === 0 ? (

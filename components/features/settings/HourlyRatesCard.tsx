@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardFooter,
@@ -28,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import { useTeamStore } from "@/store/team-store";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 /**
  * Settings → Workspace → Hourly rates.
@@ -116,6 +118,9 @@ export function HourlyRatesCard() {
           quote — an estimate can be moved to today&apos;s rates from its Adjust
           tab, with a preview first.
         </p>
+        <CardAction>
+          <AppHelp section="settings.rates" />
+        </CardAction>
       </CardHeader>
 
       <CardContent>

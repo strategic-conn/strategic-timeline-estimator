@@ -61,6 +61,7 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
+  CardAction,
 } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -170,6 +171,7 @@ import type {
   ZohoProductLink,
 } from "@/types/proposal.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { EstimatorHelp } from "@/components/features/proposals/estimator-help";
 
 type ProposalEditorClientProps = {
   proposalId: string;
@@ -790,6 +792,9 @@ export function ProposalEditorClient({
                   The platform you pick drives which catalog tasks you can
                   browse in Scope.
                 </CardDescription>
+                <CardAction>
+                  <EstimatorHelp section="details" />
+                </CardAction>
               </CardHeader>
               <CardContent className="grid items-start gap-4 pb-5 sm:grid-cols-2">
                 <div className="grid gap-2 sm:col-span-2">
@@ -1081,8 +1086,9 @@ export function ProposalEditorClient({
           >
             {quote.discovery && scopeResult ? (
               <>
-                <Card {...tourAnchor("estimate.scope-summary")}>
-                  <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
+                <Card className="relative" {...tourAnchor("estimate.scope-summary")}>
+                  <EstimatorHelp section="scopeSummary" corner />
+                  <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4 pr-12">
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                       <DiscoveryRiskBadge
                         level={scopeResult.risk.level}
@@ -1264,6 +1270,7 @@ export function ProposalEditorClient({
                         <Compass className="size-3.5" aria-hidden />
                         Start guided scoping
                       </Button>
+                      <EstimatorHelp section="tentativeTimeline" />
                     </div>
                     <DiscoveryGantt
                       result={catalogResult}
@@ -1274,7 +1281,8 @@ export function ProposalEditorClient({
                 )}
               </>
             ) : (
-              <Card>
+              <Card className="relative">
+                <EstimatorHelp section="scopeEmpty" corner />
                 <CardHeader className="items-center gap-2 text-center">
                   <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
                     <Compass
@@ -1309,8 +1317,8 @@ export function ProposalEditorClient({
             className="flex flex-col gap-4"
             {...tourAnchor("estimate.lines")}
           >
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+            <div className="relative flex flex-wrap items-center justify-between gap-3">
+              <div className="pr-10 sm:pr-0">
                 <h2 className="text-base font-semibold">Line items</h2>
                 <p className="text-sm text-muted-foreground">
                   Generate them from Scope &amp; risk, pull from the{" "}
@@ -1344,6 +1352,7 @@ export function ProposalEditorClient({
                   <Plus className="size-3.5" aria-hidden />
                   Add row
                 </Button>
+                <EstimatorHelp section="lineItems" className="absolute right-0 top-0 sm:static" />
               </div>
             </div>
 
@@ -1467,12 +1476,14 @@ export function ProposalEditorClient({
           >
             <Card
               className={cn(
+                "relative",
                 quote.requirements_unclear &&
                   "border-amber-500/40 bg-amber-500/5",
               )}
               {...tourAnchor("estimate.requirements")}
             >
-              <CardContent className="flex items-start gap-3 py-4">
+              <EstimatorHelp section="requirements" corner />
+              <CardContent className="flex items-start gap-3 py-4 pr-12">
                 <Checkbox
                   id="requirements-unclear"
                   checked={quote.requirements_unclear}
@@ -1485,7 +1496,10 @@ export function ProposalEditorClient({
                 />
                 <Label
                   htmlFor="requirements-unclear"
-                  className="flex-1 cursor-pointer"
+                  // flex-col: the base Label is a flex ROW, which laid the
+                  // title, explanation and preview out as three columns —
+                  // one word per line on a phone.
+                  className="flex-1 cursor-pointer flex-col items-start gap-0 leading-normal"
                 >
                   <span className="flex items-center gap-1.5 text-sm font-medium">
                     <Sparkles className="size-4 text-amber-600" aria-hidden />
@@ -1524,6 +1538,7 @@ export function ProposalEditorClient({
               baseDays={activeResult?.timeline.baseBusinessDays}
               bufferedDays={activeResult?.timeline.totalBusinessDays}
               tourId="estimate.risk-buffer"
+              help={<EstimatorHelp section="riskBuffer" />}
             />
 
             <QuoteRatesCard quote={quote} />
@@ -1540,6 +1555,9 @@ export function ProposalEditorClient({
                 <CardDescription>
                   Roll-up math from the spreadsheet logic.
                 </CardDescription>
+                <CardAction>
+                  <EstimatorHelp section="totals" />
+                </CardAction>
               </CardHeader>
               <CardContent className="pb-5">
                 <TotalsList quote={quote} />
@@ -1560,10 +1578,10 @@ export function ProposalEditorClient({
             {...tourAnchor("estimate.review")}
           >
             <div
-              className="flex flex-wrap items-center justify-between gap-3"
+              className="relative flex flex-wrap items-center justify-between gap-3"
               {...tourAnchor("estimate.preview")}
             >
-              <div>
+              <div className="pr-10 sm:pr-0">
                 <h2 className="text-base font-semibold">Client preview</h2>
                 <p className="text-sm text-muted-foreground">
                   This is what exports to PDF, print, and Excel.
@@ -1616,6 +1634,7 @@ export function ProposalEditorClient({
                   <Upload className="size-3.5" aria-hidden />
                   {proposalPushed ? "Sent to Zoho" : "Send to Zoho"}
                 </Button>
+                <EstimatorHelp section="review" className="absolute right-0 top-0 sm:static" />
               </div>
             </div>
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />

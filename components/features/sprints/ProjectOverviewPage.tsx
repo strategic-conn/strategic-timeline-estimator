@@ -70,6 +70,7 @@ import {
 } from "@/lib/utils/share-links";
 import { cn } from "@/lib/utils";
 import type { Sprint, SprintStatus } from "@/types/sprint.types";
+import { AppHelp } from "@/components/common/app-help";
 
 const STATUS_SORT: Record<SprintStatus, number> = {
   active: 0,
@@ -471,6 +472,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
       <div className="flex flex-col gap-6">
         <WorkspacePageHeader
           eyebrow={projectLabel}
+          help={<AppHelp section="page.project" />}
           title="Sprints & backlog"
           description="Manage iterations for this project. Tasks live inside sprints or the backlog."
           meta={
@@ -654,7 +656,8 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
 
         {projectSprints.length > 0 ? (
           <section className="flex flex-col gap-3" {...tourAnchor("project.timeline")}>
-            <div className="space-y-1">
+            <div className="relative space-y-1 pr-9">
+              <AppHelp section="project.timeline" className="absolute right-0 top-0" />
               <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
                 <CalendarRange
                   className="size-4 shrink-0 text-primary"

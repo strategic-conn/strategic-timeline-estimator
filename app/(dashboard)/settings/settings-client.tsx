@@ -12,6 +12,7 @@ import { ZohoConnectionCard } from "@/components/features/settings/ZohoConnectio
 import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -23,6 +24,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/auth-store";
 import { tourAnchor } from "@/lib/tours/ids";
 import { TourSettingsCard } from "@/components/features/tour/TourSettingsCard";
+import { AppHelp } from "@/components/common/app-help";
 
 export function SettingsClient() {
   const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
@@ -44,6 +46,7 @@ export function SettingsClient() {
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="Account"
+        help={<AppHelp section="page.settings" />}
         title="Settings"
         description="Your profile, skills and time off — plus workspace settings for admins and managers."
       />
@@ -112,6 +115,9 @@ export function SettingsClient() {
                 (1–5 stars). This helps coordinators staff projects to the right
                 people — and powers smarter assignment suggestions later.
               </CardDescription>
+              <CardAction>
+                <AppHelp section="settings.skills" />
+              </CardAction>
             </CardHeader>
             <CardContent>
               <MemberSkillsEditor profileId={selfId} editable />
@@ -120,8 +126,9 @@ export function SettingsClient() {
         </TabsContent>
 
         <TabsContent value="timeoff" className="mt-0 outline-none">
-          <Card {...tourAnchor("settings.timeoff")}>
-            <CardContent className="space-y-0 pt-6">
+          <Card className="relative" {...tourAnchor("settings.timeoff")}>
+            <AppHelp section="settings.timeoff" corner />
+            <CardContent className="space-y-0 pt-6 pr-12">
               <TimeOffSettingsSection />
               <AdminTeamTimeOffSection />
             </CardContent>

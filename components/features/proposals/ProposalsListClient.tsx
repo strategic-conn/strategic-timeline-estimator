@@ -92,6 +92,7 @@ import type {
   ProposalZohoLink,
 } from "@/types/proposal.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
@@ -318,6 +319,7 @@ export function ProposalsListClient() {
 
       <WorkspacePageHeader
         eyebrow="Commercial"
+        help={<AppHelp section="page.estimator" />}
         title="Estimator"
         description={`Scope work with the guided questionnaire or the platform catalog, then quote it — tier multipliers, dependencies, and roll-up add-ons.${
           isSupabaseConfigured

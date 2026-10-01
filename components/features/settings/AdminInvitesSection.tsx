@@ -51,6 +51,7 @@ import { type UserRole } from "@/store/auth-store";
 import { useJoinedTeamMembers } from "@/store/team-store";
 import type { Database } from "@/types/database.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 type InviteRow = Database["public"]["Tables"]["allowed_emails"]["Row"];
 
@@ -217,8 +218,9 @@ export function AdminInvitesSection() {
   };
 
   return (
-    <Card {...tourAnchor("team.invite")}>
-      <CardContent className="space-y-5 pt-6">
+    <Card className="relative" {...tourAnchor("team.invite")}>
+      <AppHelp section="team.invite" corner />
+      <CardContent className="space-y-5 pt-6 pr-12">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
           <ShieldCheck className="size-5 text-muted-foreground" aria-hidden />

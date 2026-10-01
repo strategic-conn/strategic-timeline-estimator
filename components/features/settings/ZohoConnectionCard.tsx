@@ -7,12 +7,14 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 type Status = {
   configured: boolean;
@@ -110,6 +112,9 @@ export function ZohoConnectionCard() {
           Connect the workspace to Zoho CRM to read your CRM data. One admin
           connects once; the connection is shared workspace-wide.
         </CardDescription>
+        <CardAction>
+          <AppHelp section="settings.zoho" />
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-4">
         {status && !status.configured ? (

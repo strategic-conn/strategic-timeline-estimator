@@ -36,6 +36,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -71,6 +72,7 @@ import { useAuthStore, type UserRole } from "@/store/auth-store";
 import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import type { TeamMember } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -194,6 +196,7 @@ export function TeamClientPage() {
     <div className="flex flex-col gap-6">
       <WorkspacePageHeader
         eyebrow="People"
+        help={<AppHelp section="page.team" />}
         title="Team & access"
         description="Invite-only workspace. Manage who has access and the role they hold."
       />
@@ -232,6 +235,9 @@ export function TeamClientPage() {
             Everyone with an account in this workspace
             {canEditRoles ? " — change a role inline (admin)." : "."}
           </CardDescription>
+          <CardAction>
+            <AppHelp section="team.members" />
+          </CardAction>
         </CardHeader>
         <CardContent className="pt-0">
           {active.length === 0 ? (
@@ -363,6 +369,9 @@ export function TeamClientPage() {
               Access revoked. Their history stays attributed; reactivate to
               restore access.
             </CardDescription>
+            <CardAction>
+              <AppHelp section="team.deactivated" />
+            </CardAction>
           </CardHeader>
           <CardContent className="pt-0">
             <ul className="divide-y divide-border rounded-lg border">
@@ -426,6 +435,9 @@ export function TeamClientPage() {
             Access is role-based and enforced by the database (RLS) — the UI just
             mirrors it. Pick a role when you invite someone.
           </CardDescription>
+          <CardAction>
+            <AppHelp section="team.roles" />
+          </CardAction>
         </CardHeader>
         <CardContent className="pt-0">
           <div className="overflow-x-auto rounded-lg border">

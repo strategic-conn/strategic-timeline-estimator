@@ -4380,7 +4380,8 @@
     "Onboarding tours never write: they explain Send to Zoho / Create PO / Approve etc. but the runner blocks clicks on the highlighted element (disableActiveInteraction) and swallows page keyboard shortcuts (the board's 'n') while open. e2e/tours.spec.ts fails on any non-GET except tour_progress during a tour.",
     "Tour steps anchor on data-tour ids from lib/tours/ids.ts only (tourAnchor()). Renaming one is a type error; e2e/tours.spec.ts fails on any data-tour value not in TOUR_TARGETS (with a negative control). Tour copy restates feature behaviour: change it in the same commit as the feature and bump the tour's version.",
     "A tour's end is handled in onDestroyStarted, never driver.js's onDestroyed: driver.js skips onDestroyed when its active element is not set yet (Done clicked within a few frames), which left tours unrecorded and the ? button disabled.",
-    "The Getting started checklist derives every item from real data and stores only its dismissal. 'Create your first estimate' reads proposals.owner_id (mapped read-only in rowToQuote, never sent by quoteUpdatePayload)."
+    "The Getting started checklist derives every item from real data and stores only its dismissal. 'Create your first estimate' reads proposals.owner_id (mapped read-only in rowToQuote, never sent by quoteUpdatePayload).",
+    "Section help (the ? top-right of every page header and main section) is SectionHelp (a Popover, so it opens on touch). Copy: components/common/app-help.tsx (pages) and components/features/proposals/estimator-help.tsx (Estimator). It restates behaviour: update it in the same commit. Every space beside <strong>/<em> is an explicit {\" \"} (the compiler drops it next to an &apos;); e2e/estimator-help.spec.ts checks source and rendered text."
   ],
   "permissionsMatrix": {
     "columns": [

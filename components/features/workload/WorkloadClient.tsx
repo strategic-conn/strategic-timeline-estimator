@@ -16,6 +16,7 @@ import { WorkloadMine } from "@/components/features/workload/WorkloadMine";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -48,6 +49,7 @@ import { useAvailabilityStore } from "@/store/availability-store";
 import type { Task } from "@/types/task.types";
 import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 type ProjectFilter = "all" | string;
 
@@ -229,6 +231,7 @@ export function WorkloadClient() {
       <WorkspacePageHeader
         eyebrow="Capacity"
         title="Resource allocation"
+        help={<AppHelp section="page.workload-team" />}
         description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below to save per person.`}
         actions={
           <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:items-end sm:justify-end">
@@ -320,6 +323,9 @@ export function WorkloadClient() {
             <span className="font-medium">and</span> still-pending) ÷ that
             person’s weekly hours after time off and holidays.
           </CardDescription>
+          <CardAction>
+            <AppHelp section="workload.people" />
+          </CardAction>
         </CardHeader>
         <CardContent className="space-y-6 pt-0">
           {/* Rule 2: loading and empty are different answers. The roster
@@ -474,9 +480,10 @@ export function WorkloadClient() {
           {/* The capacity editor sits last: the page is read for who is
               loaded, and hours are adjusted far less often than they are read. */}
           <div
-            className="rounded-xl border border-border/60 bg-muted/15 p-4"
+            className="relative rounded-xl border border-border/60 bg-muted/15 p-4 pr-12"
             {...tourAnchor("workload.capacity")}
           >
+            <AppHelp section="workload.capacity" corner className="right-3 top-3" />
             <p className="text-sm font-medium">Weekly capacity by person</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter

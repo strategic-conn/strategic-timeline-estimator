@@ -25,6 +25,7 @@ import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { ClientQuote } from "@/types/proposal.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { EstimatorHelp } from "@/components/features/proposals/estimator-help";
 
 /**
  * Adjust tab → which rates this estimate is priced at, and the deliberate way
@@ -69,8 +70,9 @@ export function QuoteRatesCard({ quote }: { quote: ClientQuote }) {
   if (!quote.line_items.length) return null;
 
   return (
-    <Card {...tourAnchor("estimate.rates")}>
-      <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <Card className="relative" {...tourAnchor("estimate.rates")}>
+      <EstimatorHelp section="rates" corner />
+      <CardContent className="flex flex-col gap-3 py-4 pr-12 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Scale
             className="mt-0.5 size-4 shrink-0 text-muted-foreground"

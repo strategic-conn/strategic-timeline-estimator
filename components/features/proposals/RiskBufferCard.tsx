@@ -6,6 +6,7 @@ import { ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -51,6 +52,7 @@ export function RiskBufferCard({
   title = "Schedule risk buffer",
   description = "Contingency for the things you cannot itemise — a slow client, an undocumented API, a scope surprise.",
   tourId,
+  help,
 }: {
   value: number;
   onChange: (pct: number) => void;
@@ -62,6 +64,8 @@ export function RiskBufferCard({
   description?: string;
   /** Onboarding-tour anchor; the card appears on two pages under two ids. */
   tourId?: TourTarget;
+  /** A section-help "?" for the top-right corner. */
+  help?: React.ReactNode;
 }) {
   const pct = clampRiskBuffer(value);
   // Local text state so the field can be empty mid-typing without snapping to 0
@@ -86,6 +90,7 @@ export function RiskBufferCard({
           {title}
         </CardTitle>
         <CardDescription>{description}</CardDescription>
+        {help ? <CardAction>{help}</CardAction> : null}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {/* Wraps rather than scrolling: six controls need ~360px and a 375px

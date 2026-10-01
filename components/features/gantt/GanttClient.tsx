@@ -36,6 +36,7 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import type { TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { AppHelp } from "@/components/common/app-help";
 
 const ROW_PX = 52;
 const HEADER_ROW_PX = 44;
@@ -140,6 +141,7 @@ export function GanttClient({
         {!lockedProjectId && (
         <WorkspacePageHeader
           eyebrow="Planning"
+          help={<AppHelp section="page.gantt" />}
           title="Timeline"
           // Deliberately short. The bar rules used to be spelled out here AND in
           // the "How to read this" tooltip below; on a 375px screen that
