@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useAuthStore, type UserRole } from "@/store/auth-store";
 
-interface Permissions {
+export interface Permissions {
   role: UserRole;
   canCreateProject: boolean;
   canEditProject: boolean;

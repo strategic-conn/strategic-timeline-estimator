@@ -25,6 +25,7 @@ import {
   type Task,
   type TaskStatus,
 } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export interface KanbanBoardProps {
   tasks: Task[];
@@ -256,6 +257,7 @@ export function KanbanBoard({
           "flex gap-4 overflow-x-auto p-1 pb-3",
           "snap-x snap-mandatory md:snap-none"
         )}
+        {...tourAnchor("board.kanban")}
       >
         {TASK_STATUSES.map((col) => (
           <KanbanColumn

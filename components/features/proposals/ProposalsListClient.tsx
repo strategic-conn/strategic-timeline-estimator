@@ -91,6 +91,7 @@ import type {
   ProposalPlatform,
   ProposalZohoLink,
 } from "@/types/proposal.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
@@ -333,6 +334,7 @@ export function ProposalsListClient() {
               className="inline-flex w-full items-center rounded-lg border border-border bg-muted/40 p-0.5 sm:w-auto"
               role="group"
               aria-label="Estimator view"
+              {...tourAnchor("estimator.views")}
             >
               <Button
                 type="button"
@@ -383,6 +385,7 @@ export function ProposalsListClient() {
               variant="outline"
               className="w-full gap-2 border-border/60 bg-background/80 sm:w-auto"
               onClick={() => setDealImportOpen(true)}
+              {...tourAnchor("estimator.import")}
             >
               <Briefcase className="size-4" aria-hidden />
               Import from Zoho
@@ -391,6 +394,7 @@ export function ProposalsListClient() {
               type="button"
               className="w-full gap-2 sm:w-auto"
               onClick={() => setCreateOpen(true)}
+              {...tourAnchor("estimator.new")}
             >
               <Plus className="size-4" aria-hidden />
               New estimate
@@ -404,7 +408,7 @@ export function ProposalsListClient() {
           Loading quotes…
         </p>
       ) : sorted.length === 0 ? (
-        <Card className="max-w-3xl border-dashed">
+        <Card className="max-w-3xl border-dashed" {...tourAnchor("estimator.empty")}>
           <CardHeader className="items-center text-center">
             <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-muted">
               <FileText className="size-6 text-muted-foreground" aria-hidden />
@@ -425,13 +429,15 @@ export function ProposalsListClient() {
           </CardHeader>
         </Card>
       ) : view === "stages" ? (
-        <ProposalStageBoard
-          quotes={sorted}
-          projectName={projectName}
-          onChanged={handleStageChanged}
-        />
+        <div {...tourAnchor("estimator.board")}>
+          <ProposalStageBoard
+            quotes={sorted}
+            projectName={projectName}
+            onChanged={handleStageChanged}
+          />
+        </div>
       ) : (
-        <ul className="flex max-w-3xl flex-col gap-3">
+        <ul className="flex max-w-3xl flex-col gap-3" {...tourAnchor("estimator.list")}>
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
             const pricing = quotePricing(q);

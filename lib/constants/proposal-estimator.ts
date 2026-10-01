@@ -88,6 +88,13 @@ export const DEFAULT_ADDONS: ProposalAddons = {
  */
 export const LEGACY_HOURLY_RATE = 100;
 
+/**
+ * Schedule risk buffer a NEW estimate or project starts with (0044 sets the
+ * same column default). Dates only — never hours or price. Existing rows keep
+ * whatever they have: changing theirs would move dates people agreed to.
+ */
+export const DEFAULT_RISK_BUFFER_PCT = 10;
+
 /** Whole-dollar money for hours at a rate. */
 export function amountAt(hours: number, rate: number): number {
   if (!Number.isFinite(hours) || hours <= 0) return 0;

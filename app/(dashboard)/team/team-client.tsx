@@ -70,6 +70,7 @@ import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore, type UserRole } from "@/store/auth-store";
 import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import type { TeamMember } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -221,7 +222,7 @@ export function TeamClientPage() {
         </Card>
       ) : null}
 
-      <Card>
+      <Card {...tourAnchor("team.members")}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Users className="size-4 text-muted-foreground" aria-hidden />
@@ -312,6 +313,7 @@ export function TeamClientPage() {
                         className="text-muted-foreground hover:text-foreground"
                         title="Work keys & skills"
                         aria-label={`Skills for ${m.name}`}
+                        {...tourAnchor("team.skills")}
                         onClick={() => setSkillsMember(m)}
                       >
                         <Star className="size-4" />
@@ -417,7 +419,7 @@ export function TeamClientPage() {
         </Card>
       ) : null}
 
-      <Card>
+      <Card {...tourAnchor("team.roles")}>
         <CardHeader>
           <CardTitle className="text-base">What each role can do</CardTitle>
           <CardDescription>

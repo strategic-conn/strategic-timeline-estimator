@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import type { CatalogItem } from "@/lib/proposal-catalog";
 import {
   DEFAULT_ADDONS,
+  DEFAULT_RISK_BUFFER_PCT,
   computeLineHours,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
@@ -24,6 +25,7 @@ import {
   type PlanStrategy,
 } from "@/lib/assignment/plan";
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
+import { assignedWork } from "@/lib/workload/assigned-work";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
@@ -137,6 +139,15 @@ function currentRoster(): PlanDev[] {
     weeklyHours: useWeeklyCapacityStore.getState().overrides,
     defaultWeeklyHours: DEFAULT_WEEKLY_CAPACITY_HOURS,
     ptoByProfile: ptoDaysByProfile(useAvailabilityStore.getState().entries),
+    // The same "allocated" figure the Workload page shows (rule 8), so the plan
+    // and the page agree about how busy someone already is.
+    bookedHours: Object.fromEntries(
+      members.map((m) => [
+        m.id,
+        assignedWork(useTasksDataStore.getState().tasks, m.id, { now: new Date() })
+          .allocatedHours,
+      ]),
+    ),
   });
 }
 
@@ -432,9 +443,16 @@ function describeTaskUpdates(
 
 type ProposalRow = Database["public"]["Tables"]["proposals"]["Row"];
 
+/** The id quotes are owned by: the profile uuid live, the demo id offline. */
+function currentOwnerId(): string {
+  const u = useAuthStore.getState().user;
+  return u.authId ?? String(u.id);
+}
+
 function rowToQuote(r: ProposalRow): ClientQuote {
   return {
     id: r.id,
+    owner_id: r.owner_id,
     title: r.title,
     project_id: r.project_id,
     client_name: r.client_name ?? undefined,
@@ -813,9 +831,10 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           // Add-on hours are priced at their roles' rates as of today (decision 3).
           addons: { ...DEFAULT_ADDONS, rates: currentAddonRates(liveRates()) },
           requirements_unclear: false,
-          risk_buffer_pct: 0,
+          risk_buffer_pct: DEFAULT_RISK_BUFFER_PCT,
           discovery: input.discovery ?? null,
           zoho: input.zoho ?? null,
+          owner_id: currentOwnerId(),
           created_at: now,
           updated_at: now,
         };
@@ -906,7 +925,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             rates: currentAddonRates(liveRates()),
           },
           requirements_unclear: input.requirements_unclear ?? false,
-          risk_buffer_pct: 0,
+          risk_buffer_pct: DEFAULT_RISK_BUFFER_PCT,
+          owner_id: currentOwnerId(),
           created_at: now,
           updated_at: now,
         };

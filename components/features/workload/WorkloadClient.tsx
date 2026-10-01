@@ -47,6 +47,7 @@ import { cn } from "@/lib/utils";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type { Task } from "@/types/task.types";
 import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
+import { tourAnchor } from "@/lib/tours/ids";
 
 type ProjectFilter = "all" | string;
 
@@ -270,7 +271,10 @@ export function WorkloadClient() {
       )}
 
       {/* 3-across only once there's room — on the tablet rail it'd be ~200px/card. */}
-      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      <section
+        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        {...tourAnchor("workload.team")}
+      >
         <Card size="sm">
           <CardHeader className="gap-1">
             <CardDescription>People with open work</CardDescription>
@@ -302,7 +306,7 @@ export function WorkloadClient() {
         </Card>
       </section>
 
-      <Card>
+      <Card {...tourAnchor("workload.people")}>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <Scale className="size-4 text-muted-foreground" aria-hidden />
@@ -469,7 +473,10 @@ export function WorkloadClient() {
 
           {/* The capacity editor sits last: the page is read for who is
               loaded, and hours are adjusted far less often than they are read. */}
-          <div className="rounded-xl border border-border/60 bg-muted/15 p-4">
+          <div
+            className="rounded-xl border border-border/60 bg-muted/15 p-4"
+            {...tourAnchor("workload.capacity")}
+          >
             <p className="text-sm font-medium">Weekly capacity by person</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter

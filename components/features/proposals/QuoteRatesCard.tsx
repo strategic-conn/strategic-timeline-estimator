@@ -24,6 +24,7 @@ import { repriceToCurrentRates } from "@/lib/pricing/line-pricing";
 import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { ClientQuote } from "@/types/proposal.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 /**
  * Adjust tab → which rates this estimate is priced at, and the deliberate way
@@ -68,7 +69,7 @@ export function QuoteRatesCard({ quote }: { quote: ClientQuote }) {
   if (!quote.line_items.length) return null;
 
   return (
-    <Card>
+    <Card {...tourAnchor("estimate.rates")}>
       <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3">
           <Scale

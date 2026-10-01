@@ -37,6 +37,7 @@ import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import Link from "next/link";
 import { TASK_STATUS_DOT } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 /** Shared, so a status cannot be purple here and blue on the next page. */
 const STATUS_DOT = TASK_STATUS_DOT;
@@ -255,6 +256,7 @@ export function CalendarClient() {
               onChange={setScope}
               canSeeTeam={canApproveTimeOff}
             />
+            <div className="flex items-center gap-2" {...tourAnchor("calendar.nav")}>
             <Button variant="outline" size="sm" className="border-border/60 bg-background/80" onClick={goToday}>
               Today
             </Button>
@@ -269,6 +271,7 @@ export function CalendarClient() {
                 <ChevronRight className="size-4" />
               </Button>
             </div>
+            </div>
           </div>
         }
       />
@@ -277,7 +280,7 @@ export function CalendarClient() {
           ~408px for 7 day-columns (~58px each) — narrower than portrait, where
           the panel stacks and the month gets the full width. */}
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
-        <Card>
+        <Card {...tourAnchor("calendar.month")}>
           <CardContent className="p-2 sm:p-4">
             <div className="grid grid-cols-7">
               {DAY_NAMES.map((d) => (
@@ -387,7 +390,7 @@ export function CalendarClient() {
         </Card>
 
         <div className="flex flex-col gap-4">
-          <Card>
+          <Card {...tourAnchor("calendar.day")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">
                 {selectedDate
@@ -498,7 +501,7 @@ export function CalendarClient() {
           </Card>
 
           {/* Legend — grouped + 2-column so it's compact, not a tall list. */}
-          <Card>
+          <Card {...tourAnchor("calendar.legend")}>
             <CardHeader className="pb-3">
               <CardTitle className="text-sm">Legend</CardTitle>
             </CardHeader>

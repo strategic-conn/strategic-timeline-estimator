@@ -215,6 +215,60 @@
 - [ ] Drag a card from far down a long column into another column: it lands.
 - [ ] 375px: the board fits, the column scrolls vertically, and the board swipes sideways.
 
+## 👥 Auto-assign counts existing work (Start project → Review schedule)
+
+- [ ] Someone already heavily loaded (Workload shows e.g. 131h) gets later
+      dates than before, and their reason says "after 131h already booked".
+- [ ] **Fastest:** with two equally skilled people, the one with less existing
+      work gets the task.
+- [ ] **Best-fit:** the strongest person still gets it, just with later dates.
+- [ ] A person with no open work is planned exactly as before.
+
+## ⏱️ Schedule risk buffer default
+
+- [ ] New estimate → Adjust tab: the risk buffer starts at **10%**, and the
+      timeline is ~10% longer than the same work at 0%. The price is unchanged.
+- [ ] New project (Projects → New project): its risk buffer section shows 10%.
+- [ ] Start project from an estimate set to 20% → the project shows 20%, not 10%.
+- [ ] An estimate made before this change still shows its old buffer (often 0%).
+
+## 🧭 Onboarding tours + Getting started
+
+`npx playwright test e2e/tours.spec.ts` runs every page's tour at 1280 / 768 /
+375 as the manager bot, fails on any write during a tour, and walks the
+newcomer flow with a throwaway member. The manual checks below are what it
+can't see.
+
+- [ ] **Newcomer** (invite someone new, accept, sign in): the welcome dialog
+      appears on the dashboard once. *Later* brings it back next visit; *Don't
+      show again* never does; *Start the tour* walks nav → bell → Add task →
+      profile → the ? button.
+- [ ] **Existing user**: no welcome dialog, no checklist — one "New: page
+      tours" toast, once, ever.
+- [ ] The ? button has a dot on a page whose tour you haven't taken; it goes
+      once you finish or close that tour.
+- [ ] On each page: ? → *Tour: …* → every step points at something visible,
+      reads correctly for your role, and **nothing you can't do is mentioned**
+      (repeat as **member** and **viewer** — the bot is a manager).
+- [ ] Clicking the highlighted control during a tour does nothing. On a sprint
+      board, pressing **n** mid-tour opens no dialog.
+- [ ] Estimator editor: each of the 5 tabs offers its own tour (switch tab,
+      reopen ?). Settings: Profile / Skills / Time off / Workspace likewise.
+- [ ] 375px: the popover docks to the top or bottom edge, away from the
+      highlighted element, and never covers the tab bar it is describing.
+- [ ] Keyboard only: ← / → step, Esc ends, focus starts on **Next** and
+      returns to the ? button afterwards. Light **and** dark mode.
+- [ ] **Getting started** (newcomer, Dashboard → Mine): each item ticks itself
+      after the real action (upload a photo → reload → ticked). A member with
+      nothing assigned sees "Nothing assigned to you yet", greyed, and it does
+      not count against progress. *Show me* lands on the right page with the
+      tour on the right step. × hides it for good; ? → *Getting started
+      checklist* (or Settings → Profile → *Open Getting started*) brings it back.
+- [ ] Settings → Profile → *Reset all tours*: every page's dot comes back.
+- [ ] Estimator → Adjust → **Roll-up add-ons ?**: opens on click/tap (not
+      hover), explains all four add-ons in plain words, and stays fully on
+      screen at 375px (scrolls inside itself if the screen is short).
+
 ## 🔐 Security probe (automated, live)
 
 `node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks
@@ -223,6 +277,8 @@ key, and cleans up. **Every line must read PASS**, and the last line must say
 `cleanup: clean`.
 
 - [ ] Run it after ANY change to an RLS policy, trigger or constraint.
+- [ ] P17: tour progress is self-only (a member can write its own row, and
+      cannot read, insert or delete anyone else's).
 - [ ] As a **member** in the UI: edit the dates of your own *approved* leave →
       it becomes pending (dashed amber on the calendar) and your capacity goes
       back up until it is re-approved.

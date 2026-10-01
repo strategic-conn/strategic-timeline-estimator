@@ -5,6 +5,7 @@ import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 
 import { pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import { DEFAULT_RISK_BUFFER_PCT } from "@/lib/constants/proposal-estimator";
 import { projectOverviewHref } from "@/lib/constants/sprints";
 import { DUMMY_PROJECTS } from "@/lib/dummy/projects.data";
 import { createClient } from "@/lib/supabase/client";
@@ -125,6 +126,7 @@ export const useProjectsStore = create<ProjectsState>()(
           const now = new Date().toISOString();
           const next: Project = {
             ...payload,
+            risk_buffer_pct: payload.risk_buffer_pct ?? DEFAULT_RISK_BUFFER_PCT,
             id,
             created_at: now,
             updated_at: now,
@@ -156,8 +158,10 @@ export const useProjectsStore = create<ProjectsState>()(
             return;
           }
           const now = new Date().toISOString();
+          const riskBuffer = payload.risk_buffer_pct ?? DEFAULT_RISK_BUFFER_PCT;
           const optimistic: Project = {
             ...payload,
+            risk_buffer_pct: riskBuffer,
             owner_id: ownerId,
             id,
             created_at: now,
@@ -174,6 +178,7 @@ export const useProjectsStore = create<ProjectsState>()(
               description: payload.description ?? null,
               status: payload.status,
               owner_id: ownerId,
+              risk_buffer_pct: riskBuffer,
             })
             .select()
             .single();

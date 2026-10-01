@@ -33,6 +33,7 @@ export function MineTeamToggle({
     <div
       role="group"
       aria-label="Scope"
+      data-tour="scope-toggle"
       // `w-fit self-start`: the header actions row stretches its children, which
       // made the bordered box span the full width with the two buttons huddled
       // at the left edge on a phone. `inline-flex` alone does not stop that.

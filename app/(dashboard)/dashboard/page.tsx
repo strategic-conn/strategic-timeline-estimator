@@ -24,6 +24,8 @@ import {
   type ScopeView,
 } from "@/components/common/mine-team-toggle";
 import { DashboardTeam } from "@/components/features/dashboard/DashboardTeam";
+import { GettingStartedCard } from "@/components/features/tour/GettingStartedCard";
+import { tourAnchor } from "@/lib/tours/ids";
 import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 import {
@@ -339,7 +341,10 @@ export default function DashboardPage() {
           {/* Two-up even on a phone: four full-width tiles pushed the actual work
           ~290px down the page, and "Active projects / 1" needs nowhere near
           that room. */}
-          <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <section
+            className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+            {...tourAnchor("dashboard.kpis")}
+          >
             {kpis.map((kpi) => (
               <Card key={kpi.label} size="sm">
                 <CardHeader className="gap-1">
@@ -372,7 +377,10 @@ export default function DashboardPage() {
               spanning sidebar's extra height goes to row 2 — with auto rows it split
               across both and left a hole under the table. */}
           <section className="grid items-start gap-6 lg:grid-cols-[1.6fr_1fr] lg:grid-rows-[auto_1fr]">
-            <Card className="lg:col-start-1 lg:row-start-1">
+            <Card
+              className="lg:col-start-1 lg:row-start-1"
+              {...tourAnchor("dashboard.due-soon")}
+            >
               <CardHeader>
                 <div className="flex items-center justify-between gap-2">
                   <div>
@@ -477,7 +485,11 @@ export default function DashboardPage() {
             </Card>
 
             <div className="flex flex-col gap-6 lg:col-start-2 lg:row-span-2 lg:row-start-1">
-              <Card>
+              {/* Inside the sidebar column, not a grid item of its own: the grid
+                  places its cards explicitly, and a new item would auto-place
+                  into a gap (plan §5a.8). */}
+              <GettingStartedCard />
+              <Card {...tourAnchor("dashboard.my-work")}>
                 <CardHeader>
                   <CardTitle className="text-base">My open work</CardTitle>
                   <CardDescription>
@@ -591,7 +603,7 @@ export default function DashboardPage() {
                   ) : null}
                 </CardContent>
               </Card>
-              <Card>
+              <Card {...tourAnchor("dashboard.quick-actions")}>
                 <CardHeader>
                   <CardTitle>Quick actions</CardTitle>
                   <CardDescription>Common next steps.</CardDescription>
@@ -614,7 +626,10 @@ export default function DashboardPage() {
 
             </div>
 
-            <Card className="lg:col-start-1 lg:row-start-2">
+            <Card
+              className="lg:col-start-1 lg:row-start-2"
+              {...tourAnchor("dashboard.activity")}
+            >
               <CardHeader>
                 <CardTitle>Activity</CardTitle>
                 <CardDescription>

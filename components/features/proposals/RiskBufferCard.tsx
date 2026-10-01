@@ -14,6 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { tourAnchor, type TourTarget } from "@/lib/tours/ids";
 
 /** Round numbers a coordinator actually reaches for. 0 is "no contingency". */
 const PRESETS = [0, 10, 15, 20, 30] as const;
@@ -49,6 +50,7 @@ export function RiskBufferCard({
   footer,
   title = "Schedule risk buffer",
   description = "Contingency for the things you cannot itemise — a slow client, an undocumented API, a scope surprise.",
+  tourId,
 }: {
   value: number;
   onChange: (pct: number) => void;
@@ -58,6 +60,8 @@ export function RiskBufferCard({
   footer?: React.ReactNode;
   title?: string;
   description?: string;
+  /** Onboarding-tour anchor; the card appears on two pages under two ids. */
+  tourId?: TourTarget;
 }) {
   const pct = clampRiskBuffer(value);
   // Local text state so the field can be empty mid-typing without snapping to 0
@@ -72,7 +76,10 @@ export function RiskBufferCard({
   };
 
   return (
-    <Card className={cn(pct > 0 && "border-primary/30 bg-primary/[0.03]")}>
+    <Card
+      className={cn(pct > 0 && "border-primary/30 bg-primary/[0.03]")}
+      {...(tourId ? tourAnchor(tourId) : {})}
+    >
       <CardHeader className="gap-1.5">
         <CardTitle className="flex items-center gap-2 text-base">
           <ShieldAlert className="size-4 text-muted-foreground" aria-hidden />

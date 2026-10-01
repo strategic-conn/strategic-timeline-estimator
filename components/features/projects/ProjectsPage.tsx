@@ -3,6 +3,7 @@
 import * as React from "react";
 import { FolderKanban, Plus, Search } from "lucide-react";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
+import { tourAnchor } from "@/lib/tours/ids";
 import { CreateProjectModal } from "@/components/features/projects/CreateProjectModal";
 import { DeleteProjectDialog } from "@/components/features/projects/DeleteProjectDialog";
 import { EditProjectModal } from "@/components/features/projects/EditProjectModal";
@@ -211,7 +212,10 @@ export function ProjectsPage() {
           }
           actions={
             <div className="flex w-full min-w-0 flex-col gap-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
+              <div
+                className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center"
+                {...tourAnchor("projects.search")}
+              >
                 <div className="relative min-w-0 w-full flex-1 sm:min-w-[min(100%,14rem)]">
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -254,6 +258,7 @@ export function ProjectsPage() {
                   type="button"
                   className="h-9 w-full shrink-0 gap-1.5 sm:w-auto sm:self-start"
                   onClick={() => setCreateOpen(true)}
+                  {...tourAnchor("projects.new")}
                 >
                   <Plus className="size-4" aria-hidden />
                   New project
@@ -264,7 +269,10 @@ export function ProjectsPage() {
         />
 
         {projects.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center">
+          <div
+            className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center"
+            {...tourAnchor("projects.empty")}
+          >
             <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <FolderKanban className="size-6" aria-hidden />
             </div>
@@ -302,7 +310,10 @@ export function ProjectsPage() {
             </Button>
           </div>
         ) : (
-          <section className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
+            {...tourAnchor("projects.grid")}
+          >
             {sorted.map((p) => (
               <ProjectCard
                 key={p.id}

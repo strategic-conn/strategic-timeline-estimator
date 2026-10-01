@@ -27,6 +27,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import { useTeamStore } from "@/store/team-store";
+import { tourAnchor } from "@/lib/tours/ids";
 
 /**
  * Settings → Workspace → Hourly rates.
@@ -101,7 +102,7 @@ export function HourlyRatesCard() {
   };
 
   return (
-    <Card>
+    <Card {...tourAnchor("settings.rates")}>
       <CardHeader>
         <CardTitle>Hourly rates</CardTitle>
         <CardDescription>

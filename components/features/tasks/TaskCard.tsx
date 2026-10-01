@@ -46,6 +46,7 @@ import {
   TASK_STATUSES,
   type TaskStatus,
 } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export interface TaskCardProps {
   task: Task;
@@ -158,6 +159,7 @@ export function TaskCard({
           showLinkSpotlight && "task-link-spotlight"
         )}
         {...attributes}
+        {...tourAnchor("board.card")}
       >
         <div className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex items-start justify-between px-1.5">
           <div className="pointer-events-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">

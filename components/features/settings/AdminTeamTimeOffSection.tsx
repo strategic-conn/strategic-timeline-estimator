@@ -54,6 +54,7 @@ import type {
   AvailabilityEntry,
   AvailabilityEntryKind,
 } from "@/types/availability.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 const KIND_LABEL: Record<AvailabilityEntryKind, string> = {
   pto: "PTO / vacation",
@@ -176,7 +177,7 @@ export function AdminTeamTimeOffSection() {
   return (
     <div className="space-y-6 border-t border-border/60 pt-8">
       {canApproveTimeOff ? (
-        <section className="space-y-3">
+        <section className="space-y-3" {...tourAnchor("settings.approvals")}>
           <div className="flex items-start gap-3">
             <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">
               <Inbox className="size-5 text-muted-foreground" aria-hidden />

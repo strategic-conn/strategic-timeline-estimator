@@ -169,6 +169,7 @@ import type {
   ProposalTier,
   ZohoProductLink,
 } from "@/types/proposal.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 type ProposalEditorClientProps = {
   proposalId: string;
@@ -588,7 +589,7 @@ export function ProposalEditorClient({
                   setProposalStatus(quote.id, v as ProposalStatus)
                 }
               >
-                <SelectTrigger size="sm" className="w-32">
+                <SelectTrigger size="sm" className="w-32" {...tourAnchor("estimate.status")}>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -699,6 +700,7 @@ export function ProposalEditorClient({
                     variant="outline"
                     size="sm"
                     className="gap-2 border-border/60 bg-background/80"
+                    {...tourAnchor("estimate.export")}
                   >
                     Export
                     <ChevronDown className="size-4 opacity-70" aria-hidden />
@@ -756,7 +758,10 @@ export function ProposalEditorClient({
           {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
               phone gives 351px, so "Review" — where Send to Zoho lives — sat
               off-screen behind a scrollbar nobody sees on touch. */}
-          <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
+          <TabsList
+            className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap"
+            {...tourAnchor("estimate.tabs")}
+          >
             <TabsTrigger value="setup">Setup</TabsTrigger>
             <TabsTrigger value="guided" className="gap-1.5">
               <Compass className="size-3.5" aria-hidden />
@@ -773,7 +778,11 @@ export function ProposalEditorClient({
           </TabsList>
 
           {/* ---- SETUP ---- */}
-          <TabsContent value="setup" className="flex flex-col gap-5">
+          <TabsContent
+            value="setup"
+            className="flex flex-col gap-5"
+            {...tourAnchor("estimate.setup")}
+          >
             <Card>
               <CardHeader>
                 <CardTitle>Quote details</CardTitle>
@@ -962,7 +971,7 @@ export function ProposalEditorClient({
                     </p>
                   )}
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2" {...tourAnchor("estimate.client")}>
                   <div className="flex h-8 items-center justify-between gap-2">
                     <Label htmlFor="meta-client">Client</Label>
                     <Button
@@ -1012,7 +1021,7 @@ export function ProposalEditorClient({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="grid gap-2">
+                <div className="grid gap-2" {...tourAnchor("estimate.platform")}>
                   <div className="flex h-8 items-center">
                     <Label>Platform</Label>
                   </div>
@@ -1065,10 +1074,14 @@ export function ProposalEditorClient({
           </TabsContent>
 
           {/* ---- GUIDED SCOPE & RISK ---- */}
-          <TabsContent value="guided" className="flex flex-col gap-5">
+          <TabsContent
+            value="guided"
+            className="flex flex-col gap-5"
+            {...tourAnchor("estimate.guided")}
+          >
             {quote.discovery && scopeResult ? (
               <>
-                <Card>
+                <Card {...tourAnchor("estimate.scope-summary")}>
                   <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4">
                     <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                       <DiscoveryRiskBadge
@@ -1114,6 +1127,7 @@ export function ProposalEditorClient({
                         size="sm"
                         className="gap-1.5"
                         onClick={handleGenerateLines}
+                        {...tourAnchor("estimate.generate")}
                       >
                         <Wand2 className="size-3.5" aria-hidden />
                         {quote.line_items.length
@@ -1245,6 +1259,7 @@ export function ProposalEditorClient({
                         size="sm"
                         className="gap-1.5"
                         onClick={startGuided}
+                        {...tourAnchor("estimate.guided-start")}
                       >
                         <Compass className="size-3.5" aria-hidden />
                         Start guided scoping
@@ -1278,6 +1293,7 @@ export function ProposalEditorClient({
                     type="button"
                     className="mt-2 gap-1.5"
                     onClick={startGuided}
+                    {...tourAnchor("estimate.guided-start")}
                   >
                     <Compass className="size-4" aria-hidden />
                     Start guided scoping
@@ -1288,7 +1304,11 @@ export function ProposalEditorClient({
           </TabsContent>
 
           {/* ---- SCOPE ---- */}
-          <TabsContent value="scope" className="flex flex-col gap-4">
+          <TabsContent
+            value="scope"
+            className="flex flex-col gap-4"
+            {...tourAnchor("estimate.lines")}
+          >
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <h2 className="text-base font-semibold">Line items</h2>
@@ -1305,6 +1325,7 @@ export function ProposalEditorClient({
                   className="gap-1.5"
                   onClick={() => setCatalogOpen(true)}
                   disabled={!platformHasCatalog}
+                  {...tourAnchor("estimate.catalog")}
                   title={
                     platformHasCatalog
                       ? undefined
@@ -1361,7 +1382,7 @@ export function ProposalEditorClient({
               />
             ) : null}
 
-            <div className="flex flex-col gap-4">
+            <div className="flex flex-col gap-4" {...tourAnchor("estimate.line-list")}>
               {groups.map((group) => (
                 <section
                   key={group.key}
@@ -1439,12 +1460,17 @@ export function ProposalEditorClient({
           </TabsContent>
 
           {/* ---- ADJUST ---- */}
-          <TabsContent value="adjust" className="flex flex-col gap-5">
+          <TabsContent
+            value="adjust"
+            className="flex flex-col gap-5"
+            {...tourAnchor("estimate.adjust")}
+          >
             <Card
               className={cn(
                 quote.requirements_unclear &&
                   "border-amber-500/40 bg-amber-500/5",
               )}
+              {...tourAnchor("estimate.requirements")}
             >
               <CardContent className="flex items-start gap-3 py-4">
                 <Checkbox
@@ -1497,6 +1523,7 @@ export function ProposalEditorClient({
               }
               baseDays={activeResult?.timeline.baseBusinessDays}
               bufferedDays={activeResult?.timeline.totalBusinessDays}
+              tourId="estimate.risk-buffer"
             />
 
             <QuoteRatesCard quote={quote} />
@@ -1527,8 +1554,15 @@ export function ProposalEditorClient({
           </TabsContent>
 
           {/* ---- REVIEW ---- */}
-          <TabsContent value="review" className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
+          <TabsContent
+            value="review"
+            className="flex flex-col gap-4"
+            {...tourAnchor("estimate.review")}
+          >
+            <div
+              className="flex flex-wrap items-center justify-between gap-3"
+              {...tourAnchor("estimate.preview")}
+            >
               <div>
                 <h2 className="text-base font-semibold">Client preview</h2>
                 <p className="text-sm text-muted-foreground">
@@ -1577,6 +1611,7 @@ export function ProposalEditorClient({
                         : "Link the client to a Zoho account first — “Find in Zoho” on Setup"
                   }
                   onClick={() => setSendOpen(true)}
+                  {...tourAnchor("estimate.send-zoho")}
                 >
                   <Upload className="size-3.5" aria-hidden />
                   {proposalPushed ? "Sent to Zoho" : "Send to Zoho"}

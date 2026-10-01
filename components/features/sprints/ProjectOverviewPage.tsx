@@ -40,6 +40,7 @@ import { useSprints } from "@/hooks/useSprints";
 import { useTasks } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
+import { tourAnchor } from "@/lib/tours/ids";
 import {
   ProjectNotFound,
   useProjectMissing,
@@ -92,6 +93,7 @@ function ProjectBacklogCard({
         "relative flex h-full flex-col border-dashed bg-muted/10",
         className
       )}
+      {...tourAnchor("project.backlog")}
     >
       <CardHeader className="gap-2 pb-2">
         {/* See SprintCard: the grid item needs min-w-0 to let the title truncate. */}
@@ -519,6 +521,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                   className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
                   disabled={pushingDone || Boolean(completionPushedAt)}
                   onClick={() => void pushCompletion()}
+                  {...tourAnchor("project.zoho-complete")}
                   title={
                     completionPushedAt
                       ? `Zoho notified ${new Date(completionPushedAt).toLocaleString()}`
@@ -542,6 +545,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                       variant="outline"
                       className="h-9 w-full gap-1.5 border-border/60 bg-background/80 lg:w-auto"
                       disabled={syncing}
+                      {...tourAnchor("project.sync")}
                     >
                       <CalendarRange className="size-4" aria-hidden />
                       {syncing ? "Syncing…" : "Sync schedule from estimate"}
@@ -581,6 +585,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
                   type="button"
                   className="h-9 w-full gap-1.5 lg:w-auto"
                   onClick={() => setCreateOpen(true)}
+                  {...tourAnchor("project.new-sprint")}
                 >
                   <Plus className="size-4" aria-hidden />
                   New sprint
@@ -597,7 +602,10 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               taskCount={backlogTasks.length}
               className="w-full max-w-sm"
             />
-            <div className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center">
+            <div
+              className="flex flex-col items-center justify-center gap-3 rounded-xl border border-dashed bg-muted/20 px-6 py-16 text-center"
+              {...tourAnchor("project.empty")}
+            >
               <div className="flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
                 <Layers className="size-6" aria-hidden />
               </div>
@@ -616,7 +624,10 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
             </div>
           </div>
         ) : (
-          <section className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3">
+          <section
+            className="grid gap-4 grid-cols-1 lg:grid-cols-2 xl:grid-cols-3"
+            {...tourAnchor("project.sprints")}
+          >
             <ProjectBacklogCard
               projectId={projectId}
               taskCount={backlogTasks.length}
@@ -642,7 +653,7 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
         )}
 
         {projectSprints.length > 0 ? (
-          <section className="flex flex-col gap-3">
+          <section className="flex flex-col gap-3" {...tourAnchor("project.timeline")}>
             <div className="space-y-1">
               <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
                 <CalendarRange

@@ -104,11 +104,31 @@ if (existing) {
 }
 
 // Make sure the profile is confirmed + has the right role/name.
+// confirmed_at is a FIXED past date, not now(): onboarding tours treat anyone
+// confirmed after TOURS_LAUNCHED_AT as a newcomer, and a newcomer gets a
+// welcome dialog and nudges that would sit on top of every other test.
+// e2e/tours.spec.ts makes its own throwaway newcomer when it needs one.
 await req(`/rest/v1/profiles?email=eq.${encodeURIComponent(EMAIL)}`, {
   method: "PATCH",
   headers: { Prefer: "return=minimal" },
-  body: JSON.stringify({ name: NAME, role: ROLE, confirmed_at: new Date().toISOString() }),
+  body: JSON.stringify({ name: NAME, role: ROLE, confirmed_at: "2026-01-01T00:00:00Z" }),
 });
+
+// And the one-time "New: page tours" hint, already seen, so it cannot toast
+// over a layout test on the bot's first run.
+const bot = await req(
+  `/rest/v1/profiles?email=eq.${encodeURIComponent(EMAIL)}&select=id`,
+);
+const botId = Array.isArray(bot.body) ? bot.body[0]?.id : null;
+if (botId) {
+  await req(`/rest/v1/tour_progress?on_conflict=profile_id,tour_id`, {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify([
+      { profile_id: botId, tour_id: "intro-hint", version: 1, status: "dismissed" },
+    ]),
+  });
+}
 
 console.log("\nAdd these to .env.local (gitignored):\n");
 console.log(`E2E_EMAIL=${EMAIL}`);

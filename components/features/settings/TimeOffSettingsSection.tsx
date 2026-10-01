@@ -55,6 +55,7 @@ import type {
   AvailabilityEntryKind,
   AvailabilityStatus,
 } from "@/types/availability.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 const KIND_LABEL: Record<AvailabilityEntryKind, string> = {
   pto: "PTO / vacation",
@@ -169,7 +170,13 @@ export function TimeOffSettingsSection() {
             </p>
           </div>
         </div>
-        <Button type="button" size="sm" className="gap-1.5 shrink-0" onClick={openAdd}>
+        <Button
+          type="button"
+          size="sm"
+          className="gap-1.5 shrink-0"
+          onClick={openAdd}
+          {...tourAnchor("settings.request-timeoff")}
+        >
           <Plus className="size-4" aria-hidden />
           {canApproveTimeOff ? "Add time off" : "Request time off"}
         </Button>

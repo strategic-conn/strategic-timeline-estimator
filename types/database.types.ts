@@ -751,6 +751,38 @@ export type Database = {
           },
         ]
       }
+      tour_progress: {
+        Row: {
+          profile_id: string
+          status: string
+          tour_id: string
+          updated_at: string
+          version: number
+        }
+        Insert: {
+          profile_id: string
+          status: string
+          tour_id: string
+          updated_at?: string
+          version?: number
+        }
+        Update: {
+          profile_id?: string
+          status?: string
+          tour_id?: string
+          updated_at?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tour_progress_profile_id_fkey"
+            columns: ["profile_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       weekly_capacity: {
         Row: {
           hours_per_week: number

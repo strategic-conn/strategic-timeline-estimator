@@ -8,6 +8,7 @@ import { DashboardMobileTabBar } from "@/components/layouts/dashboard-mobile-tab
 import { DashboardSidebarNav } from "@/components/layouts/dashboard-sidebar-nav";
 import { PageAccessGuard } from "@/components/layouts/page-access-guard";
 import { SidebarUserCard } from "@/components/layouts/sidebar-user-card";
+import { TourHost } from "@/components/features/tour/TourHost";
 import { WorkspaceSync } from "@/components/layouts/workspace-sync";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
@@ -32,6 +33,7 @@ export default function DashboardLayout({
       </a>
       <WorkspaceSync />
       <PageAccessGuard />
+      <TourHost />
       <AppAtmosphere variant="app" />
 
       {/* Tablet (md) shows a 64px icon rail; labels appear from lg up. Keeps nav
@@ -66,11 +68,14 @@ export default function DashboardLayout({
 
         <Separator className="my-3 shrink-0 bg-border/60 lg:my-4" />
 
-        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]">
+        <div
+          className="flex min-h-0 flex-1 flex-col overflow-y-auto [scrollbar-gutter:stable]"
+          data-tour="nav"
+        >
           <DashboardSidebarNav />
         </div>
 
-        <div className="shrink-0 pt-3 lg:pt-4">
+        <div className="shrink-0 pt-3 lg:pt-4" data-tour="user-card">
           <Separator className="mb-3 bg-border/60 lg:mb-4" />
           <SidebarUserCard />
         </div>

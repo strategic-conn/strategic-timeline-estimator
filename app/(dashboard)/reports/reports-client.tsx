@@ -40,6 +40,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { TASK_STATUS_LABEL } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
   todo: "bg-slate-400",
@@ -215,7 +216,10 @@ export function ReportsClient() {
       {/* Two-up on a phone, like the dashboard: four full-width tiles pushed
           the charts below the fold for numbers that need a fraction of that
           room. */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        {...tourAnchor("reports.kpis")}
+      >
         {kpis.map((kpi) => (
           <Card key={kpi.label} size="sm">
             <CardHeader className="gap-1">
@@ -240,7 +244,7 @@ export function ReportsClient() {
       </section>
 
       <section className="grid gap-6 lg:grid-cols-2">
-        <Card>
+        <Card {...tourAnchor("reports.status")}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BarChart3 className="size-4" aria-hidden />
@@ -338,7 +342,7 @@ export function ReportsClient() {
       </section>
 
       <section>
-        <Card>
+        <Card {...tourAnchor("reports.projects")}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FolderOpen className="size-4" aria-hidden />
@@ -403,7 +407,7 @@ export function ReportsClient() {
       </section>
 
       <section>
-        <Card>
+        <Card {...tourAnchor("reports.people")}>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="size-4" aria-hidden />

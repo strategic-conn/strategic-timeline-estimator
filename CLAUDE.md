@@ -37,6 +37,7 @@ not just fast code.
 | 2     | Collaboration, Scheduling, PTO   | **Wired** — comments/reactions, notifications + activity feed (Realtime), calendar, workload, PTO/availability, weekly capacity |
 | 3     | Estimator, Gantt Charts, Pricing | **Wired** — **Estimator** (Discovery + Proposals merged: guided questionnaire *or* catalog → one quote), approval → Start project; Gantt/Timeline + PDF/Excel export (client-side) |
 | 4     | Integrations, Performance, WCAG  | Realtime (board + scheduling, via `liveChannels`) + Storage (avatars) done; RLS/security audit done. **Perf + WCAG passes still pending** |
+| —     | Onboarding                       | **Done** — per-page guided tours (driver.js) from the header's ? button, welcome dialog for newcomers, Getting started checklist. See "Onboarding tours" below |
 
 > Update this table when a phase starts or completes. "Wired" means the store hydrates from and
 > writes to Supabase behind the `isSupabaseConfigured` flag, with the demo path kept as a fallback.
@@ -72,6 +73,7 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 | PDF export   | jsPDF + jspdf-autotable                                 |
 | Excel export | xlsx (SheetJS)                                          |
 | Patching     | patch-package (`postinstall`)                           |
+| Tours        | driver.js 1.x (MIT) — onboarding tours, wrapped by `lib/tours/run.ts` only |
 | Backend SDK  | `@supabase/supabase-js` + `@supabase/ssr` (wired — Auth, data, Realtime, Storage) |
 
 ### Planned / not yet added
@@ -137,6 +139,7 @@ components/
 │   ├── notifications/  # NotificationBell
 │   ├── settings/       # ProfileForm, TimeOffSettingsSection, AdminTeamTimeOffSection, HourlyRatesCard, TimeOffApprovalDialog
 │   ├── skills/         # MemberSkillsEditor, StarRating
+│   ├── tour/           # HelpMenu (header ?), TourHost (welcome · nudges · Show me), GettingStartedCard, TourSettingsCard, use-tours
 │   ├── team/           # MemberAccessDialog, PageAccessChecklist, WorkKeysEditor
 │   └── esther/         # parked chat client (see "Esther is built but parked")
 └── layouts/            # dashboard-header / -sidebar-nav / -mobile-menu / -mobile-tab-bar / -nav-config, workspace-page-header,
@@ -158,6 +161,7 @@ lib/
 ├── availability/       # pto-impact — what an absence costs the plan (pure; drives the approval preview)
 ├── workload/           # assigned-work — the ONE definition of a person's open load + capacity (both workload views)
 ├── undo/               # offer-undo-toast (one-shot Undo)
+├── tours/              # ids (data-tour anchors) · tours (all tour copy) · run (driver.js wrapper) · checklist (pure)
 ├── assignment/         # plan.ts (assignment planner: work keys, then skills) + roster.ts
 ├── pricing/            # hourly-rates.ts (rate rules) + line-pricing.ts (who does a line, what it costs)
 ├── zoho/               # OAuth tokens, write-allowlist, deal stages/products/packages, won-transition
@@ -168,7 +172,7 @@ lib/
 store/                  # Zustand (live via WorkspaceSync + optimistic write-through; demo persists to localStorage):
                         #   projects, sprints, tasks, auth, team, availability, activity,
                         #   notifications, weekly-capacity, proposal-estimator, hourly-rates,
-                        #   member-skills, esther, nav-drawer
+                        #   member-skills, esther, nav-drawer, tour
 types/                  # project, sprint, task, proposal, availability, database (generated — `npm run db:types`)
 docs/                   # data-mapping.md (data shapes) + backend-supabase.md + supabase-integration-plan.md
 supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 mentions/realtime/activity/storage/role-guard ·
@@ -184,7 +188,9 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   churn that nets to zero - see "Realtime" below) ·
                         #   0041 member-abuse fixes (leave approval, profile self-edit, internal-only hrefs) ·
                         #   0042 hourly_rates (role+level rates; pricing plan Phase 1) ·
-                        #   0043 profiles.work_keys (admin-set lookup keys; Phase 4)
+                        #   0043 profiles.work_keys (admin-set lookup keys; Phase 4) ·
+                        #   0044 risk_buffer_pct default 10 (new rows only) ·
+                        #   0045 tour_progress (onboarding tours; self-only RLS)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -292,6 +298,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `proposals.pbs` (PO link jsonb)       | select / update            | `proposal-estimator-store` (Create PO, PO status refresh) | Wired |
 | `pbs_connection` (PBS token cache)    | service-role only (RLS: **no policies**) | `lib/pbs/tokens.ts` via `/api/pbs/*` | Wired |
 | `member_skills` (skill + 1–5 stars)   | select / upsert / delete   | `member-skills-store` (Team → star button) | Wired |
+| `tour_progress` (tour seen: version + completed/dismissed) | select / upsert / delete (self only) | `tour-store` (? menu, welcome, checklist dismissal) | Wired — no realtime, on purpose |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
 Supabase **Edge Function** → Storage bucket. The client-side jsPDF/xlsx export works today and is unchanged.
@@ -493,7 +500,11 @@ This is a **draft schedule** the manager then adjusts (sprint dates, task hours/
 **Schedule risk buffer.** `risk_buffer_pct` (0–100, migration `0036`) sits on
 **both** `proposals` and `projects`. A coordinator sets it on the Estimator's
 **Adjust** tab; `convertToProject` carries it onto the project, whose own page
-can re-forecast and apply it.
+can re-forecast and apply it. **New estimates and new projects start at 10%**
+(`DEFAULT_RISK_BUFFER_PCT`, and `0044` makes it the column default so every
+insert path agrees); existing rows kept their buffer, since changing it would
+move dates people had agreed to. A project made by Start project takes its
+estimate's buffer, not the default.
 
 > **It stretches the TIMELINE and nothing else.** Hours are untouched, so
 > the price is untouched. The distinction is the whole reason it is a separate
@@ -1276,6 +1287,17 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
    design tasks, which were always left for a human before.
  - `buildRoster` keeps someone with keys but no skills (it used to drop anyone
    without skills).
+ - **Existing load counts** (`PlanDev.bookedHours`). Each person's calendar is
+   pre-filled with the open work they already hold across ALL projects —
+   `assignedWork().allocatedHours`, the Workload page's accepted + pending
+   figure (rule 8) — worked off from **today**, and new tasks queue behind it.
+   Fastest therefore routes work to whoever is actually free; Best-fit keeps the
+   strongest person but gives honest dates, and the reason says "after 131h
+   already booked". FIFO on purpose (no priorities among booked tasks). Booked
+   work that clears **before the project starts** resets to a fresh clock:
+   otherwise a busy person could look a day MORE available than a free one and
+   win under Fastest (`e2e/booked-load.spec.ts` pins both). Nobody booked →
+   plans are byte-identical to before.
 
 > **No role columns on `tasks`, deliberately** (the plan proposed
 > `tasks.responsible/level`). A seeded task already links to its line through
@@ -1532,6 +1554,69 @@ project, Sync schedule and Create PO.
 
 ---
 
+## Onboarding tours (? button · welcome · Getting started)
+
+Plan and decisions: [docs/onboarding-tour-plan.md](docs/onboarding-tour-plan.md).
+A short guided tour per page (per **tab** on the Estimator editor and Settings),
+started from the header's **?** (`HelpMenu`). Engine: **driver.js**, wrapped in
+`lib/tours/run.ts` and nowhere else. All copy lives in `lib/tours/tours.ts`.
+
+ - **Tours are read-only.** They explain Send to Zoho, Create PO, Approve,
+   Apply buffer... and never press them: driver.js `disableActiveInteraction`
+   blocks the highlighted control, and a capture-phase listener swallows page
+   shortcuts while a tour is open (the board opens New task on **n**).
+   `e2e/tours.spec.ts` fails on any non-GET except `tour_progress` during a tour.
+ - **Anchors are `data-tour` ids from `lib/tours/ids.ts`**, spread with
+   `tourAnchor("...")` — never classes or text. One id may sit on several
+   elements (the nav is a sidebar from md and a tab bar below); the first
+   VISIBLE one wins. A step whose target isn't on screen is skipped, which is
+   how loading and empty pages show fewer steps rather than a popover pointing
+   at nothing. The spec fails on any `data-tour` value not in `TOUR_TARGETS`.
+ - **Role-aware with the same flags as the page**: a step has `when(ctx)` on
+   `usePermissions()` + page access, so a Viewer is never told about a button
+   they don't have.
+ - **Several tours on one route** (Mine/Team, tabs) pick by `scope`: the tour
+   whose scope anchor is visible applies. Radix unmounts inactive tab panels,
+   so the active tab's anchor is the only one present.
+ - **Tour copy restates feature behaviour.** Change it in the same commit as
+   the feature, and bump that tour's `version` — that re-offers it (the dot).
+ - **Newcomer vs existing** is `profiles.confirmed_at` vs `TOURS_LAUNCHED_AT`
+   (`use-tours.ts`); a null `confirmed_at` (bootstrap admin) is existing.
+   Newcomers: the welcome dialog once, **on /dashboard only**, then one nudge
+   toast per page tour (never an auto-start, and not on the dashboard, which
+   the dialog already covered). Existing users: one "New: page tours" toast.
+   The e2e bot is seeded with a fixed past `confirmed_at` and the hint already
+   seen, so none of this sits on top of other tests.
+ - **End of tour = `onDestroyStarted`, not `onDestroyed`.** driver.js skips
+   `onDestroyed` when its active element isn't set yet — it is set a few
+   animation frames after the popover renders — so clicking Done quickly ended
+   the tour unrecorded and left the ? button disabled. For the same reason the
+   runner never reads `getActiveElement()`; it uses its own step list. Seeing
+   the last step counts as completed however it was closed.
+ - **Phones (< md)** dock the popover as a sheet on the edge away from the
+   highlighted element (`app-tour--sheet` / `--top` in `globals.css`, which
+   beat driver.js's inline positions with `!important`); a centred step stays
+   centred, or driver.js's placeholder cut-out shows as a dot.
+ - **A tour never starts over an open Radix dialog** — the dialog makes the
+   page inert, so the popover would be unclickable. The runner reports
+   "blocked" and says so.
+ - **`tour_progress` (0045) is not a `profiles` column** — profiles is on the
+   realtime channel, so every finished tour would broadcast to every client.
+   Self-only RLS (probe P17), no realtime. A failed write is deliberately not
+   rolled back: the local copy keeps the person from being re-nagged.
+ - **Getting started checklist** (`GettingStartedCard`, Dashboard → Mine, top
+   of the sidebar column): every item is DERIVED from real data
+   (`lib/tours/checklist.ts`, pure, tested both ways) — avatar, own
+   `weekly_capacity` row, accepted assignments, any `time_entries`, a project /
+   estimate **you own**, team size, Zoho status. Only its dismissal is stored.
+   N/A items ("Nothing assigned to you yet") never block 100%. Members get no
+   "weekly hours" item: they have no screen to set their own (the inputs are on
+   Workload's Team view). "Your first estimate" reads `proposals.owner_id`,
+   now mapped **read-only** in `rowToQuote` (never sent by
+   `quoteUpdatePayload`). *Show me* sets a pending tour + navigates; TourHost
+   starts it at that step once the page renders. Settings accepts `?tab=` for
+   this (the Zoho item lands on Workspace).
+
 ## State Management Map
 
 > **Live mode:** each store hydrates from Supabase (via `WorkspaceSync`) and writes through
@@ -1549,6 +1634,7 @@ project, Sync schedule and Create PO.
 | PTO / availability             | `store/availability-store.ts`              | `timeline-availability`                   |
 | Weekly capacity overrides      | `store/weekly-capacity-store.ts`           | `timeline-weekly-capacity`                |
 | Hourly rates (role + level)    | `store/hourly-rates-store.ts`              | `timeline-hourly-rates`                   |
+| Onboarding tours seen          | `store/tour-store.ts`                      | `timeline-tours` — persisted in **live** mode too (a local copy of `tour_progress`, so the welcome dialog can't flash before the read) |
 | Notifications + activity feed  | `store/notifications-store.ts`             | `timeline-notifications`                  |
 | Task board pane / active view  | tasks store (ephemeral slice)              | not persisted (`selectedTaskId`, `activeView`) |
 | Dashboard / Workload / Calendar scope | local `useState` in each page          | not persisted — `MineTeamToggle`, defaults to Mine on the dashboard |
@@ -1580,6 +1666,7 @@ project, Sync schedule and Create PO.
 | See hourly rates | Yes | Yes | No | No |
 | Change hourly rates | Yes | No | No | No |
 | Set work keys (who can be given a task) | Yes | No | No | No |
+| Own onboarding tour progress | Yes | Yes | Yes | Yes |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
 > **Offboarding** (deactivate/reactivate + permanent delete) and **invites** are admin-only, via
@@ -1776,5 +1863,5 @@ if (!tasks.length) {
 
 ---
 
-> Maintainer: Frontend Dev · Last updated: 2026-09-30
+> Maintainer: Frontend Dev · Last updated: 2026-10-01
 > Update this file whenever the project scope, stack, or patterns change.

@@ -21,18 +21,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/auth-store";
+import { tourAnchor } from "@/lib/tours/ids";
+import { TourSettingsCard } from "@/components/features/tour/TourSettingsCard";
 
 export function SettingsClient() {
   const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const isAdmin = useAuthStore((s) => s.user.role) === "admin";
   const { canViewHourlyRates } = usePermissions();
-  // Land on Workspace after the Zoho OAuth redirect (?zoho=...).
-  const [defaultTab] = React.useState(() =>
-    typeof window !== "undefined" &&
-    new URLSearchParams(window.location.search).has("zoho")
-      ? "workspace"
-      : "profile",
-  );
+  // Land on Workspace after the Zoho OAuth redirect (?zoho=...), or on the
+  // tab a link asks for (?tab=workspace — the checklist's "Connect Zoho").
+  const [defaultTab] = React.useState(() => {
+    if (typeof window === "undefined") return "profile";
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("zoho")) return "workspace";
+    const tab = params.get("tab");
+    const tabs = ["profile", "skills", "timeoff", "security"];
+    if (canViewHourlyRates) tabs.push("workspace");
+    return tab && tabs.includes(tab) ? tab : "profile";
+  });
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
@@ -43,7 +49,9 @@ export function SettingsClient() {
       />
 
       <Tabs defaultValue={defaultTab} className="w-full gap-6">
-        <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:justify-center dark:bg-muted/30 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <TabsList
+          {...tourAnchor("settings.tabs")}
+          className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:justify-center dark:bg-muted/30 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <TabsTrigger
             value="profile"
             className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
@@ -86,12 +94,17 @@ export function SettingsClient() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="profile" className="mt-0 outline-none">
+        <TabsContent
+          value="profile"
+          className="mt-0 space-y-6 outline-none"
+          {...tourAnchor("settings.profile")}
+        >
           <ProfileForm />
+          <TourSettingsCard />
         </TabsContent>
 
         <TabsContent value="skills" className="mt-0 outline-none">
-          <Card>
+          <Card {...tourAnchor("settings.skills")}>
             <CardHeader>
               <CardTitle>Your skills &amp; tech stack</CardTitle>
               <CardDescription>
@@ -107,7 +120,7 @@ export function SettingsClient() {
         </TabsContent>
 
         <TabsContent value="timeoff" className="mt-0 outline-none">
-          <Card>
+          <Card {...tourAnchor("settings.timeoff")}>
             <CardContent className="space-y-0 pt-6">
               <TimeOffSettingsSection />
               <AdminTeamTimeOffSection />
@@ -117,7 +130,7 @@ export function SettingsClient() {
 
         {canViewHourlyRates ? (
           <TabsContent value="workspace" className="mt-0 outline-none">
-            <div className="space-y-6">
+            <div className="space-y-6" {...tourAnchor("settings.workspace")}>
               <HourlyRatesCard />
               {isAdmin ? <ZohoConnectionCard /> : null}
             </div>

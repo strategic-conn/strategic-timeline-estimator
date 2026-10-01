@@ -74,6 +74,13 @@ export interface PlanDev {
   ptoDays?: string[];
   /** Admin-set work keys (0043). Matched before skills. */
   keys?: WorkKey[];
+  /**
+   * Open hours already on this person's plate across ALL projects (accepted +
+   * pending — `assignedWork().allocatedHours`, the Workload page's figure).
+   * New work queues behind it, so someone buried elsewhere is not planned as
+   * if their calendar were empty. 0/undefined = free from today.
+   */
+  bookedHours?: number;
 }
 
 export interface PlanOptions {
@@ -85,6 +92,8 @@ export interface PlanOptions {
    * design→dev→qa stay sequenced. Missing phases fall back to `projectStart`.
    */
   phaseStart?: Partial<Record<PhaseId, string>>;
+  /** When booked work starts being worked off (defaults to now). For tests. */
+  today?: Date;
 }
 
 export interface PlannedTask {
@@ -314,7 +323,28 @@ export function planSchedule(
     return s ? parseDay(s, projectStart) : new Date(projectStart.getTime());
   };
 
-  const clocks = new Map(devs.map((d) => [d.id, makeClock(d, projectStart)]));
+  const today = opts.today ? new Date(opts.today.getTime()) : new Date();
+  // Existing load is worked off from TODAY, not from the project start: a
+  // project starting next month finds its people partly free by then. The
+  // phase floors below still stop new work starting before its phase.
+  // ponytail: booked hours queue FIFO ahead of new work — no priorities or
+  // due dates among them; model per-task dates if plans need that precision.
+  const clocks = new Map(
+    devs.map((d) => {
+      const booked = Math.max(0, d.bookedHours ?? 0);
+      if (booked <= 0) return [d.id, makeClock(d, projectStart)] as const;
+      const clock = makeClock(d, today);
+      place(clock, booked, today);
+      // Booked work that clears before the project starts must not make this
+      // person look MORE available than a free one: a fresh clock and a
+      // worked-off one land on different first days, and Fastest would then
+      // pick the busy person. Cleared in time = exactly as if free.
+      if (isoDay(clock.day) < isoDay(projectStart)) {
+        return [d.id, makeClock(d, projectStart)] as const;
+      }
+      return [d.id, clock] as const;
+    }),
+  );
   const planned: PlannedTask[] = [];
 
   // Process phase by phase so dev→qa stay ordered; longest tasks first packs better.
@@ -430,6 +460,9 @@ export function planSchedule(
           governed && role ? `${role.responsible} L${role.level}` : null,
           winner.fit.skill ? `${winner.fit.skill} ★${winner.fit.level}` : null,
           `${winner.dev.hoursPerDay}h/day`,
+          (winner.dev.bookedHours ?? 0) > 0
+            ? `after ${Math.round(winner.dev.bookedHours!)}h already booked`
+            : null,
         ]
           .filter(Boolean)
           .join(" · "),

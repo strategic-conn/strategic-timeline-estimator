@@ -38,6 +38,7 @@ import {
 import { useAvailabilityStore } from "@/store/availability-store";
 import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import { useTasksDataStore } from "@/store/tasks-store";
+import { tourAnchor } from "@/lib/tours/ids";
 import {
   getEffectiveWeeklyHours,
   useWeeklyCapacityStore,
@@ -258,7 +259,10 @@ export function DashboardTeam() {
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        {...tourAnchor("dashboard.team")}
+      >
         {kpis.map((k) => (
           <Card key={k.label} size="sm">
             <CardHeader className="gap-1">
@@ -289,7 +293,8 @@ export function DashboardTeam() {
       ) : null}
 
       <section className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <Card>
+        <Card
+          {...tourAnchor("dashboard.team-chart")}>
           <CardHeader>
             <CardTitle className="text-base">Open tasks per person</CardTitle>
             <CardDescription>
@@ -401,7 +406,7 @@ export function DashboardTeam() {
         </Card>
       </section>
 
-      <Card>
+      <Card {...tourAnchor("dashboard.team-table")}>
         <CardHeader>
           <CardTitle className="text-base">Breakdown by person</CardTitle>
           <CardDescription>

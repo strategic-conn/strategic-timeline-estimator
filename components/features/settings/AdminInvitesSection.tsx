@@ -50,6 +50,7 @@ import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { type UserRole } from "@/store/auth-store";
 import { useJoinedTeamMembers } from "@/store/team-store";
 import type { Database } from "@/types/database.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 type InviteRow = Database["public"]["Tables"]["allowed_emails"]["Row"];
 
@@ -216,7 +217,7 @@ export function AdminInvitesSection() {
   };
 
   return (
-    <Card>
+    <Card {...tourAnchor("team.invite")}>
       <CardContent className="space-y-5 pt-6">
       <div className="flex items-start gap-3">
         <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-muted">

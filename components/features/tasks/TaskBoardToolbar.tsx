@@ -32,6 +32,7 @@ import {
 import { useTasksStore } from "@/hooks/useTasks";
 import { usePermissions } from "@/hooks/usePermissions";
 import { TASK_STATUSES, type TaskStatus } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export type BacklogSprintMoveTarget = {
   id: string;
@@ -94,7 +95,10 @@ export function TaskBoardToolbar({
           ) : null}
         </div>
 
-        <div className="relative w-full min-w-0 max-w-none justify-self-stretch lg:min-w-56">
+        <div
+          className="relative w-full min-w-0 max-w-none justify-self-stretch lg:min-w-56"
+          {...tourAnchor("board.search")}
+        >
           <Search
             className="pointer-events-none absolute top-1/2 left-2.5 z-10 size-4 -translate-y-1/2 text-muted-foreground"
             aria-hidden
@@ -123,6 +127,7 @@ export function TaskBoardToolbar({
                   className="relative shrink-0"
                   onClick={onToggleFilters}
                   aria-expanded={isFiltersOpen}
+                  {...tourAnchor("board.filters")}
                   aria-label={
                     activeFilterCount > 0
                       ? `Filters, ${activeFilterCount} active`
@@ -152,6 +157,7 @@ export function TaskBoardToolbar({
               className="inline-flex items-center rounded-lg border border-border bg-muted/40 p-0.5"
               role="group"
               aria-label="Task view"
+              {...tourAnchor("board.views")}
             >
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -208,6 +214,7 @@ export function TaskBoardToolbar({
                 type="button"
                 onClick={onCreateTask}
                 className="shrink-0 gap-1.5"
+                {...tourAnchor("board.add-task")}
               >
                 <Plus />
                 Add Task

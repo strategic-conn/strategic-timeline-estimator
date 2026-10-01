@@ -107,6 +107,7 @@ export function ProjectRiskBufferSection({ projectId }: { projectId: string }) {
         onChange={(next) => updateProject(projectId, { risk_buffer_pct: next })}
         title="Schedule risk buffer"
         description="A forecast, not a change. Nothing moves until you apply it."
+        tourId="project.risk-buffer"
         baseDays={range ? baseDays : undefined}
         bufferedDays={
           range && pct > 0 ? Math.round(baseDays * (1 + pct / 100)) : undefined

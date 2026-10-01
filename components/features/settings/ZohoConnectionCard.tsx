@@ -12,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { tourAnchor } from "@/lib/tours/ids";
 
 type Status = {
   configured: boolean;
@@ -99,7 +100,7 @@ export function ZohoConnectionCard() {
   };
 
   return (
-    <Card>
+    <Card {...tourAnchor("settings.zoho")}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Plug className="size-4 shrink-0" aria-hidden />

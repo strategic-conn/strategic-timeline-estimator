@@ -32,6 +32,7 @@ import {
 } from "@/components/features/projects/ProjectNotFound";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTeamMembers } from "@/store/team-store";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export type ActivityFeedClientProps = {
   /** When set, only events for this project are listed. */
@@ -166,7 +167,10 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-3 rounded-lg border bg-card/50 p-3">
+        <div
+          className="flex flex-col gap-3 rounded-lg border bg-card/50 p-3"
+          {...tourAnchor("activity.filters")}
+        >
           <div className="relative">
             <Search
               className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
@@ -252,7 +256,9 @@ export function ActivityFeedClient({ projectId }: ActivityFeedClientProps) {
         </div>
       )}
 
-      <ActivityFeedList items={filtered} emptyMessage={emptyMessage} />
+      <div {...tourAnchor("activity.feed")}>
+        <ActivityFeedList items={filtered} emptyMessage={emptyMessage} />
+      </div>
     </div>
   );
 }

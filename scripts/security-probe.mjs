@@ -418,6 +418,35 @@ try {
     a16.ok && k16 === '["IT|Level 2","QA Tester|Level 1"]' && !bad.ok && k16b === k16,
     `set=${k16} malformed=${bad.status} after=${k16b}`,
   );
+
+  // ── P17: onboarding tour progress (0045) ─────────────────────────────────────
+  // Self only. Reading someone's progress is harmless-looking but it is still
+  // another person's row; writing it could suppress their welcome or checklist.
+  // The positive control is the member writing its OWN row, which must work.
+  const botId = botTok.json?.user?.id;
+  const ownWrite = await call("/rest/v1/tour_progress", {
+    method: "POST",
+    headers: mMin,
+    body: { profile_id: memberId, tour_id: "probe-own", version: 1, status: "completed" },
+  });
+  const forged17 = await call("/rest/v1/tour_progress", {
+    method: "POST",
+    headers: mMin,
+    body: { profile_id: botId, tour_id: "probe-forge", version: 1, status: "dismissed" },
+  });
+  const forgedStored =
+    ((await call(`/rest/v1/tour_progress?profile_id=eq.${botId}&tour_id=eq.probe-forge&select=tour_id`)).json ?? [])
+      .length > 0;
+  const seen = (await call("/rest/v1/tour_progress?select=profile_id", { headers: mH })).json ?? [];
+  const othersSeen = seen.filter((r) => r.profile_id !== memberId).length;
+  const botBefore = (await call(`/rest/v1/tour_progress?profile_id=eq.${botId}&select=tour_id`)).json?.length ?? 0;
+  await call(`/rest/v1/tour_progress?profile_id=eq.${botId}`, { method: "DELETE", headers: mMin });
+  const botAfter = (await call(`/rest/v1/tour_progress?profile_id=eq.${botId}&select=tour_id`)).json?.length ?? 0;
+  record(
+    "P17 tour progress is self-only (read, insert, delete)",
+    ownWrite.ok && !forgedStored && othersSeen === 0 && botBefore > 0 && botAfter === botBefore,
+    `own=${ownWrite.status} forged=${forged17.status}/${forgedStored ? "stored" : "refused"} othersVisible=${othersSeen} botRows=${botBefore}->${botAfter}`,
+  );
 } catch (e) {
   results.push(`ERROR ${e.message}`);
 } finally {
@@ -436,6 +465,8 @@ try {
   if (adminEmail)
     await call(`/rest/v1/allowed_emails?email=eq.${encodeURIComponent(adminEmail)}`, { method: "DELETE" });
   await call(`/rest/v1/hourly_rates?responsible=like.${encodeURIComponent("[E2E] probe%")}`, { method: "DELETE" });
+  // Only if P17 failed would this exist; the member's own row cascades away.
+  await call(`/rest/v1/tour_progress?tour_id=eq.probe-forge`, { method: "DELETE" });
   await call(`/rest/v1/allowed_emails?email=eq.${encodeURIComponent(EMAIL)}`, { method: "DELETE" });
   const leftover = memberId
     ? (await call(`/rest/v1/profiles?id=eq.${memberId}&select=id`)).json?.length ?? 0

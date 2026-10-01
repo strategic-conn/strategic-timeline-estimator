@@ -31,6 +31,7 @@ export function DashboardMobileTabBar() {
     <nav
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border/60 bg-background/90 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-1 shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.1)] backdrop-blur-xl print:hidden md:hidden dark:bg-background/85 dark:shadow-[0_-8px_32px_-12px_rgba(0,0,0,0.5)]"
       aria-label="Primary"
+      data-tour="nav"
     >
       <ul
         className={cn(

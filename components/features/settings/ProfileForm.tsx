@@ -30,6 +30,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
+import { tourAnchor } from "@/lib/tours/ids";
 
 function userToFormValues(u: {
   name: string;
@@ -184,7 +185,10 @@ export function ProfileForm() {
       <CardContent>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
           <div className="flex flex-col gap-6 sm:flex-row sm:items-start">
-            <div className="flex flex-col items-center gap-2 sm:w-36">
+            <div
+              className="flex flex-col items-center gap-2 sm:w-36"
+              {...tourAnchor("settings.avatar")}
+            >
               <Avatar className="size-24 ring-2 ring-border">
                 {previewUrl ? (
                   <AvatarImage src={previewUrl} alt="" />

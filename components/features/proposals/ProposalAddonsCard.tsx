@@ -1,6 +1,6 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
+import { CircleHelp, TriangleAlert } from "lucide-react";
 import * as React from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -16,11 +16,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   PM_BASIS_OPTIONS,
   pmPctForBasis,
 } from "@/lib/constants/proposal-estimator";
 import { cn } from "@/lib/utils";
 import type { ProposalAddons, ProposalPmBasis } from "@/types/proposal.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 type Row = {
   key: keyof ProposalAddons & `${string}_enabled`;
@@ -50,6 +56,77 @@ const ROWS: Row[] = [
     hint: "% of dev + responsive + design",
   },
 ];
+
+/**
+ * "What is this section?" — a click popover, not a hover tooltip: it has to
+ * work on a phone, and it is too long for a tooltip.
+ *
+ * ⚠️ Plain language on purpose. "Responsive" read as "is the site
+ * responsive?", which it always is; the box is about whether that WORK is
+ * charged as extra hours. The example numbers follow the compounding in
+ * `computeQuoteTotals` (25 → 35 → 20 → 10 on 100 dev hours).
+ */
+function AddonsHelp() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          className="size-6 shrink-0 rounded-full text-muted-foreground hover:text-foreground"
+          aria-label="What are roll-up add-ons?"
+        >
+          <CircleHelp className="size-3.5" aria-hidden />
+        </Button>
+      </PopoverTrigger>
+      {/* Height capped to the room Radix measures on the chosen side, so a
+          trigger near the top of the screen never pushes the title off it;
+          16px clear of every edge on a phone. */}
+      <PopoverContent
+        side="bottom"
+        align="start"
+        collisionPadding={16}
+        className="max-h-[min(28rem,var(--radix-popover-content-available-height))] w-[min(22rem,calc(100vw-2rem))] overflow-y-auto text-sm"
+      >
+        <p className="font-medium">Extra hours on top of development</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Each box asks one question: should this quote charge extra hours for
+          this kind of work? It is not asking whether the site will be
+          responsive or designed — only whether that time is billed here.
+        </p>
+        <ul className="mt-3 space-y-2 text-xs">
+          <li>
+            <span className="font-medium">Responsive</span> — time to make the
+            pages work on phones and tablets.
+          </li>
+          <li>
+            <span className="font-medium">Design</span> — time for mockups and
+            visual design.
+          </li>
+          <li>
+            <span className="font-medium">QA</span> — time for testing.
+          </li>
+          <li>
+            <span className="font-medium">PM</span> — project management:
+            meetings, updates, coordination. Simple 10%, Complex 15%, or type
+            your own.
+          </li>
+        </ul>
+        <p className="mt-3 text-xs font-medium">They stack, in order</p>
+        <p className="mt-1 text-xs tabular-nums text-muted-foreground">
+          {"100 h dev → +25 h responsive (125) → +44 h design (169) → +34 h QA (203) → +20 h PM = about 223 h."}
+        </p>
+        <p className="mt-3 text-xs font-medium">Tick it or not?</p>
+        <p className="mt-1 text-xs text-muted-foreground">
+          If the line items&apos; hours already include that work, leave it
+          off — otherwise the client pays for it twice. If they don&apos;t,
+          tick it — otherwise that work is quoted for free.
+        </p>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type ProposalAddonsCardProps = {
   addons: ProposalAddons;
@@ -82,10 +159,11 @@ export function ProposalAddonsCard({
     itemisedByScope && DOUBLE_COUNTED.some((k) => addons[k]);
 
   return (
-    <Card>
+    <Card {...tourAnchor("estimate.addons")}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           Roll-up add-ons
+          <AddonsHelp />
           <Badge variant="secondary" className="text-[0.65rem]">
             from spreadsheet logic
           </Badge>

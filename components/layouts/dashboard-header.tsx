@@ -24,6 +24,8 @@ import {
 import { DashboardMobileMenu } from "@/components/layouts/dashboard-mobile-menu";
 import { ModeToggle } from "@/components/mode-toggle";
 import { NotificationBell } from "@/components/features/notifications/NotificationBell";
+import { HelpMenu } from "@/components/features/tour/HelpMenu";
+import { tourAnchor } from "@/lib/tours/ids";
 import { usePermissions } from "@/hooks/usePermissions";
 import { sprintTasksHref } from "@/lib/constants/sprints";
 import { useProjectsStore } from "@/store/projects-store";
@@ -228,15 +230,23 @@ export function DashboardHeader() {
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
-          <NotificationBell />
-          <ModeToggle />
+        {/* gap-1 under sm: five controls at 375px left the breadcrumb ~10px
+            short of "Dashboard". */}
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+          <HelpMenu />
+          <span className="inline-flex" {...tourAnchor("notifications")}>
+            <NotificationBell />
+          </span>
+          <span className="inline-flex" {...tourAnchor("theme")}>
+            <ModeToggle />
+          </span>
           {!onProjects && canCreateProject ? (
             <Button
               variant="outline"
               size="sm"
               className="min-h-9 shrink-0 px-2 sm:px-3"
               asChild
+              {...tourAnchor("new-project")}
             >
               <Link href="/projects">
                 <span className="hidden sm:inline">New project</span>
@@ -253,6 +263,7 @@ export function DashboardHeader() {
                   size="sm"
                   className="min-h-9 shrink-0 gap-1 px-2 sm:px-3"
                   aria-label="Add task to a project"
+                  {...tourAnchor("add-task")}
                 >
                   <span className="hidden sm:inline">Add task</span>
                   <span className="sm:hidden">Add</span>

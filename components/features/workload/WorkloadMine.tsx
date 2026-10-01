@@ -37,6 +37,7 @@ import {
 import { cn } from "@/lib/utils";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import type { Task } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
@@ -141,7 +142,9 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
       />
 
       {pendingCount > 0 ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-500/15 dark:text-amber-100">
+        <div
+          {...tourAnchor("workload.pending")}
+          className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-500/10 px-3 py-2 text-sm text-amber-950 dark:border-amber-900/60 dark:bg-amber-500/15 dark:text-amber-100">
           <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
           <p>
             <span className="font-medium">{pendingCount}</span> task
@@ -161,7 +164,10 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
       ) : null}
 
       {/* 2-up on phones/tablet; 4 across only once there's real width. */}
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <section
+        className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        {...tourAnchor("workload.mine")}
+      >
         <Card size="sm">
           <CardHeader className="gap-1">
             <CardDescription>Open tasks</CardDescription>
@@ -217,7 +223,7 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
         </Card>
       </section>
 
-      <Card>
+      <Card {...tourAnchor("workload.mine-work")}>
         <CardHeader>
           <CardTitle className="text-base">Your open work</CardTitle>
           <CardDescription>

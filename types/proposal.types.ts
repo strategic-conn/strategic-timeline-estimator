@@ -240,6 +240,11 @@ export interface ProposalZohoLink {
 
 export interface ClientQuote {
   id: string;
+  /**
+   * Who created it (`proposals.owner_id`). Read-only: set on insert, never
+   * sent by `quoteUpdatePayload`. Read by the Getting started checklist.
+   */
+  owner_id?: string | null;
   title: string;
   /** Optional link to an internal project for context */
   project_id?: string | null;

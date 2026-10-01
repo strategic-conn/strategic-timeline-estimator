@@ -35,6 +35,7 @@ import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import type { TaskStatus } from "@/types/task.types";
+import { tourAnchor } from "@/lib/tours/ids";
 
 const ROW_PX = 52;
 const HEADER_ROW_PX = 44;
@@ -145,7 +146,10 @@ export function GanttClient({
           // duplicate cost 114px and pushed the chart itself under the tab bar.
           description="When each task is scheduled. Click a bar to open it on its board."
           actions={
-            <div className="flex w-full flex-col gap-1.5 sm:w-64">
+            <div
+              className="flex w-full flex-col gap-1.5 sm:w-64"
+              {...tourAnchor("gantt.project-picker")}
+            >
               <span className="text-xs font-medium text-muted-foreground">
                 View a project&apos;s timeline
               </span>
@@ -177,7 +181,10 @@ export function GanttClient({
         />
         )}
 
-        <Card className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm dark:bg-card/70">
+        <Card
+          className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm dark:bg-card/70"
+          {...(lockedProjectId ? {} : tourAnchor("gantt.chart"))}
+        >
           <CardHeader className="space-y-3 border-b border-border/50 pb-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
               <div className="space-y-1">
@@ -207,6 +214,7 @@ export function GanttClient({
                 <TooltipTrigger asChild>
                   <button
                     type="button"
+                    {...tourAnchor("gantt.how-to-read")}
                     className="inline-flex max-w-fit shrink-0 items-center gap-1 self-start rounded-md border border-border/60 bg-background/60 px-2 py-1 text-[0.7rem] leading-tight font-medium text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground lg:gap-1.5 lg:rounded-lg lg:px-2.5 lg:py-1.5 lg:text-xs lg:leading-normal"
                   >
                     <Info className="size-3 shrink-0 lg:size-3.5" aria-hidden />
@@ -239,6 +247,7 @@ export function GanttClient({
               className="flex flex-wrap gap-x-1.5 gap-y-2 border-t border-border/40 pt-3 md:gap-2"
               role="list"
               aria-label="Task status colors"
+              {...tourAnchor("gantt.legend")}
             >
               {STATUS_LEGEND.map(({ status, label }) => (
                 <span

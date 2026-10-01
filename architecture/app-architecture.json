@@ -5,8 +5,8 @@
     "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
-    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (35 migrations).",
-    "dateMapped": "2026-09-18",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (45 migrations).",
+    "dateMapped": "2026-10-01",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -1460,6 +1460,57 @@
         "lib/pricing/hourly-rates.ts",
         "components/features/settings/HourlyRatesCard.tsx"
       ]
+    },
+    {
+      "id": "c-tours",
+      "layer": "surfaces",
+      "label": "Onboarding tours",
+      "sub": "? menu · welcome · nudges",
+      "purpose": "Per-page guided tours on driver.js, started from the header's ? button (HelpMenu). TourHost (dashboard layout) shows the welcome dialog once to newcomers on /dashboard, a one-time hint to existing users, one nudge per page tour to newcomers (never an auto-start), runs checklist 'Show me' hand-offs, and ends a tour on navigation. Tours are READ-ONLY: driver.js disableActiveInteraction blocks the highlighted control and page keyboard shortcuts are swallowed while one runs.",
+      "files": [
+        "components/features/tour/HelpMenu.tsx",
+        "components/features/tour/TourHost.tsx",
+        "components/features/tour/use-tours.ts",
+        "lib/tours/tours.ts",
+        "lib/tours/run.ts",
+        "lib/tours/ids.ts",
+        "app/globals.css"
+      ],
+      "notes": "Steps anchor on data-tour ids (lib/tours/ids.ts, typed); a step whose target is not visible, or that the role can't act on (usePermissions flags), is skipped. Phones (<md) dock the popover as a sheet away from the highlighted element.",
+      "flags": [
+        "read-only"
+      ]
+    },
+    {
+      "id": "c-checklist",
+      "layer": "surfaces",
+      "label": "Getting started checklist",
+      "sub": "Dashboard (Mine)",
+      "purpose": "Per-role first steps whose completion is DERIVED from real data (avatar, own weekly_capacity row, accepted assignments, time_entries, owned project/estimate, team size, Zoho status) — never stored, never ticked by hand. Only its dismissal is stored. Show me navigates and starts the right tour at the right step.",
+      "files": [
+        "components/features/tour/GettingStartedCard.tsx",
+        "lib/tours/checklist.ts"
+      ]
+    },
+    {
+      "id": "st-tours",
+      "layer": "state",
+      "label": "tour-store",
+      "sub": "timeline-tours",
+      "purpose": "Which tours each person has seen (tour id -> version/status), keyed by user id. Hydrated by WorkspaceSync; upserts tour_progress. A failed write is deliberately NOT rolled back (local copy kept, so nobody is re-nagged). Session-only: active tour, pending Show me, welcome deferred, checklist reopened.",
+      "files": [
+        "store/tour-store.ts"
+      ]
+    },
+    {
+      "id": "t-tour-progress",
+      "layer": "data",
+      "label": "tour_progress",
+      "sub": "0045",
+      "purpose": "(profile_id, tour_id) -> version, status completed|dismissed, updated_at (trigger-stamped). RLS self-only for every operation (probe P17). Not on profiles and not published to realtime, on purpose: nobody else needs to know.",
+      "files": [
+        "supabase/migrations/0045_tour_progress.sql"
+      ]
     }
   ],
   "edges": [
@@ -2657,6 +2708,51 @@
       "from": "rt-scheduling",
       "to": "st-hourly-rates",
       "label": ""
+    },
+    {
+      "from": "s-dashlayout",
+      "to": "c-tours",
+      "label": "mounts TourHost + header ?"
+    },
+    {
+      "from": "c-tours",
+      "to": "st-tours",
+      "label": "record / resume"
+    },
+    {
+      "from": "c-tours",
+      "to": "h-permissions",
+      "label": "steps filtered by role"
+    },
+    {
+      "from": "c-tours",
+      "to": "h-navaccess",
+      "label": "page access"
+    },
+    {
+      "from": "c-tours",
+      "to": "st-team",
+      "label": "confirmed_at -> newcomer?"
+    },
+    {
+      "from": "s-dashboard",
+      "to": "c-checklist",
+      "label": ""
+    },
+    {
+      "from": "c-checklist",
+      "to": "c-tours",
+      "label": "Show me"
+    },
+    {
+      "from": "b-workspacesync",
+      "to": "st-tours",
+      "label": "hydrate"
+    },
+    {
+      "from": "st-tours",
+      "to": "t-tour-progress",
+      "label": "select / upsert / delete"
     }
   ],
   "flows": [
@@ -4137,6 +4233,61 @@
           ]
         }
       ]
+    },
+    {
+      "id": "f-onboarding",
+      "name": "Newcomer onboarding",
+      "actor": "Any role",
+      "summary": "Someone who accepted their invite after TOURS_LAUNCHED_AT lands on the dashboard: welcome dialog -> welcome tour -> Getting started checklist -> Show me -> page tours. Existing users get one hint and the ? menu only.",
+      "steps": [
+        {
+          "n": 1,
+          "from": "st-team",
+          "to": "c-tours",
+          "action": "useIsNewUser(): profiles.confirmed_at >= TOURS_LAUNCHED_AT (null = bootstrap admin = existing)",
+          "files": [
+            "components/features/tour/use-tours.ts"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "c-tours",
+          "to": "st-tours",
+          "action": "Welcome dialog on /dashboard until answered; Start / Later (session) / Don't show again",
+          "files": [
+            "components/features/tour/TourHost.tsx"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "c-tours",
+          "to": "t-tour-progress",
+          "action": "runTour() -> driver.js; any exit records completed (last step seen) or dismissed",
+          "files": [
+            "lib/tours/run.ts",
+            "store/tour-store.ts"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "s-dashboard",
+          "to": "c-checklist",
+          "action": "checklistItems(): items derived from stores; N/A never blocks 100%",
+          "files": [
+            "lib/tours/checklist.ts",
+            "components/features/tour/GettingStartedCard.tsx"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "c-checklist",
+          "to": "c-tours",
+          "action": "Show me: setPending({tourId,target}) + navigate; TourHost starts the tour at that step once the page renders",
+          "files": [
+            "components/features/tour/TourHost.tsx"
+          ]
+        }
+      ]
     }
   ],
   "invariants": [
@@ -4225,7 +4376,11 @@
     "Never compare a catalog category against a literal id; use categoryIdByName(). Ids were renumbered in v3 (old 5 = E-Commerce, new 5 = Custom Tools) and Esther's hardcoded 5 would have misread briefs.",
     "A line with no rate prices at LEGACY_HOURLY_RATE ($100) - what every line cost before Phase 3 - so legacy quotes are identical with or without snapshots. Lines round to whole dollars and the total is their sum; Zoho Packages rows use splitAmount so they sum to the header. Client PDF/preview/Excel show prices, never rates.",
     "Work keys (profiles.work_keys, 0043) are admin-set only (prevent_role_self_change; probes P14-P16). Keys govern per discipline: once anyone holds an IT key, only qualifying IT key holders get IT work (Level 2 covers Level 1, never the reverse) and skill stars break ties; a discipline with no keys keeps the skill-only planner byte-identical. A task's role is read from its estimate line via source_line_item_id - no copy on tasks.",
-    "A line's delivery phase is its guided phase label, else its ROLE's (Phase 5: Creative->Design, QA Tester->QA, Project Coordinator->Content, Project Manager->Discovery, IT/none->Development). resultFromQuote builds catalog timelines from the same rule; IT-only quotes are byte-identical to before. Every placement/tag/plan call in one operation takes the same phaseSetOf(scaffold) set, and a role phase the schedule lacks falls back to Development, so nothing lands in the backlog. A re-sync never moves an existing task between sprints."
+    "A line's delivery phase is its guided phase label, else its ROLE's (Phase 5: Creative->Design, QA Tester->QA, Project Coordinator->Content, Project Manager->Discovery, IT/none->Development). resultFromQuote builds catalog timelines from the same rule; IT-only quotes are byte-identical to before. Every placement/tag/plan call in one operation takes the same phaseSetOf(scaffold) set, and a role phase the schedule lacks falls back to Development, so nothing lands in the backlog. A re-sync never moves an existing task between sprints.",
+    "Onboarding tours never write: they explain Send to Zoho / Create PO / Approve etc. but the runner blocks clicks on the highlighted element (disableActiveInteraction) and swallows page keyboard shortcuts (the board's 'n') while open. e2e/tours.spec.ts fails on any non-GET except tour_progress during a tour.",
+    "Tour steps anchor on data-tour ids from lib/tours/ids.ts only (tourAnchor()). Renaming one is a type error; e2e/tours.spec.ts fails on any data-tour value not in TOUR_TARGETS (with a negative control). Tour copy restates feature behaviour: change it in the same commit as the feature and bump the tour's version.",
+    "A tour's end is handled in onDestroyStarted, never driver.js's onDestroyed: driver.js skips onDestroyed when its active element is not set yet (Done clicked within a few frames), which left tours unrecorded and the ? button disabled.",
+    "The Getting started checklist derives every item from real data and stores only its dismissal. 'Create your first estimate' reads proposals.owner_id (mapped read-only in rowToQuote, never sent by quoteUpdatePayload)."
   ],
   "permissionsMatrix": {
     "columns": [
@@ -4364,6 +4519,16 @@
           "No"
         ],
         "rls": "lib/zoho/guard.ts: requireZohoWriter()"
+      },
+      {
+        "cap": "Read / write own tour progress",
+        "v": [
+          "Yes",
+          "Yes",
+          "Yes",
+          "Yes"
+        ],
+        "rls": "0045: tour_progress self-only (profile_id = auth.uid())"
       }
     ]
   }
