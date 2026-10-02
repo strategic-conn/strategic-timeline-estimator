@@ -49,16 +49,29 @@ export function WorkspacePageHeader({
       <div
         className={cn(
           "relative flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between xl:gap-8",
-          help && "pr-8 sm:pr-9",
+          help && "sm:pr-9",
         )}
       >
         <div className="w-full min-w-0 space-y-1 xl:flex-1 xl:min-w-0">
           {eyebrow ? (
-            <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+            // Phones: only the lines beside the "?" make room for it.
+            <p
+              className={cn(
+                "text-xs font-medium uppercase tracking-wider text-muted-foreground",
+                help && "max-sm:pr-8",
+              )}
+            >
               {eyebrow}
             </p>
           ) : null}
-          <h1 className="text-xl font-semibold tracking-tight sm:text-2xl">{title}</h1>
+          <h1
+            className={cn(
+              "text-xl font-semibold tracking-tight sm:text-2xl",
+              help && "max-sm:pr-8",
+            )}
+          >
+            {title}
+          </h1>
           {description ? (
             <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
               {description}

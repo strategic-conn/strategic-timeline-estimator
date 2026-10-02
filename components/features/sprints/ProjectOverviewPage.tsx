@@ -656,9 +656,9 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
 
         {projectSprints.length > 0 ? (
           <section className="flex flex-col gap-3" {...tourAnchor("project.timeline")}>
-            <div className="relative space-y-1 pr-9">
+            <div className="relative space-y-1 sm:pr-9">
               <AppHelp section="project.timeline" className="absolute right-0 top-0" />
-              <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight">
+              <h2 className="flex items-center gap-2 text-base font-semibold tracking-tight max-sm:pr-8">
                 <CalendarRange
                   className="size-4 shrink-0 text-primary"
                   aria-hidden

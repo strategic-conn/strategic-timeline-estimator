@@ -273,3 +273,16 @@
     animation: none !important;
   }
 }
+
+/* Section help on a phone: in a card header with a "?" (CardAction), only the
+   TITLE shares its row with the button; the description and anything else
+   take the full width below. From sm up the stock 2-column header applies. */
+@media (max-width: 639.98px) {
+  [data-slot="card-header"]:has(> [data-slot="card-action"])
+    > :not([data-slot="card-title"]):not([data-slot="card-action"]) {
+    grid-column: 1 / -1;
+  }
+  [data-slot="card-header"] > [data-slot="card-action"] {
+    grid-row: 1 / span 1;
+  }
+}

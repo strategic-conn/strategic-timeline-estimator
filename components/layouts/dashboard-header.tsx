@@ -31,7 +31,8 @@ import { sprintTasksHref } from "@/lib/constants/sprints";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import { useSprintsStore } from "@/store/sprints-store";
-import { ChevronDown, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { ChevronDown, FolderPlus, Plus } from "lucide-react";
 
 const SEGMENT_LABELS: Record<string, string> = {
   dashboard: "Dashboard",
@@ -207,10 +208,15 @@ export function DashboardHeader() {
                   const isLast = index === crumbs.length - 1;
                   return (
                     <Fragment key={crumb.href}>
-                      {index > 0 ? <BreadcrumbSeparator /> : null}
-                      <BreadcrumbItem className="min-w-0 shrink">
+                      {index > 0 ? (
+                        // Phones show one crumb, so no separator belongs anywhere.
+                        <BreadcrumbSeparator className="max-sm:hidden" />
+                      ) : null}
+                      <BreadcrumbItem
+                        className={cn("min-w-0 shrink", !isLast && "max-sm:hidden")}
+                      >
                         {isLast ? (
-                          <BreadcrumbPage className="block max-w-[42vw] truncate font-semibold sm:max-w-[min(24rem,50vw)] md:max-w-none">
+                          <BreadcrumbPage className="block max-w-full truncate font-semibold sm:max-w-[min(24rem,50vw)] md:max-w-none">
                             {crumb.label}
                           </BreadcrumbPage>
                         ) : (
@@ -230,27 +236,34 @@ export function DashboardHeader() {
           </div>
         </div>
 
-        {/* gap-1 under sm: five controls at 375px left the breadcrumb ~10px
-            short of "Dashboard". */}
-        <div className="flex shrink-0 items-center gap-1 sm:gap-2">
+        {/* Phones get three icon buttons — help, bell, + — and nothing else:
+            the theme toggle lives in the drawer there, and "New project" is
+            already the last item of the + menu. At 375px the row used to
+            carry six controls and cut the page name to "DA…". */}
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <HelpMenu />
           <span className="inline-flex" {...tourAnchor("notifications")}>
             <NotificationBell />
           </span>
-          <span className="inline-flex" {...tourAnchor("theme")}>
+          <span className="hidden sm:inline-flex" {...tourAnchor("theme")}>
             <ModeToggle />
           </span>
           {!onProjects && canCreateProject ? (
             <Button
               variant="outline"
               size="sm"
-              className="min-h-9 shrink-0 px-2 sm:px-3"
+              // On a phone the + menu already ends in "Create project", so this
+              // only shows there when that menu doesn't (sprint board, backlog).
+              className={cn(
+                "size-9 shrink-0 px-0 sm:size-auto sm:min-h-9 sm:px-3",
+                !hideAddTask && "max-sm:hidden",
+              )}
               asChild
               {...tourAnchor("new-project")}
             >
-              <Link href="/projects">
+              <Link href="/projects" aria-label="New project">
+                <FolderPlus className="size-4 sm:hidden" aria-hidden />
                 <span className="hidden sm:inline">New project</span>
-                <span className="sm:hidden">New</span>
               </Link>
             </Button>
           ) : null}
@@ -261,13 +274,13 @@ export function DashboardHeader() {
                 <Button
                   type="button"
                   size="sm"
-                  className="min-h-9 shrink-0 gap-1 px-2 sm:px-3"
+                  className="size-9 shrink-0 gap-1 px-0 sm:size-auto sm:min-h-9 sm:px-3"
                   aria-label="Add task to a project"
                   {...tourAnchor("add-task")}
                 >
+                  <Plus className="size-4 sm:hidden" aria-hidden />
                   <span className="hidden sm:inline">Add task</span>
-                  <span className="sm:hidden">Add</span>
-                  <ChevronDown className="size-3.5 opacity-70" aria-hidden />
+                  <ChevronDown className="hidden size-3.5 opacity-70 sm:block" aria-hidden />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64 max-h-[min(320px,50vh)] overflow-y-auto">
@@ -293,16 +306,20 @@ export function DashboardHeader() {
                     </DropdownMenuItem>
                   );
                 })}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem asChild>
-                  <Link
-                    href="/projects"
-                    className="flex w-full cursor-pointer items-center gap-2"
-                  >
-                    <Plus className="size-4" aria-hidden />
-                    Create project
-                  </Link>
-                </DropdownMenuItem>
+                {canCreateProject ? (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link
+                        href="/projects"
+                        className="flex w-full cursor-pointer items-center gap-2"
+                      >
+                        <Plus className="size-4" aria-hidden />
+                        Create project
+                      </Link>
+                    </DropdownMenuItem>
+                  </>
+                ) : null}
               </DropdownMenuContent>
             </DropdownMenu>
           ) : null}

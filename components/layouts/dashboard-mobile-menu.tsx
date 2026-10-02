@@ -25,6 +25,8 @@ import {
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { useAuthStore } from "@/store/auth-store";
 import { useNavDrawerStore } from "@/store/nav-drawer-store";
+import { ModeToggle } from "@/components/mode-toggle";
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 
 export function DashboardMobileMenu() {
@@ -57,7 +59,7 @@ export function DashboardMobileMenu() {
           <SheetTitle className="pr-10">Timeline Estimator</SheetTitle>
           <SheetDescription>Project workspace</SheetDescription>
           <Badge variant="outline" className="mt-2 w-fit font-mono text-[0.65rem]">
-            Demo
+            {isSupabaseConfigured ? "Live" : "Demo"}
           </Badge>
         </SheetHeader>
 
@@ -122,6 +124,11 @@ export function DashboardMobileMenu() {
         </nav>
 
         <div className="border-t border-border p-4">
+          {/* The header drops the theme toggle on phones; it lives here. */}
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Light / dark</span>
+            <ModeToggle />
+          </div>
           <Separator className="mb-4" />
           <Link
             href="/settings"

@@ -480,11 +480,11 @@ export function WorkloadClient() {
           {/* The capacity editor sits last: the page is read for who is
               loaded, and hours are adjusted far less often than they are read. */}
           <div
-            className="relative rounded-xl border border-border/60 bg-muted/15 p-4 pr-12"
+            className="relative rounded-xl border border-border/60 bg-muted/15 p-4 sm:pr-12"
             {...tourAnchor("workload.capacity")}
           >
             <AppHelp section="workload.capacity" corner className="right-3 top-3" />
-            <p className="text-sm font-medium">Weekly capacity by person</p>
+            <p className="text-sm font-medium max-sm:pr-8">Weekly capacity by person</p>
             <p className="mt-1 text-xs text-muted-foreground">
               Whole hours, {DEFAULT_WEEKLY_CAPACITY_HOURS}h default. Press Enter
               or click away to save (1–168).

@@ -584,7 +584,7 @@ export function ProposalEditorClient({
             .filter(Boolean)
             .join(" · ")}
           actions={
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 max-sm:justify-start">
               <Select
                 value={quote.status}
                 onValueChange={(v) =>
@@ -757,26 +757,38 @@ export function ProposalEditorClient({
         />
 
         <Tabs value={tab} onValueChange={setTab} className="gap-5">
-          {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
-              phone gives 351px, so "Review" — where Send to Zoho lives — sat
-              off-screen behind a scrollbar nobody sees on touch. */}
-          <TabsList
-            className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap"
-            {...tourAnchor("estimate.tabs")}
-          >
-            <TabsTrigger value="setup">Setup</TabsTrigger>
-            <TabsTrigger value="guided" className="gap-1.5">
-              <Compass className="size-3.5" aria-hidden />
-              Scope &amp; risk
+          {/* ONE row at every width. Five full labels need ~433px and a 375px
+              phone gives ~343px, which used to wrap into two rows (and before
+              that, scroll "Review" — where Send to Zoho lives — off screen).
+              Under sm the long two show a short label; the full one stays as
+              the accessible name, so screen readers and tests read the same
+              "Scope & risk" / "Line items" at every width. */}
+          <TabsList className="w-full sm:w-fit" {...tourAnchor("estimate.tabs")}>
+            <TabsTrigger value="setup" className="px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
+              Setup
             </TabsTrigger>
-            <TabsTrigger value="scope" className="gap-1.5">
-              Line items
-              <Badge variant="secondary" className="tabular-nums">
+            <TabsTrigger value="guided" className="gap-1.5 px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
+              <Compass className="hidden size-3.5 sm:block" aria-hidden />
+              <span className="sm:hidden" aria-hidden>
+                Scope
+              </span>
+              <span className="max-sm:sr-only">Scope &amp; risk</span>
+            </TabsTrigger>
+            <TabsTrigger value="scope" className="gap-1 px-1.5 text-[0.8125rem] sm:gap-1.5 sm:px-2 sm:text-sm">
+              <span className="sm:hidden" aria-hidden>
+                Lines
+              </span>
+              <span className="max-sm:sr-only">Line items</span>
+              <Badge variant="secondary" className="px-1.5 tabular-nums">
                 {quote.line_items.length}
               </Badge>
             </TabsTrigger>
-            <TabsTrigger value="adjust">Adjust</TabsTrigger>
-            <TabsTrigger value="review">Review</TabsTrigger>
+            <TabsTrigger value="adjust" className="px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
+              Adjust
+            </TabsTrigger>
+            <TabsTrigger value="review" className="px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
+              Review
+            </TabsTrigger>
           </TabsList>
 
           {/* ---- SETUP ---- */}
@@ -1088,8 +1100,8 @@ export function ProposalEditorClient({
               <>
                 <Card className="relative" {...tourAnchor("estimate.scope-summary")}>
                   <EstimatorHelp section="scopeSummary" corner />
-                  <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4 pr-12">
-                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
+                  <CardContent className="flex flex-wrap items-center justify-between gap-4 py-4 sm:pr-12">
+                    <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm max-sm:pr-8">
                       <DiscoveryRiskBadge
                         level={scopeResult.risk.level}
                         score={scopeResult.risk.score}
@@ -1214,7 +1226,7 @@ export function ProposalEditorClient({
                   {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
               phone gives 351px, so "Review" — where Send to Zoho lives — sat
               off-screen behind a scrollbar nobody sees on touch. */}
-                  <TabsList className="h-auto w-full flex-wrap justify-start sm:w-fit sm:flex-nowrap">
+                  <TabsList className="w-full sm:w-fit">
                     <TabsTrigger value="questionnaire">
                       Questionnaire
                     </TabsTrigger>
@@ -1483,7 +1495,7 @@ export function ProposalEditorClient({
               {...tourAnchor("estimate.requirements")}
             >
               <EstimatorHelp section="requirements" corner />
-              <CardContent className="flex items-start gap-3 py-4 pr-12">
+              <CardContent className="flex items-start gap-3 py-4 sm:pr-12">
                 <Checkbox
                   id="requirements-unclear"
                   checked={quote.requirements_unclear}
@@ -1501,7 +1513,7 @@ export function ProposalEditorClient({
                   // one word per line on a phone.
                   className="flex-1 cursor-pointer flex-col items-start gap-0 leading-normal"
                 >
-                  <span className="flex items-center gap-1.5 text-sm font-medium">
+                  <span className="flex items-center gap-1.5 text-sm font-medium max-sm:pr-8">
                     <Sparkles className="size-4 text-amber-600" aria-hidden />
                     Requirements not pinned down yet
                   </span>

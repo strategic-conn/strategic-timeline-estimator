@@ -128,7 +128,7 @@ export function SettingsClient() {
         <TabsContent value="timeoff" className="mt-0 outline-none">
           <Card className="relative" {...tourAnchor("settings.timeoff")}>
             <AppHelp section="settings.timeoff" corner />
-            <CardContent className="space-y-0 pt-6 pr-12">
+            <CardContent className="space-y-0 pt-6 sm:pr-12">
               <TimeOffSettingsSection />
               <AdminTeamTimeOffSection />
             </CardContent>

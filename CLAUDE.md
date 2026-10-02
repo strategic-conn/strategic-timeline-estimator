@@ -406,7 +406,17 @@ Client preview. All the copy is in **`components/features/proposals/estimator-he
 (`components/common/section-help.tsx`) — a Popover, not `HelpTip`'s hover
 tooltip, because it has to open on a phone. In a card header it goes in
 `<CardAction>`; a headerless card uses `corner` (`absolute right-4 top-4`, the
-same spot CardAction lands) and gives its content `pr-12`. **The copy restates
+same spot CardAction lands) and gives its content `sm:pr-12`.
+
+> **On a phone only the FIRST LINE makes room for the "?"** — never the whole
+> section. Reserving the space on the whole column left an empty strip down
+> the right of every header, card and list at 375px. So: a page header pads
+> only its eyebrow + `h1` (`max-sm:pr-8`); a corner card pads only its title
+> line (`max-sm:pr-8`) and keeps `sm:pr-12` for the rest; and a CardAction
+> header lets everything but the title span the full width under `sm`
+> (`globals.css`, scoped to `max-width: 639.98px`). All of it resolves to the
+> old classes from `sm` up — verified pixel-identical (2,058 elements on 16
+> views at 768 and 1280) against the previous layout. **The copy restates
 behaviour: change it in the same commit as pricing / add-ons / buffer / Zoho
 send**, like the tour copy.
 
@@ -1856,6 +1866,19 @@ if (!tasks.length) {
    Prefer `flex-wrap` under `sm:` over `overflow-x-auto`, and never pair
    overflow with `[scrollbar-width:none]`. Reserve scrolling for content that
    genuinely cannot wrap (Gantt, wide tables) — those get their own container.
+
+   **The top bar on a phone is four controls: ☰, ?, 🔔, +.** Under `sm` the
+   breadcrumb shows only the current page (no separators), the theme toggle
+   moves into the drawer, "Add task" is a `+` icon, and "New project" hides
+   because the + menu already ends in *Create project* (it stays, as an icon,
+   on the sprint board and backlog, where the + menu is hidden). At 375px the
+   row used to carry six controls and cut the page name to "DA…".
+
+   **The Estimator's five tabs are ONE row at every width.** Under `sm`,
+   "Scope & risk" and "Line items" show *Scope* / *Lines*; the full label stays
+   the accessible name (`aria-hidden` short span + `max-sm:sr-only` long span),
+   so screen readers and `getByRole("tab", { name: /^line items/i })` read the
+   same thing everywhere. Two wrapped rows read as two levels of navigation.
 
    So gate multi-column grids on **`lg:`**, not `sm:`/`md:` — `sm:grid-cols-3` fires at 640px but the
    *content area* on a tablet is far narrower than the viewport suggests.

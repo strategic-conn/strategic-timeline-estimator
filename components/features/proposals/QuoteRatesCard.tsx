@@ -72,8 +72,8 @@ export function QuoteRatesCard({ quote }: { quote: ClientQuote }) {
   return (
     <Card className="relative" {...tourAnchor("estimate.rates")}>
       <EstimatorHelp section="rates" corner />
-      <CardContent className="flex flex-col gap-3 py-4 pr-12 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-start gap-3">
+      <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:pr-12">
+        <div className="flex items-start gap-3 max-sm:pr-8">
           <Scale
             className="mt-0.5 size-4 shrink-0 text-muted-foreground"
             aria-hidden

@@ -446,13 +446,17 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
       <div className="flex w-full flex-col gap-6">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <Skeleton className="h-8 w-48" />
-          <div className="flex gap-2">
-            <Skeleton className="h-9 w-64" />
+          {/* Full-width under sm, like the real toolbar's search: a fixed
+              16rem bar plus two buttons is wider than a 375px phone. */}
+          <div className="flex w-full gap-2 sm:w-auto">
+            <Skeleton className="h-9 min-w-0 flex-1 sm:w-64 sm:flex-none" />
             <Skeleton className="size-9" />
             <Skeleton className="h-9 w-24" />
           </div>
         </div>
-        <div className="flex gap-4 overflow-hidden">
+        {/* Same scroller as the real board (KanbanBoard), so the five 18rem
+            columns are reachable instead of running past the page edge. */}
+        <div className="flex gap-4 overflow-x-auto p-1 pb-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div
               key={i}

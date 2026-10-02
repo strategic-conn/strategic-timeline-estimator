@@ -82,12 +82,12 @@ export function TaskBoardToolbar({
   return (
     <>
       <div className="flex w-full flex-col gap-4 lg:grid lg:grid-cols-[auto_minmax(14rem,1fr)_auto] lg:items-center lg:gap-6">
-        <div className="relative min-w-0 rounded-2xl border border-border/60 bg-card/35 py-3 pl-4 pr-11 shadow-sm backdrop-blur-md dark:bg-card/25">
+        <div className="relative min-w-0 rounded-2xl border border-border/60 bg-card/35 px-4 py-3 shadow-sm backdrop-blur-md sm:pr-11 dark:bg-card/25">
           <AppHelp section="board" corner className="right-2.5 top-2.5" />
-          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground max-sm:pr-8">
             Board
           </p>
-          <p className="text-sm font-semibold tracking-tight text-foreground">
+          <p className="text-sm font-semibold tracking-tight text-foreground max-sm:pr-8">
             {boardTitle}
           </p>
           {boardSubtitle ? (

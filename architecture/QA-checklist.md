@@ -496,6 +496,21 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 - [ ] ⭐ **Per-stage guard:** this must work *even though* the quote was already pushed as "Proposal Sent" — the two stages are tracked separately. Then the button reads "Zoho notified" and disables.
 - [ ] The quote editor's own "Push to Zoho" button is **unaffected** by the completion push (still shows its own state).
 
+## 📱 Top bar + Estimator tabs on a phone (375px and 320px)
+
+- [ ] Top bar shows ☰, the page name, ?, 🔔, + and nothing else; the page name
+      is not cut to a couple of letters.
+- [ ] + opens the task menu; *Create project* is its last item for admins and
+      managers only. On a sprint board / backlog (+ hidden) a folder icon opens
+      Projects instead.
+- [ ] ☰ → the drawer has a *Light / dark* switch, and its badge says *Live* on
+      the live app.
+- [ ] No empty strip down the right of page headers, cards or lists next to a
+      **?** (project header, Workload → Weekly capacity, Adjust cards). The
+      estimate header's status, Export and price sit on the left.
+- [ ] Estimator editor: Setup · Scope · Lines · Adjust · Review sit on ONE row
+      at 375 and 320; from 640px up they read Scope & risk / Line items.
+
 ## 📱 Tablet pass @ 768px + 1024px (iPad portrait / landscape)
 
 - [ ] **768px (iPad portrait):** sidebar is a **narrow icon rail** — no text labels, no group headings, no wordmark; hovering/long-pressing an icon shows its name.
