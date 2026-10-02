@@ -52,6 +52,11 @@ import { useJoinedTeamMembers } from "@/store/team-store";
 import type { Database } from "@/types/database.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
+import {
+  SetupLinkButton,
+  SetupLinkDialog,
+  type SetupLinkState,
+} from "@/components/features/settings/SetupLinkDialog";
 
 type InviteRow = Database["public"]["Tables"]["allowed_emails"]["Row"];
 
@@ -77,6 +82,7 @@ export function AdminInvitesSection() {
   );
   const [adding, setAdding] = React.useState(false);
   const [resending, setResending] = React.useState<string | null>(null);
+  const [linkState, setLinkState] = React.useState<SetupLinkState>(null);
   const [removeTarget, setRemoveTarget] = React.useState<string | null>(null);
 
   // When the role changes, reset the page selection to that role's full set.
@@ -147,6 +153,8 @@ export function AdminInvitesSection() {
       });
       const payload = (await res.json().catch(() => ({}))) as {
         error?: unknown;
+        emailed?: boolean;
+        setupLink?: string | null;
       };
       if (!res.ok) {
         const detail =
@@ -159,11 +167,36 @@ export function AdminInvitesSection() {
       setEmail("");
       setRole("member"); // also resets pageSel via the role effect
       await loadInvites();
-      toast.success("Invite sent", {
-        description: `${clean} will get an email to set up their account.`,
-      });
+      announceInvite(clean, payload);
     } finally {
       setAdding(false);
+    }
+  };
+
+  /**
+   * After an invite: say what happened, and show the backup setup link. When
+   * the server says nothing was emailed, the person's earlier link had been
+   * used up (by an email scanner) — the link IS the way in, not a backup.
+   */
+  const announceInvite = (
+    target: string,
+    payload: { emailed?: boolean; setupLink?: string | null },
+  ) => {
+    if (payload.emailed === false) {
+      toast.message("They already have an account", {
+        description: `${target} never got to set a password, so no new email was sent. Send them the setup link.`,
+      });
+    } else {
+      toast.success("Invite sent", {
+        description: `${target} will get an email to set up their account.`,
+      });
+    }
+    if (payload.setupLink) {
+      setLinkState({
+        email: target,
+        url: payload.setupLink,
+        reason: payload.emailed === false ? "scanned" : "backup",
+      });
     }
   };
 
@@ -181,7 +214,11 @@ export function AdminInvitesSection() {
           page_access: row.page_access,
         }),
       });
-      const payload = (await res.json().catch(() => ({}))) as { error?: unknown };
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: unknown;
+        emailed?: boolean;
+        setupLink?: string | null;
+      };
       if (!res.ok) {
         toast.error("Couldn't resend invite", {
           description:
@@ -191,9 +228,7 @@ export function AdminInvitesSection() {
         });
         return;
       }
-      toast.success("Invite re-sent", {
-        description: `${row.email} will get a fresh link.`,
-      });
+      announceInvite(row.email, payload);
     } finally {
       setResending(null);
     }
@@ -360,6 +395,7 @@ export function AdminInvitesSection() {
                 </div>
               </div>
               <div className="flex items-center gap-1 sm:shrink-0 sm:justify-end">
+                <SetupLinkButton email={row.email} name={row.email} size="icon" />
                 <Button
                   type="button"
                   variant="ghost"
@@ -416,6 +452,7 @@ export function AdminInvitesSection() {
         </AlertDialogContent>
       </AlertDialog>
       </CardContent>
+      <SetupLinkDialog state={linkState} onClose={() => setLinkState(null)} />
     </Card>
   );
 }

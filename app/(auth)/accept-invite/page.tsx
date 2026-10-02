@@ -17,6 +17,8 @@ import { Label } from "@/components/ui/label";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
+import { clearAuthHash, readAuthHash } from "@/components/features/auth/invite-hash-catcher";
+import Link from "next/link";
 
 export default function AcceptInvitePage() {
   const router = useRouter();
@@ -29,7 +31,10 @@ export default function AcceptInvitePage() {
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
 
-  // The /auth/confirm route set the session cookie before redirecting here.
+  // Usually /auth/confirm set the session before sending them here. But when
+  // the email template still links to Supabase's own verify step, Supabase
+  // lands them HERE (the invite's redirectTo) with the session — or the
+  // error — in the URL hash, so read that first.
   React.useEffect(() => {
     if (!isSupabaseConfigured) {
       setInvalid(true);
@@ -37,11 +42,25 @@ export default function AcceptInvitePage() {
       return;
     }
     const supabase = createClient();
-    void supabase.auth.getUser().then(({ data }) => {
+    void (async () => {
+      const found = readAuthHash();
+      clearAuthHash();
+      if (found?.kind === "error") {
+        setInvalid(true);
+        setChecking(false);
+        return;
+      }
+      if (found?.kind === "session") {
+        await supabase.auth.setSession({
+          access_token: found.access_token,
+          refresh_token: found.refresh_token,
+        });
+      }
+      const { data } = await supabase.auth.getUser();
       if (data.user) setEmail(data.user.email ?? null);
       else setInvalid(true);
       setChecking(false);
-    });
+    })();
   }, []);
 
   const onSubmit = async (e: React.FormEvent) => {
@@ -63,6 +82,9 @@ export default function AcceptInvitePage() {
       setSubmitting(false);
       return;
     }
+    // Record that they chose their own password, so an admin can no longer
+    // make a setup link for this account. Best effort: never block sign-in.
+    await fetch("/api/auth/password-set", { method: "POST" }).catch(() => undefined);
     router.push("/dashboard");
     router.refresh();
   };
@@ -80,7 +102,7 @@ export default function AcceptInvitePage() {
           {checking
             ? "Verifying your invite…"
             : invalid
-              ? "This invite link is invalid or has expired."
+              ? "This link has already been used or has expired."
               : email
                 ? `Finish setting up ${email}.`
                 : "Choose a password to finish creating your account."}
@@ -93,10 +115,20 @@ export default function AcceptInvitePage() {
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : invalid ? (
-          <p className="text-sm text-muted-foreground">
-            Ask an admin to send a new invite, then open the most recent link
-            from your email.
-          </p>
+          <div className="space-y-3 text-sm text-muted-foreground">
+            <p>
+              Work email is often scanned for safety, and the scanner can open
+              a one-time link before you do. Nothing is wrong with your account.
+            </p>
+            <p>
+              Ask your admin for a <strong className="text-foreground">password setup link</strong>{" "}
+              (Team → your name → key button) and open it here, or{" "}
+              <Link href="/forgot-password" className="underline underline-offset-4">
+                send yourself a password link
+              </Link>
+              .
+            </p>
+          </div>
         ) : (
           <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="space-y-1.5">

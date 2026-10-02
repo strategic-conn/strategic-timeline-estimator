@@ -41,11 +41,14 @@ export default function LoginPage() {
   const [formError, setFormError] = React.useState<string | null>(null);
   const [notice, setNotice] = React.useState<string | null>(null);
 
-  // Surface the reason /auth/confirm bounced here (e.g. a dead invite link).
+  // Surface why an email link bounced here. "link_expired" comes from
+  // InviteHashCatcher: Supabase's own verify step refused a one-time link,
+  // usually because an email scanner opened it first.
   React.useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("error") === "invite_invalid") {
+    const err = new URLSearchParams(window.location.search).get("error");
+    if (err === "invite_invalid" || err === "link_expired") {
       setNotice(
-        "That invite link was invalid or has expired — email links can only be opened once. Ask an admin to re-send your invite, then click the newest link.",
+        "That link has already been used or has expired. Work email is often scanned for safety, and the scanner can open a one-time link before you do — your account is fine. Ask your admin for a password setup link (Team → your name → key button), or use “Forgot password?” below to email yourself one.",
       );
     }
   }, []);

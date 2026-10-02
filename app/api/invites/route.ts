@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 
-import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdmin, serverError } from "@/lib/supabase/require-admin";
+import {
+  createSetupLink,
+  findUserByEmail,
+  hasSetPassword,
+} from "@/lib/auth/setup-link";
 
 const VALID_ROLES = ["admin", "manager", "member", "viewer"] as const;
 type Role = (typeof VALID_ROLES)[number];
@@ -10,7 +14,8 @@ type Role = (typeof VALID_ROLES)[number];
  * POST /api/invites — admin-only. Records the email on the allowlist (so the
  * signup trigger accepts it) and sends a Supabase invite email. The invitee
  * clicks the link → /auth/confirm establishes a session → /accept-invite lets
- * them set a password.
+ * them set a password. The response also carries a `setupLink` (see
+ * lib/auth/setup-link.ts) for when the email's own link gets used up.
  */
 export async function POST(request: Request) {
   try {
@@ -63,56 +68,56 @@ async function handleInvite(request: Request) {
     return serverError("/api/invites allowlist", allowErr, 400);
   }
 
-  // Send the invite email. The email template links to /auth/confirm (see setup
-  // notes); user_metadata.name flows into the profile via the signup trigger.
+  // Send the invite email. `redirectTo` is where Supabase sends them after its
+  // own verify step (when the template still uses {{ .ConfirmationURL }}); it
+  // must be in the project's Redirect URLs or Supabase falls back to the Site
+  // URL root, where InviteHashCatcher forwards them on anyway.
+  const origin = new URL(request.url).origin;
   const invite = () =>
     admin.auth.admin.inviteUserByEmail(email, {
       data: name ? { name } : undefined,
+      redirectTo: `${origin}/accept-invite`,
     });
 
   let { error: inviteErr } = await invite();
 
-  // Self-heal a stuck invite: inviteUserByEmail creates the auth user up front,
-  // so if a first invite's link expired or was consumed (e.g. Outlook/Defender
-  // SafeLinks pre-fetches and burns the one-time token), re-inviting fails with
-  // "already registered". If that user never confirmed, delete the stale row and
-  // re-send a fresh link. A user who actually set a password is left untouched.
   if (inviteErr && /already.*registered/i.test(inviteErr.message)) {
-    const stale = await findPendingUser(admin, email);
-    if (!stale) {
+    const existing = await findUserByEmail(admin, email);
+    if (!existing) return serverError("/api/invites lookup", inviteErr, 400);
+
+    if (!existing.email_confirmed_at && !existing.last_sign_in_at) {
+      // Never confirmed: the old link expired. Delete the stale row and send a
+      // fresh invite. The allowlist row from the upsert above survives
+      // deleteUser, so the signup trigger rebuilds the profile.
+      await admin.auth.admin.deleteUser(existing.id);
+      ({ error: inviteErr } = await invite());
+    } else if (hasSetPassword(existing)) {
       return NextResponse.json(
         { error: "That email already has an active account." },
         { status: 400 },
       );
+    } else {
+      // Confirmed but never chose a password — an email scanner opened the
+      // earlier link before they did. Never delete a confirmed account; hand
+      // the admin a link that only works when a person presses Continue.
+      const link = await createSetupLink(admin, email, origin);
+      if ("error" in link) return serverError("/api/invites setup link", link.error, 400);
+      return NextResponse.json({ ok: true, emailed: false, setupLink: link.url });
     }
-    // The allowlist row is already in place from the upsert above (deleteUser
-    // cascades the profile but not the allowlist), so the retry's signup trigger
-    // will find it and rebuild the profile.
-    await admin.auth.admin.deleteUser(stale.id);
-    ({ error: inviteErr } = await invite());
   }
 
   if (inviteErr) {
     return serverError("/api/invites send", inviteErr, 400);
   }
 
-  return NextResponse.json({ ok: true });
+  // A backup link the admin can pass on directly if the email is scanned,
+  // filtered or slow. It is a separate token from the emailed invite, so
+  // making it does not break the email.
+  const link = await createSetupLink(admin, email, origin);
+  return NextResponse.json({
+    ok: true,
+    emailed: true,
+    setupLink: "url" in link ? link.url : null,
+  });
 }
 
-/**
- * Find an auth user by email that has NOT completed onboarding (never confirmed,
- * never signed in) — i.e. a stuck invite that's safe to delete and re-send.
- * Returns null if no match or the user already set a password.
- * ponytail: listUsers is paginated; one page of 1000 covers an internal team.
- * Swap for a filtered lookup if the directory ever outgrows a page.
- */
-async function findPendingUser(
-  admin: NonNullable<ReturnType<typeof createAdminClient>>,
-  email: string,
-) {
-  const { data } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const match = data?.users.find((u) => u.email?.toLowerCase() === email);
-  if (!match) return null;
-  const confirmed = match.email_confirmed_at || match.last_sign_in_at;
-  return confirmed ? null : match;
-}

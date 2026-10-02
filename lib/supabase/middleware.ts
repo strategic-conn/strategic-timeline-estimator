@@ -72,11 +72,14 @@ export async function updateSession(request: NextRequest) {
   const isAuthRoute = path === "/login" || path === "/register";
   // `/auth/*` (invite / email confirm handlers) must run before the guard, and
   // `/accept-invite` is reached from the confirm redirect to set a password.
+  // `/forgot-password` is for people who CAN'T sign in — it bounced them to
+  // /login, so the "forgot password" route out of a stuck invite never worked.
   const isPublic =
     isAuthRoute ||
     path === "/" ||
     path.startsWith("/auth/") ||
-    path === "/accept-invite";
+    path === "/accept-invite" ||
+    path === "/forgot-password";
 
   // Unauthenticated → bounce protected routes to the login screen. API routes
   // get a 401 instead: a 307 to an HTML login page makes every fetch fail on

@@ -75,10 +75,12 @@ export default function ConfirmPage() {
           <span className="inline-flex size-8 items-center justify-center rounded-md bg-primary/10 text-primary">
             <KeyRound className="size-4" aria-hidden="true" />
           </span>
-          Confirm your invite
+          {params?.type === "recovery" ? "Set your password" : "Confirm your invite"}
         </CardTitle>
         <CardDescription>
-          Click below to verify your email and continue setting up your account.
+          {params?.type === "recovery"
+            ? "Press Continue, then choose a password for your account."
+            : "Click below to verify your email and continue setting up your account."}
         </CardDescription>
       </CardHeader>
 

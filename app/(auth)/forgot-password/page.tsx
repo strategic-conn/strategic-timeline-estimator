@@ -35,10 +35,12 @@ export default function ForgotPasswordPage() {
     setSubmitting(true);
     if (isSupabaseConfigured) {
       const supabase = createClient();
-      // Land back on the Site URL root; InviteHashCatcher routes the recovery
-      // session on to /accept-invite to set a new password.
+      // Straight to /accept-invite, which reads the session (or the error)
+      // from the hash and lets them choose a password. If that URL isn't in
+      // Supabase's Redirect URLs, Supabase lands them on the root instead and
+      // InviteHashCatcher forwards them.
       const { error } = await supabase.auth.resetPasswordForEmail(clean, {
-        redirectTo: window.location.origin,
+        redirectTo: `${window.location.origin}/accept-invite`,
       });
       if (error) {
         setError(parseSupabaseError(error));

@@ -278,6 +278,23 @@ can't see.
       tab, Estimator list). None sits on top of a header button at 375 / 768 /
       1280 (`e2e/estimator-help.spec.ts` opens them all).
 
+## ✉️ Invites & password setup
+
+`npx playwright test e2e/invite-setup-link.spec.ts --project=desktop` reproduces
+the email-scanner bug and the way out. By hand, on the deployed app:
+
+- [ ] Supabase → Authentication → Emails: the **Invite** and **Reset
+      password** links go to `/auth/confirm?token_hash=…` (see CLAUDE.md
+      "Invites & password setup"), not `{{ .ConfirmationURL }}`.
+- [ ] Invite a real work address (Outlook/365): the email's link opens a page
+      with **Continue**, then **Set your password**, then the dashboard.
+- [ ] After inviting, the dialog shows a **backup setup link**; Copy works.
+- [ ] Team → a member who never set a password → **key button** gives a link
+      that works once; for someone who has a password it refuses.
+- [ ] Opening `/#error=access_denied&error_code=otp_expired` lands on sign-in
+      with an explanation, not on the home page.
+- [ ] Signed out, `/forgot-password` opens (it used to bounce to sign-in).
+
 ## 🔐 Security probe (automated, live)
 
 `node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks

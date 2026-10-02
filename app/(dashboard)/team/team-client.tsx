@@ -73,6 +73,7 @@ import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import type { TeamMember } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
+import { SetupLinkButton } from "@/components/features/settings/SetupLinkDialog";
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -335,6 +336,12 @@ export function TeamClientPage() {
                         >
                           <SlidersHorizontal className="size-4" />
                         </Button>
+                      ) : null}
+                      {/* Someone who joined but couldn't set a password
+                          (their invite link was used up by an email scanner).
+                          The server refuses anyone who already has one. */}
+                      {canEditRoles && !isSelf && isSupabaseConfigured ? (
+                        <SetupLinkButton email={m.email} name={m.name} />
                       ) : null}
                       {canEditRoles && !isSelf ? (
                         <Button

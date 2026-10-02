@@ -29,6 +29,9 @@ export function useAuth() {
         password,
       });
       if (error) return { error: parseSupabaseError(error) };
+      // Signed in with a password, so they have one: an admin can no longer
+      // make a setup link for this account. Best effort, never blocks.
+      void fetch("/api/auth/password-set", { method: "POST" }).catch(() => undefined);
       router.push("/dashboard");
       router.refresh();
       return { error: null };

@@ -1652,6 +1652,64 @@ started from the header's **?** (`HelpMenu`). Engine: **driver.js**, wrapped in
    starts it at that step once the page renders. Settings accepts `?tab=` for
    this (the Zoho item lands on Workspace).
 
+## Invites & password setup
+
+**The flow:** Team → invite (admin) → `/api/invites` allow-lists the email and
+calls `inviteUserByEmail` → the email link → **`/auth/confirm`** (a page with a
+**Continue** button that spends the one-time token only on a real click) →
+`/accept-invite` (choose a password) → `/dashboard`.
+
+> **Email scanners spend one-time links.** Microsoft Defender / SafeLinks
+> opens every link in a work inbox before the person does. Supabase's DEFAULT
+> invite template links to its own `/auth/v1/verify`, which spends the token on
+> that GET — so the SCANNER accepted the invite (account confirmed, a sign-in
+> recorded in the same millisecond), and the person's click landed on the home
+> page with `#error_code=otp_expired`, no session and no password. Re-inviting
+> refused ("already has an active account"), so they were locked out. Hit live
+> 2026-10-03.
+
+**What the app does about it** (`lib/auth/setup-link.ts`):
+
+ - **Password setup links.** `createSetupLink` generates a `recovery` token
+   and points it at OUR `/auth/confirm?token_hash=…&type=recovery&next=/accept-invite`,
+   so a scanner opening it spends nothing. Verified live: it works for a pending
+   invitee (and confirms them) and for a scanner-confirmed account. A new
+   recovery link cancels the previous one; it does NOT cancel the emailed invite.
+ - **Where admins get one:** every successful invite returns a backup link
+   (shown in `SetupLinkDialog`); re-inviting a scanner-confirmed account returns
+   one instead of an error (and sends no email, deletes nothing); and the
+   **key button** on a member row (Team) and a pending-invite row calls
+   `POST /api/invites/link`.
+ - **Never for someone who already has a password** — a setup link signs its
+   holder in as that person. `app_metadata.password_set` (service-key only, so
+   the user can't clear it) is set by `POST /api/auth/password-set` when
+   `/accept-invite` saves a password and on every password sign-in
+   (`useAuth.signIn`). Existing accounts were backfilled once by
+   `scripts/backfill-password-set.mjs` (signed in >10 min after confirming = has
+   a password; a scanner signs in at the confirm instant and is left unmarked).
+ - **A used-up link explains itself.** `InviteHashCatcher` (home page) and
+   `/accept-invite` read `#access_token` / `#error` from the hash; an error goes
+   to `/login?error=link_expired`, which says what happened and how to get a
+   link. `/forgot-password` is public now — it used to bounce signed-out people
+   to `/login`, so that way out never worked.
+ - The confirmed-but-unset account is never deleted to "re-invite" it: it may
+   already be on tasks. Only a never-confirmed invite is deleted and resent.
+
+**Supabase dashboard settings this depends on** (Authentication → Emails /
+URL Configuration — not in the repo):
+
+ - **Invite user** template link:
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/accept-invite`
+ - **Reset password** template link:
+   `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery&next=/accept-invite`
+ - **Site URL** = the production domain; **Redirect URLs** include
+   `<production>/**` and `http://localhost:3000/**`.
+ - With the default `{{ .ConfirmationURL }}` the emailed link stays
+   scanner-burnable; the setup links above still work regardless.
+
+`e2e/invite-setup-link.spec.ts` reproduces the scanner (a server-side verify of
+a one-time token) and walks the way out end to end, including both refusals.
+
 ## State Management Map
 
 > **Live mode:** each store hydrates from Supabase (via `WorkspaceSync`) and writes through
