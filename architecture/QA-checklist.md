@@ -508,6 +508,8 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 - [ ] No empty strip down the right of page headers, cards or lists next to a
       **?** (project header, Workload → Weekly capacity, Adjust cards). The
       estimate header's status, Export and price sit on the left.
+- [ ] Calendar and Workload: the Mine / Team switch, Today and the month
+      arrows start at the left edge on a phone (right-aligned from 640px up).
 - [ ] Estimator editor: Setup · Scope · Lines · Adjust · Review sit on ONE row
       at 375 and 320; from 640px up they read Scope & risk / Line items.
 

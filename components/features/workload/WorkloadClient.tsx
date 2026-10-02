@@ -234,7 +234,7 @@ export function WorkloadClient() {
         help={<AppHelp section="page.workload-team" />}
         description={`Open work by assignee — utilization uses each person’s weekly capacity (default ${DEFAULT_WEEKLY_CAPACITY_HOURS}h). Edit hours below to save per person.`}
         actions={
-          <div className="flex w-full flex-col items-end gap-2 sm:flex-row sm:items-end sm:justify-end">
+          <div className="flex w-full flex-col items-end gap-2 max-sm:items-start sm:flex-row sm:items-end sm:justify-end">
             {toggle}
             <div className="flex w-full min-w-0 flex-col gap-1.5 sm:max-w-xs md:w-56 md:max-w-none">
               <span className="text-xs font-medium text-muted-foreground">

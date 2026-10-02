@@ -252,7 +252,7 @@ export function CalendarClient() {
             : "Task due dates, sprint milestones, and team PTO / availability in one view."
         }
         actions={
-          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 max-sm:justify-start sm:w-auto">
             {/* Same Mine/Team control as Workload and the Dashboard. */}
             <MineTeamToggle
               view={scope}
