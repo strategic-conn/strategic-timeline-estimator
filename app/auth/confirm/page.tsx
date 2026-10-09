@@ -25,6 +25,17 @@ import { parseSupabaseError } from "@/lib/supabase/parse-error";
  * with a GET and would burn the token before the human clicks. Instead we show a
  * button and verify only on a real click, so a scanner's GET is harmless.
  */
+/**
+ * Only an in-app path may follow a confirm. `next` comes from the link, so an
+ * unchecked value (`https://evil/login`, `//evil`, `/\evil`, `javascript:`)
+ * would send someone who just pressed Continue to any site — an open redirect,
+ * and with an attacker's own recovery token, a sign-in-as-them phishing setup.
+ */
+function safeNext(raw: string | null): string {
+  if (!raw || !/^\/(?![/\\])/.test(raw)) return "/dashboard";
+  return raw;
+}
+
 export default function ConfirmPage() {
   const router = useRouter();
   const [params, setParams] = React.useState<{
@@ -40,7 +51,7 @@ export default function ConfirmPage() {
     setParams({
       token_hash: sp.get("token_hash"),
       type: sp.get("type") as EmailOtpType | null,
-      next: sp.get("next") || "/dashboard",
+      next: safeNext(sp.get("next")),
     });
   }, []);
 

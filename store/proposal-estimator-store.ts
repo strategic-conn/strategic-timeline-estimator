@@ -9,6 +9,8 @@ import {
   DEFAULT_ADDONS,
   DEFAULT_RISK_BUFFER_PCT,
   computeLineHours,
+  lineEffectiveHours,
+  roundHours,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
 import {
@@ -503,15 +505,51 @@ function quoteUpdatePayload(
  * mode only). Line-item / add-on edits fire frequently, so we don't roll back
  * per keystroke — a failed save surfaces as a toast and editing continues.
  */
-function persistQuoteDoc(id: string, get: () => ProposalEstimatorState): void {
+/**
+ * A seeded task's hours = its line's EFFECTIVE hours — the figure the quote is
+ * priced on and the one `diffEstimateToProject` compares against. Seeding
+ * `li.hours` (the line's own-tier snapshot) disagreed whenever "requirements
+ * not pinned down" was on: a 10 h Basic line quoted at 15 h became a 10 h
+ * task, the first Sync proposed re-houring every task, and the task mirror
+ * pushed 10 h back onto the quote — quietly re-pricing a client estimate the
+ * moment a manager renamed a task.
+ */
+function seedHours(li: ProposalLineItem, requirementsUnclear: boolean): number {
+  return roundHours(lineEffectiveHours(li, requirementsUnclear));
+}
+
+type QuoteColumn = keyof ReturnType<typeof quoteUpdatePayload>;
+
+/**
+ * ⚠️ Sends ONLY the columns this edit changed (plus `updated_at`), never the
+ * whole document. It used to send everything — `zoho`, `pbs`, `project_id`,
+ * `status` included — from this browser's copy, and `proposals` has no
+ * realtime. So a tab opened before someone else created a PO (or linked the
+ * project, or pushed to Zoho) wiped those fields on its next line-item edit:
+ * Create PO and Start project came back on an estimate that already had both,
+ * into PBS, which has no delete. Server-owned fields are now only ever written
+ * by the action that owns them.
+ */
+function persistQuoteDoc(
+  id: string,
+  get: () => ProposalEstimatorState,
+  columns: QuoteColumn[],
+): void {
   if (!isSupabaseConfigured) return;
   const q = get().proposals.find((p) => p.id === id);
   if (!q) return;
+  const full = quoteUpdatePayload(q);
+  const patch: Database["public"]["Tables"]["proposals"]["Update"] = {
+    updated_at: full.updated_at,
+  };
+  for (const c of columns) {
+    (patch as Record<string, unknown>)[c] = full[c];
+  }
   void (async () => {
     const supabase = createClient();
     const { error } = await supabase
       .from("proposals")
-      .update(quoteUpdatePayload(q))
+      .update(patch)
       .eq("id", id);
     if (error) {
       toast.error("Couldn't save changes", {
@@ -990,7 +1028,15 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : next;
           }),
         }));
-        persistQuoteDoc(id, get);
+        const columns = Object.keys(partial) as QuoteColumn[];
+        if (
+          get().proposals.find((p) => p.id === id)?.discovery &&
+          !columns.includes("discovery")
+        ) {
+          // syncDiscoveryToQuote may have rewritten the answers from Setup.
+          columns.push("discovery");
+        }
+        persistQuoteDoc(id, get, columns);
       },
 
       updateAddons: (id, partial) => {
@@ -1005,7 +1051,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(id, get);
+        persistQuoteDoc(id, get, ["addons"]);
       },
 
       setDiscovery: (id, discovery) => {
@@ -1016,7 +1062,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(id, get);
+        persistQuoteDoc(id, get, ["discovery"]);
       },
 
       applyCurrentRates: (id, next) => {
@@ -1032,7 +1078,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(id, get);
+        persistQuoteDoc(id, get, ["line_items", "addons"]);
       },
 
       regenerateLineItems: (id) => {
@@ -1072,7 +1118,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(id, get);
+        persistQuoteDoc(id, get, ["line_items", "addons", "requirements_unclear"]);
       },
 
       applyProjectDeleted: (projectId) =>
@@ -1112,9 +1158,42 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             };
           }),
         }));
-        // Single write: the payload it builds now carries the new stage AND the
-        // new status, so neither can overwrite the other.
-        persistQuoteDoc(id, get);
+        // Single write carrying the new stage AND the new status, so neither
+        // can overwrite the other. The stage/amount are merged into the row's
+        // CURRENT zoho, re-read first: this runs on its own (the stage poll),
+        // and writing this tab's copy of `zoho` would drop the pushes and
+        // attachments a server route recorded since the page loaded.
+        if (!isSupabaseConfigured) return;
+        const promoted = get().proposals.find((p) => p.id === id)?.status;
+        void (async () => {
+          const supabase = createClient();
+          const { data: row } = await supabase
+            .from("proposals")
+            .select("zoho")
+            .eq("id", id)
+            .single();
+          const fresh = { ...((row?.zoho ?? prev.zoho) as ProposalZohoLink) };
+          if (patch.stage !== undefined) {
+            fresh.stage = patch.stage;
+            fresh.stage_synced_at = patch.stageSyncedAt ?? new Date().toISOString();
+          }
+          if (patch.amount !== undefined) fresh.amount = patch.amount;
+          const update: Database["public"]["Tables"]["proposals"]["Update"] = {
+            zoho: fresh as unknown as Json,
+            updated_at: new Date().toISOString(),
+          };
+          if (promoted && promoted !== prev.status) update.status = promoted;
+          const { error } = await supabase.from("proposals").update(update).eq("id", id);
+          if (error) {
+            toast.error("Couldn't save the deal stage", {
+              description: parseSupabaseError(error),
+            });
+            return;
+          }
+          set((s) => ({
+            proposals: s.proposals.map((p) => (p.id === id ? { ...p, zoho: fresh } : p)),
+          }));
+        })();
       },
 
       setProposalStatus: (id, status) => {
@@ -1204,6 +1283,21 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       convertToProject: async (proposalId, input) => {
         const quote = get().proposals.find((p) => p.id === proposalId);
         if (!quote) return null;
+        // ⚠️ Never twice. The editor offers Start project until the projects
+        // store has loaded (it hydrates in parallel), and two admins can press
+        // it at once — either way a second project used to be created, with
+        // the first left holding the sprints, tasks and assignments unlinked.
+        const alreadyLinked = (projectId: string | null | undefined) =>
+          Boolean(
+            projectId &&
+              useProjectsStore.getState().projects.some((p) => p.id === projectId),
+          );
+        if (alreadyLinked(quote.project_id)) {
+          toast.error("This estimate already has a project", {
+            description: "Open it from the estimate's View project button.",
+          });
+          return null;
+        }
         const name = input.name.trim() || quote.title;
         const description = quote.client_name
           ? `Client: ${quote.client_name}`
@@ -1233,9 +1327,12 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             description,
             status: "active",
             owner_id: String(useAuthStore.getState().user.id),
-            // The sprints being scaffolded already carry the buffer; the project
-            // keeps the number so its own page can explain where they came from.
-            risk_buffer_pct: quote.risk_buffer_pct ?? 0,
+            // 0, not the estimate's buffer: the sprints scaffolded below are
+            // ALREADY stretched by it (phaseScaffold). The project page treats
+            // its percentage as not-yet-applied and offers "Apply", which
+            // stretched the dates a second time (10% became ~21%). Same rule
+            // as applying it on the project page: once in the dates, it's 0%.
+            risk_buffer_pct: 0,
           });
           // Scaffold the tentative timeline as sprints, then slot tasks in.
           const sprintsStore = useSprintsStore.getState();
@@ -1267,7 +1364,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               project_id: projectId,
               sprint_id: phaseSprint.get(phaseLabelForLineItem(li, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
-              estimated_hours: li.hours,
+              estimated_hours: seedHours(li, quote.requirements_unclear),
               logged_hours: undefined,
               tags: [phaseLabelForLineItem(li, phases)],
               // The link both directions of the sync are keyed on (0032/0033).
@@ -1297,6 +1394,31 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           return null;
         }
         const supabase = createClient();
+        // Re-read the link from the database: another session may have just
+        // started this project, and this tab's copy wouldn't know.
+        const { data: linkRow } = await supabase
+          .from("proposals")
+          .select("project_id")
+          .eq("id", proposalId)
+          .single();
+        if (linkRow?.project_id) {
+          const { data: existing } = await supabase
+            .from("projects")
+            .select("id")
+            .eq("id", linkRow.project_id)
+            .maybeSingle();
+          if (existing) {
+            set((s) => ({
+              proposals: s.proposals.map((p) =>
+                p.id === proposalId ? { ...p, project_id: linkRow.project_id } : p,
+              ),
+            }));
+            toast.error("This estimate already has a project", {
+              description: "Someone started it a moment ago — reload to see it.",
+            });
+            return null;
+          }
+        }
         const projectId = crypto.randomUUID();
 
         const { data: projRow, error: pErr } = await supabase
@@ -1307,7 +1429,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             description: description ?? null,
             status: "active",
             owner_id: ownerId,
-            risk_buffer_pct: quote.risk_buffer_pct ?? 0,
+            // Already in the scaffolded sprint dates — see the demo path above.
+            risk_buffer_pct: 0,
           })
           .select()
           .single();
@@ -1367,7 +1490,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             priority: "medium" as const,
             reporter_id: ownerId,
             due_date: plan?.byLineItem.get(li.id)?.endDate ?? null,
-            estimated_hours: li.hours,
+            estimated_hours: seedHours(li, quote.requirements_unclear),
             logged_hours: null,
             tags: [phaseLabelForLineItem(li, phases)],
             position: i,
@@ -1510,7 +1633,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               project_id: projectId,
               sprint_id: sprintByName.get(phaseLabelForLineItem(li, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
-              estimated_hours: li.hours,
+              estimated_hours: seedHours(li, quote.requirements_unclear),
               logged_hours: undefined,
               tags: [phaseLabelForLineItem(li, phases)],
               source_line_item_id: li.id,
@@ -1578,7 +1701,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             priority: "medium" as const,
             reporter_id: ownerId,
             due_date: plan?.byLineItem.get(li.id)?.endDate ?? null,
-            estimated_hours: li.hours,
+            estimated_hours: seedHours(li, quote.requirements_unclear),
             logged_hours: null,
             tags: [phaseLabelForLineItem(li, phases)],
             position: i,
@@ -1637,7 +1760,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(proposalId, get);
+        persistQuoteDoc(proposalId, get, ["line_items"]);
       },
 
       addLineItemsFromCatalog: (proposalId, items) => {
@@ -1656,7 +1779,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               : p,
           ),
         }));
-        persistQuoteDoc(proposalId, get);
+        persistQuoteDoc(proposalId, get, ["line_items"]);
       },
 
       updateLineItem: (proposalId, lineId, partial) => {
@@ -1681,7 +1804,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             };
           }),
         }));
-        persistQuoteDoc(proposalId, get);
+        persistQuoteDoc(proposalId, get, ["line_items"]);
       },
 
       removeLineItem: (proposalId, lineId) => {
@@ -1701,7 +1824,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             };
           }),
         }));
-        persistQuoteDoc(proposalId, get);
+        persistQuoteDoc(proposalId, get, ["line_items"]);
       },
     }),
     {
@@ -1840,7 +1963,7 @@ registerTaskMirror((event) => {
           : p,
       ),
     }));
-    persistQuoteDoc(quote.id, useProposalEstimatorStore.getState);
+    persistQuoteDoc(quote.id, useProposalEstimatorStore.getState, ["line_items"]);
   };
   writeLines(next);
 

@@ -172,6 +172,16 @@ import type {
 } from "@/types/proposal.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { EstimatorHelp } from "@/components/features/proposals/estimator-help";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 type ProposalEditorClientProps = {
   proposalId: string;
@@ -223,6 +233,7 @@ export function ProposalEditorClient({
   const teamCalendar = useTeamCalendar();
   const router = useRouter();
   const projects = useProjectsStore((s) => s.projects);
+  const projectsLoaded = useProjectsStore((s) => s.loaded);
   const quote = useProposalEstimatorStore((s) =>
     s.proposals.find((p) => p.id === proposalId),
   );
@@ -467,6 +478,19 @@ export function ProposalEditorClient({
     // it give up on this component.
   }, [quote, regenerateLineItems, setTab]);
 
+  // Regenerating REPLACES every line — catalog rows, freehand rows and edits
+  // included — and the new lines get new ids, so a linked project's tasks lose
+  // their link (the next Sync proposes removing and re-creating them). Ask
+  // first whenever there is real work to lose (CLAUDE.md rule 6).
+  const [regenConfirm, setRegenConfirm] = React.useState(false);
+  const realLineCount = quote
+    ? quote.line_items.filter((li) => li.title.trim()).length
+    : 0;
+  const requestGenerateLines = () => {
+    if (realLineCount > 0) setRegenConfirm(true);
+    else handleGenerateLines();
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -610,7 +634,10 @@ export function ProposalEditorClient({
                     View project
                   </Link>
                 </Button>
-              ) : quote.status === "approved" ? (
+              ) : quote.status === "approved" &&
+                // Linked but the projects list hasn't loaded: don't flash
+                // Start project for an estimate that already has one.
+                !(quote.project_id && !projectsLoaded) ? (
                 <Button size="sm" className="gap-1.5" onClick={openConvert}>
                   <FolderPlus className="size-4" aria-hidden />
                   Start project
@@ -755,6 +782,38 @@ export function ProposalEditorClient({
             </div>
           }
         />
+
+        <AlertDialog open={regenConfirm} onOpenChange={setRegenConfirm}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Replace all line items?</AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-2 text-sm text-muted-foreground">
+                  <p>
+                    {`This replaces the current ${realLineCount} line${realLineCount === 1 ? "" : "s"} — including any catalog or hand-added rows and any edits — with lines generated from the questionnaire.`}
+                  </p>
+                  {linkedProject ? (
+                    <p className="font-medium text-destructive">
+                      {`This estimate already has a project ("${linkedProject.name}"). The new lines won't be linked to its tasks, so the next Sync schedule will propose removing those tasks and creating new ones.`}
+                    </p>
+                  ) : null}
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                variant="destructive"
+                onClick={() => {
+                  setRegenConfirm(false);
+                  handleGenerateLines();
+                }}
+              >
+                Replace line items
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         <Tabs value={tab} onValueChange={setTab} className="gap-5">
           {/* ONE row at every width. Five full labels need ~433px and a 375px
@@ -1144,7 +1203,7 @@ export function ProposalEditorClient({
                         type="button"
                         size="sm"
                         className="gap-1.5"
-                        onClick={handleGenerateLines}
+                        onClick={requestGenerateLines}
                         {...tourAnchor("estimate.generate")}
                       >
                         <Wand2 className="size-3.5" aria-hidden />

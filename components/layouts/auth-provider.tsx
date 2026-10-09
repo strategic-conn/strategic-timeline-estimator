@@ -28,12 +28,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       fallbackEmail?: string,
       fallbackName?: string,
     ) => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("profiles")
         .select("id, name, email, role, avatar_url, page_access")
         .eq("id", userId)
         .single();
       if (!active) return;
+      // A failed read is NOT "no profile". This re-runs on every hourly token
+      // refresh, and treating a network blip as a missing row applied the
+      // fallback role below — demoting an admin to member mid-session, which
+      // the page-access guard then acted on. Keep what we have instead.
+      // (PGRST116 = the row genuinely doesn't exist yet.)
+      if (error && error.code !== "PGRST116") return;
 
       if (data) {
         applyProfile({

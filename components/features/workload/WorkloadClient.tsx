@@ -224,7 +224,7 @@ export function WorkloadClient() {
   }, [members, tasks, projectId, now]);
   const overCapacityCount = rows.filter((r) => r.overCap).length;
 
-  if (view === "mine") return <WorkloadMine toggle={toggle} />;
+  if (view === "mine") return <WorkloadMine toggle={toggle} weekLogged={weekLogged} />;
 
   return (
     <div className="flex flex-col gap-6">

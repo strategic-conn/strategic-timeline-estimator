@@ -23,7 +23,6 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 import {
   OPEN_TASK_STATUSES,
   TASK_STATUS_META,
@@ -66,7 +65,12 @@ const chartConfig = Object.fromEntries(
   ]),
 ) satisfies ChartConfig;
 
-export function DashboardTeam() {
+export function DashboardTeam({
+  weekLogged,
+}: {
+  /** The page's `useWeekLoggedHours()` — one read for both views, not two. */
+  weekLogged: Record<string, number> | null;
+}) {
   const members = useJoinedTeamMembers();
   const teamLoaded = useTeamStore((s) => s.loaded);
   const teamError = useTeamStore((s) => s.error);
@@ -77,7 +81,6 @@ export function DashboardTeam() {
   const tasksLoaded = useTasksDataStore((s) => s.loaded);
   const availabilityEntries = useAvailabilityStore((s) => s.entries);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
-  const weekLogged = useWeekLoggedHours();
 
   // The clock, read once after mount and never during render: reading it while
   // rendering is impure, and this renders on the server too, where "today" can

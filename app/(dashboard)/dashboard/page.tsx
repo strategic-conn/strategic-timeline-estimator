@@ -338,7 +338,7 @@ export default function DashboardPage() {
       />
 
       {view === "team" ? (
-        <DashboardTeam />
+        <DashboardTeam weekLogged={weekLogged} />
       ) : (
         <>
           {/* Two-up even on a phone: four full-width tiles pushed the actual work

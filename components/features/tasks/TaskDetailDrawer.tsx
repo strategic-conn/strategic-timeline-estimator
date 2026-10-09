@@ -89,6 +89,7 @@ import type {
   TaskStatus,
 } from "@/types/task.types"
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types"
+import { format, parseISO } from "date-fns";
 
 const ASSIGN_STATUS_META: Record<
   AssignmentStatus,
@@ -349,7 +350,7 @@ export function TaskDetailDrawer({
     ).slice(0, 8)
   }, [task, tagInput])
 
-  const dueDate = task?.due_date ? new Date(task.due_date) : undefined
+  const dueDate = task?.due_date ? parseISO(task.due_date) : undefined
 
   const progressPct =
     task &&
@@ -926,7 +927,7 @@ export function TaskDetailDrawer({
                             onSelect={(d) => {
                               if (d)
                                 onUpdateTask(task.id, {
-                                  due_date: d.toISOString(),
+                                  due_date: format(d, "yyyy-MM-dd"),
                                 })
                               setDueOpen(false)
                             }}

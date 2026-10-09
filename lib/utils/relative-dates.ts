@@ -47,5 +47,5 @@ export function relativeDay(iso: string, now: number | Date): string {
   if (diff === -1) return "Yesterday";
   if (diff === 0) return "Today";
   if (diff === 1) return "Tomorrow";
-  return new Date(iso).toLocaleDateString(undefined, { weekday: "short" });
+  return parseISO(iso).toLocaleDateString(undefined, { weekday: "short" });
 }

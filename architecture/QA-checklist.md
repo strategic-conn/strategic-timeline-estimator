@@ -513,6 +513,22 @@ Available in **two** places — test both: the **New estimate** dialog's Client 
 - [ ] ⭐ **Per-stage guard:** this must work *even though* the quote was already pushed as "Proposal Sent" — the two stages are tracked separately. Then the button reads "Zoho notified" and disables.
 - [ ] The quote editor's own "Push to Zoho" button is **unaffected** by the completion push (still shows its own state).
 
+## 🔒 Audit fixes (2026-10-09)
+
+Run `node scripts/security-probe.mjs` first — every line must read PASS (P1b and P18–P21 are new).
+
+- [ ] **Estimate links survive edits.** Create a PO (or link a deal) on an estimate in one tab, edit a line item in a second tab that loaded it earlier → reload: the PO number / deal is still there.
+- [ ] **Start project once.** Approve an estimate, open Start project in two tabs, confirm in both → the second refuses ("This estimate already has a project"); only one project exists.
+- [ ] **No double buffer.** Estimate with a 20% buffer → Start project → the project page shows **0%** buffer and its "with buffer" forecast equals its planned finish; the sprint dates still match the estimate's Gantt.
+- [ ] **Seeded hours = line hours.** Tick "Requirements not pinned down" → Start project → each task's estimate equals its line's quoted hours (Advanced), not the raw base hours.
+- [ ] **Regenerate asks first.** On a guided estimate with line items, press Generate line items → a "Replace all line items?" dialog; Cancel leaves the lines untouched. With a linked project it also warns about the project's tasks.
+- [ ] **Due dates are the day you picked.** Create a task due on the 15th → the card, list, table and drawer all say the 15th (check in a UTC+ timezone and a UTC− one).
+- [ ] **Sign out clears the screen.** Sign out → the login page loads fresh; Back does not show the previous person's dashboard.
+- [ ] **Delete project tells the truth.** Delete a project with logged time → the dialog lists sprint/task counts and the hours that will be erased in red, and names the linked estimate and PO.
+- [ ] **Logging time.** Log 1h on a task → the task total and "Logged this wk" both move by 1h; with the network blocked for `time_entries`, the toast says "Couldn't log time" and the total does not move.
+- [ ] **Confirm link redirect.** `/auth/confirm?…&next=//evil.example` → after Continue you land on `/dashboard`, not the other site.
+- [ ] **Deactivation is immediate.** Deactivate a member who is signed in elsewhere → their next write (e.g. moving a card) fails at once.
+
 ## 📱 Top bar + Estimator tabs on a phone (375px and 320px)
 
 - [ ] Top bar shows ☰, the page name, ?, 🔔, + and nothing else; the page name

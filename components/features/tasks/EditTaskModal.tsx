@@ -39,6 +39,7 @@ import { cn } from "@/lib/utils";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskPriority, TaskStatus } from "@/types/task.types";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types";
+import { format, parseISO } from "date-fns";
 
 const BACKLOG_VALUE = "__backlog__";
 
@@ -341,16 +342,16 @@ export function EditTaskModal({
                   >
                     <CalendarDays className="size-4" />
                     {dueDate
-                      ? new Date(dueDate).toLocaleDateString()
+                      ? parseISO(dueDate).toLocaleDateString()
                       : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={dueDate ? new Date(dueDate) : undefined}
+                    selected={dueDate ? parseISO(dueDate) : undefined}
                     onSelect={(d) => {
-                      setValue("due_date", d?.toISOString());
+                      setValue("due_date", d ? format(d, "yyyy-MM-dd") : undefined);
                       setCalOpen(false);
                     }}
                   />

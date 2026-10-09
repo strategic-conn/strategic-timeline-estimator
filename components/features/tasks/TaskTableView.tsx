@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { formatWorkHours } from "@/lib/utils/work-hours";
 import type { Task, TaskPriority, TaskStatus, TeamMember } from "@/types/task.types";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types";
+import { parseISO } from "date-fns";
 
 type MemberMap = Map<string, TeamMember>;
 
@@ -100,7 +101,7 @@ function calendarYmd(d: Date): number {
 
 function dueDateTone(dueIso?: string): "default" | "today" | "overdue" | "none" {
   if (!dueIso) return "none";
-  const due = new Date(dueIso);
+  const due = parseISO(dueIso);
   if (Number.isNaN(due.getTime())) return "none";
   const dueY = calendarYmd(due);
   const todayY = calendarYmd(new Date());
@@ -111,7 +112,7 @@ function dueDateTone(dueIso?: string): "default" | "today" | "overdue" | "none" 
 
 function formatShortDate(iso?: string): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseISO(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -162,8 +163,8 @@ function compareTasks(
       cmp = [...a.tags].sort().join(",").localeCompare([...b.tags].sort().join(","));
       break;
     case "due_date": {
-      const ta = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
-      const tb = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
+      const ta = a.due_date ? parseISO(a.due_date).getTime() : Number.POSITIVE_INFINITY;
+      const tb = b.due_date ? parseISO(b.due_date).getTime() : Number.POSITIVE_INFINITY;
       cmp = ta - tb;
       break;
     }

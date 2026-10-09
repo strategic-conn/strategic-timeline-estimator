@@ -47,6 +47,7 @@ import {
   type TaskStatus,
 } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { parseISO } from "date-fns";
 
 export interface TaskCardProps {
   task: Task;
@@ -70,7 +71,7 @@ function dueDateTone(
   dueDateStr: string | undefined
 ): "none" | "overdue" | "today" | "upcoming" {
   if (!dueDateStr) return "none";
-  const due = startOfDay(new Date(dueDateStr));
+  const due = startOfDay(parseISO(dueDateStr));
   const today = startOfDay(new Date());
   const diff = due.getTime() - today.getTime();
   if (diff < 0) return "overdue";
@@ -79,7 +80,7 @@ function dueDateTone(
 }
 
 function formatDueDate(dueDateStr: string): string {
-  return new Date(dueDateStr).toLocaleDateString(undefined, {
+  return parseISO(dueDateStr).toLocaleDateString(undefined, {
     month: "short",
     day: "numeric",
     year: "numeric",

@@ -36,6 +36,7 @@ import { cn } from "@/lib/utils";
 import { formatWorkHours } from "@/lib/utils/work-hours";
 import type { Task, TaskStatus } from "@/types/task.types";
 import { TASK_PRIORITIES, TASK_STATUSES } from "@/types/task.types";
+import { parseISO } from "date-fns";
 
 const PRIORITY_DOT_BG: Record<Task["priority"], string> = {
   low: "bg-slate-400",
@@ -58,7 +59,7 @@ function dueDateTone(
   dueIso?: string
 ): "default" | "today" | "overdue" | "none" {
   if (!dueIso) return "none";
-  const due = new Date(dueIso);
+  const due = parseISO(dueIso);
   if (Number.isNaN(due.getTime())) return "none";
   const dueY = calendarYmd(due);
   const todayY = calendarYmd(new Date());
@@ -69,7 +70,7 @@ function dueDateTone(
 
 function formatShortDate(iso?: string): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseISO(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     month: "short",
@@ -81,7 +82,7 @@ function formatShortDate(iso?: string): string {
 /** Narrow label for mobile metadata row */
 function formatDueCompact(iso?: string): string {
   if (!iso) return "—";
-  const d = new Date(iso);
+  const d = parseISO(iso);
   if (Number.isNaN(d.getTime())) return "—";
   return new Intl.DateTimeFormat(undefined, {
     month: "short",

@@ -190,7 +190,10 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0042 hourly_rates (role+level rates; pricing plan Phase 1) ·
                         #   0043 profiles.work_keys (admin-set lookup keys; Phase 4) ·
                         #   0044 risk_buffer_pct default 10 (new rows only) ·
-                        #   0045 tour_progress (onboarding tours; self-only RLS)
+                        #   0045 tour_progress (onboarding tours; self-only RLS) ·
+                        #   0046 audit fixes (time entries admin-edit only, assignee
+                        #   consent guard, deactivated = no role, one estimate per
+                        #   project / PO / active deal, FK indexes)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -535,8 +538,14 @@ This is a **draft schedule** the manager then adjusts (sprint dates, task hours/
 can re-forecast and apply it. **New estimates and new projects start at 10%**
 (`DEFAULT_RISK_BUFFER_PCT`, and `0044` makes it the column default so every
 insert path agrees); existing rows kept their buffer, since changing it would
-move dates people had agreed to. A project made by Start project takes its
-estimate's buffer, not the default.
+move dates people had agreed to.
+
+> **A project made by Start project starts at 0%, not its estimate's
+> buffer.** The scaffolded sprints already carry the estimate's buffer — their
+> dates come from `computeTimeline` with it applied — so copying the percentage
+> as well made the project page forecast a SECOND buffer on top, and **Apply**
+> would have stretched an already-buffered plan again (20% twice is 44%). The
+> buffer travels as dates, exactly as **Apply** leaves it on a hand-made project.
 
 > **It stretches the TIMELINE and nothing else.** Hours are untouched, so
 > the price is untouched. The distinction is the whole reason it is a separate
@@ -847,6 +856,14 @@ Every field is optional except `imported_at` — a quote may come from a deal, f
 > link shows **Start project** rather than a **View project** button pointing at
 > a page that no longer exists.
 
+> **Narrow saves.** `persistQuoteDoc(id, get, columns)` writes
+> `updated_at` plus ONLY the listed columns (`QuoteColumn` = a key of
+> `quoteUpdatePayload()`, so a typo is a type error). It used to send every
+> column, so editing a line item rewrote `zoho`, `pbs` and `project_id` from this
+> tab's copy — and a PO number or deal link written a moment earlier by the
+> server route, the poll or another tab was silently reverted. Three audit
+> passes flagged it independently. A new action passes the columns it changes.
+
 > **Adding any column to `proposals` means updating three places** — `quoteUpdatePayload()`,
 > the `Pick<ClientQuote, …>` param type of `updateProposal`, and `rowToQuote`. Miss either of the
 > first two and the edit updates the store but **silently never persists**; miss `rowToQuote` and it
@@ -1028,9 +1045,12 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
 
    > **Stage and promotion travel in ONE store write** (`applyDealStage`).
    > Doing it as `updateProposal` + `setProposalStatus` is a race, not a
-   > sequence: `persistQuoteDoc` sends the **whole document**, `status`
+   > sequence: `persistQuoteDoc` used to send the **whole document**, `status`
    > included, so the stage write — built while the quote was still `draft` —
    > could land after the status write and revert `approved` back to `draft`.
+   > It now sends only the columns the action changed (see "Narrow saves"
+   > under the Zoho section), and `applyDealStage` re-reads `zoho` from the
+   > database before merging the stage into it.
    > Reproduced at roughly **one in three**, on both the in-app path and the
    > poll. Anything that changes two fields of a quote at once must go through a
    > single action for the same reason.
@@ -1180,13 +1200,31 @@ only their own profile), and an admin can — while a malformed key (`IT|Level 9
 is refused by the column's CHECK. P16 is also the positive control for P14: the
 same body the member was refused is accepted from an admin.
 
+**Fixed in `0046`** (the 2026-10-09 audit), each reproduced live by its probe
+first — P1b, P18, P19 and P20 all failed against the old schema:
+
+| Abuse | Before | Now |
+| --- | --- | --- |
+| Edit your own time entry — hours, task, `logged_at` — or delete it (P1b) | allowed: 0017 only pinned `profile_id`, and **P1 passed for the wrong reason** by changing `profile_id` in the same request | UPDATE/DELETE admin-only; the app only ever inserts |
+| Put a colleague on a task as **accepted** (P18) | stored — their workload grew and hours could be logged on it without them ever agreeing | `guard_task_assignment` forces someone else's row to `pending` (self-assign stays accepted, by design) |
+| Re-point your own assignment at another task, or store `rejected` (P19) | allowed | `task_id` / `profile_id` / `assigned_by` are pinned; the only status a member may set is `accepted` |
+| Keep working after deactivation (P20) | an issued token lives up to an hour, and `current_user_role()` ignored `deactivated_at` | `current_user_role()` is NULL for a deactivated profile |
+
+> **NULL role is not "trusted".** With deactivated people now role-less,
+> `prevent_role_self_change` could no longer identify the system writer as
+> "no role" — a deactivated session would have passed as trusted and could
+> reactivate itself. It now trusts only `auth.uid() is null` (no JWT at all);
+> P21 checks the deactivated member still can't. `0046` also adds partial unique
+> indexes: one estimate per `project_id`, per `pbs->>'po_no'`, and per **active**
+> `zoho->>'deal_id'` — the UI already refused each, and now the database does.
+
 **Verified safe, no change needed:** all 18 API routes are guarded
 (`requireAdmin` / `requireZohoReader|Writer` / `requirePbsReader|Writer`), every
 guard verifies via `auth.getUser()` and reads the role from `profiles` — never
 from `user_metadata`, which the user can write — and offboarding bans the auth
-user, so a deactivated account fails `getUser()`. Members cannot rewrite a time
-entry or make themselves admin. No redirect parameter is read anywhere (no open
-redirect). Headers: `frame-ancestors 'none'` + `X-Frame-Options: DENY`,
+user, so a deactivated account fails `getUser()`. Members cannot make themselves
+admin. The one redirect parameter, `/auth/confirm`'s `next`, goes through
+`safeNext` — an in-app path only (`/x`; never `//x`, `/\x` or a scheme). Headers: `frame-ancestors 'none'` + `X-Frame-Options: DENY`,
 `nosniff`, strict referrer policy, HSTS, and a report-only CSP being staged.
 Comment HTML goes through DOMPurify.
 
@@ -1400,7 +1438,12 @@ one thing a manager needs to see.
 > projects — N pointless writes, and an `updated_at` bump on rows nobody touched.
 > That timestamp is what the on-time-delivery figure reads as a completion time.
 
-**Hours are a separate axis from status.** **Logged this wk** comes from
+**Hours are a separate axis from status.** Logging writes the
+**`time_entries` row first** and moves the task's cached `logged_hours` only once
+it is stored (`appendLoggedHours`): the entry is the record. It used to be a
+fire-and-forget insert *after* the cache write, so a refused insert left hours on
+the task that nobody had logged, and the weekly figure re-read before the entry
+existed. **Logged this wk** comes from
 `time_entries` (per-logger rows), **never** from `tasks.logged_hours` — that is
 the task's cached total and credits every assignee in full. Only an **accepted**
 assignee (or an admin) may log hours, enforced by the
@@ -1947,7 +1990,11 @@ if (!tasks.length) {
 7. **Security is not optional.** httpOnly cookies, DOMPurify on user content, Zod on all
    inputs. No exceptions, even for "internal" features.
 
-8. **One definition per number, shared.** Reports, Workload and the Dashboard each
+8. **One definition per number, shared.** A DATE column is read with
+   `parseISO`, never `new Date()`, and written as `format(d, "yyyy-MM-dd")`,
+   never `toISOString()` — the task due-date pickers stored the day BEFORE the
+   one clicked east of Greenwich, and the board showed it a day early west of
+   it (fixed 2026-10-09 in the task card, list, table, drawer and both modals). Reports, Workload and the Dashboard each
    hand-rolled the same date maths and disagreed on screen: `new Date(due_date) < now`
    treats a DATE column as midnight **UTC**, so a task due *today* counted as overdue
    from 08:00 local (and from the previous evening in a negative-offset zone) — Reports
@@ -1969,5 +2016,5 @@ if (!tasks.length) {
 
 ---
 
-> Maintainer: Frontend Dev · Last updated: 2026-10-01
+> Maintainer: Frontend Dev · Last updated: 2026-10-09
 > Update this file whenever the project scope, stack, or patterns change.

@@ -1627,20 +1627,22 @@ export const useTasksDataStore = create<TasksState>()(
         if (hours <= 0) return;
         const beforeTasks = structuredClone(get().tasks);
         const now = new Date().toISOString();
-        set((s) => ({
-          tasks: s.tasks.map((t) =>
-            t.id === taskId
-              ? {
-                  ...t,
-                  logged_hours: roundWorkHours((t.logged_hours ?? 0) + hours),
-                  updated_at: now,
-                }
-              : t,
-          ),
-        }));
-        const task = get().tasks.find((t) => t.id === taskId);
+        const apply = () =>
+          set((s) => ({
+            tasks: s.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    logged_hours: roundWorkHours((t.logged_hours ?? 0) + hours),
+                    updated_at: now,
+                  }
+                : t,
+            ),
+          }));
 
         if (!isSupabaseConfigured) {
+          apply();
+          const task = get().tasks.find((t) => t.id === taskId);
           offerUndoToast("Logged time updated", () =>
             useTasksDataStore.setState({ tasks: beforeTasks }),
           );
@@ -1654,25 +1656,39 @@ export const useTasksDataStore = create<TasksState>()(
           return;
         }
 
+        // ⚠️ The ENTRY first, then the cache. `time_entries` is the record (it
+        // backs every per-person figure); `logged_hours` is only the task's
+        // cached total. The entry used to be a fire-and-forget insert AFTER the
+        // cache write, so a refused insert left hours on the task that nobody
+        // had logged, silently — and `useWeekLoggedHours` re-reads when the
+        // total moves, so it read the week before the entry existed and showed
+        // the old figure. Applying the total only once the entry is stored
+        // fixes both, at the cost of ~one round-trip before the number moves.
         void (async () => {
+          const loggerId = useAuthStore.getState().user.authId;
+          if (!loggerId) return;
           const supabase = createClient();
+          const entry = await supabase
+            .from("time_entries")
+            .insert({ task_id: taskId, profile_id: loggerId, hours });
+          if (entry.error) {
+            toast.error("Couldn't log time", {
+              description: parseSupabaseError(entry.error),
+            });
+            return;
+          }
+          apply();
+          const task = get().tasks.find((t) => t.id === taskId);
           const { error } = await supabase
             .from("tasks")
             .update({ logged_hours: task?.logged_hours ?? 0, updated_at: now })
             .eq("id", taskId);
           if (error) {
-            set({ tasks: beforeTasks });
-            toast.error("Couldn't log time", {
+            // The hours ARE recorded (the entry exists); only the task's total
+            // is behind, and the next load reads it back.
+            toast.error("Time logged, but the task total didn't update", {
               description: parseSupabaseError(error),
             });
-            return;
-          }
-          // Attribution row (backs the workload views). logged_hours is the cache.
-          const loggerId = useAuthStore.getState().user.authId;
-          if (loggerId) {
-            void supabase
-              .from("time_entries")
-              .insert({ task_id: taskId, profile_id: loggerId, hours });
           }
           if (task) {
             pushWorkspaceActivity(

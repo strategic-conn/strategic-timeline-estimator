@@ -181,6 +181,26 @@ try {
     );
   }
 
+  // ── P1b: the same, ONE field at a time (0046) ───────────────────────────────
+  // P1 also sends profile_id, which 0017's policy refused for that reason alone —
+  // so P1 passed while a member could still inflate their own hours or move them
+  // to another task. Each field is tried on its own here.
+  if (teId) {
+    const tries = { hours: 500, task_id: notMyTask, logged_at: "2020-01-01T00:00:00Z" };
+    const changed = [];
+    for (const [k, v] of Object.entries(tries)) {
+      await call(`/rest/v1/time_entries?id=eq.${teId}`, { method: "PATCH", headers: mMin, body: { [k]: v } });
+      const row = (await call(`/rest/v1/time_entries?id=eq.${teId}&select=task_id,hours,logged_at`)).json[0];
+      if (k === "hours" && Number(row.hours) !== 2) changed.push(`hours=${row.hours}`);
+      if (k === "task_id" && row.task_id !== myTask) changed.push("task moved");
+      if (k === "logged_at" && row.logged_at.startsWith("2020")) changed.push("back-dated");
+    }
+    await call(`/rest/v1/time_entries?id=eq.${teId}`, { method: "DELETE", headers: mMin });
+    const still = ((await call(`/rest/v1/time_entries?id=eq.${teId}&select=id`)).json ?? []).length;
+    if (!still) changed.push("deleted");
+    record("P1b member cannot edit or delete own time entry (hours/task/date)", changed.length === 0, changed.join(", "));
+  }
+
   // ── P2: extend an APPROVED leave without re-approval ────────────────────────
   const leave = (
     await call("/rest/v1/availability_entries", {
@@ -446,6 +466,98 @@ try {
     "P17 tour progress is self-only (read, insert, delete)",
     ownWrite.ok && !forgedStored && othersSeen === 0 && botBefore > 0 && botAfter === botBefore,
     `own=${ownWrite.status} forged=${forged17.status}/${forgedStored ? "stored" : "refused"} othersVisible=${othersSeen} botRows=${botBefore}->${botAfter}`,
+  );
+
+  // ── P18-P19: task assignments (0046) ─────────────────────────────────────────
+  // Self-assigning is accepted at once (by design). Putting a COLLEAGUE on a
+  // task must be a request they answer — an "accepted" row loads their workload
+  // and lets hours be logged on their behalf without them ever agreeing.
+  await call("/rest/v1/task_assignees", {
+    method: "POST",
+    headers: mMin,
+    body: { task_id: notMyTask, profile_id: other, assigned_by: memberId, status: "accepted" },
+  });
+  const forcedRow = (
+    await call(`/rest/v1/task_assignees?task_id=eq.${notMyTask}&profile_id=eq.${other}&select=status`)
+  ).json?.[0];
+  const selfIns = await call("/rest/v1/task_assignees", {
+    method: "POST",
+    headers: mMin,
+    body: { task_id: notMyTask, profile_id: memberId, assigned_by: memberId, status: "accepted" },
+  });
+  const selfRow = (
+    await call(`/rest/v1/task_assignees?task_id=eq.${notMyTask}&profile_id=eq.${memberId}&select=status`)
+  ).json?.[0];
+  record(
+    "P18 member can't assign a colleague as accepted; self-assign still accepted",
+    (!forcedRow || forcedRow.status === "pending") && selfIns.ok && selfRow?.status === "accepted",
+    `colleague=${forcedRow?.status ?? "refused"} self=${selfRow?.status ?? selfIns.status}`,
+  );
+
+  // My accepted row on myTask: re-pointing it at another task, or storing a
+  // status the app never stores, must not stick. Accepting must still work.
+  const moved = await mkTask(`[E2E] moved-to ${RUN}`);
+  await call(`/rest/v1/task_assignees?task_id=eq.${myTask}&profile_id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: mMin,
+    body: { task_id: moved },
+  });
+  const onMoved = ((await call(`/rest/v1/task_assignees?task_id=eq.${moved}&select=profile_id`)).json ?? []).length;
+  const rej = await call(`/rest/v1/task_assignees?task_id=eq.${myTask}&profile_id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: mMin,
+    body: { status: "rejected" },
+  });
+  const myStatus = (
+    await call(`/rest/v1/task_assignees?task_id=eq.${myTask}&profile_id=eq.${memberId}&select=status`)
+  ).json?.[0]?.status;
+  // Positive control: a pending row the member answers with "accepted".
+  await call(`/rest/v1/task_assignees?task_id=eq.${notMyTask}&profile_id=eq.${memberId}`, {
+    method: "PATCH",
+    body: { status: "pending" },
+  });
+  const acc = await call(`/rest/v1/task_assignees?task_id=eq.${notMyTask}&profile_id=eq.${memberId}`, {
+    method: "PATCH",
+    headers: mMin,
+    body: { status: "accepted", responded_at: new Date().toISOString() },
+  });
+  const accStatus = (
+    await call(`/rest/v1/task_assignees?task_id=eq.${notMyTask}&profile_id=eq.${memberId}&select=status`)
+  ).json?.[0]?.status;
+  record(
+    "P19 member can't re-point or mis-set own assignment; accepting works",
+    onMoved === 0 && myStatus === "accepted" && acc.ok && accStatus === "accepted",
+    `moved=${onMoved} afterReject=${myStatus} (${rej.status}) accept=${accStatus}`,
+  );
+
+  // ── P20-P21: a deactivated member (0046) ─────────────────────────────────────
+  // Deactivation bans the auth user, but a token already issued lives for up to
+  // an hour. It must stop working at once — and the role guard must not mistake
+  // a deactivated person (NULL role) for a trusted system writer. LAST, because
+  // it disables the member. P20 opens with a positive control: same insert,
+  // still active, must succeed.
+  const taskBody = (t) => ({
+    project_id: projectId, title: t, status: "todo", priority: "low",
+    reporter_id: memberId, tags: [], position: 0,
+  });
+  const before = await call("/rest/v1/tasks", { method: "POST", headers: mMin, body: taskBody(`[E2E] active ${RUN}`) });
+  await call(`/rest/v1/profiles?id=eq.${memberId}`, {
+    method: "PATCH",
+    body: { deactivated_at: new Date().toISOString() },
+  });
+  const after = await call("/rest/v1/tasks", { method: "POST", headers: mMin, body: taskBody(`[E2E] deactivated ${RUN}`) });
+  const ghost = ((await call(`/rest/v1/tasks?title=eq.${encodeURIComponent(`[E2E] deactivated ${RUN}`)}&select=id`)).json ?? []).length;
+  record(
+    "P20 deactivated member's live token can no longer write",
+    before.ok && ghost === 0,
+    `active=${before.status} deactivated=${after.status}${ghost ? " STORED" : ""}`,
+  );
+  await call(`/rest/v1/profiles?id=eq.${memberId}`, { method: "PATCH", headers: mMin, body: { deactivated_at: null, role: "admin" } });
+  const self21 = (await call(`/rest/v1/profiles?id=eq.${memberId}&select=deactivated_at,role`)).json[0];
+  record(
+    "P21 deactivated member can't reactivate or promote themselves",
+    self21.deactivated_at !== null && self21.role === "member",
+    `deactivated_at=${self21.deactivated_at ? "set" : "CLEARED"} role=${self21.role}`,
   );
 } catch (e) {
   results.push(`ERROR ${e.message}`);

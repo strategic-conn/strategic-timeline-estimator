@@ -20,8 +20,10 @@ import { useTasksDataStore } from "@/store/tasks-store";
  * second copy of this query is a second chance for the two pages to disagree
  * about the same person in the same week.
  *
- * Re-runs when tasks change, which is the cheap proxy for "somebody logged
- * time" — logging hours writes the task's cached total too.
+ * Re-runs when the workspace's total logged hours changes — logging time
+ * writes the task's cached total too, so that sum moves exactly when a new
+ * entry exists. Keying on `tasks` refetched on every drag, rename and status
+ * flip.
  *
  * ⚠️ Returns **`null` until the read resolves**, and always in demo mode (there
  * is no `time_entries` table there). That is not pedantry: "nobody has logged
@@ -30,7 +32,9 @@ import { useTasksDataStore } from "@/store/tasks-store";
  * empty object would have made it claim 0h logged for a moment on every load.
  */
 export function useWeekLoggedHours(): Record<string, number> | null {
-  const tasks = useTasksDataStore((s) => s.tasks);
+  const loggedTotal = useTasksDataStore((s) =>
+    s.tasks.reduce((sum, t) => sum + (t.logged_hours ?? 0), 0),
+  );
   const [logged, setLogged] = React.useState<Record<string, number> | null>(
     null,
   );
@@ -53,7 +57,7 @@ export function useWeekLoggedHours(): Record<string, number> | null {
     return () => {
       active = false;
     };
-  }, [tasks]);
+  }, [loggedTotal]);
 
   return logged;
 }

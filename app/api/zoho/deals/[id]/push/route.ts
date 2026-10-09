@@ -370,7 +370,13 @@ export async function POST(
   // Record what the deal is ACTUALLY at. When the stage was held back the deal
   // never went to `targetStage`, so storing it would make the badge lie and
   // would tell the sibling guard a stage was pushed that wasn't.
-  const settledStage = stageHeldBack || currentStage || targetStage;
+  // ⚠️ `currentStage` was read BEFORE the PUT, so after a successful move it is
+  // the OLD stage. Recording it made "Mark complete in Zoho" store "Closed Won",
+  // leave the button live and need a second click; Send to Zoho and the import
+  // advance recorded the pre-move stage too.
+  const settledStage = result.stageUpdated
+    ? targetStage
+    : stageHeldBack || currentStage || targetStage;
   const writeErr = await recordStage(supabase, proposalId, zoho, {
     stage: settledStage,
     dealId,

@@ -796,9 +796,10 @@
       "layer": "auth",
       "label": "RLS + current_user_role()",
       "sub": "0002_rls.sql",
-      "purpose": "Row-Level Security on all 15 tables — the authoritative authorization wall. usePermissions only mirrors it.",
+      "purpose": "Row-Level Security on all 15 tables — the authoritative authorization wall. usePermissions only mirrors it. Since 0046 current_user_role() is NULL for a deactivated profile, so an access token issued before deactivation stops working at once (probe P20).",
       "files": [
-        "supabase/migrations/0002_rls.sql:8"
+        "supabase/migrations/0002_rls.sql:8",
+        "supabase/migrations/0046_audit_fixes.sql"
       ]
     },
     {
@@ -826,9 +827,10 @@
       "layer": "auth",
       "label": "prevent_role_self_change",
       "sub": "trigger BEFORE UPDATE profiles",
-      "purpose": "Blocks non-admin self-change of role / page_access / deactivated_at (skips NULL-role system writes).",
+      "purpose": "Blocks non-admin change of role / page_access / deactivated_at / confirmed_at / email / work_keys. Trusts only callers with NO JWT (auth.uid() is null: GoTrue's confirm trigger, service role) - since 0046 a NULL role means a deactivated person, not the system.",
       "files": [
-        "supabase/migrations/0027_security_phase1.sql:63"
+        "supabase/migrations/0027_security_phase1.sql:63",
+        "supabase/migrations/0046_audit_fixes.sql"
       ]
     },
     {
@@ -886,10 +888,11 @@
       "id": "t-assignees",
       "layer": "data",
       "label": "task_assignees",
-      "sub": "0001 +0016",
-      "purpose": "PK(task_id,profile_id). status pending/accepted/rejected/passed, assigned_by, responded_at, note.",
+      "sub": "0001 +0016 +0046",
+      "purpose": "PK(task_id,profile_id). status pending/accepted/rejected/passed, assigned_by, responded_at, note. 0046 guard_task_assignment (members): someone else's row is forced to pending; on update task_id/profile_id/assigned_by are pinned and the only status a member may set is accepted (P18-P19). Self-assign stays accepted by design.",
       "files": [
-        "supabase/migrations/0016_task_assignment_lifecycle.sql"
+        "supabase/migrations/0016_task_assignment_lifecycle.sql",
+        "supabase/migrations/0046_audit_fixes.sql"
       ]
     },
     {
@@ -967,10 +970,11 @@
       "id": "t-timeentries",
       "layer": "data",
       "label": "time_entries",
-      "sub": "0017",
-      "purpose": "task_id, profile_id, hours>0. Insert RLS: own AND accepted assignment. tasks.logged_hours is the cache.",
+      "sub": "0017 +0046",
+      "purpose": "task_id, profile_id, hours>0. Insert RLS: own AND accepted assignment. UPDATE/DELETE admin-only since 0046 (P1b) - the app only inserts. Written BEFORE tasks.logged_hours (the cache) by appendLoggedHours.",
       "files": [
-        "supabase/migrations/0017_time_entries.sql"
+        "supabase/migrations/0017_time_entries.sql",
+        "supabase/migrations/0046_audit_fixes.sql"
       ]
     },
     {
@@ -4382,7 +4386,11 @@
     "A tour's end is handled in onDestroyStarted, never driver.js's onDestroyed: driver.js skips onDestroyed when its active element is not set yet (Done clicked within a few frames), which left tours unrecorded and the ? button disabled.",
     "The Getting started checklist derives every item from real data and stores only its dismissal. 'Create your first estimate' reads proposals.owner_id (mapped read-only in rowToQuote, never sent by quoteUpdatePayload).",
     "Section help (the ? top-right of every page header and main section) is SectionHelp (a Popover, so it opens on touch). Copy: components/common/app-help.tsx (pages) and components/features/proposals/estimator-help.tsx (Estimator). It restates behaviour: update it in the same commit. Every space beside <strong>/<em> is an explicit {\" \"} (the compiler drops it next to an &apos;); e2e/estimator-help.spec.ts checks source and rendered text.",
-    "Invites: email security scanners (SafeLinks) spend Supabase's default /auth/v1/verify links, confirming the account without a password. Admins recover anyone via a password setup link (lib/auth/setup-link.ts: recovery token -> OUR /auth/confirm click-through, scanner-safe) from the invite response, a re-invite, or the key button (POST /api/invites/link). Never for an account with app_metadata.password_set (no signing in as a set-up colleague); never delete a confirmed account to re-invite. /forgot-password is public."
+    "Invites: email security scanners (SafeLinks) spend Supabase's default /auth/v1/verify links, confirming the account without a password. Admins recover anyone via a password setup link (lib/auth/setup-link.ts: recovery token -> OUR /auth/confirm click-through, scanner-safe) from the invite response, a re-invite, or the key button (POST /api/invites/link). Never for an account with app_metadata.password_set (no signing in as a set-up colleague); never delete a confirmed account to re-invite. /forgot-password is public.",
+    "Start project creates the project with risk_buffer_pct = 0: the scaffolded sprints already carry the estimate's buffer as dates, so copying the percentage would forecast and apply it twice.",
+    "persistQuoteDoc writes updated_at + ONLY the columns the action changed (QuoteColumn[]). A whole-document save reverted zoho/pbs/project_id written meanwhile by a server route, the poll or another tab.",
+    "One estimate per project_id, per pbs.po_no and per ACTIVE zoho.deal_id - partial unique indexes in 0046 back the UI checks.",
+    "DATE columns: read with parseISO, write with format(d,'yyyy-MM-dd'). new Date('2026-10-09') is UTC midnight (a day early west of Greenwich) and toISOString() of local midnight is the day before east of it."
   ],
   "permissionsMatrix": {
     "columns": [

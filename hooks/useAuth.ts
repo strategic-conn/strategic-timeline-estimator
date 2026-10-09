@@ -63,9 +63,12 @@ export function useAuth() {
     const supabase = createClient();
     await supabase.auth.signOut();
     resetToDemo();
-    router.push("/login");
-    router.refresh();
-  }, [resetToDemo, router]);
+    // A full page load, not router.push: every store keeps the last person's
+    // data in memory (tasks, client quotes and prices, leave notes), and a
+    // client-side navigation handed all of it to whoever signed in next on
+    // this browser until their own data finished loading.
+    window.location.replace("/login");
+  }, [resetToDemo]);
 
   return { isConfigured: isSupabaseConfigured, signIn, signUp, signOut };
 }

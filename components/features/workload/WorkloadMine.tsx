@@ -8,7 +8,6 @@ import {
   TaskBadgePopover,
   taskHref,
 } from "@/components/features/workload/TaskBadgePopover";
-import { useWeekLoggedHours } from "@/hooks/useWeekLoggedHours";
 import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -41,7 +40,14 @@ import type { Task } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
 
-export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
+export function WorkloadMine({
+  toggle,
+  weekLogged,
+}: {
+  toggle?: React.ReactNode;
+  /** From the parent's `useWeekLoggedHours()` — see below. */
+  weekLogged: Record<string, number> | null;
+}) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const tasks = useTasksDataStore((s) => s.tasks);
   const projects = useProjectsStore((s) => s.projects);
@@ -53,15 +59,10 @@ export function WorkloadMine({ toggle }: { toggle?: React.ReactNode }) {
   );
 
   /**
-   * Same read as the Team view and the dashboard — `useWeekLoggedHours`.
-   *
-   * ⚠️ This used to be a private copy of that query, and it ran *alongside* the
-   * shared one: `WorkloadClient` calls the hook before it returns this
-   * component, so the Mine view fired two requests for one number. Two copies
-   * of "hours logged this week" is also two chances for the two pages to
-   * disagree about the same person in the same week.
+   * Same read as the Team view and the dashboard — `useWeekLoggedHours`, taken
+   * as a prop. `WorkloadClient` already calls the hook before it returns this
+   * component, so calling it here too fired two requests for one number.
    */
-  const weekLogged = useWeekLoggedHours();
   const hoursThisWeek =
     weekLogged == null ? null : Math.round((weekLogged[me] ?? 0) * 10) / 10;
 
