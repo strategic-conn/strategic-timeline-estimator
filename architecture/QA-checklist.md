@@ -529,6 +529,18 @@ Run `node scripts/security-probe.mjs` first — every line must read PASS (P1b a
 - [ ] **Confirm link redirect.** `/auth/confirm?…&next=//evil.example` → after Continue you land on `/dashboard`, not the other site.
 - [ ] **Deactivation is immediate.** Deactivate a member who is signed in elsewhere → their next write (e.g. moving a card) fails at once.
 
+## 🧭 Product decisions (2026-10-12)
+
+Apply `0047` first (`npm run db:push`).
+
+- [ ] **No blank projects.** /projects shows **New project** disabled; hovering it explains why. No "New project" in the header, no *Create project* in the + menu, no *Create project* quick action on the dashboard. With no projects, the empty state offers **Open the Estimator**.
+- [ ] **No project picker.** New estimate has no "Internal project" field; the editor's Setup shows the linked project as a link, or "None yet — Start project creates it".
+- [ ] **Approved estimates are frozen.** On a project made by Start project, change a seeded task's hours → the estimate's line item and price do NOT change; one toast says the estimate keeps the agreed price.
+- [ ] **No deal, no PO.** An approved estimate with no Zoho deal shows no **Create PO** button; a direct `POST /api/pbs/pos` for it returns 409.
+- [ ] **Closed projects leave workload.** Mark a project Completed → its open tasks disappear from Workload (both tabs), both dashboard views, Reports' Overdue, and the next Start project's "already booked" hours.
+- [ ] **On-time uses completion date.** Finish a task before its due date, then rename it after the due date → the on-time % on Dashboard and Reports does not drop. Reopen it → `completed_at` clears.
+- [ ] **Seeded assignees are notified.** Start project with auto-assignment → each assignee gets ONE bell notification ("assigned you N tasks on …") linking to the project.
+
 ## 📱 Top bar + Estimator tabs on a phone (375px and 320px)
 
 - [ ] Top bar shows ☰, the page name, ?, 🔔, + and nothing else; the page name

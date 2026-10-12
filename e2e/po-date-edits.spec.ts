@@ -27,7 +27,8 @@ test("edited dates survive changing the client", async ({ page }) => {
     title: `${E2E_PREFIX} date reset probe`, platform: "shopify", status: "approved",
     requirements_unclear: false, addons: {},
     line_items: [{ id: "l1", title: "Work", base_hours: 40, tier: "basic", quantity: 1, hours: 40, depends_on: [] }],
-    zoho: { stage: "Closed Won", imported_at: new Date().toISOString() },
+    // Create PO needs a deal; this one does not exist in Zoho (unique per run).
+    zoho: { stage: "Closed Won", deal_id: `e2e-no-deal-${Date.now()}`, imported_at: new Date().toISOString() },
   })});
   if (!res.ok) { console.log("INSERT FAILED", res.status); return; }
   const id = JSON.parse(await res.text())[0].id;

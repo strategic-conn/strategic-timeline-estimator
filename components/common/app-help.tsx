@@ -48,10 +48,10 @@ const HELP = {
           scheduled yet. Open a project to see them.
         </p>
         <p>
-          <strong>New project</strong>{" "}(admins and managers) makes a blank
-          one. A project from an approved estimate is made with{" "}
-          <strong>Start project</strong>{" "}in the Estimator instead, with its
-          sprints and tasks already laid out.
+          Every project starts from an approved estimate: press{" "}
+          <strong>Start project</strong>{" "}in the Estimator and it arrives with
+          its sprints and tasks already laid out.{" "}<strong>New project</strong>{" "}
+          (blank projects) is switched off for now.
         </p>
         <p>
           Completed and archived projects stay here; use the status filter to

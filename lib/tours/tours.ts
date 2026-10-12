@@ -200,7 +200,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "projects",
-    version: 1,
+    version: 2,
     title: "Projects",
     access: "/projects",
     match: exact("/projects"),
@@ -208,7 +208,7 @@ export const TOURS: TourDef[] = [
       {
         target: "projects.new",
         title: "Start a project",
-        body: "Create a blank project here. A project from an approved estimate is made with Start project in the Estimator instead, with its sprints already scheduled.",
+        body: "Projects start from an approved estimate: press Start project in the Estimator and it arrives with its sprints already scheduled. Blank projects are switched off for now.",
         when: (c) => c.canCreateProject,
       },
       {
@@ -229,7 +229,7 @@ export const TOURS: TourDef[] = [
         title: "No projects yet",
         body: (c) =>
           c.canCreateProject
-            ? "Create the first one with New project, or start one from an approved estimate."
+            ? "Start the first one from an approved estimate — Start project in the Estimator."
             : "An admin or manager adds projects. Work assigned to you will show up on your dashboard.",
       },
     ],

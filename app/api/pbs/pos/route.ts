@@ -290,7 +290,21 @@ export async function POST(req: Request) {
   // Estimates that share a Zoho deal are the same piece of work; billing it
   // twice would leave two POs that PBS cannot delete.
   const dealId = (proposal.zoho as { deal_id?: string } | null)?.deal_id;
-  if (dealId) {
+  // ── No deal, no PO ──
+  // Billing waits for the win, and the win is a Zoho deal reaching Closed Won.
+  // An estimate with no deal has nothing that can be won, so it is refused
+  // rather than skipping the check — PBS can't delete a PO, so "billable by
+  // default" was the wrong way round. Send it to Zoho (or link a deal) first.
+  if (!dealId) {
+    return NextResponse.json(
+      {
+        error:
+          "This estimate isn't linked to a Zoho deal. A PO is only created once its deal reaches Closed Won — send it to Zoho first.",
+      },
+      { status: 409 },
+    );
+  }
+  {
     const { data: siblings } = await supabase
       .from("proposals")
       .select("id, title, status, zoho, pbs")
@@ -310,9 +324,7 @@ export async function POST(req: Request) {
     // A PO is raised once sales has actually won the deal, not when a quote goes
     // out. Read the stage live rather than trusting `zoho.stage` (a cache that
     // refreshes on view) or the client, and FAIL CLOSED: PBS has no delete
-    // endpoint, so "couldn't confirm" must not create a PO. Only a deal with no
-    // Zoho link at all skips this — there is nothing to check, and hand-made
-    // estimates were billable before this rule existed.
+    // endpoint, so "couldn't confirm" must not create a PO.
     let liveStage: string | null = null;
     try {
       const res = await zohoFetch(

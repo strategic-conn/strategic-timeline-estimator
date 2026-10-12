@@ -137,7 +137,6 @@ export function ProposalsListClient() {
   const [newZoho, setNewZoho] = React.useState<ProposalZohoLink | null>(null);
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
-  const [newProjectId, setNewProjectId] = React.useState<string>("__none__");
   const [newPlatform, setNewPlatform] =
     React.useState<ProposalPlatform>("react_next");
   const [deleteTarget, setDeleteTarget] = React.useState<ClientQuote | null>(
@@ -191,8 +190,11 @@ export function ProposalsListClient() {
     const id = createProposal({
       title,
       client_name: newClient.trim() || undefined,
-      project_id:
-        newProjectId && newProjectId !== "__none__" ? newProjectId : null,
+      // No project picker: an estimate gets its project from Start project
+      // (one estimate per project — 0046's unique index). Linking an existing
+      // project here let two estimates share one, and Sync schedule then
+      // deleted the other estimate's tasks as "removed lines".
+      project_id: null,
       platform: newPlatform,
       // Only set when the client was picked from Zoho (typing clears it).
       zoho: newZoho,
@@ -200,7 +202,6 @@ export function ProposalsListClient() {
     setCreateOpen(false);
     setNewTitle("");
     setNewClient("");
-    setNewProjectId("__none__");
     setNewPlatform("react_next");
     setNewZoho(null);
     router.push(`/proposals/${id}`);
@@ -621,22 +622,6 @@ export function ProposalsListClient() {
                   {newZoho.contact ? ` · ${newZoho.contact}` : ""}
                 </p>
               ) : null}
-            </div>
-            <div className="grid gap-2">
-              <Label>Internal project (optional)</Label>
-              <Select value={newProjectId} onValueChange={setNewProjectId}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="None" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">None</SelectItem>
-                  {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      {p.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
             <div className="grid gap-2">
               <Label>Platform</Label>

@@ -117,10 +117,17 @@ export function looksWon(stage: string | null | undefined): boolean {
  * re-checks everything before writing.
  */
 export function canRaisePo(quote: {
-  zoho?: { stage?: string | null } | null;
+  zoho?: { stage?: string | null; deal_id?: string | null } | null;
   pbs?: { po_no?: string | null; po_id?: string | number | null } | null;
 }): boolean {
-  return looksWon(quote.zoho?.stage) && !quote.pbs?.po_no && !quote.pbs?.po_id;
+  // A deal is required: the route refuses an estimate with none (no win to
+  // gate on). A stale `stage` without a `deal_id` must not show the button.
+  return (
+    !!quote.zoho?.deal_id &&
+    looksWon(quote.zoho?.stage) &&
+    !quote.pbs?.po_no &&
+    !quote.pbs?.po_id
+  );
 }
 
 /** Files this app has already attached to the deal, filename → ISO timestamp. */

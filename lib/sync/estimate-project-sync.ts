@@ -166,6 +166,20 @@ export function applyTaskToLineItems(
   return out;
 }
 
+/**
+ * An approved or billed estimate is the price the client agreed to, so task
+ * edits on its project no longer flow back into it (the project → estimate
+ * mirror stops). The project is the plan from then on; the quote stays what
+ * was signed. Billed = a PO exists, by either identifier. Estimate → project
+ * (Sync schedule) is unaffected — it is a deliberate, previewed action.
+ */
+export function quoteIsFrozen(quote: {
+  status?: string | null;
+  pbs?: { po_no?: string | null; po_id?: string | number | null } | null;
+}): boolean {
+  return quote.status === "approved" || !!quote.pbs?.po_no || !!quote.pbs?.po_id;
+}
+
 /** Drop the line item a deleted task came from. `null` when there was none. */
 export function removeLineItem(
   lineItems: ProposalLineItem[],

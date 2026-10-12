@@ -66,9 +66,12 @@ test.describe("dashboard scopes", () => {
       if (afterClick) await afterClick();
       const rows = page.locator("main").getByText(/%\s*of\s*\d+h/);
       await expect(rows.first()).toBeVisible({ timeout: 30_000 });
-      // Normalise whitespace so "72% of 40h" and "72%  of 40h" compare equal.
+      // Keep only the "N% of Mh" figure. Workload appends why capacity is
+      // reduced in the same text — "0% of 32h (40h − 1 holiday)" — so in any
+      // week with a holiday or leave a whole-string compare failed on figures
+      // that agreed. Whitespace normalised so "72%  of 40h" matches too.
       return (await rows.allInnerTexts())
-        .map((t) => t.replace(/\s+/g, " ").trim())
+        .map((t) => t.replace(/\s+/g, " ").match(/\d+% of \d+(?:\.\d+)?h/)?.[0] ?? t.trim())
         .sort();
     };
 

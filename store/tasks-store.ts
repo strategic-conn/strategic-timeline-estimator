@@ -131,6 +131,8 @@ function rowToTask(r: TaskRowWithAssignees): Task {
     position: r.position,
     created_at: r.created_at,
     updated_at: r.updated_at,
+    // `?? null`: the column arrives with 0047; before that the row lacks it.
+    completed_at: r.completed_at ?? null,
     comments: [],
   };
 }
@@ -483,6 +485,7 @@ export const useTasksDataStore = create<TasksState>()(
                       position: row.position,
                       created_at: row.created_at,
                       updated_at: row.updated_at,
+                      completed_at: row.completed_at ?? null,
                     }
                   : t,
               ),

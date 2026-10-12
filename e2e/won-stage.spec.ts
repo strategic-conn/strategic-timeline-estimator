@@ -101,11 +101,13 @@ test.describe("won-stage rule", () => {
   });
 
   test("the button only shows when the deal is won and nothing is billed", () => {
-    const won = { zoho: { stage: "Closed Won" } };
+    const won = { zoho: { stage: "Closed Won", deal_id: "d1" } };
     expect(canRaisePo(won)).toBe(true);
-    expect(canRaisePo({ zoho: { stage: "Proposal Sent" } })).toBe(false);
-    expect(canRaisePo({ zoho: { stage: "Closed Lost" } })).toBe(false);
+    expect(canRaisePo({ zoho: { stage: "Proposal Sent", deal_id: "d1" } })).toBe(false);
+    expect(canRaisePo({ zoho: { stage: "Closed Lost", deal_id: "d1" } })).toBe(false);
     expect(canRaisePo({})).toBe(false);
+    // No deal, no PO — even with a won-looking stage left on the record.
+    expect(canRaisePo({ zoho: { stage: "Closed Won" } })).toBe(false);
     // Already billed, by either identifier. The header button used to test only
     // po_no, so a PO with an id and no number showed a button that opened
     // straight onto "already billed".

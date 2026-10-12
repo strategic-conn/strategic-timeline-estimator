@@ -1,6 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { e2eName, waitForApp, collectConsoleErrors } from "./helpers";
 import { cleanupE2EData } from "./cleanup";
+import {
+  BLANK_PROJECTS_ENABLED,
+  BLANK_PROJECTS_OFF_REASON,
+} from "../lib/constants/projects";
 
 /**
  * The one suite that WRITES to the live database.
@@ -21,7 +25,22 @@ test.describe("create a project (writes to live data)", () => {
     console.log(`[e2e cleanup] removed ${total} record(s):`, deleted);
   });
 
+  test("New project is disabled, and says why, while blank projects are off", async ({ page }) => {
+    test.skip(BLANK_PROJECTS_ENABLED, "blank projects are switched on");
+    await page.goto("/projects");
+    await waitForApp(page);
+    const btn = page.getByRole("button", { name: /new project/i }).first();
+    await expect(btn).toBeDisabled();
+    await expect(page.locator(`[title="${BLANK_PROJECTS_OFF_REASON}"]`)).toHaveCount(1);
+    // The header shortcut (shown off /projects) is gone, not just inert.
+    await page.goto("/dashboard");
+    await waitForApp(page);
+    await expect(page.getByRole("link", { name: /^new project$/i })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: /^create project$/i })).toHaveCount(0);
+  });
+
   test("create → appears in the list → survives reload", async ({ page }, testInfo) => {
+    test.skip(!BLANK_PROJECTS_ENABLED, "blank projects are switched off (BLANK_PROJECTS_ENABLED)");
     // Data-flow test, not layout — running it per viewport would triple the
     // writes to the live database for no extra signal.
     test.skip(

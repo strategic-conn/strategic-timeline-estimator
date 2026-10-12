@@ -27,7 +27,7 @@ import {
   type PlanStrategy,
 } from "@/lib/assignment/plan";
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
-import { assignedWork } from "@/lib/workload/assigned-work";
+import { assignedWork, closedProjectIds } from "@/lib/workload/assigned-work";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
@@ -40,6 +40,7 @@ import {
   projectDateRange,
   registerScheduleWatcher,
   registerTaskMirror,
+  quoteIsFrozen,
   removeLineItem,
   withMirrorSuppressed,
   type TaskPatch,
@@ -49,6 +50,7 @@ import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { useAuthStore } from "@/store/auth-store";
+import { notifyUsers } from "@/lib/activity/workspace-push";
 import { useAvailabilityStore } from "@/store/availability-store";
 import { useMemberSkillsStore } from "@/store/member-skills-store";
 import { useProjectsStore } from "@/store/projects-store";
@@ -146,8 +148,10 @@ function currentRoster(): PlanDev[] {
     bookedHours: Object.fromEntries(
       members.map((m) => [
         m.id,
-        assignedWork(useTasksDataStore.getState().tasks, m.id, { now: new Date() })
-          .allocatedHours,
+        assignedWork(useTasksDataStore.getState().tasks, m.id, {
+          now: new Date(),
+          closed: closedProjectIds(useProjectsStore.getState().projects),
+        }).allocatedHours,
       ]),
     ),
   });
@@ -329,6 +333,11 @@ function makeSprintDateResolver(
 /**
  * Insert pending `task_assignees` for the planned tasks (live mode) and add
  * them to the store optimistically. `taskRows[i]` corresponds to `seeds[i]`.
+ *
+ * Then tells each person, ONCE, how many tasks are waiting for their answer.
+ * These rows go straight in through supabase (not `createTask`, which notifies
+ * per task), so without this a seeded assignment sat as "pending" on someone's
+ * Workload with nothing in their bell to say it was there.
  */
 async function seedAssignments(
   supabase: ReturnType<typeof createClient>,
@@ -336,6 +345,7 @@ async function seedAssignments(
   seeds: ProposalLineItem[],
   plan: SeedPlan | null,
   ownerId: string,
+  projectId: string,
 ): Promise<void> {
   if (!plan) return;
   const rows = taskRows
@@ -370,6 +380,23 @@ async function seedAssignments(
       responded_at: null,
       note: null,
     });
+  }
+
+  const perPerson = new Map<string, number>();
+  for (const r of rows) perPerson.set(r.profile_id, (perPerson.get(r.profile_id) ?? 0) + 1);
+  const projectName =
+    useProjectsStore.getState().projects.find((p) => p.id === projectId)?.name ??
+    "a new project";
+  const actor = useAuthStore.getState().user.name?.trim() || "Someone";
+  // The store drops the actor, so a coordinator who planned work for
+  // themselves isn't told about their own action.
+  for (const [profileId, n] of perPerson) {
+    notifyUsers(
+      [profileId],
+      `${actor} assigned you ${n} task${n === 1 ? "" : "s"} on "${projectName}" — accept or decline`,
+      `/projects/${projectId}`,
+      projectId,
+    );
   }
 }
 
@@ -1507,7 +1534,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             // Optimistically add so the board/backlog isn't empty pre-realtime.
             const tasksStore = useTasksDataStore.getState();
             for (const r of tData) tasksStore.applyRealtimeTaskUpsert(r);
-            await seedAssignments(supabase, taskRows, seeds, plan, ownerId);
+            await seedAssignments(supabase, taskRows, seeds, plan, ownerId, projectId);
           }
         }
 
@@ -1716,7 +1743,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             });
           } else {
             for (const r of data) tasksState.applyRealtimeTaskUpsert(r);
-            await seedAssignments(supabase, rows, newSeeds, plan, ownerId);
+            await seedAssignments(supabase, rows, newSeeds, plan, ownerId, projectId);
           }
         }
 
@@ -1933,6 +1960,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
  * the write would be refused anyway, and the estimate is the coordinator's
  * document. Their task edit simply doesn't reprice the quote.
  */
+const frozenNoticeShown = new Set<string>();
+
 registerTaskMirror((event) => {
   const lineId = event.task.source_line_item_id;
   if (!lineId) return null;
@@ -1940,6 +1969,19 @@ registerTaskMirror((event) => {
     .getState()
     .proposals.find((p) => p.project_id === event.task.project_id);
   if (!quote) return null;
+
+  // Approved or billed: the quote is what the client agreed to, so the task
+  // edit stays on the project. Said once per quote per session, not per edit.
+  if (quoteIsFrozen(quote)) {
+    if (!frozenNoticeShown.has(quote.id)) {
+      frozenNoticeShown.add(quote.id);
+      toast.info(`Estimate "${quote.title}" is ${quote.status === "approved" ? "approved" : "billed"}`, {
+        description:
+          "Task changes stay on the project — the estimate keeps the agreed price.",
+      });
+    }
+    return null;
+  }
 
   const next =
     event.kind === "delete"

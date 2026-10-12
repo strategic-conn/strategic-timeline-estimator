@@ -28,7 +28,11 @@ async function rest(path: string, init?: RequestInit) {
   });
 }
 
-/** A won estimate with no PO and no Zoho deal, so nothing external is touched. */
+/**
+ * A won estimate with no PO. Create PO needs a deal, so it carries one that
+ * does not exist in Zoho — unique per run (one active estimate per deal, 0046);
+ * a stage refresh reads it back as no stage and writes nothing.
+ */
 async function wonQuote(label: string): Promise<string | null> {
   const res = await rest("proposals", {
     method: "POST",
@@ -41,7 +45,11 @@ async function wonQuote(label: string): Promise<string | null> {
         { id: "l1", title: "Work", base_hours: 10, tier: "basic", quantity: 1, hours: 10, depends_on: [] },
       ],
       addons: {},
-      zoho: { stage: "Closed Won", imported_at: new Date().toISOString() },
+      zoho: {
+        stage: "Closed Won",
+        deal_id: `e2e-no-deal-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        imported_at: new Date().toISOString(),
+      },
     }),
   });
   if (!res.ok) return null;

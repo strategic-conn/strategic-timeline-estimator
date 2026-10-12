@@ -878,10 +878,11 @@
       "layer": "data",
       "label": "tasks",
       "sub": "0001 +0032/0033",
-      "purpose": "project_id -> projects; sprint_id -> sprints (null=backlog); reporter_id -> profiles. logged_hours (trigger-guarded). source_line_item_id (text, 0032/0033) is the stable link to the proposals.line_items[].id a task was seeded from — NULL means a person made it by hand and no sync may touch it.",
+      "purpose": "project_id -> projects; sprint_id -> sprints (null=backlog); reporter_id -> profiles. logged_hours (trigger-guarded). source_line_item_id (text, 0032/0033) is the stable link to the proposals.line_items[].id a task was seeded from — NULL means a person made it by hand and no sync may touch it. completed_at (0047) is trigger-stamped when status enters done.",
       "files": [
         "supabase/migrations/0001_init.sql",
-        "supabase/migrations/0033_task_source_line_item_is_text.sql"
+        "supabase/migrations/0033_task_source_line_item_is_text.sql",
+        "supabase/migrations/0047_task_completed_at.sql"
       ]
     },
     {
@@ -4390,7 +4391,13 @@
     "Start project creates the project with risk_buffer_pct = 0: the scaffolded sprints already carry the estimate's buffer as dates, so copying the percentage would forecast and apply it twice.",
     "persistQuoteDoc writes updated_at + ONLY the columns the action changed (QuoteColumn[]). A whole-document save reverted zoho/pbs/project_id written meanwhile by a server route, the poll or another tab.",
     "One estimate per project_id, per pbs.po_no and per ACTIVE zoho.deal_id - partial unique indexes in 0046 back the UI checks.",
-    "DATE columns: read with parseISO, write with format(d,'yyyy-MM-dd'). new Date('2026-10-09') is UTC midnight (a day early west of Greenwich) and toISOString() of local midnight is the day before east of it."
+    "DATE columns: read with parseISO, write with format(d,'yyyy-MM-dd'). new Date('2026-10-09') is UTC midnight (a day early west of Greenwich) and toISOString() of local midnight is the day before east of it.",
+    "Blank projects are off (BLANK_PROJECTS_ENABLED=false): every project comes from Start project on an approved estimate. New-estimate has no project picker; the editor's Internal project is read-only.",
+    "Project -> estimate mirror stops once an estimate is approved or billed (quoteIsFrozen). The quote keeps the agreed price; the project is the plan. Sync schedule (estimate -> project) still runs behind its preview.",
+    "Create PO requires a Zoho deal: POST /api/pbs/pos refuses an estimate with no deal_id (409) and canRaisePo hides the button.",
+    "isOpen(task, closed) / assignedWork({closed}): tasks in completed or archived projects never count toward load, overdue or booked hours. closed is a required argument.",
+    "On-time delivery = onTimePercent: tasks.completed_at (0047 trigger, stamped when status enters done, cleared on reopen; client value overwritten), calendar days vs due_date.",
+    "seedAssignments notifies each seeded assignee once (N tasks, accept or decline) - Start project and Sync schedule."
   ],
   "permissionsMatrix": {
     "columns": [

@@ -73,6 +73,12 @@ export interface Task {
   position: number;
   created_at: string;
   updated_at: string;
+  /**
+   * When the task ENTERED done — stamped by the database (0047), never sent by
+   * the client, null when it is not done. On-time delivery reads this;
+   * `updated_at` moves on every later edit. Missing until 0047 is applied.
+   */
+  completed_at?: string | null;
   comments: Comment[];
 }
 

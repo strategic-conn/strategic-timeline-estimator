@@ -1076,26 +1076,24 @@ export function ProposalEditorClient({
                   <div className="flex h-8 items-center">
                     <Label>Internal project</Label>
                   </div>
-                  <Select
-                    value={quote.project_id ?? "__none__"}
-                    onValueChange={(v) =>
-                      updateProposal(quote.id, {
-                        project_id: v === "__none__" ? null : v,
-                      })
-                    }
-                  >
-                    <SelectTrigger className="w-full">
-                      <SelectValue placeholder="None" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__none__">None</SelectItem>
-                      {projects.map((p) => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {/* Read-only: the link is made by Start project, one estimate
+                      per project (0046). Picking an existing project here let
+                      two estimates share one, and Sync schedule then removed
+                      the other estimate's tasks as "deleted lines". */}
+                  <p className="flex h-9 items-center text-sm">
+                    {linkedProject ? (
+                      <Link
+                        href={`/projects/${linkedProject.id}`}
+                        className="truncate underline underline-offset-4"
+                      >
+                        {linkedProject.name}
+                      </Link>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        None yet — Start project creates it
+                      </span>
+                    )}
+                  </p>
                 </div>
                 <div className="grid gap-2" {...tourAnchor("estimate.platform")}>
                   <div className="flex h-8 items-center">

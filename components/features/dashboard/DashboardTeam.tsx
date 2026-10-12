@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useClosedProjectIds } from "@/hooks/useProjects";
 import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 import { Bar, BarChart, Cell, Pie, PieChart, XAxis, YAxis } from "recharts";
@@ -75,6 +76,7 @@ export function DashboardTeam({
   const teamLoaded = useTeamStore((s) => s.loaded);
   const teamError = useTeamStore((s) => s.error);
   const tasks = useTasksDataStore((s) => s.tasks);
+  const closed = useClosedProjectIds();
   // Rule 2: a KPI must not state a number it does not have yet. The stores
   // hydrate async, and every figure below reads a real-looking 0 until they
   // arrive — for a moment the page asserted "0 overdue" as fact.
@@ -101,7 +103,7 @@ export function DashboardTeam({
             m.id,
             now,
           );
-          const work = assignedWork(tasks, m.id, { now });
+          const work = assignedWork(tasks, m.id, { now, closed });
           const util = utilization(work.allocatedHours, cap.effective);
           const slices = statusBreakdown(work.allocated);
           const byStatus = Object.fromEntries(
@@ -126,7 +128,7 @@ export function DashboardTeam({
         // Busiest first: the people a manager has to act on belong at the top,
         // not whoever happens to be alphabetically first.
         .sort((a, b) => b.work.allocatedHours - a.work.allocatedHours),
-    [members, tasks, availabilityEntries, capacityOverrides, weekLogged, now],
+    [members, tasks, availabilityEntries, capacityOverrides, weekLogged, now, closed],
   );
 
   /**
@@ -170,10 +172,13 @@ export function DashboardTeam({
    * overdue count counted a shared overdue task once per assignee, and it left
    * out UNASSIGNED work entirely — the overdue task nobody owns is the one a
    * manager most needs to see. Both made this page's "Overdue" disagree with
-   * Reports', which counts `status !== "done" && isOverdue` over every task. Now
+   * Reports', which now counts `isOpen && isOverdue` over every task too. Now
    * it is the same definition, so the two pages cannot drift.
    */
-  const openAll = React.useMemo(() => tasks.filter(isOpen), [tasks]);
+  const openAll = React.useMemo(
+    () => tasks.filter((t) => isOpen(t, closed)),
+    [tasks, closed],
+  );
   const workspaceMix = React.useMemo(() => statusBreakdown(openAll), [openAll]);
 
   const totals = React.useMemo(() => {

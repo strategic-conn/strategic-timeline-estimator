@@ -5,6 +5,7 @@ import {
   diffEstimateToProject,
   poScheduleDrift,
   projectDateRange,
+  quoteIsFrozen,
   removeLineItem,
 } from "../lib/sync/estimate-project-sync";
 import type { ProposalLineItem } from "../types/proposal.types";
@@ -194,5 +195,17 @@ test.describe("PBS drift", () => {
     expect(
       poScheduleDrift({ start_date: "2026-09-04", end_date: "2026-12-10" }, null),
     ).toBeNull();
+  });
+});
+
+test.describe("an approved or billed estimate is frozen", () => {
+  test("approved, or any PO, stops the task → estimate mirror", () => {
+    expect(quoteIsFrozen({ status: "approved" })).toBe(true);
+    expect(quoteIsFrozen({ status: "draft", pbs: { po_no: "STR-001" } })).toBe(true);
+    expect(quoteIsFrozen({ status: "sent", pbs: { po_id: 42 } })).toBe(true);
+    // Before approval the estimate is still being shaped, so edits flow back.
+    expect(quoteIsFrozen({ status: "draft" })).toBe(false);
+    expect(quoteIsFrozen({ status: "sent", pbs: {} })).toBe(false);
+    expect(quoteIsFrozen({ status: "rejected" })).toBe(false);
   });
 });

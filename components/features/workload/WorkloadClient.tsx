@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useClosedProjectIds } from "@/hooks/useProjects";
 import Link from "next/link";
 import { AlertTriangle, Scale } from "lucide-react";
 
@@ -65,12 +66,14 @@ function openAssignedTasks(
   memberId: string,
   projectId: ProjectFilter,
   now: Date | number,
+  closed: ReadonlySet<string>,
 ) {
-  return assignedWork(tasks, memberId, { projectId, now }).allocated;
+  return assignedWork(tasks, memberId, { projectId, now, closed }).allocated;
 }
 
 export function WorkloadClient() {
   const tasks = useTasksDataStore((s) => s.tasks);
+  const closed = useClosedProjectIds();
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
   /**
@@ -130,7 +133,7 @@ export function WorkloadClient() {
         const awayDays = cap.awayDays;
         const holidayDays = cap.holidayDays;
         const weeklyCap = cap.effective;
-        const work = assignedWork(tasks, m.id, { projectId, now });
+        const work = assignedWork(tasks, m.id, { projectId, now, closed });
         const open = work.allocated;
         const pendingTasks = work.pending;
         const overdueTasks = work.overdueTasks;
@@ -196,6 +199,7 @@ export function WorkloadClient() {
     capacityOverrides,
     weekLogged,
     now,
+    closed,
     availabilityEntries,
   ]);
 
@@ -214,14 +218,14 @@ export function WorkloadClient() {
     const seen = new Set<string>();
     let sum = 0;
     for (const m of members) {
-      for (const t of openAssignedTasks(tasks, m.id, projectId, now)) {
+      for (const t of openAssignedTasks(tasks, m.id, projectId, now, closed)) {
         if (seen.has(t.id)) continue;
         seen.add(t.id);
         sum += t.estimated_hours ?? 0;
       }
     }
     return sum;
-  }, [members, tasks, projectId, now]);
+  }, [members, tasks, projectId, now, closed]);
   const overCapacityCount = rows.filter((r) => r.overCap).length;
 
   if (view === "mine") return <WorkloadMine toggle={toggle} weekLogged={weekLogged} />;

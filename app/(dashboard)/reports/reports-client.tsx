@@ -36,7 +36,9 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { useJoinedTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
-import { daysUntil, isOverdue } from "@/lib/utils/relative-dates";
+import { isOverdue } from "@/lib/utils/relative-dates";
+import { isOpen, onTimePercent } from "@/lib/workload/assigned-work";
+import { useClosedProjectIds } from "@/hooks/useProjects";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { TASK_STATUS_LABEL } from "@/lib/constants/task-status";
@@ -56,6 +58,7 @@ export function ReportsClient() {
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
+  const closed = useClosedProjectIds();
   // Joined, not "active": a deactivated member's past work still belongs in a
   // report. Only invitees who never accepted are excluded — they have no work.
   const members = useJoinedTeamMembers();
@@ -163,23 +166,14 @@ export function ReportsClient() {
     tasks.reduce((s, t) => s + (t.logged_hours ?? 0), 0),
   );
 
-  const onTimeRate = React.useMemo(() => {
-    const completed = tasks.filter((t) => t.status === "done" && t.due_date);
-    if (completed.length === 0) return null;
-    // Calendar days, the same rule as the dashboard's tile (CLAUDE.md rule 8).
-    // `new Date(due_date)` is midnight UTC, so comparing instants called work
-    // finished during its own due day LATE — and the two pages disagreed.
-    const onTime = completed.filter(
-      (t) => daysUntil(t.due_date!, new Date(t.updated_at)) >= 0,
-    ).length;
-    return Math.round((onTime / completed.length) * 100);
-  }, [tasks]);
+  // Shared with the dashboard tile — completed_at, calendar days (rule 8).
+  const onTimeRate = React.useMemo(() => onTimePercent(tasks), [tasks]);
 
   const overdue = React.useMemo(
     () =>
-      tasks.filter((t) => t.status !== "done" && isOverdue(t.due_date, now))
+      tasks.filter((t) => isOpen(t, closed) && isOverdue(t.due_date, now))
         .length,
-    [tasks, now],
+    [tasks, now, closed],
   );
 
   const kpis = [

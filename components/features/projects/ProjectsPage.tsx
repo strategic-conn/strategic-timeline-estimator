@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { FolderKanban, Plus, Search } from "lucide-react";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { tourAnchor } from "@/lib/tours/ids";
@@ -22,6 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useProjects } from "@/hooks/useProjects";
 import { usePermissions } from "@/hooks/usePermissions";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
+import {
+  BLANK_PROJECTS_ENABLED,
+  BLANK_PROJECTS_OFF_REASON,
+} from "@/lib/constants/projects";
 import type { Project, ProjectStatus } from "@/types/project.types";
 import { AppHelp } from "@/components/common/app-help";
 
@@ -256,15 +261,23 @@ export function ProjectsPage() {
                 </div>
               </div>
               {canCreateProject ? (
-                <Button
-                  type="button"
-                  className="h-9 w-full shrink-0 gap-1.5 sm:w-auto sm:self-start"
-                  onClick={() => setCreateOpen(true)}
+                // A disabled button swallows hover, so the reason sits on the
+                // wrapper (and the tour step / empty state say it in words).
+                <span
+                  className="w-full sm:w-auto sm:self-start"
+                  title={BLANK_PROJECTS_ENABLED ? undefined : BLANK_PROJECTS_OFF_REASON}
                   {...tourAnchor("projects.new")}
                 >
-                  <Plus className="size-4" aria-hidden />
-                  New project
-                </Button>
+                  <Button
+                    type="button"
+                    className="h-9 w-full shrink-0 gap-1.5 sm:w-auto"
+                    disabled={!BLANK_PROJECTS_ENABLED}
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    <Plus className="size-4" aria-hidden />
+                    New project
+                  </Button>
+                </span>
               ) : null}
             </div>
           }
@@ -280,14 +293,20 @@ export function ProjectsPage() {
             </div>
             <p className="text-sm font-medium">No projects yet</p>
             <p className="max-w-sm text-sm text-muted-foreground">
-              {canCreateProject
-                ? "Approve a proposal and hit “Start project” to seed one from its line items — or create a blank project here. Then add sprints and assign tasks to developers."
-                : "No projects yet. An admin or manager can create the first one."}
+              {!canCreateProject
+                ? "No projects yet. An admin or manager can create the first one."
+                : BLANK_PROJECTS_ENABLED
+                  ? "Approve an estimate and hit “Start project” to seed one from its line items — or create a blank project here."
+                  : "Approve an estimate and hit “Start project” in the Estimator — the project arrives with its sprints and tasks laid out."}
             </p>
-            {canCreateProject ? (
+            {canCreateProject && BLANK_PROJECTS_ENABLED ? (
               <Button type="button" onClick={() => setCreateOpen(true)}>
                 <Plus className="size-4" aria-hidden />
                 Create project
+              </Button>
+            ) : canCreateProject ? (
+              <Button asChild>
+                <Link href="/proposals">Open the Estimator</Link>
               </Button>
             ) : null}
           </div>

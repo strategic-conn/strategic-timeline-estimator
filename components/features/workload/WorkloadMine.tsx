@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useClosedProjectIds } from "@/hooks/useProjects";
 import Link from "next/link";
 import { AlertTriangle, Clock } from "lucide-react";
 
@@ -50,6 +51,7 @@ export function WorkloadMine({
 }) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const tasks = useTasksDataStore((s) => s.tasks);
+  const closed = useClosedProjectIds();
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
   const availabilityEntries = useAvailabilityStore((s) => s.entries);
@@ -79,8 +81,8 @@ export function WorkloadMine({
   }, []);
 
   const work = React.useMemo(
-    () => assignedWork(tasks, me, { now }),
-    [tasks, me, now],
+    () => assignedWork(tasks, me, { now, closed }),
+    [tasks, me, now, closed],
   );
   const pendingCount = work.pending.length;
 

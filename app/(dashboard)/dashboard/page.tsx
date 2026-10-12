@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useClosedProjectIds } from "@/hooks/useProjects";
 import { useEffect, useMemo, useState } from "react";
 import {
   ArrowRight,
@@ -34,6 +35,8 @@ import {
 } from "@/lib/constants/task-status";
 import {
   assignedWork,
+  isOpen,
+  onTimePercent,
   capacityFor,
   statusBreakdown,
   utilization,
@@ -143,6 +146,7 @@ export default function DashboardPage() {
   const projects = useProjectsStore((s) => s.projects);
   const sprints = useSprintsStore((s) => s.sprints);
   const tasks = useTasksDataStore((s) => s.tasks);
+  const closed = useClosedProjectIds();
   const activity = useActivityStore((s) => s.items);
   // Rule 2: a KPI must not state a number it does not have yet. The stores
   // hydrate async, and every figure below reads a real-looking 0 until they
@@ -193,7 +197,8 @@ export default function DashboardPage() {
   const userDueSoonTasks = useMemo(() => {
     return tasks
       .filter((t) => {
-        if (t.status === "done") return false;
+        // Same "open" as everywhere: not done, and not in a closed project.
+        if (!isOpen(t, closed)) return false;
         if (!t.assignee_ids.includes(userId)) return false;
         if (!t.due_date) return false;
         // Overdue work counts as due soon — it is the most due thing there is.
@@ -207,7 +212,7 @@ export default function DashboardPage() {
         if (da !== db) return da - db;
         return STATUS_FOCUS_RANK[a.status] - STATUS_FOCUS_RANK[b.status];
       });
-  }, [tasks, userId, now]);
+  }, [tasks, userId, now, closed]);
 
   /**
    * My own load — from `assignedWork` / `capacityFor` / `utilization`, the same
@@ -215,7 +220,7 @@ export default function DashboardPage() {
    * my dashboard and my manager's cannot disagree about me.
    */
   const mine = useMemo(() => {
-    const work = assignedWork(tasks, userId, { now });
+    const work = assignedWork(tasks, userId, { now, closed });
     const cap = capacityFor(
       getEffectiveWeeklyHours(capacityOverrides, userId),
       availabilityEntries,
@@ -233,7 +238,7 @@ export default function DashboardPage() {
       // answers that, and with a backlog the two can point opposite ways.
       available: Math.max(0, Math.round((cap.effective - logged) * 10) / 10),
     };
-  }, [tasks, userId, capacityOverrides, availabilityEntries, weekLogged, now]);
+  }, [tasks, userId, capacityOverrides, availabilityEntries, weekLogged, now, closed]);
 
   const dueSoonTasks = useMemo(
     () => userDueSoonTasks.slice(0, 8),
@@ -242,19 +247,10 @@ export default function DashboardPage() {
 
   const tasksDueSoonCount = userDueSoonTasks.length;
 
+  // `onTimePercent` — the same definition Reports uses (completed_at, calendar days).
   const onTimeRate = useMemo(() => {
-    const completed = tasks.filter((t) => t.status === "done" && t.due_date);
-    if (completed.length === 0) return "—";
-    // CALENDAR days, not instants. `new Date(due_date)` on a DATE column is
-    // midnight UTC, so a task finished at 15:00 local on its own due date
-    // compared as LATE — and west of Greenwich, work finished the evening
-    // before did too. That is the trap CLAUDE.md rule 8 exists for, and this
-    // tile was still walking into it. `daysUntil` measures whole calendar days
-    // between the completion day and the due day: >= 0 means on time.
-    const onTime = completed.filter(
-      (t) => daysUntil(t.due_date!, new Date(t.updated_at)) >= 0,
-    ).length;
-    return `${Math.round((onTime / completed.length) * 100)}%`;
+    const pct = onTimePercent(tasks);
+    return pct == null ? "—" : `${pct}%`;
   }, [tasks]);
 
   const nextMilestone = useMemo(() => {
@@ -616,10 +612,9 @@ export default function DashboardPage() {
                   <CardDescription>Common next steps.</CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-2 pt-0">
+                  {/* "Create project" went with blank projects (BLANK_PROJECTS_ENABLED):
+                      it only ever opened /projects, which is what this does. */}
                   <Button asChild>
-                    <Link href="/projects">Create project</Link>
-                  </Button>
-                  <Button variant="outline" asChild>
                     <Link href="/projects">Browse projects</Link>
                   </Button>
                   <Button variant="outline" asChild>

@@ -28,6 +28,7 @@ import { HelpMenu } from "@/components/features/tour/HelpMenu";
 import { tourAnchor } from "@/lib/tours/ids";
 import { usePermissions } from "@/hooks/usePermissions";
 import { sprintTasksHref } from "@/lib/constants/sprints";
+import { BLANK_PROJECTS_ENABLED } from "@/lib/constants/projects";
 import { useProjectsStore } from "@/store/projects-store";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import { useSprintsStore } from "@/store/sprints-store";
@@ -238,7 +239,8 @@ export function DashboardHeader() {
 
         {/* Phones get three icon buttons — help, bell, + — and nothing else:
             the theme toggle lives in the drawer there, and "New project" is
-            already the last item of the + menu. At 375px the row used to
+            already the last item of the + menu (both are off while
+            BLANK_PROJECTS_ENABLED is false — projects come from estimates). At 375px the row used to
             carry six controls and cut the page name to "DA…". */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
           <HelpMenu />
@@ -248,7 +250,7 @@ export function DashboardHeader() {
           <span className="hidden sm:inline-flex" {...tourAnchor("theme")}>
             <ModeToggle />
           </span>
-          {!onProjects && canCreateProject ? (
+          {!onProjects && canCreateProject && BLANK_PROJECTS_ENABLED ? (
             <Button
               variant="outline"
               size="sm"
@@ -306,7 +308,7 @@ export function DashboardHeader() {
                     </DropdownMenuItem>
                   );
                 })}
-                {canCreateProject ? (
+                {canCreateProject && BLANK_PROJECTS_ENABLED ? (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>

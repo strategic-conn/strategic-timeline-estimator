@@ -193,7 +193,8 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0045 tour_progress (onboarding tours; self-only RLS) ·
                         #   0046 audit fixes (time entries admin-edit only, assignee
                         #   consent guard, deactivated = no role, one estimate per
-                        #   project / PO / active deal, FK indexes)
+                        #   project / PO / active deal, FK indexes) ·
+                        #   0047 tasks.completed_at (trigger-stamped; on-time delivery)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -365,6 +366,7 @@ interface Task {
   position: number;
   created_at: string;
   updated_at: string;
+  completed_at?: string | null; // stamped by trigger when status enters done (0047)
   comments: Comment[];
 }
 
@@ -484,6 +486,23 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 **Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
 
 **Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`, and since `0032`/`0033` that sync **reconciles** rather than only adding — see "Estimate ↔ project, both ways" below. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
+
+> **Every project starts here (decided 2026-10-12).** Blank projects are
+> switched off: `BLANK_PROJECTS_ENABLED = false` (`lib/constants/projects.ts`)
+> disables **New project** on /projects (shown, with its reason in a tooltip,
+> the tour step and the empty state) and hides the header shortcut, the
+> + menu's *Create project* and the dashboard quick action. Flip the constant
+> to bring them back. An estimate can no longer be pointed at an existing
+> project either: the New-estimate dialog has no project picker and the
+> editor's *Internal project* is a read-only link — the link is made by Start
+> project only, one estimate per project (`0046`'s unique index). Two estimates
+> on one project made Sync schedule delete the other's tasks as "removed lines".
+>
+> **Seeded assignees are told.** The live path inserts `task_assignees`
+> straight through supabase (not `createTask`, which notifies per task), so
+> `seedAssignments` sends each person ONE bell notification — "assigned you N
+> tasks on "Project" — accept or decline" — linking to the project. Start
+> project and Sync schedule both go through it.
 
 > **A line's phase is its guided phase, else its ROLE's** (pricing plan
 > Phase 5, `phaseIdForLineItem` in `lib/discovery/from-line-items.ts`). A guided
@@ -617,9 +636,15 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    This replaced an **additive-only** rule that matched on the task's
    **title**: renaming a line item produced a *second* task, deleting one
    orphaned its task forever, and changing its hours did nothing at all.
- - **Project → estimate** is immediate: a seeded task's title or
-   `estimated_hours` changing — or the task being deleted — writes back onto
-   its line item. Hours go back through **`base_hours`**, never onto the
+ - **Project → estimate** is immediate **until the estimate is approved or
+   billed** (`quoteIsFrozen`: `status === "approved"` or any PO). From then on
+   the quote is the price the client agreed to and the project is the plan, so
+   a task edit stays on the project and the coordinator is told once per quote
+   per session. Start project requires approval, so in practice the mirror only
+   runs for an estimate moved back to draft/sent. Sync schedule (estimate →
+   project) is unaffected — it is previewed and confirmed. Before that, a
+   seeded task's title or `estimated_hours` changing — or the task being
+   deleted — writes back onto its line item. Hours go back through **`base_hours`**, never onto the
    derived `hours`, or the next recompute silently undoes them; and the
    inversion must honour **`requirements_unclear`**, which prices *every* line
    as Advanced (1.5x).
@@ -1081,9 +1106,11 @@ back, so name-matching only "Closed Won" would strand its PO forever. There is n
 
 The server gate is the real one: `POST /api/pbs/pos` re-reads the deal's stage
 **live** (not the cached `zoho.stage`) and **fails closed** — a Zoho read it
-can't complete returns 502 rather than creating a PO. An estimate with no Zoho
-deal at all skips the check; there is nothing to gate on, and hand-made estimates
-were billable before this rule existed. The Create PO dialog picks *where* it is filed, so the
+can't complete returns 502 rather than creating a PO. **An estimate with no
+Zoho deal is refused (409)** — decided 2026-10-12: with nothing that can be won
+there is no gate, and PBS can't delete a PO, so "billable by default" was the
+wrong way round. `canRaisePo` requires `zoho.deal_id` too, so the button never
+offers what the route refuses. Send the estimate to Zoho first. The Create PO dialog picks *where* it is filed, so the
 choice and the act sit together.
 
 ---
@@ -1306,7 +1333,14 @@ workload bar.
    behind them and link to each task's own board — the same control as Workload.
  - **Reports had the same bug until 2026-10-01** — its own `onTimeRate`
    still compared instants, so Reports and the dashboard could disagree about
-   the same finished tasks. Both now use `daysUntil(due, completedAt) >= 0`.
+   the same finished tasks. Both now call **`onTimePercent`**
+   (`lib/workload/assigned-work.ts`) — one definition.
+ - **Completion time is `tasks.completed_at`** (`0047`), stamped by a trigger
+   when the status ENTERS done and cleared when it leaves; whatever the client
+   sends is overwritten. It used to be `updated_at`, which moved on every later
+   edit — a task finished on time turned "late" when someone renamed it weeks
+   afterwards. Done tasks were backfilled from `updated_at`; a row without the
+   column (0047 not applied) falls back to it.
  - **Fixed while building this:** `onTimeRate` compared
    `new Date(updated_at) <= new Date(due_date)`. `due_date` is a DATE column, so
    that is midnight **UTC** — a task finished at 15:00 local on its own due date
@@ -1403,8 +1437,13 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
 
 **How a dev "finishes" work: they move the task to `done`.** That is the only
 signal — there is no per-assignee completion flag, and logging hours does not
-complete anything. `isOpen()` (`lib/workload/assigned-work.ts`) is the single
-definition: **open = `status !== "done"`**. Set it by dragging the card to the
+complete anything. `isOpen(task, closed)` (`lib/workload/assigned-work.ts`)
+is the single definition: **open = `status !== "done"` and its project is not
+completed or archived** (`closedProjectIds`, via the `useClosedProjectIds()`
+hook). `closed` is a REQUIRED argument of `isOpen` and `assignedWork`, so no
+caller can forget it — a finished project's leftover cards used to sit in
+Workload, both dashboards, Reports' Overdue and the planner's booked hours for
+ever. Set it by dragging the card to the
 Done column (`commitTaskMove`) or via the status menu on the card / drawer /
 list / table (`updateTask`). Both persist, so Workload updates for that person
 and their manager on the next render — the stores are the shared read seam, so
@@ -1970,9 +2009,9 @@ if (!tasks.length) {
 
    **The top bar on a phone is four controls: ☰, ?, 🔔, +.** Under `sm` the
    breadcrumb shows only the current page (no separators), the theme toggle
-   moves into the drawer, "Add task" is a `+` icon, and "New project" hides
-   because the + menu already ends in *Create project* (it stays, as an icon,
-   on the sprint board and backlog, where the + menu is hidden). At 375px the
+   moves into the drawer, and "Add task" is a `+` icon. "New project" and the
+   + menu's *Create project* are hidden at every width while blank projects
+   are off (`BLANK_PROJECTS_ENABLED`). At 375px the
    row used to carry six controls and cut the page name to "DA…".
 
    **The Estimator's five tabs are ONE row at every width.** Under `sm`,
@@ -2016,5 +2055,5 @@ if (!tasks.length) {
 
 ---
 
-> Maintainer: Frontend Dev · Last updated: 2026-10-09
+> Maintainer: Frontend Dev · Last updated: 2026-10-12
 > Update this file whenever the project scope, stack, or patterns change.
