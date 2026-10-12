@@ -12,20 +12,20 @@ export interface TimeTrackingAccess {
   /** Play / pause / stop — accepted assignees only. */
   canUseSessionTimer: boolean;
   /**
-   * Edit saved logged hours (and receive Stop from timer). Accepted assignees
-   * log their own; admins may correct. Coordinators/managers cannot log.
+   * Log time (Add time, and Stop on the timer). Accepted assignees only — the
+   * database's insert policy says the same. Nobody edits the total: it is
+   * derived from time entries (0048); an admin corrects an ENTRY instead.
    */
-  canEditLoggedHours: boolean;
+  canLogTime: boolean;
 }
 
 /**
- * Rules (Workflow Phase C): only **accepted** assignees log hours; admins may
- * correct. Managers/coordinators and pending assignees cannot. Viewers never edit.
+ * Rules (Workflow Phase C): only **accepted** assignees log hours. Managers,
+ * admins who aren't on the task, pending assignees and viewers cannot.
  */
 export function useTimeTrackingAccess(task: Task | null): TimeTrackingAccess | null {
   const authId = useAuthStore((s) => s.user.authId);
   const demoId = useAuthStore((s) => s.user.id);
-  const role = useAuthStore((s) => s.user.role);
   const { canEditTask } = usePermissions();
   const userId = authId ?? String(demoId);
 
@@ -34,11 +34,10 @@ export function useTimeTrackingAccess(task: Task | null): TimeTrackingAccess | n
     const isAssignee = task.assignees.some(
       (a) => a.profile_id === userId && a.status === "accepted"
     );
-    const isAdmin = role === "admin";
     return {
       isAssignee,
       canUseSessionTimer: Boolean(canEditTask && isAssignee),
-      canEditLoggedHours: Boolean(canEditTask && (isAssignee || isAdmin)),
+      canLogTime: Boolean(canEditTask && isAssignee),
     };
-  }, [task, userId, role, canEditTask]);
+  }, [task, userId, canEditTask]);
 }

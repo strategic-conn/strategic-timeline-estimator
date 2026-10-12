@@ -897,8 +897,8 @@ export const useTasksDataStore = create<TasksState>()(
             fields.due_date = normalized.due_date ?? null;
           if (normalized.estimated_hours !== undefined)
             fields.estimated_hours = normalized.estimated_hours ?? null;
-          if (normalized.logged_hours !== undefined)
-            fields.logged_hours = normalized.logged_hours ?? null;
+          // logged_hours is never sent: the database derives it from
+          // time_entries (0048) and refuses a direct write.
           if (normalized.tags !== undefined) fields.tags = normalized.tags;
           if (normalized.position !== undefined)
             fields.position = normalized.position;
@@ -1659,14 +1659,13 @@ export const useTasksDataStore = create<TasksState>()(
           return;
         }
 
-        // ⚠️ The ENTRY first, then the cache. `time_entries` is the record (it
-        // backs every per-person figure); `logged_hours` is only the task's
-        // cached total. The entry used to be a fire-and-forget insert AFTER the
-        // cache write, so a refused insert left hours on the task that nobody
-        // had logged, silently — and `useWeekLoggedHours` re-reads when the
-        // total moves, so it read the week before the entry existed and showed
-        // the old figure. Applying the total only once the entry is stored
-        // fixes both, at the cost of ~one round-trip before the number moves.
+        // Only the ENTRY is written. `time_entries` is the record (it backs
+        // every per-person figure) and the database derives the task's
+        // `logged_hours` from it (0048) — the client used to write that total
+        // as an absolute number, so it could be set to anything. The local
+        // total moves once the entry is stored, so `useWeekLoggedHours` (keyed
+        // on it) re-reads a week that already contains the entry; the realtime
+        // echo of the trigger's update then confirms the figure.
         void (async () => {
           const loggerId = useAuthStore.getState().user.authId;
           if (!loggerId) return;
@@ -1682,17 +1681,6 @@ export const useTasksDataStore = create<TasksState>()(
           }
           apply();
           const task = get().tasks.find((t) => t.id === taskId);
-          const { error } = await supabase
-            .from("tasks")
-            .update({ logged_hours: task?.logged_hours ?? 0, updated_at: now })
-            .eq("id", taskId);
-          if (error) {
-            // The hours ARE recorded (the entry exists); only the task's total
-            // is behind, and the next load reads it back.
-            toast.error("Time logged, but the task total didn't update", {
-              description: parseSupabaseError(error),
-            });
-          }
           if (task) {
             pushWorkspaceActivity(
               withProjectScope(`Logged time on "${titleOf(task)}"`, task.project_id),

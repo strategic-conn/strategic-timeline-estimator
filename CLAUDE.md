@@ -194,7 +194,9 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0046 audit fixes (time entries admin-edit only, assignee
                         #   consent guard, deactivated = no role, one estimate per
                         #   project / PO / active deal, FK indexes) ·
-                        #   0047 tasks.completed_at (trigger-stamped; on-time delivery)
+                        #   0047 tasks.completed_at (trigger-stamped; on-time delivery) ·
+                        #   0048 logged_hours derived from time_entries, entries survive a
+                        #   task delete, feed rows server-stamped + length-capped
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -653,11 +655,11 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    backfill only linked titles matching **exactly one** line item (46 of 71).
  - **A task with LOGGED TIME is never deleted by a sync** — it comes back as
    `orphaned` and the preview keeps it, in amber, saying how many hours are on
-   it. `time_entries.task_id` is `on delete cascade` (`0017`), so removing one
-   would erase the record that the work happened, and **per-person** hours come
-   from exactly that table. Scoping a line out of a quote is a pricing decision;
-   destroying worked hours is not, and a quote can be re-edited while a deleted
-   time entry cannot be recovered.
+   it. Since `0048` deleting a task no longer erases its time entries (they
+   detach — `task_id` becomes NULL — and still count for the person), but the
+   hours would stop belonging to any task on this project, and a task the team
+   worked on should not vanish because a line left a quote. Scoping a line out
+   of a quote is a pricing decision; the work that happened is not.
  - **The mirror is revertible, because the task write it follows is
    optimistic.** `mirrorTaskChange()` returns a **revert** closure and
    `tasks-store` calls it from every rollback path — the live update failure,
@@ -1245,6 +1247,24 @@ first — P1b, P18, P19 and P20 all failed against the old schema:
 > indexes: one estimate per `project_id`, per `pbs->>'po_no'`, and per **active**
 > `zoho->>'deal_id'` — the UI already refused each, and now the database does.
 
+**Fixed in `0048`**, each reproduced live by its probe first (P22–P26 all
+failed against the old schema):
+
+| Abuse | Before | Now |
+| --- | --- | --- |
+| Set a task's logged total to any number (P22) | an accepted assignee could PATCH `logged_hours` = 999 | derived from `time_entries` by trigger; any direct write by a signed-in user is refused |
+| Delete a task and its worked hours with it (P23) | `time_entries` cascaded away | entries survive, `task_id` NULL |
+| Back-date or pre-read a notification / activity row (P24) | `created_at` and `read` came from the client | `stamp_feed_row` sets `created_at = now()`, `read = false` |
+| Empty or essay-length bell/feed text (P25) | anything stored | CHECK 1–500 chars (longest live text was 120) |
+| Keep posting after deactivation (P26) | allowed for the life of the token | insert policies require an active role |
+
+> **What a member can still write:** the wording of a notification or feed
+> line they send. That is attributable — `actor_id` is pinned to the sender
+> (`0027`) and both the bell and the feed render the sender's own name and
+> avatar from it, not from the text — so a forged line reads as *that member*
+> saying it. Moving the wording server-side (a route that builds text from an
+> event type) is the full fix if that ever stops being enough.
+
 **Verified safe, no change needed:** all 18 API routes are guarded
 (`requireAdmin` / `requireZohoReader|Writer` / `requirePbsReader|Writer`), every
 guard verifies via `auth.getUser()` and reads the role from `profiles` — never
@@ -1477,16 +1497,23 @@ one thing a manager needs to see.
 > projects — N pointless writes, and an `updated_at` bump on rows nobody touched.
 > That timestamp is what the on-time-delivery figure reads as a completion time.
 
-**Hours are a separate axis from status.** Logging writes the
-**`time_entries` row first** and moves the task's cached `logged_hours` only once
-it is stored (`appendLoggedHours`): the entry is the record. It used to be a
-fire-and-forget insert *after* the cache write, so a refused insert left hours on
-the task that nobody had logged, and the weekly figure re-read before the entry
-existed. **Logged this wk** comes from
+**Hours are a separate axis from status.** Logging time inserts a
+**`time_entries` row and nothing else** (`appendLoggedHours`); the database
+derives the task's `logged_hours` from the entries (`0048`,
+`sync_task_logged_hours`) and refuses any direct write to it — admins included,
+who correct time by fixing the ENTRY (UPDATE/DELETE on `time_entries` is
+admin-only since `0046`). The client used to write the total as an absolute
+number, and the drawer let assignees, managers and admins type over it; the
+drawer now shows the total read-only with an **Add time** field
+(`canLogTime` = accepted assignee). **Logged this wk** comes from
 `time_entries` (per-logger rows), **never** from `tasks.logged_hours` — that is
-the task's cached total and credits every assignee in full. Only an **accepted**
-assignee (or an admin) may log hours, enforced by the
-`prevent_unauthorized_hours` trigger (`0018`), not just the UI.
+the task's total and credits every assignee in full. Only an **accepted**
+assignee may insert an entry (`0017`'s insert policy), not just the UI.
+
+> **Deleting a task keeps its time.** `time_entries.task_id` is
+> `on delete set null` since `0048` (it was CASCADE), so deleting a task — or a
+> project, which cascades to its tasks — leaves each entry in place, detached,
+> still counting for the person who logged it. The delete dialogs say so.
 
 > **"Available" is not spare capacity.** It is `effective weekly capacity −
 > logged this week`: the working time left in the week, paired with the logged

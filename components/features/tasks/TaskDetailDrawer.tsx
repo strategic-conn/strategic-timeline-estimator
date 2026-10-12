@@ -144,7 +144,6 @@ type DraftFields = {
   title: string
   description: string
   estimated_hours: number | undefined
-  logged_hours: number | undefined
 }
 
 function emptyDraft(): DraftFields {
@@ -152,7 +151,6 @@ function emptyDraft(): DraftFields {
     title: "",
     description: "",
     estimated_hours: undefined,
-    logged_hours: undefined,
   }
 }
 
@@ -181,8 +179,7 @@ function draftDirty(task: Task, draft: DraftFields): boolean {
   return (
     draft.title.trim() !== task.title ||
     (draft.description.trim() || "") !== (task.description ?? "") ||
-    draft.estimated_hours !== task.estimated_hours ||
-    draft.logged_hours !== task.logged_hours
+    draft.estimated_hours !== task.estimated_hours
   )
 }
 
@@ -193,10 +190,6 @@ function taskToDraft(task: Task): DraftFields {
     estimated_hours:
       task.estimated_hours != null
         ? roundWorkHours(task.estimated_hours)
-        : undefined,
-    logged_hours:
-      task.logged_hours != null
-        ? roundWorkHours(task.logged_hours)
         : undefined,
   }
 }
@@ -222,7 +215,7 @@ export function TaskDetailDrawer({
     "edit" | "preview"
   >("preview")
   const [editingEst, setEditingEst] = React.useState(false)
-  const [editingLog, setEditingLog] = React.useState(false)
+  const [addHours, setAddHours] = React.useState("")
   const [tagInput, setTagInput] = React.useState("")
   const [dueOpen, setDueOpen] = React.useState(false)
   const [deleteOpen, setDeleteOpen] = React.useState(false)
@@ -268,18 +261,12 @@ export function TaskDetailDrawer({
   }
 
   React.useEffect(() => {
-    if (timeAccess && !timeAccess.canEditLoggedHours) {
-      setEditingLog(false)
-    }
-  }, [timeAccess])
-
-  React.useEffect(() => {
     if (!task) {
       setDraft(emptyDraft())
       setEditingTitle(false)
       setDescriptionMode("preview")
       setEditingEst(false)
-      setEditingLog(false)
+      setAddHours("")
       setTagInput("")
       return
     }
@@ -287,7 +274,6 @@ export function TaskDetailDrawer({
     setEditingTitle(false)
     setDescriptionMode("preview")
     setEditingEst(false)
-    setEditingLog(false)
     setTagInput("")
     setAssignAction(null)
   }, [task?.id, task?.updated_at])
@@ -305,7 +291,6 @@ export function TaskDetailDrawer({
       title: draft.title.trim(),
       description: draft.description.trim() || undefined,
       estimated_hours: draft.estimated_hours,
-      logged_hours: draft.logged_hours,
     })
   }
 
@@ -315,7 +300,6 @@ export function TaskDetailDrawer({
     setEditingTitle(false)
     setDescriptionMode("preview")
     setEditingEst(false)
-    setEditingLog(false)
   }
 
   const finishTitleEdit = () => {
@@ -360,7 +344,7 @@ export function TaskDetailDrawer({
       ? Math.min(
           100,
           Math.round(
-            ((draft.logged_hours ?? 0) / draft.estimated_hours) * 100
+            ((task.logged_hours ?? 0) / draft.estimated_hours) * 100
           )
         )
       : null
@@ -630,8 +614,9 @@ export function TaskDetailDrawer({
                         </span>
                         <HelpTip label="How time tracking works">
                           <p>
-                            <strong>Saved total</strong> is stored in hours (decimals
-                            allowed).
+                            The <strong>total</strong> is the sum of every time entry
+                            logged on this task. Nobody types over it — time is
+                            added, never overwritten.
                           </p>
                           <p>
                             The <strong>session</strong> clock uses{" "}
@@ -640,87 +625,53 @@ export function TaskDetailDrawer({
                             it to your saved total.
                           </p>
                           <p>
-                            Only <strong>assignees</strong> can run the session timer.
-                            Managers and admins may edit the saved total to correct
-                            entries.
+                            Only people who have <strong>accepted</strong> the task
+                            can log time on it, with the timer or by adding hours.
                           </p>
                         </HelpTip>
                       </div>
                       <div className="flex flex-col gap-5">
                         <div>
-                          <div className="mb-1.5 flex items-center gap-0.5">
-                            <p className="text-xs font-medium text-muted-foreground">
-                              Saved total (hours)
-                            </p>
-                            <HelpTip label="About saved total">
-                              <p>
-                                {timeAccess?.canEditLoggedHours ? (
-                                  <>
-                                    Tap the field to edit. Use decimal hours (for
-                                    example{" "}
-                                    <span className="font-mono">1.5</span> for 1h 30m).
-                                  </>
-                                ) : (
-                                  <>
-                                    You can view logged hours here. Only assignees,
-                                    managers, and admins can change this value.
-                                  </>
-                                )}
-                              </p>
-                              <p>
-                                <strong>Stop</strong> on the session timer also updates
-                                this total when you are assigned to the task.
-                              </p>
-                            </HelpTip>
+                          <p className="mb-1.5 text-xs font-medium text-muted-foreground">
+                            Logged total
+                          </p>
+                          <div className="w-full rounded-lg border border-border bg-muted/20 px-2.5 py-2 text-sm tabular-nums text-muted-foreground">
+                            {formatWorkHours(task.logged_hours ?? 0)} h
                           </div>
-                          {timeAccess?.canEditLoggedHours ? (
-                            editingLog ? (
+                          {timeAccess?.canLogTime ? (
+                            // Adds a time entry (the record); the total above is
+                            // derived from entries in the database (0048).
+                            <form
+                              className="mt-2 flex items-center gap-2"
+                              onSubmit={(e) => {
+                                e.preventDefault()
+                                const h = roundWorkHours(Number(addHours))
+                                if (!(h > 0)) return
+                                onAppendLoggedHours(task.id, h)
+                                setAddHours("")
+                              }}
+                            >
                               <Input
                                 type="number"
-                                min={0}
+                                min={0.25}
                                 step={0.25}
+                                inputMode="decimal"
+                                placeholder="Hours, e.g. 1.5"
+                                aria-label="Hours to add"
                                 className="h-9"
-                                value={draft.logged_hours ?? ""}
-                                onChange={(e) => {
-                                  const v = e.target.value
-                                  setDraft((d) => ({
-                                    ...d,
-                                    logged_hours:
-                                      v === "" ? undefined : Number(v),
-                                  }))
-                                }}
-                                onBlur={() => {
-                                  setDraft((d) => ({
-                                    ...d,
-                                    logged_hours:
-                                      d.logged_hours != null
-                                        ? roundWorkHours(d.logged_hours)
-                                        : undefined,
-                                  }))
-                                  setEditingLog(false)
-                                }}
-                                autoFocus
+                                value={addHours}
+                                onChange={(e) => setAddHours(e.target.value)}
                               />
-                            ) : (
-                              <button
-                                type="button"
-                                className="w-full rounded-lg border border-border bg-background px-2.5 py-2 text-left text-sm tabular-nums hover:bg-muted/50"
-                                onClick={() => setEditingLog(true)}
+                              <Button
+                                type="submit"
+                                size="sm"
+                                variant="outline"
+                                className="h-9 shrink-0"
+                                disabled={!(Number(addHours) > 0)}
                               >
-                                {formatWorkHours(draft.logged_hours)}
-                              </button>
-                            )
-                          ) : (
-                            <div className="w-full rounded-lg border border-border bg-muted/20 px-2.5 py-2 text-sm tabular-nums text-muted-foreground">
-                              {formatWorkHours(draft.logged_hours)} h
-                            </div>
-                          )}
-                          {timeAccess?.canEditLoggedHours &&
-                          !timeAccess.isAssignee ? (
-                            <p className="mt-1.5 text-xs text-muted-foreground">
-                              Manager or admin correction — assignees use the session
-                              timer when assigned.
-                            </p>
+                                Add time
+                              </Button>
+                            </form>
                           ) : null}
                         </div>
 
@@ -730,7 +681,7 @@ export function TaskDetailDrawer({
                           <TaskTimeTracker
                             embedded
                             taskId={task.id}
-                            savedLoggedHours={draft.logged_hours ?? 0}
+                            savedLoggedHours={task.logged_hours ?? 0}
                             timerEnabled={
                               timeAccess?.canUseSessionTimer ?? false
                             }
@@ -1124,7 +1075,7 @@ export function TaskDetailDrawer({
                           />
                         </div>
                         <p className="text-xs text-muted-foreground">
-                          {formatWorkHours(draft.logged_hours ?? 0)} /{" "}
+                          {formatWorkHours(task.logged_hours ?? 0)} /{" "}
                           {formatWorkHours(draft.estimated_hours)} hours logged
                         </p>
                       </div>
@@ -1175,6 +1126,9 @@ export function TaskDetailDrawer({
                   {task.title}
                 </span>{" "}
                 ({task.id}). This action cannot be undone.
+                {task.logged_hours
+                  ? ` The ${task.logged_hours} h logged on it stay on each person's record (Workload, Reports), no longer tied to a task.`
+                  : null}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>

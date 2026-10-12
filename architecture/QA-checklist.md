@@ -529,6 +529,15 @@ Run `node scripts/security-probe.mjs` first — every line must read PASS (P1b a
 - [ ] **Confirm link redirect.** `/auth/confirm?…&next=//evil.example` → after Continue you land on `/dashboard`, not the other site.
 - [ ] **Deactivation is immediate.** Deactivate a member who is signed in elsewhere → their next write (e.g. moving a card) fails at once.
 
+## 🔒 Hours & feed integrity (0048)
+
+Run `node scripts/security-probe.mjs` — P22–P26 must PASS.
+
+- [ ] **Logged total is read-only.** In a task's drawer the logged total can't be edited by anyone (admin included). An accepted assignee sees **Add time**; adding 1.5 moves the total and "Logged this wk" by 1.5. A manager not on the task sees no Add time.
+- [ ] **Timer still logs.** Start → Stop the session timer as an accepted assignee → the total grows by the session.
+- [ ] **Deleting keeps hours.** Log time on a task, delete the task → the person's "Logged this wk" (Workload) and Reports' per-person hours are unchanged. The delete dialog says the hours stay.
+- [ ] **Bell times are real.** New notifications and activity show "just now", never a past date.
+
 ## 🧭 Product decisions (2026-10-12)
 
 Apply `0047` first (`npm run db:push`).

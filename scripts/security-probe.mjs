@@ -468,6 +468,73 @@ try {
     `own=${ownWrite.status} forged=${forged17.status}/${forgedStored ? "stored" : "refused"} othersVisible=${othersSeen} botRows=${botBefore}->${botAfter}`,
   );
 
+  // ── P22: a task's logged total is derived, not written (0048) ──────────────
+  // The member is an accepted assignee of myTask, so 0018 let them PATCH the
+  // total to any number. Now only time entries move it.
+  const totalOf = async (id) =>
+    Number((await call(`/rest/v1/tasks?id=eq.${id}&select=logged_hours`)).json[0].logged_hours ?? 0);
+  const before22 = await totalOf(myTask);
+  await call(`/rest/v1/tasks?id=eq.${myTask}`, { method: "PATCH", headers: mMin, body: { logged_hours: 999 } });
+  const forged22 = await totalOf(myTask);
+  const add22 = await call("/rest/v1/time_entries", {
+    method: "POST", headers: mMin, body: { task_id: myTask, profile_id: memberId, hours: 1.5 },
+  });
+  const after22 = await totalOf(myTask);
+  record(
+    "P22 logged total can't be typed over; logging time moves it",
+    forged22 === before22 && add22.ok && after22 === before22 + 1.5,
+    `before=${before22} forged→${forged22} afterEntry=${after22}`,
+  );
+
+  // ── P23: deleting a task keeps the time logged on it (0048) ─────────────────
+  const doomed = await mkTask(`[E2E] doomed ${RUN}`);
+  await call("/rest/v1/task_assignees", {
+    method: "POST",
+    body: { task_id: doomed, profile_id: memberId, status: "accepted" },
+  });
+  const e23 = await call("/rest/v1/time_entries", {
+    method: "POST", headers: mH, body: { task_id: doomed, profile_id: memberId, hours: 3 },
+  });
+  const e23id = e23.json?.[0]?.id;
+  await call(`/rest/v1/tasks?id=eq.${doomed}`, { method: "DELETE" });
+  const kept = (await call(`/rest/v1/time_entries?id=eq.${e23id}&select=task_id,hours`)).json?.[0];
+  record(
+    "P23 deleting a task keeps its time entries (detached)",
+    !!e23id && kept != null && kept.task_id === null && Number(kept.hours) === 3,
+    kept ? `task_id=${kept.task_id ?? "null"} hours=${kept.hours}` : "ENTRY ERASED",
+  );
+
+  // ── P24: feed rows can't be back-dated or pre-read (0048) ───────────────────
+  const mark = `[E2E] stamp ${RUN}`;
+  await call("/rest/v1/notifications", {
+    method: "POST", headers: mMin,
+    body: { recipient_id: other, actor_id: memberId, text: mark, href: "/dashboard", created_at: "2020-01-01T00:00:00Z", read: true },
+  });
+  await call("/rest/v1/activity", {
+    method: "POST", headers: mMin,
+    body: { actor_id: memberId, text: mark, href: "/dashboard", created_at: "2020-01-01T00:00:00Z" },
+  });
+  const n24 = (await call(`/rest/v1/notifications?actor_id=eq.${memberId}&text=eq.${encodeURIComponent(mark)}&select=created_at,read`)).json?.[0];
+  const a24 = (await call(`/rest/v1/activity?actor_id=eq.${memberId}&text=eq.${encodeURIComponent(mark)}&select=created_at`)).json?.[0];
+  const recent = (iso) => !!iso && Date.now() - Date.parse(iso) < 10 * 60_000;
+  record(
+    "P24 notification/activity time and read flag are server-set",
+    recent(n24?.created_at) && n24?.read === false && recent(a24?.created_at),
+    `notif=${n24?.created_at ?? "missing"} read=${n24?.read} activity=${a24?.created_at ?? "missing"}`,
+  );
+
+  // ── P25: no empty or essay-length feed text (0048) ──────────────────────────
+  const long = `[E2E] ${"x".repeat(600)}`;
+  for (const text of ["   ", long]) {
+    await call("/rest/v1/notifications", {
+      method: "POST", headers: mMin,
+      body: { recipient_id: other, actor_id: memberId, text, href: "/dashboard" },
+    });
+  }
+  const n25 = ((await call(`/rest/v1/notifications?actor_id=eq.${memberId}&select=text`)).json ?? [])
+    .filter((r) => r.text.trim() === "" || r.text.length > 500).length;
+  record("P25 empty or >500-char notification text is refused", n25 === 0, `${n25} stored`);
+
   // ── P18-P19: task assignments (0046) ─────────────────────────────────────────
   // Self-assigning is accepted at once (by design). Putting a COLLEAGUE on a
   // task must be a request they answer — an "accepted" row loads their workload
@@ -559,6 +626,20 @@ try {
     self21.deactivated_at !== null && self21.role === "member",
     `deactivated_at=${self21.deactivated_at ? "set" : "CLEARED"} role=${self21.role}`,
   );
+
+  // ── P26: a deactivated member can't post to bells or the feed (0048) ────────
+  const mark26 = `[E2E] after deactivation ${RUN}`;
+  await call("/rest/v1/notifications", {
+    method: "POST", headers: mMin,
+    body: { recipient_id: other, actor_id: memberId, text: mark26, href: "/dashboard" },
+  });
+  await call("/rest/v1/activity", {
+    method: "POST", headers: mMin,
+    body: { actor_id: memberId, text: mark26, href: "/dashboard" },
+  });
+  const n26 = ((await call(`/rest/v1/notifications?actor_id=eq.${memberId}&text=eq.${encodeURIComponent(mark26)}&select=id`)).json ?? []).length
+    + ((await call(`/rest/v1/activity?actor_id=eq.${memberId}&text=eq.${encodeURIComponent(mark26)}&select=id`)).json ?? []).length;
+  record("P26 deactivated member can't send notifications or activity", n26 === 0, `${n26} stored`);
 } catch (e) {
   results.push(`ERROR ${e.message}`);
 } finally {
@@ -572,6 +653,9 @@ try {
     await call(`/rest/v1/tasks?project_id=eq.${projectId}`, { method: "DELETE" }); // cascades entries/assignees
     await call(`/rest/v1/projects?id=eq.${projectId}`, { method: "DELETE" });
   }
+  // Detached entries (P23) no longer go with their task; the user delete below
+  // cascades them too, but say so explicitly.
+  if (memberId) await call(`/rest/v1/time_entries?profile_id=eq.${memberId}`, { method: "DELETE" });
   if (memberId) await call(`/auth/v1/admin/users/${memberId}`, { method: "DELETE" });
   if (adminId) await call(`/auth/v1/admin/users/${adminId}`, { method: "DELETE" });
   if (adminEmail)

@@ -838,9 +838,10 @@
       "layer": "auth",
       "label": "prevent_unauthorized_hours",
       "sub": "trigger BEFORE UPDATE tasks",
-      "purpose": "Only accepted assignee / admin may change tasks.logged_hours.",
+      "purpose": "Since 0048: no signed-in user (admins included) writes tasks.logged_hours directly; only the time_entries trigger (sync_task_logged_hours) moves it.",
       "files": [
-        "supabase/migrations/0018_logged_hours_guard.sql"
+        "supabase/migrations/0018_logged_hours_guard.sql",
+        "supabase/migrations/0048_hours_and_feed_integrity.sql"
       ]
     },
     {
@@ -972,10 +973,11 @@
       "layer": "data",
       "label": "time_entries",
       "sub": "0017 +0046",
-      "purpose": "task_id, profile_id, hours>0. Insert RLS: own AND accepted assignment. UPDATE/DELETE admin-only since 0046 (P1b) - the app only inserts. Written BEFORE tasks.logged_hours (the cache) by appendLoggedHours.",
+      "purpose": "task_id (nullable, ON DELETE SET NULL since 0048), profile_id, hours>0. Insert RLS: own AND accepted assignment. UPDATE/DELETE admin-only (0046). The ONLY write the app makes for time: tasks.logged_hours is derived from these rows by trigger (0048).",
       "files": [
         "supabase/migrations/0017_time_entries.sql",
-        "supabase/migrations/0046_audit_fixes.sql"
+        "supabase/migrations/0046_audit_fixes.sql",
+        "supabase/migrations/0048_hours_and_feed_integrity.sql"
       ]
     },
     {
@@ -4397,7 +4399,10 @@
     "Create PO requires a Zoho deal: POST /api/pbs/pos refuses an estimate with no deal_id (409) and canRaisePo hides the button.",
     "isOpen(task, closed) / assignedWork({closed}): tasks in completed or archived projects never count toward load, overdue or booked hours. closed is a required argument.",
     "On-time delivery = onTimePercent: tasks.completed_at (0047 trigger, stamped when status enters done, cleared on reopen; client value overwritten), calendar days vs due_date.",
-    "seedAssignments notifies each seeded assignee once (N tasks, accept or decline) - Start project and Sync schedule."
+    "seedAssignments notifies each seeded assignee once (N tasks, accept or decline) - Start project and Sync schedule.",
+    "tasks.logged_hours is derived from time_entries by trigger (0048); the client only inserts entries and never sends logged_hours. The drawer total is read-only with an Add time field.",
+    "Deleting a task (or project) keeps its time entries: task_id ON DELETE SET NULL (0048).",
+    "Notifications/activity: created_at and read are server-set, text is 1-500 chars, and only active users may insert (0048). actor_id is pinned, so wording is always attributable to the sender."
   ],
   "permissionsMatrix": {
     "columns": [

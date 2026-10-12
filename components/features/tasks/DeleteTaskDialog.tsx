@@ -41,6 +41,9 @@ export function DeleteTaskDialog({
               {task?.title ?? "this task"}
             </span>{" "}
             ({task?.id}). This action cannot be undone.
+            {task?.logged_hours
+              ? ` The ${task.logged_hours} h logged on it stay on each person's record (Workload, Reports), no longer tied to a task.`
+              : null}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

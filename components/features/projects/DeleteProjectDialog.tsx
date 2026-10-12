@@ -25,11 +25,10 @@ export interface DeleteProjectDialogProps {
 }
 
 /**
- * Says exactly what goes (CLAUDE.md rule 6). The old copy said "from your local
- * list … tasks unchanged" — written for the demo. In the live app deleting a
- * project cascades to every sprint, task, assignment and comment, and to the
- * time people LOGGED on those tasks (time_entries is on-delete-cascade), so
- * worked hours vanish from Workload and Reports for good.
+ * Says exactly what goes (CLAUDE.md rule 6). In the live app deleting a
+ * project cascades to every sprint, task, assignment and comment. The time
+ * people LOGGED survives (0048: time_entries.task_id is on-delete-set-null), so
+ * per-person hours stay right — but it is no longer tied to any task.
  */
 export function DeleteProjectDialog({
   project,
@@ -77,8 +76,8 @@ export function DeleteProjectDialog({
                   : "."}
               </p>
               {impact && impact.loggedHours > 0 ? (
-                <p className="font-medium text-destructive">
-                  {`${impact.loggedHours} h of logged time will be erased from Workload and Reports. If the work is finished, mark the project Completed or Archived instead.`}
+                <p>
+                  {`The ${impact.loggedHours} h logged on its tasks stay on each person's record (Workload, Reports), no longer tied to a task. If the work is finished, mark the project Completed or Archived instead — that keeps everything and takes it off people's workload.`}
                 </p>
               ) : null}
               {impact?.estimate ? (
