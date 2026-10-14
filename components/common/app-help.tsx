@@ -398,6 +398,31 @@ const HELP = {
       </>
     ),
   },
+  "project.velocity": {
+    label: "velocity",
+    title: "How fast the team is going",
+    body: (
+      <>
+        <p>
+          <strong>Velocity</strong>{" "}is the estimated hours of tasks a
+          sprint finished by its last day, averaged over the last three sprints
+          that have ended. Work finished after a sprint ended doesn&apos;t count
+          for that sprint.
+        </p>
+        <p>
+          <strong>Forecast</strong>{" "}divides the hours still open (backlog
+          included) by that pace, and turns it into a finish date that skips
+          weekends, holidays and booked leave. It is a pace check, not a
+          promise — it gets steadier after a few sprints.
+        </p>
+        <p>
+          The{" "}<strong>burndown</strong>{" "}shows a sprint&apos;s unfinished
+          hours each working day against a straight line to zero. Above the
+          line means behind.
+        </p>
+      </>
+    ),
+  },
   board: {
     label: "the task board",
     title: "Working the board",

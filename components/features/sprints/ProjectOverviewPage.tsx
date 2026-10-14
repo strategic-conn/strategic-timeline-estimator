@@ -51,6 +51,7 @@ import {
   type SchedulePreview,
 } from "@/store/proposal-estimator-store";
 import { ProjectRiskBufferSection } from "@/components/features/sprints/ProjectRiskBufferSection";
+import { ProjectVelocitySection } from "@/components/features/sprints/ProjectVelocitySection";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import {
   Dialog,
@@ -678,6 +679,10 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               <ProjectRiskBufferSection projectId={projectId} />
             ) : null}
           </section>
+        ) : null}
+
+        {projectSprints.length > 0 ? (
+          <ProjectVelocitySection projectId={projectId} />
         ) : null}
       </div>
     </>

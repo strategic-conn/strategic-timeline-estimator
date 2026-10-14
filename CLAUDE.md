@@ -1388,6 +1388,37 @@ workload bar.
 
 ---
 
+## Sprint velocity & burndown
+
+**Project overview → Velocity card** (`ProjectVelocitySection`, under the
+timeline) and a **Velocity** column in Reports' projects table. One definition,
+**`lib/sprints/velocity.ts`** (pure, `e2e/velocity.spec.ts`), measured in
+**estimated hours** — the unit the app plans in; there are no story points.
+
+ - **Committed** = estimated hours of a sprint's tasks. **Completed** = those
+   finished **by the sprint's last day** (calendar days, `completed_at` from
+   `0047`, falling back to `updated_at`). Work finished after a sprint ended is
+   real but is not what that sprint delivered — counting it would make a late
+   sprint look as fast as an on-time one.
+ - **Velocity** = average Completed of the last **3 ended** sprints
+   (`VELOCITY_WINDOW`) that had anything in them; cancelled and still-running
+   sprints are excluded (a running one would drag the average down with work in
+   flight). `null` — shown as "—", never 0 — until a sprint has ended.
+ - **Forecast** = open hours of the project (backlog included) ÷ velocity,
+   rounded up to whole sprints, each as long (in working days) as the sprints
+   the pace was measured over; the date goes through `addWorkingDays`, so
+   weekends, US holidays and approved leave are skipped like everywhere else.
+ - **Burndown** = a sprint's unfinished estimated hours at the END of each
+   working day, against a straight line to zero; days still to come are not
+   drawn. It defaults to the sprint running today. Limitation: the app keeps no
+   history of when a task joined a sprint, so mid-sprint additions are drawn as
+   if present from day one (no scope-change line).
+ - Done tasks with **no estimate** count as 0 h; the card says how many, since
+   velocity reads low until they get one.
+ - Estimate-scaffolded "sprints" are really **phases** (they can be 1–3 days and
+   overlap), so on those projects velocity is per phase, and a forecast can look
+   extreme early on. It is a pace check, not a commitment — the help copy says so.
+
 ## Work keys — who can be given a task (pricing plan Phase 4)
 
 A **work key** is the workbook's lookup key on a person — `"IT|Level 2"` —
@@ -1815,6 +1846,15 @@ URL Configuration — not in the repo):
    `<production>/**` and `http://localhost:3000/**`.
  - With the default `{{ .ConfirmationURL }}` the emailed link stays
    scanner-burnable; the setup links above still work regardless.
+ - **Custom SMTP = Resend** (decided 2026-10-14). Supabase's built-in sender
+   is for testing only (~2 emails/hour, and only to the org's own team), so
+   invites to real staff silently never arrived. Settings → Authentication →
+   Emails → SMTP: host `smtp.resend.com`, port `465`, user `resend`, password =
+   a Resend API key, sender on a verified subdomain
+   (`no-reply@mail.strategicconnection.net`); then raise **Authentication →
+   Rate Limits → emails**. Not Microsoft 365 SMTP: Supabase needs
+   username/password SMTP auth, which Microsoft is retiring. Until it is live,
+   the setup-link key button (no email) is the way in.
 
 `e2e/invite-setup-link.spec.ts` reproduces the scanner (a server-side verify of
 a one-time token) and walks the way out end to end, including both refusals.
@@ -2014,7 +2054,12 @@ if (!tasks.length) {
    and `main` must not scroll sideways, nothing may reach past `main` without an
    inner scroller to bring it back, and no two non-nested controls may overlap
    by more than 4px in both axes (one of them would be unclickable, and which
-   one is a coin toss).
+   one is a coin toss). Overlap compares each control's **visible** box
+   (`visibleRect`: clipped by every overflow ancestor up to, not including,
+   `main`) — the Gantt scrolls its rows in its own box, so a bar further down has
+   a layout position over the next card while being invisible, and the raw-box
+   check flagged it "over" the Velocity card's help button. A negative control in
+   the same spec proves it still catches two genuinely overlapping buttons.
 
    > **`main` is itself `overflow-x: auto`.** A scroller check that asks
    > "is this inside *any* scroller?" therefore skips the entire page and
@@ -2082,5 +2127,5 @@ if (!tasks.length) {
 
 ---
 
-> Maintainer: Frontend Dev · Last updated: 2026-10-12
+> Maintainer: Frontend Dev · Last updated: 2026-10-14
 > Update this file whenever the project scope, stack, or patterns change.

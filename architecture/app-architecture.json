@@ -1518,6 +1518,18 @@
       "files": [
         "supabase/migrations/0045_tour_progress.sql"
       ]
+    },
+    {
+      "id": "l-velocity",
+      "layer": "bridge",
+      "label": "lib/sprints/velocity",
+      "sub": "velocity · forecast · burndown",
+      "purpose": "Pure. Committed vs completed (by sprint end, completed_at) estimated hours per sprint; velocity = avg of last 3 ended sprints; forecast = open hours / velocity in working days (addWorkingDays); burndown per working day. Used by ProjectVelocitySection and the Reports Velocity column.",
+      "files": [
+        "lib/sprints/velocity.ts",
+        "components/features/sprints/ProjectVelocitySection.tsx",
+        "e2e/velocity.spec.ts"
+      ]
     }
   ],
   "edges": [
@@ -4402,7 +4414,8 @@
     "seedAssignments notifies each seeded assignee once (N tasks, accept or decline) - Start project and Sync schedule.",
     "tasks.logged_hours is derived from time_entries by trigger (0048); the client only inserts entries and never sends logged_hours. The drawer total is read-only with an Add time field.",
     "Deleting a task (or project) keeps its time entries: task_id ON DELETE SET NULL (0048).",
-    "Notifications/activity: created_at and read are server-set, text is 1-500 chars, and only active users may insert (0048). actor_id is pinned, so wording is always attributable to the sender."
+    "Notifications/activity: created_at and read are server-set, text is 1-500 chars, and only active users may insert (0048). actor_id is pinned, so wording is always attributable to the sender.",
+    "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended."
   ],
   "permissionsMatrix": {
     "columns": [

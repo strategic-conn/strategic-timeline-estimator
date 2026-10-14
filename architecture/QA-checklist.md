@@ -529,6 +529,15 @@ Run `node scripts/security-probe.mjs` first — every line must read PASS (P1b a
 - [ ] **Confirm link redirect.** `/auth/confirm?…&next=//evil.example` → after Continue you land on `/dashboard`, not the other site.
 - [ ] **Deactivation is immediate.** Deactivate a member who is signed in elsewhere → their next write (e.g. moving a card) fails at once.
 
+## 📈 Sprint velocity & burndown
+
+- [ ] **Project page → Velocity card** (below the timeline): Velocity, Work left and Forecast tiles; with no ended sprint, Velocity and Forecast show "—", not 0.
+- [ ] Finish a task inside a sprint before its end date → after that sprint ends, its "Finished in the sprint" bar includes the task's estimate. A task finished after the end date does not count for that sprint.
+- [ ] **Burndown** defaults to the sprint running today; the line stops at today; the picker switches sprints.
+- [ ] A done task with no estimate → the card says it counts as 0 h.
+- [ ] **Reports → Projects** table has a Velocity column matching the project page.
+- [ ] At 375px the bar chart's sprint names don't overlap (some are skipped; hovering a bar names it).
+
 ## 🔒 Hours & feed integrity (0048)
 
 Run `node scripts/security-probe.mjs` — P22–P26 must PASS.

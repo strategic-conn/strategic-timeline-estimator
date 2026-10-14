@@ -38,6 +38,7 @@ import { useJoinedTeamMembers } from "@/store/team-store";
 import { cn } from "@/lib/utils";
 import { isOverdue } from "@/lib/utils/relative-dates";
 import { isOpen, onTimePercent } from "@/lib/workload/assigned-work";
+import { projectVelocity } from "@/lib/sprints/velocity";
 import { useClosedProjectIds } from "@/hooks/useProjects";
 import { createClient } from "@/lib/supabase/client";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -99,6 +100,8 @@ export function ReportsClient() {
       const estH = pTasks.reduce((sum, t) => sum + (t.estimated_hours ?? 0), 0);
       const logH = pTasks.reduce((sum, t) => sum + (t.logged_hours ?? 0), 0);
       const sprintCount = sprints.filter((s) => s.project_id === p.id).length;
+      // Same definition as the project page's Velocity card.
+      const velocity = projectVelocity(p.id, sprints, tasks, now).average;
       return {
         ...p,
         taskCount: pTasks.length,
@@ -108,9 +111,10 @@ export function ReportsClient() {
         estH: Math.round(estH),
         logH: Math.round(logH),
         sprintCount,
+        velocity,
       };
     });
-  }, [projects, tasks, sprints]);
+  }, [projects, tasks, sprints, now]);
 
   /**
    * Hours each person actually logged, from `time_entries` — the same source
@@ -364,6 +368,7 @@ export function ReportsClient() {
                   <TableHead>Project</TableHead>
                   <TableHead className="text-center">Status</TableHead>
                   <TableHead className="text-center">Sprints</TableHead>
+                  <TableHead className="text-center">Velocity</TableHead>
                   <TableHead className="text-center">Tasks</TableHead>
                   <TableHead className="text-center">Progress</TableHead>
                   <TableHead className="text-right">Est / Logged</TableHead>
@@ -380,6 +385,9 @@ export function ReportsClient() {
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
                       {p.sprintCount}
+                    </TableCell>
+                    <TableCell className="text-center tabular-nums text-muted-foreground">
+                      {p.velocity != null ? `${p.velocity} h/sprint` : "—"}
                     </TableCell>
                     <TableCell className="text-center tabular-nums">
                       {p.doneCount}/{p.taskCount}

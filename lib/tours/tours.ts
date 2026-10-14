@@ -237,7 +237,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "project",
-    version: 1,
+    version: 2,
     title: "Project overview",
     access: "/projects",
     match: (p) => /^\/projects\/[^/]+\/?$/.test(p),
@@ -288,6 +288,11 @@ export const TOURS: TourDef[] = [
         title: "Risk buffer",
         body: "Forecasts how much later the project would finish with extra slack. It moves nothing on its own. Applying it shows the new sprint dates for you to confirm first.",
         when: (c) => c.canEditProject,
+      },
+      {
+        target: "project.velocity",
+        title: "Velocity",
+        body: "How many estimated hours each sprint actually finished, the average pace, and when the work left would finish at that pace. Below it, a sprint's burndown.",
       },
     ],
   },
