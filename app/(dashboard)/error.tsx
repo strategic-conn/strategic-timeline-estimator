@@ -45,6 +45,18 @@ export default function DashboardError({
                 <span className="font-mono tabular-nums">{error.digest}</span>
               </p>
             ) : null}
+            {/* Dev only: what actually broke, so a one-off crash can be reported
+                from a screenshot. Production keeps the generic copy — an error
+                message can carry internals no user should see. */}
+            {process.env.NODE_ENV !== "production" && error?.message ? (
+              <details className="mt-3 text-xs text-muted-foreground">
+                <summary className="cursor-pointer">Error details (dev only)</summary>
+                <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md bg-muted/40 p-2 font-mono">
+                  {error.message}
+                  {error.stack ? `\n\n${error.stack.split("\n").slice(1, 6).join("\n")}` : ""}
+                </pre>
+              </details>
+            ) : null}
           </div>
         </div>
 
