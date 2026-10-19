@@ -14,6 +14,9 @@ export type ProposalPlatform =
   | "react_next"
   | "custom";
 
+/** What a new estimate starts on — most of the work quoted here is WordPress. */
+export const DEFAULT_PLATFORM: ProposalPlatform = "wordpress";
+
 export interface CatalogCategory {
   id: number;
   name: string;

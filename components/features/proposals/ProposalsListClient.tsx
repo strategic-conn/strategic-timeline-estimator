@@ -80,6 +80,7 @@ import { ZohoStageBadge } from "@/components/features/proposals/ZohoStageBadge";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { cn } from "@/lib/utils";
 import {
+  DEFAULT_PLATFORM,
   PROPOSAL_PLATFORM_OPTIONS,
   platformLabel,
 } from "@/lib/proposal-catalog";
@@ -138,7 +139,7 @@ export function ProposalsListClient() {
   const [newTitle, setNewTitle] = React.useState("");
   const [newClient, setNewClient] = React.useState("");
   const [newPlatform, setNewPlatform] =
-    React.useState<ProposalPlatform>("react_next");
+    React.useState<ProposalPlatform>(DEFAULT_PLATFORM);
   const [deleteTarget, setDeleteTarget] = React.useState<ClientQuote | null>(
     null,
   );
@@ -202,7 +203,7 @@ export function ProposalsListClient() {
     setCreateOpen(false);
     setNewTitle("");
     setNewClient("");
-    setNewPlatform("react_next");
+    setNewPlatform(DEFAULT_PLATFORM);
     setNewZoho(null);
     router.push(`/proposals/${id}`);
   };

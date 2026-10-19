@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>App QA Walkthrough v3</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  /* Source for docs/App-QA-Walkthrough-v3.pdf. Print it with
+     `node scripts/render-qa-pdf.mjs` (headless Chromium, A4). */
+  @page { size: A4; margin: 18mm 17mm 20mm; }
+  :root {
+    --ink: #17181c; --muted: #5f6470; --line: #e3e5ea; --soft: #f6f7f9;
+    --settings: #0e7490; --settings-bg: #e6f4f7;
+    --est: #6d4ee6; --est-bg: #efebfd;
+    --zoho: #c2570c; --zoho-bg: #fdf0e6;
+    --pbs: #15803d; --pbs-bg: #e8f6ed;
+    --board: #1d4ed8; --board-bg: #e8eefd;
+    --track: #a21caf; --track-bg: #f8e9fb;
+    --warn: #b42318;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; color: var(--ink); font: 10.5pt/1.6 "IBM Plex Sans", "Segoe UI", system-ui, sans-serif; }
+  .mono, .eyebrow, .chip, .badge, .expect-label, code { font-family: "IBM Plex Mono", Consolas, monospace; }
+  h1, h2, h3 { font-family: "Inter Tight", "Segoe UI", system-ui, sans-serif; letter-spacing: -0.01em; }
+  .eyebrow { font-size: 7.5pt; letter-spacing: 0.22em; text-transform: uppercase; color: var(--muted); margin: 8mm 0 3mm; }
+  h1 { font-size: 27pt; line-height: 1.1; margin: 0 0 4mm; }
+  .lede { font-size: 12pt; color: var(--muted); margin: 0 0 5mm; max-width: 150mm; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 6mm; padding-bottom: 5mm; border-bottom: 1.5px solid var(--ink); }
+  .chip { font-size: 7.5pt; letter-spacing: 0.06em; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; }
+  .chip::before { content: "●"; margin-right: 5px; font-size: 7pt; }
+  .c-settings { color: var(--settings); background: var(--settings-bg); }
+  .c-est { color: var(--est); background: var(--est-bg); }
+  .c-zoho { color: var(--zoho); background: var(--zoho-bg); }
+  .c-pbs { color: var(--pbs); background: var(--pbs-bg); }
+  .c-board { color: var(--board); background: var(--board-bg); }
+  .c-track { color: var(--track); background: var(--track-bg); }
+  .box { border: 1px solid var(--line); border-radius: 8px; padding: 4mm 5mm; margin: 0 0 6mm; break-inside: avoid; }
+  .box.warn { border-left: 3px solid var(--warn); }
+  .box h3 { font-family: "IBM Plex Mono", Consolas, monospace; font-size: 7.5pt; letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted); margin: 0 0 2mm; font-weight: 500; }
+  .box ul { margin: 0; padding-left: 5mm; }
+  .box li { margin: 1.2mm 0; }
+  h2 { font-size: 15pt; margin: 8mm 0 1mm; break-after: avoid; }
+  .part-lede { color: var(--muted); margin: 0 0 3mm; padding-bottom: 3mm; border-bottom: 1px solid var(--line); break-after: avoid; }
+  .step { display: grid; grid-template-columns: 11mm 1fr; padding: 3.5mm 0 4mm; border-bottom: 1px solid var(--line); break-inside: avoid; }
+  .num { font-family: "IBM Plex Mono", Consolas, monospace; color: var(--muted); font-size: 10pt; padding-top: 1px; }
+  .step h3 { font-size: 11.5pt; margin: 0 0 1.5mm; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .step h3 .chip { font-size: 6.8pt; padding: 2px 6px; }
+  .badge { font-size: 6.5pt; letter-spacing: 0.12em; text-transform: uppercase; padding: 1px 5px; border: 1px solid var(--warn); color: var(--warn); border-radius: 3px; font-weight: 500; }
+  .badge.changed { border-color: #b45309; color: #b45309; }
+  .step p { margin: 0 0 2mm; }
+  .expect { display: grid; grid-template-columns: 15mm 1fr; border-left: 3px solid #93a4c3; padding: 1mm 0 1mm 3mm; margin-top: 2mm; }
+  .expect-label { font-size: 6.5pt; letter-spacing: 0.14em; color: var(--muted); padding-top: 3px; }
+  .expect p { margin: 0 0 1.5mm; }
+  .expect p:last-child { margin-bottom: 0; }
+  code { font-size: 8.5pt; background: var(--soft); border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+  b, strong { font-weight: 600; }
+  table.guards { width: 100%; border-collapse: collapse; border: 1px solid var(--line); border-radius: 8px; margin: 0 0 6mm; }
+  .guards td { vertical-align: top; padding: 2.1mm 3.5mm; border-bottom: 1px solid var(--line); width: 50%; break-inside: avoid; }
+  .guards tr { break-inside: avoid; }
+  .guards td + td { color: var(--muted); }
+  .guards td + td::before { content: "→ "; color: var(--warn); }
+  .page-break { break-before: page; }
+  .foot { color: var(--muted); font-size: 9.5pt; margin-top: 4mm; break-inside: avoid; }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Manual QA · Whole app · Updated October 2026</div>
+<h1>App QA Walkthrough</h1>
+<p class="lede">One run through the whole app, from inviting a teammate to closing a project. It covers everything since the September walkthrough: guided tours, help on every section, safer invites, the October audit fixes, time logging, and sprint velocity. Follow the parts in order, since each one sets up the next.</p>
+<div class="chips">
+  <span class="chip c-settings">Team &amp; settings</span>
+  <span class="chip c-est">Estimator</span>
+  <span class="chip c-zoho">Zoho CRM</span>
+  <span class="chip c-pbs">PBS billing</span>
+  <span class="chip c-board">Projects &amp; board</span>
+  <span class="chip c-track">Workload &amp; reports</span>
+</div>
+
+<div class="box">
+  <h3>What changed since the last walkthrough</h3>
+  <ul>
+    <li><b>Tours and help.</b> Every page has a guided tour (the <b>?</b> in the top bar), newcomers get a welcome and a Getting started checklist, and every section has its own <b>?</b> that explains it in plain words.</li>
+    <li><b>Safer invites.</b> The emailed link opens a page with a <b>Continue</b> button, so email scanners can't use it up. Admins can also hand out a password setup link from the Team page.</li>
+    <li><b>Projects come from estimates.</b> <b>New project</b> is switched off, the New estimate dialog no longer picks a project, and an approved estimate is frozen: editing the project's tasks no longer changes the quote.</li>
+    <li><b>No PO without a deal.</b> Create PO only appears once the estimate's Zoho deal is won.</li>
+    <li><b>Time logging.</b> A task's logged total can't be typed over any more. Time is added with <b>Add time</b> or the timer, and deleting a task keeps the hours people logged.</li>
+    <li><b>Velocity and burndown.</b> Each project page shows how many hours each sprint finished, the average pace, a finish forecast and a burndown. Reports has a Velocity column.</li>
+    <li><b>Fixes.</b> Due dates save on the day you pick, sign-out clears the screen, completed projects leave everyone's workload, and on-time delivery uses the day a task was actually finished.</li>
+  </ul>
+</div>
+
+<div class="box warn">
+  <h3>Before you start</h3>
+  <ul>
+    <li>Have four logins ready: an <b>admin</b>, a <b>manager</b>, a <b>member</b> and a <b>viewer</b>. Part 1 also needs a mailbox you can open for a new test invitee.</li>
+    <li>Use a <b>test client</b> in Zoho. Part 3 writes to the real CRM, and step 11 writes to real billing, which has no delete.</li>
+    <li>Name everything you create <b>MY TEST …</b>. On <b>real</b> projects and estimates, only look. If a dialog offers to change one, press <b>Cancel</b>.</li>
+    <li>Keep a phone, or a browser window narrowed to about 375px, for the checks at the end.</li>
+  </ul>
+</div>
+
+<h2>Part 1 — Invite a teammate</h2>
+<p class="part-lede">About ten minutes, as the <b>admin</b>. This creates the newcomer you'll use in Part 2.</p>
+
+<div class="step"><div class="num">01</div><div>
+  <h3>Send an invite <span class="chip c-settings">Team</span> <span class="badge changed">Changed</span></h3>
+  <p>Team → <b>Invite</b>. Use the test mailbox, role <b>Member</b>.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The invite email arrives within a couple of minutes (check spam the first time). A dialog also shows a backup <b>password setup link</b> with <b>Copy link</b>, so you can send it by chat if the email is slow.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">02</div><div>
+  <h3>Accept it as the newcomer <span class="chip c-settings">Team</span> <span class="badge">New</span></h3>
+  <p>In a private window, open the link from the email.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>A page asks you to press <b>Continue</b>. Nothing happens until you press it. Then you choose a password and land on the Dashboard, never on the home page.</p>
+    <p>Open the same email link again: it says the link has already been used or has expired, and how to get a new one.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">03</div><div>
+  <h3>The setup-link key button <span class="chip c-settings">Team</span> <span class="badge">New</span></h3>
+  <p>Back as the admin, Team → the <b>key</b> button on a pending invite's row. Then try the same button on someone who already has a password.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>A pending invitee gets a fresh setup link to copy. Someone who already set a password is refused, because that link would sign its holder in as them.</p>
+  </div></div>
+</div></div>
+
+<h2>Part 2 — Finding your way</h2>
+<p class="part-lede">About ten minutes, signed in as the <b>new member</b> from Part 1.</p>
+
+<div class="step"><div class="num">04</div><div>
+  <h3>Welcome and the first tour <span class="chip c-board">Dashboard</span> <span class="badge">New</span></h3>
+  <p>The Dashboard opens with <b>Welcome to Timeline Estimator</b>. Press <b>Start the tour</b> and step through it. While a step is highlighted, try clicking the highlighted button.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Each step points at a real control and explains it. Clicking the highlighted control does nothing, because tours only explain. Reload: the welcome doesn't come back.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">05</div><div>
+  <h3>Getting started checklist <span class="chip c-board">Dashboard</span> <span class="badge">New</span></h3>
+  <p>Dashboard → Mine → the <b>Getting started</b> card. Press <b>Show me</b> on one item, then do what it asks (for example, upload an avatar in Settings).</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p><b>Show me</b> opens the right page and starts its tour at that step. Back on the Dashboard, the item you completed is ticked on its own. Items that don't apply yet ("Nothing assigned to you yet") never stop you reaching 100%.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">06</div><div>
+  <h3>Help on every section <span class="chip c-board">All pages</span> <span class="badge">New</span></h3>
+  <p>On each page, click the <b>?</b> at the top right of the page header and of each section. Then open the top-bar <b>?</b> → <b>Tour: …</b> for that page.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Every <b>?</b> opens a short plain-English explanation on click, phone included. Bold words have normal spaces around them (no "work?It isn't"). Member tours never mention buttons a member doesn't have.</p>
+  </div></div>
+</div></div>
+
+<h2 class="page-break">Part 3 — From estimate to project</h2>
+<p class="part-lede">About thirty minutes, as the <b>admin</b>. The pricing run itself is unchanged from v2; these steps check what's new around it.</p>
+
+<div class="step"><div class="num">07</div><div>
+  <h3>Create the estimate <span class="chip c-est">Estimator</span> <span class="badge changed">Changed</span></h3>
+  <p>Estimator → <b>New estimate</b>. Title it <b>MY TEST – walkthrough</b>, pick a platform and a client. Add three or four catalog tasks.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The dialog has <b>no project picker</b>. In the editor's Setup tab, <b>Internal project</b> reads "None yet — Start project creates it" and can't be changed.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">08</div><div>
+  <h3>Generate line items asks first <span class="chip c-est">Estimator</span> <span class="badge">New</span></h3>
+  <p>Scope &amp; risk → <b>Start guided scoping</b>, answer a few questions, then <b>Generate line items</b>. Press <b>Cancel</b> on the dialog that appears.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Because the estimate already has lines, a <b>Replace all line items?</b> dialog asks first. Cancel leaves your catalog lines exactly as they were.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">09</div><div>
+  <h3>Set the details that carry over <span class="chip c-est">Estimator</span></h3>
+  <p>Adjust tab → set the <b>risk buffer</b> to <code>20%</code> and tick <b>Requirements not pinned down</b>. Note the timeline's launch date and one line's quoted hours.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The buffer moves only dates, and the box prices every line as Advanced. All three tabs say so.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">10</div><div>
+  <h3>No PO before the deal is won <span class="chip c-est">Estimator</span> <span class="chip c-pbs">PBS</span> <span class="badge changed">Changed</span></h3>
+  <p>Set the estimate's status to <b>Approved</b> by hand, without sending it to Zoho. Look for <b>Create PO</b>. Then set it back to Draft.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>No Create PO button anywhere, because there is no Zoho deal to win yet.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">11</div><div>
+  <h3>Send, win, raise the PO <span class="chip c-zoho">Zoho</span> <span class="chip c-pbs">PBS</span></h3>
+  <p>Review → <b>Send to Zoho</b>. Then Estimator → <b>Stages</b> and move the card to <b>Closed Won</b>. Press <b>Create PO</b> and confirm.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>On Closed Won the status flips to <b>Approved</b> on its own, and both Create PO and Start project appear. The PO number then shows on the card and in the header.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">12</div><div>
+  <h3>Start the project <span class="chip c-est">Estimator</span> <span class="chip c-board">Projects</span> <span class="badge changed">Changed</span></h3>
+  <p>Assign the teammate from Part 1 a work key so they get a task. Then <b>Start project</b> → <b>Review schedule</b> → <b>Confirm &amp; create</b>.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The sprint dates match the estimate's timeline from step 9, buffer included. The project's own risk buffer reads <b>0%</b>, because the estimate's buffer is already in those dates.</p>
+    <p>Each task's estimate equals its line's <b>quoted</b> hours (Advanced, from step 9), not the base hours.</p>
+    <p>Your teammate gets <b>one</b> notification, "… assigned you N tasks on "MY TEST …" — accept or decline", not one per task.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">13</div><div>
+  <h3>The approved estimate is frozen <span class="chip c-board">Projects</span> <span class="chip c-est">Estimator</span> <span class="badge">New</span></h3>
+  <p>On the new project, open a task and change its estimated hours. Then open the estimate.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>One message says the estimate is approved and keeps the agreed price. The estimate's line and total are unchanged.</p>
+  </div></div>
+</div></div>
+
+<h2 class="page-break">Part 4 — Working the board</h2>
+<p class="part-lede">About fifteen minutes, as the <b>teammate</b> (member), on the MY TEST project.</p>
+
+<div class="step"><div class="num">14</div><div>
+  <h3>Accept the work <span class="chip c-board">Board</span></h3>
+  <p>Click the notification from step 12. Open one of your tasks and press <b>Accept</b>.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The notification shows a real time ("just now"). Before you accept, the drawer has no <b>Add time</b> field. After you accept, it does.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">15</div><div>
+  <h3>Due dates land on the day you pick <span class="chip c-board">Board</span> <span class="badge">Fixed</span></h3>
+  <p>Set a task's due date to the 15th of next month in the drawer. Check the card, then switch to <b>List</b> and <b>Table</b>.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Every view shows the 15th, not the 14th or the 16th. (If you can, repeat with your computer's time zone set ahead of and behind UTC.)</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">16</div><div>
+  <h3>Log time <span class="chip c-board">Board</span> <span class="badge changed">Changed</span></h3>
+  <p>In the drawer's Time tracking box, type <code>1.5</code> in <b>Add time</b> and press it. Then run the session timer for a minute and press <b>Stop</b>.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p><b>Logged total</b> can't be edited by anyone, admins included. It grows by 1.5, then by the timer session. Workload → Mine → "Logged this week" grows by the same amounts.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">17</div><div>
+  <h3>Finish a task <span class="chip c-board">Board</span></h3>
+  <p>Drag the task from step 15 by its grip handle to <b>Done</b>. Move a few other cards between columns too.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Cards move instantly and stay put after a reload, with no error page. The finished task leaves your Workload.</p>
+  </div></div>
+</div></div>
+
+<h2>Part 5 — Tracking</h2>
+<p class="part-lede">About fifteen minutes, as the <b>manager</b>.</p>
+
+<div class="step"><div class="num">18</div><div>
+  <h3>Velocity and burndown <span class="chip c-track">Project page</span> <span class="badge">New</span></h3>
+  <p>Open the MY TEST project and scroll below the <b>Timeline</b> to the <b>Velocity</b> card. Then edit the sprint holding the task you finished in step 17 so it <b>ended yesterday</b> (move its start date back too if needed), and look again.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>At first, Velocity and Forecast read "—" with "Shows once a sprint has ended", never 0. The burndown shows the sprint running today, and its line stops at today.</p>
+    <p>Once the sprint has ended yesterday, Velocity reads <b>0 h / sprint</b> and Forecast says it needs a velocity first. That's correct: the task was finished <b>today</b>, after the sprint ended, and late work doesn't count for a sprint. The bar chart shows a Planned bar with no Finished bar.</p>
+    <p>Put the sprint's dates back. To see a real number, check a project with sprints that ended after work was finished in them.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">19</div><div>
+  <h3>The same numbers everywhere <span class="chip c-track">Workload</span> <span class="chip c-track">Reports</span></h3>
+  <p>Compare your teammate on Workload → Team, Dashboard → Team, and Reports. Check Reports' <b>Velocity</b> column for MY TEST.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>Utilisation, overdue and pending counts agree on all three pages. Reports' Velocity matches the project page.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">20</div><div>
+  <h3>On-time uses the finish date <span class="chip c-track">Reports</span> <span class="badge">Fixed</span></h3>
+  <p>Note the on-time delivery percentage on the Dashboard and in Reports. Rename the task you finished in step 17.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The percentage doesn't change. A later edit no longer counts as the moment the task was finished.</p>
+  </div></div>
+</div></div>
+
+<div class="step"><div class="num">21</div><div>
+  <h3>Finished projects leave the workload <span class="chip c-track">Workload</span> <span class="badge">New</span></h3>
+  <p>As the admin, set the MY TEST project's status to <b>Completed</b>. Check Workload, both Dashboard views and Reports' Overdue.</p>
+  <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The project's leftover open tasks no longer count toward anyone's load or the overdue figures. Set it back to Active afterwards.</p>
+  </div></div>
+</div></div>
+
+<h2 class="page-break">Then try to break it</h2>
+<p class="part-lede">These are the guards. Each one should stop you and say why.</p>
+<table class="guards">
+  <tr><td>Projects page → New project</td><td>The button is greyed out. Hovering explains that projects start from an approved estimate. No "New project" in the top bar or the + menu</td></tr>
+  <tr><td>Press Start project in two tabs on the same approved estimate</td><td>The second says "This estimate already has a project". Only one project exists</td></tr>
+  <tr><td>Open a task you haven't accepted, as a member</td><td>No Add time field. Logged total is read-only for everyone</td></tr>
+  <tr><td>Delete a task that has logged time (as a manager)</td><td>The dialog says the hours stay on each person's record. Afterwards, Workload's "Logged this week" is unchanged</td></tr>
+  <tr><td>Delete a project (admin): read the dialog, then Cancel</td><td>It names the sprint and task counts, the logged hours that stay, the linked estimate and its PO</td></tr>
+  <tr><td>Approved estimate with no Zoho deal</td><td>No Create PO button</td></tr>
+  <tr><td>Edit a task's hours on an approved estimate's project</td><td>The estimate's price doesn't move</td></tr>
+  <tr><td>Generate line items on an estimate that already has lines</td><td>"Replace all line items?" asks first. Cancel changes nothing</td></tr>
+  <tr><td>Sign out, then press the browser's Back button</td><td>You stay on the sign-in page. Nobody's dashboard flashes up</td></tr>
+  <tr><td>Open an invite link a second time</td><td>It explains the link was used or expired, and how to get a new one</td></tr>
+  <tr><td>Change <code>next=</code> in an invite link to <code>//example.com</code></td><td>After Continue you land on the Dashboard, never on another site</td></tr>
+  <tr><td>Deactivate a member who is signed in elsewhere</td><td>Their next change fails straight away, not an hour later</td></tr>
+  <tr><td>Open a real estimate or project</td><td>Look only. Press Cancel on any dialog that offers to change it</td></tr>
+</table>
+
+<h2>Also check</h2>
+<p class="part-lede">Quick passes once the run above is clean.</p>
+<table class="guards">
+  <tr><td>Top bar on a phone (375px)</td><td>Four controls: ☰, ?, 🔔, +. The page name isn't cut off</td></tr>
+  <tr><td>Estimator tabs on a phone</td><td>One row of five tabs ("Scope", "Lines" are short names). Nothing scrolls off the edge</td></tr>
+  <tr><td>Section ? buttons on a phone</td><td>No empty strip down the right side of headers and cards</td></tr>
+  <tr><td>A tour on a phone</td><td>The popover docks at the top or bottom, away from what it highlights, and its buttons work</td></tr>
+  <tr><td>Velocity card on a phone</td><td>Sprint names under the bars don't overlap (some are skipped; tap a bar for its name)</td></tr>
+  <tr><td>Any page at 375px, 768px and desktop</td><td>No sideways page scroll. The Gantt and wide tables scroll inside their own boxes</td></tr>
+  <tr><td>Sign in as a viewer</td><td>No action buttons anywhere, no Estimator, no rates</td></tr>
+  <tr><td>Notifications and activity</td><td>New entries show "just now", never an odd past date</td></tr>
+</table>
+
+<div class="box">
+  <h3>Clean up when you're done</h3>
+  <ul>
+    <li>Set MY TEST back to Active if you left it Completed, then delete the MY TEST project and estimate (admin). Time you logged stays on your record, which is expected.</li>
+    <li>Team → deactivate, then delete, the test invitee. Remove any work key you added.</li>
+    <li>The Zoho deal and the PBS purchase order stay behind and need tidying by hand in those systems.</li>
+  </ul>
+</div>
+
+<p class="foot"><b>Found something?</b> Note the step number, what you expected and what you saw, with a screenshot. If the page shows "This page couldn't load", open <b>Error details</b> on it (on a test copy) and include that too. Anything touching Zoho or PBS is a real write, so flag it rather than retrying.</p>
+
+</body>
+</html>

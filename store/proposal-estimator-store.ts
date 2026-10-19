@@ -4,7 +4,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { toast } from "sonner";
 
-import type { CatalogItem } from "@/lib/proposal-catalog";
+import { DEFAULT_PLATFORM, type CatalogItem } from "@/lib/proposal-catalog";
 import {
   DEFAULT_ADDONS,
   DEFAULT_RISK_BUFFER_PCT,
@@ -881,7 +881,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           project_id: input.project_id ?? null,
           client_name: input.client_name?.trim() || undefined,
           notes: undefined,
-          platform: input.platform ?? "react_next",
+          platform: input.platform ?? DEFAULT_PLATFORM,
           status: "draft",
           // Guided quotes start empty (the wizard generates lines); manual keep a starter row.
           line_items: input.discovery
@@ -889,7 +889,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             : [
                 withPricing(
                   emptyLineItem(),
-                  input.platform ?? "react_next",
+                  input.platform ?? DEFAULT_PLATFORM,
                   liveRates(),
                 ),
               ],
