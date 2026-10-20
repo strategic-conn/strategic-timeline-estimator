@@ -70,7 +70,7 @@ export function DiscoveryWizard({
             >
               <span
                 className={cn(
-                  "flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-2 lg:size-6 lg:ring-0",
+                  "relative flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-2 lg:size-6 lg:ring-0",
                   open === 0
                     ? "bg-green-500/15 text-green-600 dark:text-green-400"
                     : active
@@ -80,10 +80,26 @@ export function DiscoveryWizard({
                 )}
               >
                 {open === 0 ? <Check className="size-3.5" /> : s.n}
+                {/* Phones show no section titles, so the count rides on the circle. */}
+                {open > 0 ? (
+                  <span
+                    aria-hidden
+                    className="absolute -right-1 -top-1 flex size-4 items-center justify-center rounded-full bg-amber-500 text-[0.6rem] font-bold text-white lg:hidden"
+                  >
+                    {open}
+                  </span>
+                ) : null}
               </span>
               <span className="hidden min-w-0 lg:block">
                 <span className="block truncate font-medium">{s.title}</span>
-                <span className="block text-[0.7rem] text-muted-foreground">
+                <span
+                  className={cn(
+                    "block text-[0.7rem]",
+                    open === 0
+                      ? "text-muted-foreground"
+                      : "font-medium text-amber-700 dark:text-amber-300",
+                  )}
+                >
                   {open === 0 ? "Complete" : `${open} required left`}
                 </span>
               </span>
@@ -102,6 +118,15 @@ export function DiscoveryWizard({
             {current.title}
           </CardTitle>
           <CardDescription>{current.subtitle}</CardDescription>
+          {(unanswered[section] ?? 0) > 0 ? (
+            <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
+              {`${unanswered[section]} required question${unanswered[section] === 1 ? "" : "s"} left in this section — highlighted below.`}
+            </p>
+          ) : (
+            <p className="mt-1 text-xs font-medium text-green-700 dark:text-green-400">
+              All required questions in this section are answered.
+            </p>
+          )}
         </CardHeader>
         <CardContent className="flex flex-col gap-5 pb-5">
           {questions.map((q) => (

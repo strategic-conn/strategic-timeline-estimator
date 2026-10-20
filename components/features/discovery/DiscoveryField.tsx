@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
+  isBlank,
   isQuestionRequired,
   type DiscoveryFieldId,
   type DiscoveryQuestion,
@@ -37,6 +38,9 @@ export function DiscoveryField({
 }: DiscoveryFieldProps) {
   const value = project[question.id];
   const required = isQuestionRequired(question, project);
+  // Required and still blank: highlighted until answered, so the questions the
+  // estimate actually needs stand out from the optional ones.
+  const missing = required && isBlank(value, question.type);
   const warn = question.warnWhen?.(project) ?? false;
   const fieldId = `disc-${question.id}`;
   const help = QUESTION_HELP[question.id];
@@ -56,13 +60,32 @@ export function DiscoveryField({
         : undefined;
 
   return (
-    <div className="flex flex-col gap-1.5">
+    <div
+      data-required={required ? (missing ? "missing" : "answered") : undefined}
+      className={cn(
+        "flex flex-col gap-1.5",
+        // The highlight sits in the gutter, so fields don't shift as it comes and goes.
+        missing &&
+          "-mx-3 rounded-lg border-l-4 border-amber-500 bg-amber-500/[0.06] px-3 py-2.5",
+      )}
+    >
       <div className="flex items-baseline justify-between gap-2">
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           <Label htmlFor={fieldId} className="text-sm">
             {question.label}
-            {required ? <span className="ml-0.5 text-destructive">*</span> : null}
           </Label>
+          {required ? (
+            <span
+              className={cn(
+                "rounded-full px-1.5 py-px text-[0.65rem] font-semibold uppercase tracking-wide",
+                missing
+                  ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                  : "bg-green-500/15 text-green-700 dark:text-green-400",
+              )}
+            >
+              {missing ? "Required" : "✓ Required"}
+            </span>
+          ) : null}
           {help ? <InfoTip label={question.label}>{help}</InfoTip> : null}
         </div>
         {question.impact ? (
@@ -85,7 +108,7 @@ export function DiscoveryField({
             onChange(question.id, question.type === "range" ? Number(v) : v)
           }
         >
-          <SelectTrigger id={fieldId} className="w-full">
+          <SelectTrigger id={fieldId} aria-required={required || undefined} className="w-full">
             <SelectValue placeholder="Select…" />
           </SelectTrigger>
           <SelectContent>
@@ -99,6 +122,7 @@ export function DiscoveryField({
       ) : question.type === "textarea" ? (
         <Textarea
           id={fieldId}
+          aria-required={required || undefined}
           rows={3}
           value={typeof value === "string" ? value : ""}
           placeholder={question.placeholder}
@@ -107,6 +131,7 @@ export function DiscoveryField({
       ) : question.type === "number" ? (
         <Input
           id={fieldId}
+          aria-required={required || undefined}
           type="number"
           inputMode="numeric"
           min={question.min}
@@ -124,6 +149,7 @@ export function DiscoveryField({
       ) : (
         <Input
           id={fieldId}
+          aria-required={required || undefined}
           type={question.type === "date" ? "date" : question.type === "url" ? "url" : "text"}
           value={typeof value === "string" ? value : ""}
           placeholder={question.placeholder}
@@ -136,6 +162,11 @@ export function DiscoveryField({
         <span className="text-[0.7rem] text-muted-foreground sm:hidden">
           {question.impact}
         </span>
+      ) : null}
+      {missing ? (
+        <p className="text-xs font-medium text-amber-700 dark:text-amber-300">
+          Answer this for an accurate estimate. Blank required questions raise the risk score.
+        </p>
       ) : null}
       {warn && question.warnText ? (
         <p className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400">
