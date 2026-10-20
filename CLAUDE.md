@@ -196,7 +196,8 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   project / PO / active deal, FK indexes) ·
                         #   0047 tasks.completed_at (trigger-stamped; on-time delivery) ·
                         #   0048 logged_hours derived from time_entries, entries survive a
-                        #   task delete, feed rows server-stamped + length-capped
+                        #   task delete, feed rows server-stamped + length-capped ·
+                        #   0049 holiday_settings (which federal holidays are WORKED; admin-set)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -304,6 +305,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `proposals.pbs` (PO link jsonb)       | select / update            | `proposal-estimator-store` (Create PO, PO status refresh) | Wired |
 | `pbs_connection` (PBS token cache)    | service-role only (RLS: **no policies**) | `lib/pbs/tokens.ts` via `/api/pbs/*` | Wired |
 | `member_skills` (skill + 1–5 stars)   | select / upsert / delete   | `member-skills-store` (Team → star button) | Wired |
+| `holiday_settings` (federal holiday → worked?) | select (everyone) / upsert (admin) | `holiday-settings-store` → `setWorkingHolidays` (Settings → Workspace → Holidays) | Wired — no realtime, on purpose |
 | `tour_progress` (tour seen: version + completed/dismissed) | select / upsert / delete (self only) | `tour-store` (? menu, welcome, checklist dismissal) | Wired — no realtime, on purpose |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
@@ -399,6 +401,7 @@ interface ClientQuote {
 **Two ways to scope one work list (both produce `line_items`):**
 
 - **Guided** — "Start guided scoping", then answer the questionnaire (the former Discovery wizard, 67 fields — anything the Setup tab already knows is mirrored by `syncDiscoveryToQuote`, never re-asked: title/client, and what the platform implies, e.g. Shopify ⇒ e-commerce + goal + hosting). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). Primary Business Goal is context only — not required, drives no hours or risk, printed on the PDF/Excel/preview meta block. The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
+  Every question has an **(i)** beside its label (`InfoTip`, `components/common/info-tip.tsx`) with a plain-English description of what to ask the client and what to pick when unsure. The copy lives in **`lib/discovery/question-help.ts`** (one file, like `estimator-help.tsx`); the hours effect stays in each question's `impact` line, so the help never repeats numbers the engine owns. `e2e/question-help.spec.ts` fails on any question without help. `InfoTip` opens on **hover** with a mouse and on **tap/click** everywhere (a click pins it); it ignores the synthetic "mouse" event a tap fires, which otherwise re-opened the panel the tap had just closed.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
 **Section help ("?" in each section's top-right corner).** Every page header
@@ -433,7 +436,7 @@ send**, like the tour copy.
 > source looked fine. `e2e/estimator-help.spec.ts` checks the source and the
 > rendered text of every popover (with a negative control).
 
-**Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). **Every estimate has both tabs** — the New-estimate dialog does *not* ask which one you want, because the choice was never binding: it only picked a landing tab. A new estimate starts on **WordPress** (`DEFAULT_PLATFORM`, `lib/proposal-catalog/index.ts` — the New-estimate dialog and the store's fallback both read it) and opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
+**Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + Hours + Timeline/Gantt + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (PDF/Excel). **Every estimate has both tabs** — the New-estimate dialog does *not* ask which one you want, because the choice was never binding: it only picked a landing tab. The **client is required and comes only from Find in Zoho** (live mode — demo has no Zoho, so it stays a typed field): the New-estimate dialog's client is a picker and **Create and open** waits for it, and Setup's client field opens the same lookup. A typed name had no Zoho account behind it, so Send to Zoho could never open a deal for it; older estimates with a typed name show an amber "not linked to Zoho" hint, and the Review tab explains a disabled Send to Zoho with a **Go to Setup** button (a disabled button can't show its tooltip). A new estimate starts on **WordPress** (`DEFAULT_PLATFORM`, `lib/proposal-catalog/index.ts` — the New-estimate dialog and the store's fallback both read it) and opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
 
 **Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header reads "708 h at $100/h" when one rate prices every hour, "avg $104.25/h" otherwise (`rateSummary`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
 
@@ -1695,10 +1698,26 @@ calendar marks them, and the Gantt names them.
    − 1 holiday)`. Same reason the Gantt says "3 days later — Thanksgiving +
    booked time off" rather than one number: a manager can decline somebody's
    leave and cannot decline Christmas.
- - **`OBSERVED_HOLIDAYS`** is one exported list. Firms differ most on **Columbus
-   Day** and **Veterans Day** — plenty work both. Changing that is one line
-   there rather than a migration, a settings UI and a per-workspace override
-   nobody has asked for; that constant is the seam if it ever needs to vary.
+ - **An admin decides which holidays are worked** (decided 2026-10-20):
+   **Settings → Workspace → Holidays** (`HolidaysCard`) lists the eleven, each
+   **Day off** (default) or **Working**; managers read it, everyone's app loads
+   it. Stored in **`holiday_settings`** (`0049`) — a row only for a holiday
+   someone has set, so an empty table is exactly the old behaviour; read by all
+   signed-in users, written by admins only, `updated_by` trigger-stamped (probe
+   P27). `holiday-settings-store` hands the set to `us-holidays.ts`
+   (`setWorkingHolidays`), which drops a worked holiday from `isUsHoliday` /
+   `usHolidaysInRange`, so the timeline, capacity, planner, PTO preview,
+   velocity and calendar all follow without importing the store.
+   `federalHolidaysForYear` still lists worked ones, for the card.
+   > **The page re-mounts when the set changes** (`HolidayRefresh`, keyed on
+   > the worked list, around the dashboard's page content). Holiday-dependent
+   > figures are computed in memos that don't list the setting as an input, so
+   > this is the one place that guarantees they all recompute — at load when a
+   > workspace has worked holidays, and when an admin saves one. Settings is
+   > excluded (it shows no such figures and would lose its open tab). The
+   > setting is **not** on a realtime channel on purpose: re-mounting someone
+   > else's page mid-form would lose their input; others pick it up on their
+   > next load.
 
 **Approving shows what it costs, then a human confirms.** `lib/availability/pto-impact.ts`
 (`ptoImpact`, pure) lists the tasks whose **due date falls inside the absence**,
@@ -1908,6 +1927,7 @@ a one-time token) and walks the way out end to end, including both refusals.
 | See hourly rates | Yes | Yes | No | No |
 | Change hourly rates | Yes | No | No | No |
 | Set work keys (who can be given a task) | Yes | No | No | No |
+| Mark holidays as working days | Yes | No (reads) | No | No |
 | Own onboarding tour progress | Yes | Yes | Yes | Yes |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.

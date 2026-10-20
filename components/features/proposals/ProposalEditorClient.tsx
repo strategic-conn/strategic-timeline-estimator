@@ -1061,16 +1061,43 @@ export function ProposalEditorClient({
                       Find in Zoho
                     </Button>
                   </div>
-                  <Input
-                    id="meta-client"
-                    value={quote.client_name ?? ""}
-                    placeholder="Optional"
-                    onChange={(e) =>
-                      updateProposal(quote.id, {
-                        client_name: e.target.value || undefined,
-                      })
-                    }
-                  />
+                  {isSupabaseConfigured ? (
+                    // Only from Zoho, like the New-estimate dialog: a typed
+                    // name has no account behind it, so Send to Zoho could
+                    // never open a deal for it.
+                    <>
+                      <button
+                        id="meta-client"
+                        type="button"
+                        onClick={() => setClientLookupOpen(true)}
+                        className="flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 text-left text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      >
+                        {quote.client_name ? (
+                          <span className="truncate">{quote.client_name}</span>
+                        ) : (
+                          <span className="text-muted-foreground">Pick the client with Find in Zoho</span>
+                        )}
+                      </button>
+                      {quote.client_name && !quote.zoho?.account_id ? (
+                        // Estimates made before this rule may carry a typed name.
+                        <p className="flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-300">
+                          <TriangleAlert className="size-3 shrink-0" aria-hidden />
+                          Typed by hand, not linked to Zoho. Use Find in Zoho to link it.
+                        </p>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Input
+                      id="meta-client"
+                      value={quote.client_name ?? ""}
+                      placeholder="Organization name"
+                      onChange={(e) =>
+                        updateProposal(quote.id, {
+                          client_name: e.target.value || undefined,
+                        })
+                      }
+                    />
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <div className="flex h-8 items-center">
@@ -1706,6 +1733,28 @@ export function ProposalEditorClient({
                 <EstimatorHelp section="review" className="absolute right-0 top-0 sm:static" />
               </div>
             </div>
+            {/* A disabled button can't show its tooltip, so the reason has to be
+                on the page. Same condition as the button's `disabled`. */}
+            {!quote.zoho?.deal_id && !quote.zoho?.account_id ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+              >
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <p className="min-w-0 flex-1">
+                  <strong>Send to Zoho is off</strong>{" "}because this estimate isn&apos;t linked to a Zoho account yet. A deal has to belong to an existing company in Zoho. Use{" "}<strong>Find in Zoho</strong>{" "}on the client field in Setup, then come back here.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 bg-background"
+                  onClick={() => setTab("setup")}
+                >
+                  Go to Setup
+                </Button>
+              </div>
+            ) : null}
             <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
           </TabsContent>
         </Tabs>

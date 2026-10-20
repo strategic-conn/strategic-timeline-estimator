@@ -633,6 +633,29 @@ const HELP = {
       </p>
     ),
   },
+  "settings.holidays": {
+    label: "holidays",
+    title: "Company holidays",
+    body: (
+      <>
+        <p>
+          The eleven US federal holidays. Each is a{" "}<strong>day off</strong>{" "}by
+          default: it comes out of everyone&apos;s weekly capacity, timelines
+          skip it, and nobody is scheduled on it.
+        </p>
+        <p>
+          Mark one as a{" "}<strong>working day</strong>{" "}if the company works it
+          (Columbus Day and Veterans Day often are). It then counts like any
+          normal weekday everywhere — workload, timelines, the calendar and new
+          estimates&apos; dates.
+        </p>
+        <p>
+          Holidays that fall on a weekend are observed on the Friday before or
+          the Monday after. Only admins can change these.
+        </p>
+      </>
+    ),
+  },
   "settings.timeoff": {
     label: "time off",
     title: "Time off",

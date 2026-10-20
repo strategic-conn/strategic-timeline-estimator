@@ -36,7 +36,7 @@ export interface DiscoveryQuestion {
   options?: Option[];
   /** Dynamic options (overrides `options`), e.g. hosting compatible with the platform. */
   optionsFor?: (p: DiscoveryProject) => Option[];
-  help?: string;
+  // The (i) description for each question lives in `question-help.ts`.
   /** Short "what this drives" hint from the spec's Estimation Impact column. */
   impact?: string;
   placeholder?: string;

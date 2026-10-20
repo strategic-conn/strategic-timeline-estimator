@@ -184,6 +184,7 @@ export function ProposalsListClient() {
   const submitCreate = () => {
     const title = newTitle.trim();
     if (!title) return;
+    if (isSupabaseConfigured && !newZoho?.account_id) return;
     // No scope-method choice here: guided and catalog produce the same document,
     // both tabs exist on every estimate, and "Start guided scoping" (editor,
     // Scope & risk) attaches the questionnaire whenever it's wanted. Asking up
@@ -593,7 +594,7 @@ export function ProposalsListClient() {
             </div>
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-2">
-                <Label htmlFor="quote-client">Client (optional)</Label>
+                <Label htmlFor="quote-client">Client</Label>
                 <Button
                   type="button"
                   variant="ghost"
@@ -605,17 +606,32 @@ export function ProposalsListClient() {
                   Find in Zoho
                 </Button>
               </div>
-              <Input
-                id="quote-client"
-                value={newClient}
-                onChange={(e) => {
-                  setNewClient(e.target.value);
-                  // Typing over a picked client breaks the CRM link — drop it
-                  // rather than keep a link that no longer matches the name.
-                  setNewZoho(null);
-                }}
-                placeholder="Organization name"
-              />
+              {isSupabaseConfigured ? (
+                // Required, and only from Zoho: a typed name has no Zoho
+                // account behind it, so the estimate could never be sent to
+                // Zoho (a deal must belong to an existing company) and the
+                // same client ended up spelled three ways.
+                <button
+                  id="quote-client"
+                  type="button"
+                  onClick={() => setClientLookupOpen(true)}
+                  className="flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 text-left text-sm shadow-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                >
+                  {newZoho?.account_id ? (
+                    <span className="truncate">{newClient}</span>
+                  ) : (
+                    <span className="text-muted-foreground">Pick the client with Find in Zoho</span>
+                  )}
+                </button>
+              ) : (
+                // Demo mode has no Zoho to search, so a typed name is the only option.
+                <Input
+                  id="quote-client"
+                  value={newClient}
+                  onChange={(e) => setNewClient(e.target.value)}
+                  placeholder="Organization name"
+                />
+              )}
               {newZoho ? (
                 <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
                   <Link2 className="size-3 shrink-0" aria-hidden />
@@ -654,7 +670,7 @@ export function ProposalsListClient() {
             <Button
               type="button"
               onClick={submitCreate}
-              disabled={!newTitle.trim()}
+              disabled={!newTitle.trim() || (isSupabaseConfigured && !newZoho?.account_id)}
             >
               Create and open
             </Button>

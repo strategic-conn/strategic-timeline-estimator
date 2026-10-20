@@ -2,7 +2,9 @@ import { expect, test } from "@playwright/test";
 import { format } from "date-fns";
 
 import {
+  federalHolidaysForYear,
   isUsHoliday,
+  setWorkingHolidays,
   usHolidayName,
   usHolidaysForYear,
   usHolidaysInRange,
@@ -115,5 +117,29 @@ test.describe("lookups", () => {
     // The day Independence Day actually falls on in 2026 is NOT the day off.
     expect(isUsHoliday("2026-07-04")).toBe(false);
     expect(isUsHoliday("2026-07-03")).toBe(true);
+  });
+});
+
+test.describe("worked holidays (Settings → Holidays)", () => {
+  // Module state: always restore the default so other tests see every holiday.
+  test.afterEach(() => setWorkingHolidays([]));
+
+  test("a holiday marked as worked stops being a day off everywhere", () => {
+    expect(isUsHoliday("2026-10-12")).toBe(true); // Columbus Day 2026
+    setWorkingHolidays(["Columbus Day"]);
+    expect(isUsHoliday("2026-10-12")).toBe(false);
+    expect(usHolidayName("2026-10-12")).toBeNull();
+    expect(usHolidaysForYear(2026).map((h) => h.name)).not.toContain("Columbus Day");
+    expect(usHolidaysInRange("2026-10-01", "2026-10-31")).toEqual([]);
+    // Other holidays are untouched.
+    expect(isUsHoliday("2026-11-11")).toBe(true);
+    // The settings card still lists it, so it can be switched back.
+    expect(federalHolidaysForYear(2026).map((h) => h.name)).toContain("Columbus Day");
+  });
+
+  test("switching it back restores it", () => {
+    setWorkingHolidays(["Columbus Day"]);
+    setWorkingHolidays([]);
+    expect(isUsHoliday("2026-10-12")).toBe(true);
   });
 });

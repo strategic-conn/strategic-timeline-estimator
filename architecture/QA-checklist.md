@@ -529,6 +529,13 @@ Run `node scripts/security-probe.mjs` first — every line must read PASS (P1b a
 - [ ] **Confirm link redirect.** `/auth/confirm?…&next=//evil.example` → after Continue you land on `/dashboard`, not the other site.
 - [ ] **Deactivation is immediate.** Deactivate a member who is signed in elsewhere → their next write (e.g. moving a card) fails at once.
 
+## 🗓️ Company holidays (0049)
+
+- [ ] **Settings → Workspace → Holidays** lists the 11 federal holidays with their next date. Admin: Day off / Working toggles. Manager: read-only with "Only admins can change holidays." Member/viewer: no Workspace tab.
+- [ ] Mark **Columbus Day** as Working → the Calendar no longer marks it; Workload for that week shows full capacity (no "− 1 holiday"); a new estimate's timeline no longer skips it.
+- [ ] Set it back to Day off → all three return.
+- [ ] `node scripts/security-probe.mjs` → P27 PASS.
+
 ## 📈 Sprint velocity & burndown
 
 - [ ] **Project page → Velocity card** (below the timeline): Velocity, Work left and Forecast tiles; with no ended sprint, Velocity and Forecast show "—", not 0.

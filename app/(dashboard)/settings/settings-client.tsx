@@ -3,6 +3,7 @@
 import * as React from "react";
 import { Building2, CalendarOff, Lock, Star, User } from "lucide-react";
 import { HourlyRatesCard } from "@/components/features/settings/HourlyRatesCard";
+import { HolidaysCard } from "@/components/features/settings/HolidaysCard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
@@ -139,6 +140,7 @@ export function SettingsClient() {
           <TabsContent value="workspace" className="mt-0 outline-none">
             <div className="space-y-6" {...tourAnchor("settings.workspace")}>
               <HourlyRatesCard />
+              <HolidaysCard />
               {isAdmin ? <ZohoConnectionCard /> : null}
             </div>
           </TabsContent>

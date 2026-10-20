@@ -181,6 +181,35 @@ export type Database = {
           },
         ]
       }
+      holiday_settings: {
+        Row: {
+          name: string
+          updated_at: string
+          updated_by: string | null
+          working: boolean
+        }
+        Insert: {
+          name: string
+          updated_at?: string
+          updated_by?: string | null
+          working?: boolean
+        }
+        Update: {
+          name?: string
+          updated_at?: string
+          updated_by?: string | null
+          working?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "holiday_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hourly_rates: {
         Row: {
           level: number

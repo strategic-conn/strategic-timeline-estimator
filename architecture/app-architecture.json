@@ -1530,6 +1530,20 @@
         "components/features/sprints/ProjectVelocitySection.tsx",
         "e2e/velocity.spec.ts"
       ]
+    },
+    {
+      "id": "t-holiday-settings",
+      "layer": "data",
+      "label": "holiday_settings",
+      "sub": "0049",
+      "purpose": "Which US federal holidays the company WORKS (row only when set; empty = all days off). Read by all, written by admins (probe P27). holiday-settings-store -> setWorkingHolidays in lib/calendar/us-holidays, so timeline, capacity, planner, PTO preview, velocity and calendar follow. HolidayRefresh re-mounts the page when the set changes.",
+      "files": [
+        "supabase/migrations/0049_holiday_settings.sql",
+        "store/holiday-settings-store.ts",
+        "components/features/settings/HolidaysCard.tsx",
+        "components/layouts/holiday-refresh.tsx",
+        "lib/calendar/us-holidays.ts"
+      ]
     }
   ],
   "edges": [
@@ -4415,7 +4429,8 @@
     "tasks.logged_hours is derived from time_entries by trigger (0048); the client only inserts entries and never sends logged_hours. The drawer total is read-only with an Add time field.",
     "Deleting a task (or project) keeps its time entries: task_id ON DELETE SET NULL (0048).",
     "Notifications/activity: created_at and read are server-set, text is 1-500 chars, and only active users may insert (0048). actor_id is pinned, so wording is always attributable to the sender.",
-    "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended."
+    "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended.",
+    "Holidays: every federal holiday is a day off unless holiday_settings marks it worked (admin, Settings -> Workspace -> Holidays). isUsHoliday and friends exclude worked holidays; federalHolidaysForYear lists all for the card."
   ],
   "permissionsMatrix": {
     "columns": [

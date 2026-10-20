@@ -28,10 +28,11 @@ export interface UsHoliday {
  * "changing it is one line" was untrue — dropping Columbus Day meant editing two
  * places, and only the TypeScript union would have caught the mismatch.
  *
- * ponytail: still one list, no settings table. Firms differ most on **Columbus
- * Day** and **Veterans Day** — plenty work both. Deleting a line here is now
- * genuinely all it takes. If it ever needs to vary per workspace, this is the
- * seam.
+ * Firms differ most on **Columbus Day** and **Veterans Day** — plenty work
+ * both — so an admin can mark any of these as a WORKING day in Settings →
+ * Workspace → Holidays (`holiday_settings`, 0049). That is applied here through
+ * `setWorkingHolidays`, so every consumer (timeline, capacity, planner, PTO
+ * preview, velocity, calendar) follows it without knowing it exists.
  */
 type HolidayRule =
   /** A fixed calendar date: month is 0-based. Subject to the observance rule. */
@@ -103,9 +104,46 @@ function observedDate(d: Date): Date {
   return d;
 }
 
-function buildYear(year: number): UsHoliday[] {
+/** Every federal holiday's name, in calendar order — the list the settings card shows. */
+export const FEDERAL_HOLIDAY_NAMES: readonly string[] = OBSERVED_HOLIDAYS.map(([n]) => n);
+
+/**
+ * Holidays the company WORKS (from `holiday_settings`). Module state, set by
+ * the holiday-settings store on load and on change — the day-by-day walks call
+ * `isUsHoliday` thousands of times and can't each take a settings argument.
+ * Empty = every federal holiday is a day off, the behaviour before 0049.
+ */
+let workingHolidays: ReadonlySet<string> = new Set();
+
+/** Replace the set of worked holidays. Rebuilds the caches when it changes. */
+export function setWorkingHolidays(names: Iterable<string>): void {
+  const next = new Set(names);
+  const same =
+    next.size === workingHolidays.size && [...next].every((n) => workingHolidays.has(n));
+  if (same) return;
+  workingHolidays = next;
+  yearCache.clear();
+  observedIndex.clear();
+}
+
+/** Is this holiday a working day for the company? */
+export function isWorkingHoliday(name: string): boolean {
+  return workingHolidays.has(name);
+}
+
+/**
+ * Every federal holiday in a year, worked or not — for the settings card, which
+ * has to show the ones switched off too. Everything else uses
+ * `usHolidaysForYear`, which leaves worked holidays out.
+ */
+export function federalHolidaysForYear(year: number): UsHoliday[] {
+  return buildYear(year, true);
+}
+
+function buildYear(year: number, includeWorked = false): UsHoliday[] {
   const out: UsHoliday[] = [];
   for (const [name, rule] of OBSERVED_HOLIDAYS) {
+    if (!includeWorked && workingHolidays.has(name)) continue;
     if (rule.kind === "fixed") {
       const actual = new Date(year, rule.month, rule.day);
       const obs = observedDate(actual);

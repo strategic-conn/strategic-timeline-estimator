@@ -18,6 +18,8 @@ import {
   type DiscoveryQuestion,
 } from "@/lib/discovery/questions";
 import { cn } from "@/lib/utils";
+import { InfoTip } from "@/components/common/info-tip";
+import { QUESTION_HELP } from "@/lib/discovery/question-help";
 import type { DiscoveryProject } from "@/types/discovery.types";
 
 type FieldValue = string | number | boolean | null;
@@ -37,6 +39,7 @@ export function DiscoveryField({
   const required = isQuestionRequired(question, project);
   const warn = question.warnWhen?.(project) ?? false;
   const fieldId = `disc-${question.id}`;
+  const help = QUESTION_HELP[question.id];
   const options = question.optionsFor
     ? question.optionsFor(project)
     : question.options ?? [];
@@ -55,10 +58,13 @@ export function DiscoveryField({
   return (
     <div className="flex flex-col gap-1.5">
       <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor={fieldId} className="text-sm">
-          {question.label}
-          {required ? <span className="ml-0.5 text-destructive">*</span> : null}
-        </Label>
+        <div className="flex items-center gap-1">
+          <Label htmlFor={fieldId} className="text-sm">
+            {question.label}
+            {required ? <span className="ml-0.5 text-destructive">*</span> : null}
+          </Label>
+          {help ? <InfoTip label={question.label}>{help}</InfoTip> : null}
+        </div>
         {question.impact ? (
           <span className="hidden shrink-0 text-[0.7rem] text-muted-foreground sm:block">
             {question.impact}

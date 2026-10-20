@@ -23,8 +23,9 @@ const HELP = {
       <>
         <p>
           <strong>Title</strong>{" "}and{" "}<strong>client</strong>{" "}appear on the PDF
-          the client gets.{" "}<strong>Find in Zoho</strong>{" "}links the real company
-          and contact — you need that before you can send the estimate to Zoho.
+          the client gets. The client is always picked with{" "}
+          <strong>Find in Zoho</strong>{" "}— it can&apos;t be typed — so every
+          estimate is tied to a real company and contact and can be sent to Zoho.
         </p>
         <p>
           <strong>Zoho deal</strong>{" "}is the deal this estimate prices.{" "}

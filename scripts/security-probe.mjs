@@ -439,6 +439,24 @@ try {
     `set=${k16} malformed=${bad.status} after=${k16b}`,
   );
 
+  // ── P27: holiday settings (0049) ─────────────────────────────────────────────
+  // Everyone reads (it shapes their capacity); only an admin writes. Proven on a
+  // throwaway "[E2E]" name so the real holidays are never touched.
+  const hName = `[E2E] probe holiday ${RUN}`;
+  const hRead = await call("/rest/v1/holiday_settings?select=name", { headers: mH });
+  await call("/rest/v1/holiday_settings", { method: "POST", headers: mMin, body: { name: hName, working: true } });
+  const hMember = ((await call(`/rest/v1/holiday_settings?name=eq.${encodeURIComponent(hName)}&select=name`)).json ?? []).length;
+  const hAdmin = await call("/rest/v1/holiday_settings", {
+    method: "POST", headers: aH, body: { name: hName, working: true, updated_by: other },
+  });
+  const hRow = (await call(`/rest/v1/holiday_settings?name=eq.${encodeURIComponent(hName)}&select=working,updated_by`)).json?.[0];
+  await call(`/rest/v1/holiday_settings?name=eq.${encodeURIComponent(hName)}`, { method: "DELETE" });
+  record(
+    "P27 holidays: member reads but can't write; admin writes, stamp unforgeable",
+    hRead.ok && hMember === 0 && hAdmin.ok && hRow?.working === true && hRow?.updated_by === adminId,
+    `memberRead=${hRead.status} memberWrite=${hMember ? "STORED" : "refused"} admin=${hAdmin.status} by=${hRow?.updated_by === adminId ? "ADMIN" : hRow?.updated_by}`,
+  );
+
   // ── P17: onboarding tour progress (0045) ─────────────────────────────────────
   // Self only. Reading someone's progress is harmless-looking but it is still
   // another person's row; writing it could suppress their welcome or checklist.
@@ -663,6 +681,7 @@ try {
   await call(`/rest/v1/hourly_rates?responsible=like.${encodeURIComponent("[E2E] probe%")}`, { method: "DELETE" });
   // Only if P17 failed would this exist; the member's own row cascades away.
   await call(`/rest/v1/tour_progress?tour_id=eq.probe-forge`, { method: "DELETE" });
+  await call(`/rest/v1/holiday_settings?name=like.${encodeURIComponent("[E2E] probe holiday%")}`, { method: "DELETE" });
   await call(`/rest/v1/allowed_emails?email=eq.${encodeURIComponent(EMAIL)}`, { method: "DELETE" });
   const leftover = memberId
     ? (await call(`/rest/v1/profiles?id=eq.${memberId}&select=id`)).json?.length ?? 0
