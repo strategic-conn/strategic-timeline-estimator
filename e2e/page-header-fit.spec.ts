@@ -59,7 +59,7 @@ test("no page header clips its own controls", async ({ page }) => {
   expect(failures, failures.join(" | ")).toEqual([]);
 });
 
-test("the Estimator gives the board the shell and the cards a reading width", async ({
+test("the Estimator gives the board and the card list the whole shell", async ({
   page,
 }) => {
   await page.goto("/proposals");
@@ -75,24 +75,27 @@ test("the Estimator gives the board the shell and the cards a reading width", as
   await page.getByRole("button", { name: /^list$/i }).click();
   await expect(page.locator("main ul")).toBeVisible({ timeout: 30_000 });
 
-  // List: the header takes the whole shell (so its controls fit) while the card
-  // column stays a comfortable column. Capping the PAGE is what broke the
-  // header, so the cap belongs here and only here.
+  // List: header and cards both take the whole shell. A max-w-3xl cap on the
+  // list left half of a wide screen empty (2026-10-21); it is now one column,
+  // two from 2xl — and no card is squeezed below the width its row of badges
+  // and actions needs.
   const list = await page.evaluate(() => {
     const ul = document.querySelector("main ul");
     const hdr = document.querySelector("main header");
     return {
       ul: ul ? Math.round(ul.getBoundingClientRect().width) : null,
       header: hdr ? Math.round(hdr.getBoundingClientRect().width) : null,
+      narrowest: ul
+        ? Math.min(...[...ul.children].map((li) => Math.round(li.getBoundingClientRect().width)))
+        : null,
     };
   });
   expect(list.header).toBe(shell);
   expect(list.ul, "the list must be rendered to be measured").not.toBeNull();
-  if (shell > 800) {
-    expect(list.ul, "cards keep a reading width on a wide screen").toBeLessThanOrEqual(
-      800,
-    );
-  }
+  expect(Math.abs(list.ul! - shell), "the card list fills the shell").toBeLessThanOrEqual(2);
+  expect(list.narrowest!, "no card narrower than its row needs").toBeGreaterThanOrEqual(
+    Math.min(shell, 560),
+  );
 
   // Board: takes the shell, because eleven columns are not prose.
   await page.getByRole("button", { name: /^stages$/i }).click();

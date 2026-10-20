@@ -703,12 +703,13 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    discoverable by going back to the estimate, which is the one place nobody
    looks while rescheduling.
 
-> **Esther is built but parked.** `components/features/esther/` holds a working
-> chat client (message list, composer, empty state) over `lib/esther/engine`
-> (`analyzeBrief` → `discoveryFromEstherAnalysis` → a seeded estimate), but the
-> `/esther` route deliberately renders a "coming soon" card and the sidebar
-> marks it *Soon*. Nothing imports `EstherClient` — wiring it in is one line in
-> the route, and a product decision rather than a bug.
+> **Esther is built but HIDDEN** (2026-10-21). `components/features/esther/`
+> holds a working chat client over `lib/esther/engine` (`analyzeBrief` →
+> `discoveryFromEstherAnalysis` → a seeded estimate), but it has **no nav entry**
+> and **`/esther` redirects to `/proposals`**, so nobody can reach it. It used
+> to show a "coming soon" card with a *Soon* item in the sidebar. Bringing it
+> back is the nav entry in `dashboard-nav-config.tsx` plus the route — a
+> product decision, not a bug.
 
 **Output:** in-browser **PDF preview mock** + real **PDF** (jsPDF) and **Excel** (xlsx) export — `lib/utils/proposal-pdf-export.ts`, `proposal-excel-export.ts`. Optional server-side export (Edge Function → Storage) is still a later path.
 
@@ -2061,9 +2062,11 @@ if (!tasks.length) {
    put `max-w-3xl` on its page root, which starved its own header: 768px cannot
    seat a five-control actions row beside a title, so at a 1920 viewport the
    `h1` collapsed to **85px** and the description wrapped one word per line
-   inside a 1600px shell (all measured, not guessed). The cap now sits on the
-   card `<ul>` — the thing that wants a comfortable column — leaving the header
-   and the stage board the whole shell. `WorkspacePageHeader` is
+   inside a 1600px shell (all measured, not guessed). The cap then moved to the
+   card `<ul>`, which left half of a wide screen empty, so the list is now a
+   **grid: one full-width column, two from `2xl`** (each card stays ~600px+,
+   the width its badges-and-actions row was laid out for). The header and the
+   stage board get the whole shell. `WorkspacePageHeader` is
    `overflow-hidden`, so anything that does not fit is **invisible rather than
    cramped**, with no scrollbar to hint at it; that is how **New estimate** came
    to be sliced off. Its actions cap is `xl:max-w-md` / `2xl:max-w-2xl` (raised

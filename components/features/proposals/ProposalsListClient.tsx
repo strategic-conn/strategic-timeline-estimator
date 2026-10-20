@@ -442,14 +442,18 @@ export function ProposalsListClient() {
           />
         </div>
       ) : (
-        <ul className="flex max-w-3xl flex-col gap-3" {...tourAnchor("estimator.list")}>
+        <ul className="grid gap-3 2xl:grid-cols-2" {...tourAnchor("estimator.list")}>
+          {/* Full width: one column, then two from 2xl (each card stays ~600px+,
+              the width its row of badges and actions was laid out for). A
+              max-w-3xl cap here left half of a wide screen empty. */}
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
             const pricing = quotePricing(q);
             const totals = pricing.totals;
             return (
-              <li key={q.id}>
-                <Card className="transition-colors hover:bg-muted/30">
+              <li key={q.id} className="flex">
+                {/* flex-1: two cards sharing a row (2xl) end level, not ragged. */}
+                <Card className="flex-1 transition-colors hover:bg-muted/30">
                   {/* Stacks under sm: three controls on one row squeezed the
                       title into a five-line column on a 375px screen. */}
                   <CardHeader className="flex flex-col gap-3 space-y-0 pb-4 sm:flex-row sm:items-start sm:justify-between sm:gap-4">

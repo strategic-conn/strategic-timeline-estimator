@@ -9,7 +9,6 @@ import {
   Milestone,
   Scale,
   Settings,
-  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -55,14 +54,9 @@ export const DASHBOARD_NAV_ITEMS: DashboardNavItem[] = [
     group: "commercial",
     requireCanExportProposals: true,
   },
-  {
-    href: "/esther",
-    label: "Esther",
-    icon: Sparkles,
-    group: "commercial",
-    requireCanExportProposals: true,
-    comingSoon: true,
-  },
+  // Esther is hidden (2026-10-21): no nav entry, and /esther redirects to the
+  // Estimator. The parked client (components/features/esther) is untouched —
+  // bringing it back is this entry plus the route.
   // System
   { href: "/settings", label: "Settings", icon: Settings, group: "system" },
 ];
