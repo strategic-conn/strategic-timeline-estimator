@@ -26,9 +26,9 @@ import { useTeamStore } from "@/store/team-store";
 import type { ClientQuote, ScheduleStrategy } from "@/types/proposal.types";
 
 export const STRATEGY_OPTIONS: [ScheduleStrategy, string, string][] = [
-  ["efficient", "Best-fit", "Each task goes to the best-skilled qualified person; dates follow how busy they already are."],
-  ["quick", "Fastest", "Work is spread across every qualified person to finish soonest."],
-  ["none", "Manual", "Nobody is assigned — the team-level timeline, and you staff it after Start project."],
+  ["efficient", "Best-fit", "Each task goes to the qualified person with the most skill stars, even if they're busier — the launch date waits for them."],
+  ["quick", "Fastest", "Each task goes to whichever qualified person can finish it first, so work spreads out and the project launches sooner."],
+  ["none", "Manual", "Nobody is assigned. The timeline is the team-level estimate, and you staff the project after Start project."],
 ];
 
 // Never throws: a date this card can't read is shown as-is, not a crashed page.

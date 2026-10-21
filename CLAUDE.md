@@ -530,6 +530,12 @@ date, how many tasks have someone, and "See who does what".
    re-plans with **today's** team — weeks can pass between quote and win — and
    the review step says, in amber, "Quoted launch X → now Y" when that is later.
    It warns; it does not block.
+ - **Its "?" restates the planner's rules** (`schedulePlan` in
+   `estimator-help.tsx`): an At-a-glance matrix (picks / if tied / launch /
+   use when / price) then who is eligible (work keys, else skills) and what
+   "finishes first" weighs (hours/day, booked work, approved leave, weekends,
+   holidays). It mirrors `planSchedule`'s sort in `lib/assignment/plan.ts` —
+   change it in the same commit as that sort or the eligibility rules.
  - **The Gantt bars stay team-level** (business-day offsets per phase); the
    card above them is the people plan. Redrawing the bars per person was out of
    scope.

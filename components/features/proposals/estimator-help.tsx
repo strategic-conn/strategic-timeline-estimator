@@ -156,20 +156,88 @@ const HELP = {
     body: (
       <>
         <p>
-          Picks how the timeline is planned before the deal closes, because it
-          changes the launch date the client agrees to.{" "}
-          <strong>Best-fit</strong>{" "}gives each task to the best-skilled
-          person;{" "}<strong>Fastest</strong>{" "}spreads it across everyone
-          qualified;{" "}<strong>Manual</strong>{" "}assigns nobody.
+          This decides{" "}<strong>who</strong>{" "}does each task and{" "}
+          <strong>when</strong>{" "}the project launches. Hours and price never
+          change.
         </p>
         <p>
-          It moves the{" "}<strong>dates only</strong>. The price is each
-          line&apos;s hours times its own rate, whoever does it.
+          <strong>At a glance</strong>
         </p>
+        <table className="w-full table-fixed border-collapse text-[0.7rem] [&_td]:border-t [&_td]:border-border/60 [&_td]:px-1 [&_td]:py-1 [&_td]:align-top [&_th]:px-1 [&_th]:pb-1 [&_th]:text-left [&_th]:font-medium [&_th]:text-foreground">
+          <thead>
+            <tr>
+              <th className="w-[26%]" />
+              <th>Best-fit</th>
+              <th>Fastest</th>
+              <th>Manual</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Picks</td>
+              <td>Most skill stars</td>
+              <td>Who finishes first</td>
+              <td>Nobody</td>
+            </tr>
+            <tr>
+              <td>If tied</td>
+              <td>Who finishes first</td>
+              <td>Most skill stars</td>
+              <td>—</td>
+            </tr>
+            <tr>
+              <td>Launch</td>
+              <td>Can be later (waits for the best person)</td>
+              <td>Usually earliest</td>
+              <td>Team-level estimate</td>
+            </tr>
+            <tr>
+              <td>Use when</td>
+              <td>Quality matters most</td>
+              <td>The deadline matters most</td>
+              <td>You&apos;ll staff it yourself</td>
+            </tr>
+            <tr>
+              <td>Price</td>
+              <td>Same</td>
+              <td>Same</td>
+              <td>Same</td>
+            </tr>
+          </tbody>
+        </table>
         <p>
-          Approving the estimate locks it and remembers the launch date.{" "}
-          <strong>Start project</strong>{" "}uses the same plan, and warns if
-          today&apos;s team would finish later than quoted.
+          <strong>How it&apos;s decided.</strong>{" "}First, who{" "}<em>can</em>{" "}take
+          each task (the same for every option):
+        </p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>
+            If anyone has a{" "}<strong>work key</strong>{" "}for the task&apos;s role
+            (Team → a member&apos;s star → Work keys), only key holders. Level 2
+            can take Level 1 work, not the other way round.
+          </li>
+          <li>
+            Otherwise, people with the matching{" "}<strong>skill</strong>: the
+            platform (e.g. WordPress), Quality Assurance for QA tasks, hosting or
+            DNS for launch tasks.
+          </li>
+          <li>
+            Nobody qualifies? The task is left for you to assign, and still gets
+            time on the timeline.
+          </li>
+        </ul>
+        <p>Then how soon each of them could finish it:</p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>Their hours per day (Workload → weekly hours ÷ 5).</li>
+          <li>
+            Work already on their plate on other projects (Workload&apos;s
+            allocated hours), done first.
+          </li>
+          <li>Approved time off, weekends and US holidays.</li>
+        </ul>
+        <p>
+          Approving the estimate locks the choice and remembers the launch
+          date.{" "}<strong>Start project</strong>{" "}uses the same plan with
+          today&apos;s team, and warns if it would now finish later.
         </p>
       </>
     ),
