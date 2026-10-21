@@ -268,8 +268,9 @@ const HELP = {
         </p>
         <p>
           When the deal is won in Zoho, the estimate is approved automatically
-          and{" "}<strong>Start project</strong>{" "}and{" "}<strong>Create PO</strong>{" "}
-          appear on it.
+          and{" "}<strong>Start project</strong>{" "}appears on it. Every project
+          is billed, so its last step raises the PO in PBS, then creates the
+          project.
         </p>
       </>
     ),

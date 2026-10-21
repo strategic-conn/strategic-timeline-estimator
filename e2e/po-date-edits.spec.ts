@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { E2E_PREFIX, env, waitForApp } from "./helpers";
+import { E2E_PREFIX, env, waitForApp, openBillingStep } from "./helpers";
 
 async function rest(path: string, init?: RequestInit) {
   const e = env();
@@ -35,7 +35,7 @@ test("edited dates survive changing the client", async ({ page }) => {
   try {
     await page.goto(`/proposals/${id}`);
     await waitForApp(page);
-    await page.getByRole("button", { name: /create po/i }).first().click();
+    await openBillingStep(page);
     const dlg = page.getByRole("dialog");
     await dlg.locator("#po-start").waitFor();
     await expect(dlg.getByRole("button", { name: /create po|link po/i })).toBeEnabled({ timeout: 40_000 });

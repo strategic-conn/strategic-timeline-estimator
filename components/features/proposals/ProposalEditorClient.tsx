@@ -137,6 +137,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import {
   PUSHABLE_STAGES,
   canRaisePo,
+  canStartProject,
+  hasPo,
   requestStagePush,
   zohoPushes,
 } from "@/lib/zoho/push-state";
@@ -158,9 +160,15 @@ import { downloadProposalPdf } from "@/lib/utils/proposal-pdf-export";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import {
+  previewFinish,
+  strategyOf,
   useProposalEstimatorStore,
   type SchedulePreview,
 } from "@/store/proposal-estimator-store";
+import {
+  STRATEGY_OPTIONS,
+  SchedulePlanCard,
+} from "@/components/features/proposals/SchedulePlanCard";
 import type { DiscoveryProject } from "@/types/discovery.types";
 import type {
   ClientQuote,
@@ -283,9 +291,6 @@ export function ProposalEditorClient({
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [convertName, setConvertName] = React.useState("");
   const [convertSeedTasks, setConvertSeedTasks] = React.useState(true);
-  const [convertStrategy, setConvertStrategy] = React.useState<
-    "efficient" | "quick" | "none"
-  >("efficient");
   const [converting, setConverting] = React.useState(false);
   /** Non-null once the plan has been computed for review (step 2 of the dialog). */
   const [convertPreview, setConvertPreview] =
@@ -294,6 +299,8 @@ export function ProposalEditorClient({
   const [dealLinkOpen, setDealLinkOpen] = React.useState(false);
   const [sendOpen, setSendOpen] = React.useState(false);
   const [poOpen, setPoOpen] = React.useState(false);
+  /** Start project's step 3 — the PO, then the project. */
+  const [poStartOpen, setPoStartOpen] = React.useState(false);
   const allQuotes = useProposalEstimatorStore((s) => s.proposals);
   const [productsOpen, setProductsOpen] = React.useState(false);
 
@@ -532,14 +539,15 @@ export function ProposalEditorClient({
     if (!quote) return;
     setConvertName(quote.title);
     setConvertSeedTasks(true);
-    setConvertStrategy("efficient");
     setConvertPreview(null);
     setConvertOpen(true);
   };
 
   const strategyArg = () =>
-    convertSeedTasks && convertStrategy !== "none"
-      ? convertStrategy
+    // The plan is chosen on the Adjust tab, before the deal closes — the
+    // dialog uses it rather than asking again.
+    convertSeedTasks && quote && strategyOf(quote) !== "none"
+      ? (strategyOf(quote) as "efficient" | "quick")
       : undefined;
 
   /** Step 1 → 2: compute the plan for review. Writes nothing. */
@@ -555,6 +563,16 @@ export function ProposalEditorClient({
     }
     setConvertPreview(p);
   };
+
+  /** Every project is billed: step 2 hands on to the PO unless one exists. */
+  const needsPo = Boolean(quote && isSupabaseConfigured && !hasPo(quote));
+  const scheduleRange = React.useMemo(() => {
+    const iso = (convertPreview?.sprints ?? [])
+      .flatMap((s) => [s.start, s.end])
+      .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+      .sort();
+    return iso.length ? { start: iso[0], end: iso[iso.length - 1] } : null;
+  }, [convertPreview]);
 
   const handleConvert = async () => {
     if (!quote) return;
@@ -573,6 +591,24 @@ export function ProposalEditorClient({
       router.push(`/projects/${id}`);
     }
   };
+
+  // The list card's Start project lands here with ?start=1: open the dialog
+  // once the quote is loaded (and still startable), then drop the param so a
+  // reload doesn't reopen it.
+  const startRequested = React.useRef(false);
+  React.useEffect(() => {
+    if (startRequested.current || !hydrated || !quote) return;
+    if (new URLSearchParams(window.location.search).get("start") !== "1") return;
+    startRequested.current = true;
+    router.replace(`/proposals/${quote.id}`, { scroll: false });
+    if (
+      quote.status === "approved" &&
+      !quote.project_id &&
+      canStartProject(quote, isSupabaseConfigured)
+    )
+      openConvert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the quote arrives
+  }, [hydrated, quote?.id]);
 
   if (!canExportProposals) {
     return <ProposalAccessDenied />;
@@ -638,15 +674,23 @@ export function ProposalEditorClient({
                 // Linked but the projects list hasn't loaded: don't flash
                 // Start project for an estimate that already has one.
                 !(quote.project_id && !projectsLoaded) ? (
-                <Button size="sm" className="gap-1.5" onClick={openConvert}>
-                  <FolderPlus className="size-4" aria-hidden />
-                  Start project
-                </Button>
+                canStartProject(quote, isSupabaseConfigured) ? (
+                  <Button size="sm" className="gap-1.5" onClick={openConvert}>
+                    <FolderPlus className="size-4" aria-hidden />
+                    Start project
+                  </Button>
+                ) : (
+                  // Approved by hand, but no won deal — so no PO, so no project.
+                  // Text, not a disabled button: a disabled button can't explain.
+                  <span className="max-w-56 text-xs text-amber-700 dark:text-amber-400">
+                    Start project needs a won Zoho deal — every project gets a PO.
+                  </span>
+                )
               ) : null}
 
-              {/* The one moment this appears — deal won, no PO yet — so it goes
-                  in the header where every tab can see it, not inside Review. */}
-              {canRaisePo(quote) ? (
+              {/* Only for a project started before every project needed a PO —
+                  otherwise the PO is raised inside Start project. */}
+              {linkedProject && canRaisePo(quote) ? (
                 <Button
                   size="sm"
                   className="gap-1.5"
@@ -1331,11 +1375,14 @@ export function ProposalEditorClient({
                     {linkedProject ? (
                       <LiveProjectTimeline projectId={linkedProject.id} />
                     ) : (
-                      <DiscoveryGantt
-                        result={scopeResult}
-                        project={quote.discovery}
-                        teamCalendar={teamCalendar}
-                      />
+                      <div className="space-y-4">
+                        <SchedulePlanCard quote={quote} editable={false} />
+                        <DiscoveryGantt
+                          result={scopeResult}
+                          project={quote.discovery}
+                          teamCalendar={teamCalendar}
+                        />
+                      </div>
                     )}
                   </TabsContent>
                 </Tabs>
@@ -1368,6 +1415,7 @@ export function ProposalEditorClient({
                       </Button>
                       <EstimatorHelp section="tentativeTimeline" />
                     </div>
+                    <SchedulePlanCard quote={quote} editable={false} />
                     <DiscoveryGantt
                       result={catalogResult}
                       project={tentProject}
@@ -1626,6 +1674,12 @@ export function ProposalEditorClient({
               </CardContent>
             </Card>
 
+            <SchedulePlanCard
+              quote={quote}
+              editable
+              help={<EstimatorHelp section="schedulePlan" />}
+            />
+
             <RiskBufferCard
               value={quote.risk_buffer_pct ?? 0}
               onChange={(pct) =>
@@ -1796,6 +1850,19 @@ export function ProposalEditorClient({
         onDone={hydrateProposals}
       />
 
+      <CreatePoDialog
+        open={poStartOpen}
+        onClose={() => setPoStartOpen(false)}
+        quote={quote}
+        onDone={hydrateProposals}
+        schedule={scheduleRange}
+        onBack={() => {
+          setPoStartOpen(false);
+          setConvertOpen(true);
+        }}
+        afterPo={handleConvert}
+      />
+
       <ZohoSendDialog
         open={sendOpen}
         onClose={() => setSendOpen(false)}
@@ -1916,8 +1983,25 @@ export function ProposalEditorClient({
           </DialogHeader>
 
           {convertPreview ? (
-            <div className="py-1">
+            <div className="space-y-2 py-1">
               <SchedulePreviewPanel preview={convertPreview} />
+              {(() => {
+                // The launch date the client agreed to vs what today's team
+                // produces — weeks can pass between quoting and winning.
+                const quoted = quote.schedule_plan?.quoted_finish;
+                const now = previewFinish(convertPreview);
+                return quoted && now && now > quoted ? (
+                  <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-700 dark:text-amber-400">
+                    {`Quoted launch ${quoted} → now ${now}. The team's load has changed since the estimate was approved; adjust sprint dates or staffing after creating it.`}
+                  </p>
+                ) : null;
+              })()}
+              {quote.pbs?.po_no ? (
+                <p className="text-xs text-muted-foreground">
+                  Billed as PO <strong>{quote.pbs.po_no}</strong> already — no
+                  new PO is raised.
+                </p>
+              ) : null}
             </div>
           ) : (
             <div className="space-y-4 py-1">
@@ -1948,38 +2032,9 @@ export function ProposalEditorClient({
                 </span>
               </label>
               {convertSeedTasks ? (
-                <div className="space-y-1.5">
-                  <Label>Auto-assign developers &amp; build the timeline</Label>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(
-                      [
-                        ["efficient", "Best-fit"],
-                        ["quick", "Fastest"],
-                        ["none", "Manual"],
-                      ] as const
-                    ).map(([val, label]) => (
-                      <Button
-                        key={val}
-                        type="button"
-                        size="sm"
-                        variant={
-                          convertStrategy === val ? "default" : "outline"
-                        }
-                        className="h-9"
-                        onClick={() => setConvertStrategy(val)}
-                      >
-                        {label}
-                      </Button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    {convertStrategy === "efficient"
-                      ? "Assigns each dev & QA task to the best-skilled available person; sprint dates follow their capacity."
-                      : convertStrategy === "quick"
-                        ? "Spreads work across every qualified dev to finish soonest."
-                        : "Tasks are created unassigned — you'll assign people yourself."}
-                  </p>
-                </div>
+                <p className="text-xs text-muted-foreground" data-testid="convert-plan">
+                  {`Plan: ${STRATEGY_OPTIONS.find(([v]) => v === strategyOf(quote))![1]}, as quoted — chosen on the Adjust tab before the deal closed.`}
+                </p>
               ) : null}
             </div>
           )}
@@ -1994,7 +2049,20 @@ export function ProposalEditorClient({
             >
               {convertPreview ? "Back" : "Cancel"}
             </Button>
-            {convertPreview ? (
+            {convertPreview && needsPo ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  setConvertOpen(false);
+                  setPoStartOpen(true);
+                }}
+                disabled={!convertName.trim()}
+                className="gap-1.5"
+              >
+                Next: billing
+                <ArrowRight className="size-4" aria-hidden />
+              </Button>
+            ) : convertPreview ? (
               <Button
                 type="button"
                 onClick={() => void handleConvert()}

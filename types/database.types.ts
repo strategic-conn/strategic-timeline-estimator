@@ -451,6 +451,7 @@ export type Database = {
           project_id: string | null
           requirements_unclear: boolean
           risk_buffer_pct: number
+          schedule_plan: Json | null
           status: string
           title: string
           updated_at: string
@@ -470,6 +471,7 @@ export type Database = {
           project_id?: string | null
           requirements_unclear?: boolean
           risk_buffer_pct?: number
+          schedule_plan?: Json | null
           status?: string
           title: string
           updated_at?: string
@@ -489,6 +491,7 @@ export type Database = {
           project_id?: string | null
           requirements_unclear?: boolean
           risk_buffer_pct?: number
+          schedule_plan?: Json | null
           status?: string
           title?: string
           updated_at?: string

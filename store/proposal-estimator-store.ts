@@ -76,7 +76,9 @@ import type {
   ProposalStatus,
   ProposalTier,
   ProposalPbsLink,
+  ProposalSchedulePlan,
   ProposalZohoLink,
+  ScheduleStrategy,
 } from "@/types/proposal.types";
 
 /**
@@ -309,6 +311,53 @@ function toPreview(
   };
 }
 
+/** The estimate's chosen plan; never chosen = Best-fit (the old dialog's default). */
+export function strategyOf(quote: Pick<ClientQuote, "schedule_plan">): ScheduleStrategy {
+  return quote.schedule_plan?.strategy ?? "efficient";
+}
+
+/** Launch date of a preview: the last task, else the last phase (Manual has no task dates). */
+export function previewFinish(p: SchedulePreview): string | null {
+  if (p.finishDate) return p.finishDate;
+  let end: string | null = null;
+  for (const sp of p.sprints) if (!end || sp.end > end) end = sp.end;
+  return end;
+}
+
+/** What Start project would build today with the estimate's own plan. Writes nothing. */
+function forecastOf(quote: ClientQuote): SchedulePreview {
+  const seeds = quote.line_items.filter((li) => li.title.trim());
+  const scaffold = phaseScaffold(quote);
+  const strategy = strategyOf(quote);
+  const plan =
+    strategy !== "none" && seeds.length
+      ? planSeeds(quote, seeds, strategy, scaffold)
+      : null;
+  return toPreview(seeds, scaffold, plan);
+}
+
+/**
+ * The plan a status change leaves behind, or `undefined` when it doesn't touch
+ * it. Approving snapshots the launch date being agreed to (the timeline is
+ * frozen with the price from here); un-approving clears it.
+ */
+function planOnStatus(
+  prev: ClientQuote,
+  next: ProposalStatus,
+): ProposalSchedulePlan | undefined {
+  if (next === "approved" && prev.status !== "approved") {
+    return {
+      strategy: strategyOf(prev),
+      quoted_finish: previewFinish(forecastOf(prev)),
+      quoted_at: new Date().toISOString(),
+    };
+  }
+  if (next !== "approved" && prev.status === "approved" && prev.schedule_plan?.quoted_finish) {
+    return { strategy: strategyOf(prev), quoted_finish: null, quoted_at: null };
+  }
+  return undefined;
+}
+
 /**
  * Sprint dates for a phase at WRITE time, preferring (in order): the dates the
  * user actually reviewed, then the freshly-computed plan, then the estimate's
@@ -500,6 +549,8 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     // started offering **Create PO** again, on a quote already billed, into a
     // system with no delete endpoint.
     pbs: (r.pbs as unknown as ProposalPbsLink | null) ?? null,
+    schedule_plan:
+      (r.schedule_plan as unknown as ProposalSchedulePlan | null) ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -523,6 +574,7 @@ function quoteUpdatePayload(
     discovery: (q.discovery ?? null) as unknown as Json,
     zoho: (q.zoho ?? null) as unknown as Json,
     pbs: (q.pbs ?? null) as unknown as Json,
+    schedule_plan: (q.schedule_plan ?? null) as unknown as Json,
     updated_at: q.updated_at,
   };
 }
@@ -720,6 +772,7 @@ interface ProposalEstimatorState {
         | "platform"
         | "requirements_unclear"
         | "risk_buffer_pct"
+        | "schedule_plan"
         | "zoho"
         | "pbs"
       >
@@ -1162,6 +1215,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       applyDealStage: (id, patch) => {
         const prev = get().proposals.find((p) => p.id === id);
         if (!prev?.zoho) return;
+        const promote =
+          !!patch.approve && (prev.status === "draft" || prev.status === "sent");
+        const plan = promote ? planOnStatus(prev, "approved") : undefined;
         set((s) => ({
           proposals: s.proposals.map((p) => {
             if (p.id !== id) return p;
@@ -1181,6 +1237,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                 patch.approve && (p.status === "draft" || p.status === "sent")
                   ? ("approved" as ProposalStatus)
                   : p.status,
+              ...(plan ? { schedule_plan: plan } : {}),
               updated_at: new Date().toISOString(),
             };
           }),
@@ -1210,6 +1267,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             updated_at: new Date().toISOString(),
           };
           if (promoted && promoted !== prev.status) update.status = promoted;
+          if (plan) update.schedule_plan = plan as unknown as Json;
           const { error } = await supabase.from("proposals").update(update).eq("id", id);
           if (error) {
             toast.error("Couldn't save the deal stage", {
@@ -1226,10 +1284,18 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       setProposalStatus: (id, status) => {
         const prev = get().proposals.find((p) => p.id === id);
         if (!prev) return;
+        // One write for both, like applyDealStage: the status and the launch
+        // date it freezes must not be able to land apart.
+        const plan = planOnStatus(prev, status);
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id
-              ? { ...p, status, updated_at: new Date().toISOString() }
+              ? {
+                  ...p,
+                  status,
+                  ...(plan ? { schedule_plan: plan } : {}),
+                  updated_at: new Date().toISOString(),
+                }
               : p,
           ),
         }));
@@ -1239,12 +1305,18 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const supabase = createClient();
           const { error } = await supabase
             .from("proposals")
-            .update({ status, updated_at: new Date().toISOString() })
+            .update({
+              status,
+              ...(plan ? { schedule_plan: plan as unknown as Json } : {}),
+              updated_at: new Date().toISOString(),
+            })
             .eq("id", id);
           if (error) {
             set((s) => ({
               proposals: s.proposals.map((p) =>
-                p.id === id ? { ...p, status: prev.status } : p,
+                p.id === id
+                  ? { ...p, status: prev.status, schedule_plan: prev.schedule_plan }
+                  : p,
               ),
             }));
             toast.error("Couldn't update status", {

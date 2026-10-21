@@ -130,6 +130,25 @@ export function canRaisePo(quote: {
   );
 }
 
+/** Is this estimate already billed (a PO number or id recorded)? */
+export function hasPo(quote: {
+  pbs?: { po_no?: string | null; po_id?: string | number | null } | null;
+}): boolean {
+  return !!(quote.pbs?.po_no || quote.pbs?.po_id);
+}
+
+/**
+ * Every project is billed (decided 2026-10-21), so Start project needs a PO:
+ * one already raised, or a won deal that can raise one inside the flow.
+ * Demo mode has no PBS, so it is never blocked there.
+ */
+export function canStartProject(
+  quote: Parameters<typeof canRaisePo>[0],
+  liveBilling: boolean,
+): boolean {
+  return !liveBilling || hasPo(quote) || canRaisePo(quote);
+}
+
 /** Files this app has already attached to the deal, filename → ISO timestamp. */
 export function zohoAttachments(
   zoho: ProposalZohoLink | null | undefined,

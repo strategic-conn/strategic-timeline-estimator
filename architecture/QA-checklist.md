@@ -92,7 +92,7 @@
 - [ ] Approve PTO for the **whole team** across that week → the timeline steps over it entirely.
 - [ ] A **pending** request must move nothing. Approve it → the dates move. Decline it → they move back.
 - [ ] Leave booked **after** the project finishes changes nothing.
-- [ ] **Create PO** on that estimate → the pre-filled end date matches the Gantt's launch date, not a plain business-day count.
+- [ ] **Start project** → Review schedule → **Next: billing** on that estimate → the pre-filled PO end date matches the reviewed schedule's last sprint (and the Gantt's launch date), not a plain business-day count.
 - [ ] **Start project** → the seeded sprint dates match the Timeline tab you just looked at.
 
 **Edges**
@@ -561,7 +561,14 @@ Apply `0047` first (`npm run db:push`).
 - [ ] **No blank projects.** /projects shows **New project** disabled; hovering it explains why. No "New project" in the header, no *Create project* in the + menu, no *Create project* quick action on the dashboard. With no projects, the empty state offers **Open the Estimator**.
 - [ ] **No project picker.** New estimate has no "Internal project" field; the editor's Setup shows the linked project as a link, or "None yet — Start project creates it".
 - [ ] **Approved estimates are frozen.** On a project made by Start project, change a seeded task's hours → the estimate's line item and price do NOT change; one toast says the estimate keeps the agreed price.
-- [ ] **No deal, no PO.** An approved estimate with no Zoho deal shows no **Create PO** button; a direct `POST /api/pbs/pos` for it returns 409.
+- [ ] **No deal, no PO — and no project.** An estimate approved by hand with no Zoho deal shows "Start project needs a won Zoho deal" instead of **Start project**; a direct `POST /api/pbs/pos` for it returns 409.
+- [ ] **Every project gets a PO (one button).** A won estimate shows **Start project** only (no separate Create PO). Start project → Review schedule → **Next: billing** → the PO dates come from that schedule; **Back** returns to the schedule; the final button reads **Create PO & start project**. Afterwards the project exists AND the estimate shows its PO.
+- [ ] **Already billed skips billing.** An estimate with a PO but no project: Start project → Review schedule shows "Billed as PO … already" and **Confirm & create**, no billing step.
+- [ ] **From the list.** A won estimate's card shows **Start project**; it opens the estimate with the Start project dialog already open.
+- [ ] **Legacy only.** A project started before this change with no PO still shows **Create PO** on its estimate (header + card).
+- [ ] **Who does the work (Adjust tab).** A new estimate's card shows **Best-fit** selected and "Launches <date>". Pick **Fastest** → the launch date updates and the Timeline (Scope & risk) shows "Planned with Fastest (set on the Adjust tab)". The price on the Totals card does NOT change.
+- [ ] **Frozen on approval.** Approve the estimate (or win its deal) → the picker is disabled and the card says "Quoted launch: <date>". Set it back to Draft → the picker works again.
+- [ ] **Start project uses it.** Start project shows "Plan: Fastest, as quoted" (no picker). If the team got busier since approval, Review schedule shows an amber "Quoted launch X → now Y".
 - [ ] **Closed projects leave workload.** Mark a project Completed → its open tasks disappear from Workload (both tabs), both dashboard views, Reports' Overdue, and the next Start project's "already booked" hours.
 - [ ] **On-time uses completion date.** Finish a task before its due date, then rename it after the due date → the on-time % on Dashboard and Reports does not drop. Reopen it → `completed_at` clears.
 - [ ] **Seeded assignees are notified.** Start project with auto-assignment → each assignee gets ONE bell notification ("assigned you N tasks on …") linking to the project.

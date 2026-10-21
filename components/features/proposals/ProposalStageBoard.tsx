@@ -1,5 +1,6 @@
 "use client";
 
+import { useDragScroll } from "@/hooks/useDragScroll";
 import {
   DndContext,
   DragOverlay,
@@ -118,6 +119,7 @@ export function ProposalStageBoard({
 
   // 8px before a drag starts, so a tap on a card's link or stage menu is still
   // a click. Same constraint as the task board.
+  const panRef = useDragScroll<HTMLDivElement>();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
   );
@@ -294,8 +296,11 @@ export function ProposalStageBoard({
           when idle, and the last column is cut mid-card at most widths, so
           without it the board reads as a board that simply ends. */}
       <div
+        ref={panRef}
         className={cn(
-          "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 md:snap-none",
+          // md:cursor-grab — the empty board pans sideways on a mouse drag
+          // (useDragScroll); cards still move by their handles.
+          "-mx-1 flex snap-x snap-mandatory gap-3 overflow-x-auto px-1 pb-2 md:cursor-grab md:snap-none",
           "[scrollbar-color:var(--border)_transparent] [scrollbar-width:thin]",
           "[&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border",
           "[&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:h-2",

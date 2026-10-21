@@ -32,6 +32,15 @@ import type { ClientQuote } from "@/types/proposal.types";
 /**
  * Raise the PBS purchase order for a won deal.
  *
+ * Two uses. Normally it is step 3 of **Start project** (`afterPo` set): the
+ * dates come from the schedule just reviewed (`schedule`), Back returns to it,
+ * and once the PO exists `afterPo` creates the project. PO first on purpose —
+ * it is the step that can be refused (live won-stage check, PBS down) and can't
+ * be undone, so a failure leaves nothing behind; a project failure after it
+ * leaves a linked PO, and Start project then skips straight to the project.
+ * Standalone (no `afterPo`) it only bills a project started before every
+ * project needed a PO.
+ *
  * The only path that creates a PO. It used to be a checkbox on the send dialog,
  * which meant billing happened when a quote went OUT; a PO is now raised once
  * sales has actually won the deal, so it needs its own moment and its own
@@ -45,11 +54,19 @@ export function CreatePoDialog({
   onClose,
   quote,
   onDone,
+  schedule,
+  onBack,
+  afterPo,
 }: {
   open: boolean;
   onClose: () => void;
   quote: ClientQuote;
   onDone: () => void | Promise<void>;
+  /** The reviewed schedule's range — pre-fills the PO dates instead of the estimate's. */
+  schedule?: { start: string; end: string } | null;
+  onBack?: () => void;
+  /** Start project: runs once the PO exists (created or linked). */
+  afterPo?: () => Promise<void>;
 }) {
   const [busy, setBusy] = React.useState(false);
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
@@ -103,8 +120,8 @@ export function CreatePoDialog({
       teamCalendar,
     ],
   );
-  const derivedStart = derived?.start ?? null;
-  const derivedEnd = derived?.end ?? null;
+  const derivedStart = schedule?.start ?? derived?.start ?? null;
+  const derivedEnd = schedule?.end ?? derived?.end ?? null;
 
   const [startDate, setStartDate] = React.useState("");
   const [endDate, setEndDate] = React.useState("");
@@ -234,6 +251,7 @@ export function CreatePoDialog({
       for (const w of (data?.warnings ?? []) as string[]) toast.warning(w);
       await onDone();
       onClose();
+      if (afterPo) await afterPo();
     } catch (e) {
       toast.error("PBS couldn't be reached", {
         description: e instanceof Error ? e.message : "Unexpected error.",
@@ -317,10 +335,12 @@ export function CreatePoDialog({
         <DialogHeader className="shrink-0 space-y-1 border-b border-border/60 p-3 text-left">
           <DialogTitle className="flex items-center gap-2 text-base">
             <Receipt className="size-4 text-primary" aria-hidden />
-            Create the PO in PBS
+            {afterPo ? "Billing — the project's PO" : "Create the PO in PBS"}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            The deal is won. This raises the purchase order in the billing app.
+            {afterPo
+              ? "Every project is billed. The PO is raised first, then the project you just reviewed is created."
+              : "This project was started without a PO. This raises it in the billing app."}
           </DialogDescription>
         </DialogHeader>
 
@@ -396,9 +416,12 @@ export function CreatePoDialog({
                         ? "Both project dates are required."
                         : "The end date must be on or after the start date."}
                     </p>
-                  ) : derived ? (
+                  ) : derivedStart && (schedule || derived) ? (
                     <p className="text-[0.7rem] text-muted-foreground">
-                      From this estimate&apos;s timeline. PBS stores this range
+                      {schedule
+                        ? "From the schedule you just reviewed. "
+                        : "From this estimate's timeline. "}
+                      PBS stores this range
                       with the PO and can&apos;t change it afterwards.
                     </p>
                   ) : (
@@ -492,10 +515,10 @@ export function CreatePoDialog({
             type="button"
             variant="outline"
             size="sm"
-            onClick={onClose}
+            onClick={onBack ?? onClose}
             disabled={busy}
           >
-            Cancel
+            {onBack ? "Back" : "Cancel"}
           </Button>
           <Button
             type="button"
@@ -524,8 +547,12 @@ export function CreatePoDialog({
                   ? "Linking…"
                   : "Creating…"
                 : candidate
-                  ? `Link PO ${candidate.po_no}`
-                  : "Create PO"}
+                  ? afterPo
+                    ? `Link PO ${candidate.po_no} & start project`
+                    : `Link PO ${candidate.po_no}`
+                  : afterPo
+                    ? "Create PO & start project"
+                    : "Create PO"}
           </Button>
         </DialogFooter>
       </DialogContent>

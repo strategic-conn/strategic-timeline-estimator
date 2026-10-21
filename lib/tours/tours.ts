@@ -564,7 +564,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "estimator",
-    version: 1,
+    version: 2,
     title: "Estimator",
     access: "/proposals",
     match: exact("/proposals"),
@@ -588,7 +588,7 @@ export const TOURS: TourDef[] = [
       {
         target: "estimator.list",
         title: "Your estimates",
-        body: "Each card shows its price and Zoho stage. Create PO appears only once the deal is won.",
+        body: "Each card shows its price and Zoho stage. Start project appears once the deal is won — it raises the PO and creates the project in one go.",
       },
       {
         target: "estimator.board",
@@ -620,7 +620,7 @@ export const TOURS: TourDef[] = [
       {
         target: "estimate.status",
         title: "Status",
-        body: "Draft, sent, approved or rejected. Once it's approved, Start project appears beside it.",
+        body: "Draft, sent, approved or rejected. Once the deal is won, Start project appears beside it — every project gets a PO, raised as its last step.",
       },
       {
         target: "estimate.client",

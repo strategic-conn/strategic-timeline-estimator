@@ -8,6 +8,7 @@ import {
   Briefcase,
   Columns3,
   FileText,
+  FolderPlus,
   Layers,
   Link2,
   List,
@@ -71,7 +72,7 @@ import {
   findActiveDealHolder,
 } from "@/lib/zoho/deal-exclusivity";
 import { PROPOSAL_STATUS_META } from "@/lib/constants/proposal-status";
-import { PUSHABLE_STAGES, canRaisePo, requestStagePush } from "@/lib/zoho/push-state";
+import { PUSHABLE_STAGES, canRaisePo, canStartProject, requestStagePush } from "@/lib/zoho/push-state";
 import { CreatePoDialog } from "@/components/features/proposals/CreatePoDialog";
 import { usePbsPoRefresh } from "@/hooks/usePbsPoRefresh";
 import { recordStageChange } from "@/lib/zoho/won-transition";
@@ -509,9 +510,22 @@ export function ProposalsListClient() {
                       </CardDescription>
                     </div>
                     <div className="flex shrink-0 gap-1">
-                      {/* Deal won and nothing billed yet — the next step, offered
-                          without making anyone open the estimate first. */}
-                      {canRaisePo(q) ? (
+                      {/* Approved and billable — the next step, offered without
+                          making anyone open the estimate first. The PO is raised
+                          inside Start project (every project is billed). */}
+                      {q.status === "approved" &&
+                      !q.project_id &&
+                      canStartProject(q, isSupabaseConfigured) ? (
+                        <Button type="button" size="sm" className="gap-1.5" asChild>
+                          <Link href={`/proposals/${q.id}?start=1`}>
+                            <FolderPlus className="size-4" aria-hidden />
+                            Start project
+                          </Link>
+                        </Button>
+                      ) : null}
+                      {/* Create PO alone only bills a project started before
+                          every project needed one. */}
+                      {q.project_id && canRaisePo(q) ? (
                         <Button
                           type="button"
                           size="sm"

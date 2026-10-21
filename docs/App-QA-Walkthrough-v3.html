@@ -84,7 +84,7 @@
     <li><b>Tours and help.</b> Every page has a guided tour (the <b>?</b> in the top bar), newcomers get a welcome and a Getting started checklist, and every section has its own <b>?</b> that explains it in plain words.</li>
     <li><b>Safer invites.</b> The emailed link opens a page with a <b>Continue</b> button, so email scanners can't use it up. Admins can also hand out a password setup link from the Team page.</li>
     <li><b>Projects come from estimates.</b> <b>New project</b> is switched off, the New estimate dialog no longer picks a project, and an approved estimate is frozen: editing the project's tasks no longer changes the quote.</li>
-    <li><b>No PO without a deal.</b> Create PO only appears once the estimate's Zoho deal is won.</li>
+    <li><b>Every project gets a PO.</b> There is no separate Create PO button any more: Start project raises the PO as its last step, and only once the estimate's Zoho deal is won.</li>
     <li><b>Time logging.</b> A task's logged total can't be typed over any more. Time is added with <b>Add time</b> or the timer, and deleting a task keeps the hours people logged.</li>
     <li><b>Velocity and burndown.</b> Each project page shows how many hours each sprint finished, the average pace, a finish forecast and a burndown. Reports has a Velocity column.</li>
     <li><b>Fixes.</b> Due dates save on the day you pick, sign-out clears the screen, completed projects leave everyone's workload, and on-time delivery uses the day a task was actually finished.</li>
@@ -180,32 +180,35 @@
 
 <div class="step"><div class="num">09</div><div>
   <h3>Set the details that carry over <span class="chip c-est">Estimator</span></h3>
-  <p>Adjust tab → set the <b>risk buffer</b> to <code>20%</code> and tick <b>Requirements not pinned down</b>. Note the timeline's launch date and one line's quoted hours.</p>
+  <p>Adjust tab → set the <b>risk buffer</b> to <code>20%</code> and tick <b>Requirements not pinned down</b>. In <b>Who does the work</b>, switch between <b>Best-fit</b> and <b>Fastest</b> and watch the launch date; leave it on the one you want. Note the timeline's launch date and one line's quoted hours.</p>
   <div class="expect"><div class="expect-label">EXPECT</div><div>
     <p>The buffer moves only dates, and the box prices every line as Advanced. All three tabs say so.</p>
+    <p>Best-fit / Fastest changes the launch date but never the price. "See who does what" lists each task with a person. Once the estimate is approved (step 11) the choice locks and the card shows the quoted launch date.</p>
   </div></div>
 </div></div>
 
 <div class="step"><div class="num">10</div><div>
   <h3>No PO before the deal is won <span class="chip c-est">Estimator</span> <span class="chip c-pbs">PBS</span> <span class="badge changed">Changed</span></h3>
-  <p>Set the estimate's status to <b>Approved</b> by hand, without sending it to Zoho. Look for <b>Create PO</b>. Then set it back to Draft.</p>
+  <p>Set the estimate's status to <b>Approved</b> by hand, without sending it to Zoho. Look for <b>Start project</b>. Then set it back to Draft.</p>
   <div class="expect"><div class="expect-label">EXPECT</div><div>
-    <p>No Create PO button anywhere, because there is no Zoho deal to win yet.</p>
+    <p>No Start project button. In its place: "Start project needs a won Zoho deal — every project gets a PO."</p>
   </div></div>
 </div></div>
 
 <div class="step"><div class="num">11</div><div>
   <h3>Send, win, raise the PO <span class="chip c-zoho">Zoho</span> <span class="chip c-pbs">PBS</span></h3>
-  <p>Review → <b>Send to Zoho</b>. Then Estimator → <b>Stages</b> and move the card to <b>Closed Won</b>. Press <b>Create PO</b> and confirm.</p>
+  <p>Review → <b>Send to Zoho</b>. Then Estimator → <b>Stages</b> and move the card to <b>Closed Won</b>.</p>
   <div class="expect"><div class="expect-label">EXPECT</div><div>
-    <p>On Closed Won the status flips to <b>Approved</b> on its own, and both Create PO and Start project appear. The PO number then shows on the card and in the header.</p>
+    <p>On Closed Won the status flips to <b>Approved</b> on its own, and <b>Start project</b> appears, on the card and in the estimate's header. There is no separate Create PO button.</p>
+    <p><b>On a computer:</b> press on an empty part of the board (or a card's body, not its buttons) and drag sideways. The board slides like Trello. Letting go doesn't open or move anything. The same works on a sprint's task board.</p>
   </div></div>
 </div></div>
 
 <div class="step"><div class="num">12</div><div>
   <h3>Start the project <span class="chip c-est">Estimator</span> <span class="chip c-board">Projects</span> <span class="badge changed">Changed</span></h3>
-  <p>Assign the teammate from Part 1 a work key so they get a task. Then <b>Start project</b> → <b>Review schedule</b> → <b>Confirm &amp; create</b>.</p>
+  <p>Assign the teammate from Part 1 a work key so they get a task. Then <b>Start project</b> (it should say "Plan: … as quoted", with no Best-fit/Fastest buttons) → <b>Review schedule</b> → <b>Next: billing</b>. Press <b>Back</b> once and come forward again. Then <b>Create PO &amp; start project</b>.</p>
   <div class="expect"><div class="expect-label">EXPECT</div><div>
+    <p>The billing step's PO dates match the schedule you just reviewed. Back returns to the schedule. The PO is raised first, then the project opens, and the estimate shows the PO number.</p>
     <p>The sprint dates match the estimate's timeline from step 9, buffer included. The project's own risk buffer reads <b>0%</b>, because the estimate's buffer is already in those dates.</p>
     <p>Each task's estimate equals its line's <b>quoted</b> hours (Advanced, from step 9), not the base hours.</p>
     <p>Your teammate gets <b>one</b> notification, "… assigned you N tasks on "MY TEST …" — accept or decline", not one per task.</p>
@@ -302,7 +305,7 @@
   <tr><td>Delete a project (admin): read the dialog, then Cancel</td><td>It names the sprint and task counts, the logged hours that stay, the linked estimate and its PO</td></tr>
   <tr><td>Review tab on an estimate with no Zoho client (an old one with a typed name)</td><td>Send to Zoho is off, and an amber note says why, with a Go to Setup button. Setup marks the client "Typed by hand, not linked to Zoho"</td></tr>
   <tr><td>Settings → Workspace → Holidays: mark Columbus Day as Working (admin), check Calendar and Workload for that week, then set it back</td><td>It stops being a day off everywhere — no holiday on the calendar, full capacity that week — and returns when set back. Managers see the list read-only</td></tr>
-  <tr><td>Approved estimate with no Zoho deal</td><td>No Create PO button</td></tr>
+  <tr><td>Approved estimate with no Zoho deal</td><td>No Start project; says it needs a won deal</td></tr>
   <tr><td>Edit a task's hours on an approved estimate's project</td><td>The estimate's price doesn't move</td></tr>
   <tr><td>Generate line items on an estimate that already has lines</td><td>"Replace all line items?" asks first. Cancel changes nothing</td></tr>
   <tr><td>Sign out, then press the browser's Back button</td><td>You stay on the sign-in page. Nobody's dashboard flashes up</td></tr>

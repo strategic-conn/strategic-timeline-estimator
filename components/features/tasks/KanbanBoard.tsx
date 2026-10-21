@@ -1,5 +1,6 @@
 "use client";
 
+import { useDragScroll } from "@/hooks/useDragScroll";
 import {
   DndContext,
   DragOverlay,
@@ -125,6 +126,7 @@ export function KanbanBoard({
     index: number;
   } | null>(null);
 
+  const panRef = useDragScroll<HTMLDivElement>();
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor, {
@@ -253,8 +255,11 @@ export function KanbanBoard({
       onDragCancel={handleDragCancel}
     >
       <div
+        ref={panRef}
         className={cn(
-          "flex gap-4 overflow-x-auto p-1 pb-3",
+          // Drag the empty board to pan sideways (useDragScroll); cards still
+          // move by their grip handles.
+          "flex gap-4 overflow-x-auto p-1 pb-3 md:cursor-grab",
           "snap-x snap-mandatory md:snap-none"
         )}
         {...tourAnchor("board.kanban")}

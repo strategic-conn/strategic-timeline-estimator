@@ -6,7 +6,7 @@
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
     "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (45 migrations).",
-    "dateMapped": "2026-10-01",
+    "dateMapped": "2026-10-21",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -2535,7 +2535,7 @@
     {
       "from": "s-proposals",
       "to": "api-pbs",
-      "label": "Create PO (once won)"
+      "label": "Start project: PO, then project (once won)"
     },
     {
       "from": "api-pbs",
@@ -4208,7 +4208,7 @@
       "id": "f-pbs-po",
       "name": "Deal won → purchase order in PBS",
       "actor": "Admin / Manager",
-      "summary": "Billing waits for the win. Sales moves the deal to a won stage in Zoho; the app notices by polling, promotes the estimate to approved, and only then offers Create PO.",
+      "summary": "Billing waits for the win, and every project is billed. Sales moves the deal to a won stage in Zoho; the app notices by polling and promotes the estimate to approved. Start project then reviews the schedule, raises the PO (dates from that schedule) and only then creates the project.",
       "steps": [
         {
           "n": 1,
@@ -4232,9 +4232,10 @@
           "n": 3,
           "from": "s-proposals",
           "to": "api-pbs",
-          "action": "Create PO dialog: billing client, template, name, project start/end dates",
+          "action": "Start project step 3 (CreatePoDialog with afterPo): billing client, template, name, dates pre-filled from the reviewed schedule; the plan (Best-fit/Fastest/Manual) comes from the estimate's schedule_plan, chosen on Adjust before the deal closed",
           "files": [
-            "components/features/proposals/CreatePoDialog.tsx"
+            "components/features/proposals/CreatePoDialog.tsx",
+            "components/features/proposals/ProposalEditorClient.tsx"
           ]
         },
         {
@@ -4430,7 +4431,9 @@
     "Deleting a task (or project) keeps its time entries: task_id ON DELETE SET NULL (0048).",
     "Notifications/activity: created_at and read are server-set, text is 1-500 chars, and only active users may insert (0048). actor_id is pinned, so wording is always attributable to the sender.",
     "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended.",
-    "Holidays: every federal holiday is a day off unless holiday_settings marks it worked (admin, Settings -> Workspace -> Holidays). isUsHoliday and friends exclude worked holidays; federalHolidaysForYear lists all for the card."
+    "Holidays: every federal holiday is a day off unless holiday_settings marks it worked (admin, Settings -> Workspace -> Holidays). isUsHoliday and friends exclude worked holidays; federalHolidaysForYear lists all for the card.",
+    "Every project gets a PO: Start project raises it (PO first, then the project) and is offered only when canStartProject (a PO already, or a won deal). Standalone Create PO exists only for projects started before 2026-10-21.",
+    "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price."
   ],
   "permissionsMatrix": {
     "columns": [

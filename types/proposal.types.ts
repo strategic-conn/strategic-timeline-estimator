@@ -238,6 +238,16 @@ export interface ProposalZohoLink {
   pushed_stage?: string | null;
 }
 
+/** Best-fit / Fastest plan with real people; Manual = team-level, nobody assigned. */
+export type ScheduleStrategy = "efficient" | "quick" | "none";
+
+export interface ProposalSchedulePlan {
+  strategy: ScheduleStrategy;
+  /** Launch date (YYYY-MM-DD) quoted when approved; null until then. */
+  quoted_finish?: string | null;
+  quoted_at?: string | null;
+}
+
 export interface ClientQuote {
   id: string;
   /**
@@ -275,6 +285,11 @@ export interface ClientQuote {
    * untouched; `requirements_unclear` is the control that reprices for risk.
    */
   risk_buffer_pct: number;
+  /**
+   * How the timeline is planned (Adjust tab, migration 0050) and the launch
+   * date quoted when the estimate was approved. Null = Best-fit. Dates only.
+   */
+  schedule_plan?: ProposalSchedulePlan | null;
   /** Set when the quote was imported from a Zoho CRM Deal. */
   zoho?: ProposalZohoLink | null;
   /** Which PBS client this bills to, and the PO once it exists. */

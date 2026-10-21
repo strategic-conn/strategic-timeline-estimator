@@ -150,6 +150,30 @@ const HELP = {
       </>
     ),
   },
+  schedulePlan: {
+    label: "who does the work",
+    title: "Who does the work",
+    body: (
+      <>
+        <p>
+          Picks how the timeline is planned before the deal closes, because it
+          changes the launch date the client agrees to.{" "}
+          <strong>Best-fit</strong>{" "}gives each task to the best-skilled
+          person;{" "}<strong>Fastest</strong>{" "}spreads it across everyone
+          qualified;{" "}<strong>Manual</strong>{" "}assigns nobody.
+        </p>
+        <p>
+          It moves the{" "}<strong>dates only</strong>. The price is each
+          line&apos;s hours times its own rate, whoever does it.
+        </p>
+        <p>
+          Approving the estimate locks it and remembers the launch date.{" "}
+          <strong>Start project</strong>{" "}uses the same plan, and warns if
+          today&apos;s team would finish later than quoted.
+        </p>
+      </>
+    ),
+  },
   riskBuffer: {
     label: "the risk buffer",
     title: "Extra time for surprises",

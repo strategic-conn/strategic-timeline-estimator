@@ -197,7 +197,8 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0047 tasks.completed_at (trigger-stamped; on-time delivery) ·
                         #   0048 logged_hours derived from time_entries, entries survive a
                         #   task delete, feed rows server-stamped + length-capped ·
-                        #   0049 holiday_settings (which federal holidays are WORKED; admin-set)
+                        #   0049 holiday_settings (which federal holidays are WORKED; admin-set) ·
+                        #   0050 proposals.schedule_plan (Best-fit/Fastest/Manual + quoted launch)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -298,7 +299,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `availability_entries` (+ `status` approval) | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
 | `hourly_rates` (responsible + level -> rate) | select / upsert + Realtime | `hourly-rates-store` (Settings -> Workspace -> Hourly rates) | Wired - new estimate lines snapshot these rates |
-| `proposals` (`line_items` + `addons` + `discovery` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
+| `proposals` (`line_items` + `addons` + `discovery` + `schedule_plan` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 | `zoho_connection` (OAuth tokens)      | service-role only (RLS: **no policies**) | `lib/zoho/tokens.ts` via `/api/zoho/*` | Wired |
 | `proposals.zoho` (CRM link jsonb)     | select / insert / update   | `proposal-estimator-store` (deal/account/contact link) | Wired |
@@ -490,6 +491,34 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 > why `layout-integrity` does not see this card — check it by hand after edits.
 
 **Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
+
+**Who does the work — chosen BEFORE the deal closes (`0050`, decided 2026-10-21).**
+Best-fit / Fastest / Manual used to be a picker inside Start project, after the
+client had agreed to a timeline. It is now **`proposals.schedule_plan`**
+(`{strategy, quoted_finish, quoted_at}`, null = Best-fit), set on the
+**Adjust** tab by `SchedulePlanCard`, which also sits read-only above the
+Timeline tab's Gantt. The card's forecast **is** `previewConversion` with that
+strategy — the same plan Start project builds — so it shows the real launch
+date, how many tasks have someone, and "See who does what".
+
+ - **Dates only.** A line's price is its hours x its own snapshotted rate, so
+   who does the work never moves money. The card says so.
+ - **Frozen with the price.** Becoming approved — by hand
+   (`setProposalStatus`) or by the won deal (`applyDealStage`) — snapshots
+   `quoted_finish` (`planOnStatus` → `forecastOf` → `previewFinish`) **in the
+   same write** as the status, and the picker disables (`quoteIsFrozen`).
+   Leaving approved clears the snapshot and keeps the choice.
+ - **Start project** has no picker any more ("Plan: Fastest, as quoted"). It
+   re-plans with **today's** team — weeks can pass between quote and win — and
+   the review step says, in amber, "Quoted launch X → now Y" when that is later.
+   It warns; it does not block.
+ - **The Gantt bars stay team-level** (business-day offsets per phase); the
+   card above them is the people plan. Redrawing the bars per person was out of
+   scope.
+ - `schedule_plan` is in all three whitelists (`rowToQuote`,
+   `quoteUpdatePayload`, the `Pick` on `updateProposal`). Old approved quotes
+   have no `quoted_finish`, so they show the lock without a quoted date.
+   `e2e/schedule-plan.spec.ts`.
 
 **Approval → project:** a quote has a `status` (**draft → sent → approved/rejected**). When **approved**, **Start project** opens a **two-step dialog**: options → **Review schedule** (`previewConversion` computes sprints/tasks/assignees/dates and writes **nothing**) → **Confirm & create**. The reviewed `SchedulePreview` is passed back into `convertToProject`, which persists **exactly** what was shown rather than recomputing (roster/PTO could change mid-review). "Sync schedule from estimate" on a project uses the same preview → confirm flow via `previewSchedule` + `regenerateSchedule`, and since `0032`/`0033` that sync **reconciles** rather than only adding — see "Estimate ↔ project, both ways" below. `convertToProject` creates a real project and **scaffolds the tentative timeline into sprints** — one sprint per estimate phase (status `planning`, carrying the phase's computed start/end dates), with each seeded task slotted into its phase's sprint (join key = `phaseLabelForLineItem` ↔ `PHASE_META[id].label`).
 
@@ -847,6 +876,14 @@ covers webhook *channels*, not records.)
 >    rather than the task board's `closestCorners`: nothing here is sortable, and
 >    the column the cursor is inside is the one `isOver` highlights, so the drop
 >    matches what the user is looking at.
+>  - **Click-and-drag pans the strip sideways on a mouse** (`hooks/useDragScroll.ts`,
+>    shared with the sprint task board). A press on a control (`a, button,
+>    input, [role=button]…`, or anything marked `data-no-pan`) is left alone,
+>    so card drags — started from their grip handles — and clicks still work;
+>    the click that ends a pan is swallowed. Touch is untouched (it already
+>    swipes). It is a **callback ref**, not `useRef` + a mount effect: this
+>    board renders skeleton columns first, so the strip mounts later and a
+>    mount-time effect attached to nothing. `e2e/drag-scroll.spec.ts`.
 
 > **This org's pipeline order is not the obvious one.** Read live:
 > Discovery (1, 25%) · Negotiation (2, 35%) · Proposal Requested (3, 45%) ·
@@ -1073,7 +1110,7 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    noticed — so the usual "don't notify the actor" rule would leave a lone admin
    with no notification at all. Detection is per-browser, so two admins with the
    app open each raise one.
-3. Reaching a won stage also promotes the estimate from `draft`/`sent` to **`approved`** — winning the deal *is* the approval, so **Start project** appears beside **Create PO** instead of waiting for someone to flip a dropdown. A `rejected` estimate is left alone; that was a deliberate call about the quote.
+3. Reaching a won stage also promotes the estimate from `draft`/`sent` to **`approved`** — winning the deal *is* the approval, so **Start project** (which raises the PO) appears instead of waiting for someone to flip a dropdown. A `rejected` estimate is left alone; that was a deliberate call about the quote.
 
    > **Stage and promotion travel in ONE store write** (`applyDealStage`).
    > Doing it as `updateProposal` + `setProposalStatus` is a race, not a
@@ -1099,10 +1136,22 @@ a quote is not winning the work, and PBS cannot delete a PO. Instead:
    > the actor is notified; the promotion is identical. Regression test in
    > `e2e/stage-board.spec.ts`, including that a **rejected** estimate stays
    > rejected while its stage still moves.
-4. **Create PO** appears in two places — the estimate's header (visible from
-   every tab) and its card on the Estimator list, so the next step is offered
-   without opening anything. Both open the same `CreatePoDialog`: client,
-   template, PO name, and the warning that it cannot be undone.
+4. **Every project is billed (decided 2026-10-21), so the PO is raised
+   INSIDE Start project** — one button, not two. Start project is
+   options → **Review schedule** → **Next: billing** (`CreatePoDialog` with
+   `afterPo`; its dates pre-filled from the schedule just reviewed, Back
+   returns to it) → **Create PO & start project**. The PO goes **first**: it
+   is the step that can be refused (live won check, PBS down) and can't be
+   undone, so a failure leaves nothing; a project failure after it leaves a
+   linked PO, and Start project then skips billing ("Billed as PO … already")
+   and only creates the project. `canStartProject` (`lib/zoho/push-state.ts`)
+   gates the button: a PO already, or `canRaisePo`. Approved **by hand** with no
+   won deal shows "Start project needs a won Zoho deal" instead (demo mode,
+   which has no PBS, is never blocked). The list card's **Start project** links
+   to `/proposals/:id?start=1`, which opens the same dialog. **Create PO on its
+   own** survives only for a project started before this rule (header + card,
+   `project_id && canRaisePo`). The rule is UI-enforced; `convertToProject`
+   itself does not check for a PO. `e2e/start-project-po.spec.ts`.
 
 **"Won" is Zoho's forecast bucket, not a name** (`stageIsWon` in
 `lib/zoho/push-state.ts`, client-safe so the button and the server gate cannot

@@ -116,3 +116,14 @@ export async function linkedQuote(): Promise<{
 export async function settleRealtime(page: Page): Promise<void> {
   await page.waitForTimeout(3000);
 }
+
+/**
+ * Open the PO step. Every project is billed, so the PO is step 3 of Start
+ * project (options → review schedule → billing). Writes nothing.
+ */
+export async function openBillingStep(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /^start project$/i }).first().click();
+  await page.getByRole("dialog").getByRole("button", { name: /review schedule/i }).click();
+  await page.getByRole("dialog").getByRole("button", { name: /next: billing/i }).click();
+  await page.getByRole("dialog").getByText("Billing — the project's PO").waitFor();
+}

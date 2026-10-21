@@ -27,8 +27,14 @@ async function rest(path: string, init?: RequestInit) {
   });
 }
 
-/** Never a real deal id — the drag test mocks the route, but belt and braces. */
-const FAKE_DEAL = "9990001112223334445";
+/**
+ * Never a real deal id — the drag test mocks the route, but belt and braces.
+ * One per fixture: `0046` allows one ACTIVE estimate per deal, so a shared id
+ * refused the second of two draft fixtures (and any run after a leaked one)
+ * and the test skipped as "couldn't seed".
+ */
+let dealSeq = 0;
+const fakeDeal = () => `999${Date.now()}${dealSeq++}`;
 
 /** A disposable estimate parked at a known stage. */
 /**
@@ -75,7 +81,7 @@ async function seed(label: string, stage: string | null): Promise<string | null>
       ],
       zoho: stage
         ? {
-            deal_id: FAKE_DEAL,
+            deal_id: fakeDeal(),
             deal_name: title,
             stage,
             imported_at: new Date().toISOString(),
@@ -382,7 +388,7 @@ test.describe("stage board", () => {
             { id: "l1", title: "Work", base_hours: 8, tier: "basic", quantity: 1, hours: 8, depends_on: [] },
           ],
           zoho: {
-            deal_id: FAKE_DEAL,
+            deal_id: fakeDeal(),
             // The card renders `deal_name`, so the fixture keeps the prefix
             // there too — otherwise it is unfindable by the E2E marker.
             deal_name: title,
@@ -453,7 +459,7 @@ test.describe("stage board", () => {
             { id: "l1", title: "Work", base_hours: 9, tier: "basic", quantity: 1, hours: 9, depends_on: [] },
           ],
           zoho: {
-            deal_id: FAKE_DEAL,
+            deal_id: fakeDeal(),
             deal_name: title,
             stage: "Discovery",
             imported_at: new Date().toISOString(),

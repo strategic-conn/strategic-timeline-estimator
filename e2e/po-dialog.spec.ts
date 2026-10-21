@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { E2E_PREFIX, env, hasHorizontalScroll, waitForApp } from "./helpers";
+import { E2E_PREFIX, env, hasHorizontalScroll, waitForApp, openBillingStep } from "./helpers";
 
 /**
  * The Create PO dialog — the gate on the app's only irreversible external
@@ -63,7 +63,7 @@ test.describe("Create PO dialog", () => {
     try {
       await page.goto(`/proposals/${id}`);
       await waitForApp(page);
-      await page.getByRole("button", { name: /create po/i }).first().click();
+      await openBillingStep(page);
       const dlg = page.getByRole("dialog");
       await dlg.waitFor();
 
@@ -133,7 +133,7 @@ test.describe("Create PO dialog", () => {
     try {
       await page.goto(`/proposals/${id}`);
       await waitForApp(page);
-      await page.getByRole("button", { name: /create po/i }).first().click();
+      await openBillingStep(page);
       const dlg = page.getByRole("dialog");
       await dlg.waitFor();
 
