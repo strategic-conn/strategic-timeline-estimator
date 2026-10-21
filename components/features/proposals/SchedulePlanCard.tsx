@@ -31,7 +31,11 @@ export const STRATEGY_OPTIONS: [ScheduleStrategy, string, string][] = [
   ["none", "Manual", "Nobody is assigned — the team-level timeline, and you staff it after Start project."],
 ];
 
-const day = (iso: string) => format(parseISO(iso), "MMM d, yyyy");
+// Never throws: a date this card can't read is shown as-is, not a crashed page.
+const day = (iso: string) => {
+  const d = parseISO(iso);
+  return Number.isNaN(d.getTime()) ? iso : format(d, "MMM d, yyyy");
+};
 
 /**
  * How the timeline is planned — Best-fit / Fastest / Manual — chosen on the
@@ -71,7 +75,8 @@ export function SchedulePlanCard({
   );
   const finish = preview ? previewFinish(preview) : null;
   const quoted = quote.schedule_plan?.quoted_finish ?? null;
-  const slip = quoted && finish ? differenceInCalendarDays(parseISO(finish), parseISO(quoted)) : 0;
+  const slipDays = quoted && finish ? differenceInCalendarDays(parseISO(finish), parseISO(quoted)) : 0;
+  const slip = Number.isNaN(slipDays) ? 0 : slipDays;
 
   return (
     <Card>

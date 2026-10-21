@@ -1,5 +1,6 @@
 "use client";
 
+import { format as formatDate, parse as parseDate } from "date-fns";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { toast } from "sonner";
@@ -86,6 +87,10 @@ import type {
  * order, carrying the estimate's dates. Managers then adjust these into the
  * real plan (dates, assignees, hours). Empty when there's no work to schedule.
  */
+function isoFromDisplay(d: string): string {
+  return formatDate(parseDate(d, "MMM d, yyyy", new Date()), "yyyy-MM-dd");
+}
+
 function phaseScaffold(quote: ClientQuote) {
   // Booked time off shapes the sprint dates this scaffolds, so a project that
   // starts over a shutdown is not planned as if everyone were at their desk.
@@ -102,8 +107,11 @@ function phaseScaffold(quote: ClientQuote) {
     id: ph.id,
     label: ph.label,
     goal: `~${ph.durationDays} business day${ph.durationDays === 1 ? "" : "s"} (from estimate)`,
-    start_date: ph.startDate,
-    end_date: ph.endDate,
+    // ISO, like every other date here. The timeline formats for DISPLAY
+    // ("Dec 10, 2026"); passing that through made Manual's launch date
+    // unparseable (the card crashed) and string comparisons wrong.
+    start_date: isoFromDisplay(ph.startDate),
+    end_date: isoFromDisplay(ph.endDate),
   }));
 }
 
