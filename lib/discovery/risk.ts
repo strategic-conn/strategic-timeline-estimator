@@ -3,7 +3,11 @@
  * Discovery Checklist thresholds (spec §3.3 / §8).
  */
 import { RISK_LEVEL_META } from "@/lib/discovery/constants";
-import { countUnanswered } from "@/lib/discovery/questions";
+import {
+  countUnanswered,
+  isSectionSkipped,
+  withSkippedSections,
+} from "@/lib/discovery/questions";
 import type {
   DiscoveryProject,
   DiscoveryTimeline,
@@ -20,12 +24,14 @@ function levelForScore(score: number): RiskLevel {
 }
 
 export function computeRisk(
-  p: DiscoveryProject,
+  raw: DiscoveryProject,
   timeline: DiscoveryTimeline,
 ): RiskResult {
+  const p = withSkippedSections(raw);
   const flags: RiskFlag[] = [];
 
-  if (!p.sc_writes_copy && !p.copy_ready)
+  // Content switched off: nobody is waiting on copy, so it can't be late.
+  if (!isSectionSkipped(p, 4) && !p.sc_writes_copy && !p.copy_ready)
     flags.push({ label: "Client copy not ready", points: 3 });
   if (p.has_internal_system_integration)
     flags.push({ label: "Internal system integration", points: 3 });

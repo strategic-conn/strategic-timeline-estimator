@@ -1366,6 +1366,16 @@ export function ProposalEditorClient({
                       project={quote.discovery}
                       onChange={handleScopeChange}
                       onViewEstimate={() => setScopeTab("hours")}
+                      onToggleSection={(n, included) => {
+                        const cur = quote.discovery!.skipped_sections ?? [];
+                        setDiscovery(quote.id, {
+                          ...quote.discovery!,
+                          skipped_sections: included
+                            ? cur.filter((x) => x !== n)
+                            : [...cur.filter((x) => x !== n), n].sort(),
+                          updated_at: new Date().toISOString(),
+                        });
+                      }}
                     />
                   </TabsContent>
                   <TabsContent value="hours">

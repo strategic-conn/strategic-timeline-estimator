@@ -1,4 +1,5 @@
 import {
+  createEmptyDiscoveryProject,
   CRM_OPTIONS,
   EMAIL_OPTIONS,
   FORM_COMPLEXITY_OPTIONS,
@@ -25,7 +26,7 @@ export type FieldType =
 
 export type DiscoveryFieldId = keyof Omit<
   DiscoveryProject,
-  "id" | "created_at" | "updated_at"
+  "id" | "created_at" | "updated_at" | "skipped_sections"
 >;
 
 export interface DiscoveryQuestion {
@@ -440,6 +441,34 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   },
 ];
 
+/**
+ * Sections a coordinator may switch off when the job doesn't include them —
+ * SEO on a build-only quote, say. 1–2 (goals, pages, templates, features)
+ * drive every estimate, so they always stay on.
+ */
+export const SKIPPABLE_SECTIONS: ReadonlySet<number> = new Set([3, 4, 5, 6, 7, 8]);
+
+export function isSectionSkipped(p: DiscoveryProject, n: number): boolean {
+  return SKIPPABLE_SECTIONS.has(n) && !!p.skipped_sections?.includes(n);
+}
+
+/**
+ * The answers the engine should see: every question in a skipped section reads
+ * as not asked — toggles off, everything else empty — so it adds no hours, no
+ * risk flags and no required gaps. Pure and idempotent; the saved answers are
+ * untouched, so switching a section back on restores them.
+ */
+export function withSkippedSections(p: DiscoveryProject): DiscoveryProject {
+  if (!p.skipped_sections?.length) return p;
+  const empty = createEmptyDiscoveryProject() as Record<string, unknown>;
+  const out = { ...p } as Record<string, unknown>;
+  for (const q of DISCOVERY_QUESTIONS) {
+    if (isSectionSkipped(p, q.section))
+      out[q.id] = q.type === "toggle" ? false : empty[q.id];
+  }
+  return out as unknown as DiscoveryProject;
+}
+
 export function isQuestionVisible(
   q: DiscoveryQuestion,
   p: DiscoveryProject,
@@ -479,6 +508,7 @@ export function getSectionQuestions(
 export function countUnanswered(p: DiscoveryProject): number {
   let count = 0;
   for (const q of DISCOVERY_QUESTIONS) {
+    if (isSectionSkipped(p, q.section)) continue;
     if (!isQuestionVisible(q, p)) continue;
     if (!isQuestionRequired(q, p)) continue;
     if (isBlank(p[q.id], q.type)) count += 1;
@@ -510,6 +540,7 @@ export function discoveryCoverage(p: DiscoveryProject): {
   let total = 0;
   for (const q of DISCOVERY_QUESTIONS) {
     if (q.type === "toggle") continue;
+    if (isSectionSkipped(p, q.section)) continue;
     if (!isQuestionVisible(q, p)) continue;
     total += 1;
     if (!isBlank(p[q.id], q.type)) answered += 1;
@@ -526,6 +557,7 @@ export function discoveryCoverage(p: DiscoveryProject): {
 export function unansweredBySection(p: DiscoveryProject): Record<number, number> {
   const out: Record<number, number> = {};
   for (const q of DISCOVERY_QUESTIONS) {
+    if (isSectionSkipped(p, q.section)) continue;
     if (!isQuestionVisible(q, p)) continue;
     if (!isQuestionRequired(q, p)) continue;
     if (isBlank(p[q.id], q.type)) out[q.section] = (out[q.section] ?? 0) + 1;

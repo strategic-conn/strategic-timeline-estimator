@@ -2,6 +2,7 @@
 import { computeEstimate } from "@/lib/discovery/engine";
 import { computeRisk } from "@/lib/discovery/risk";
 import { computeTimeline } from "@/lib/discovery/timeline";
+import { withSkippedSections } from "@/lib/discovery/questions";
 import type { TeamCalendar } from "@/lib/discovery/team-calendar";
 import type { DiscoveryProject, DiscoveryResult } from "@/types/discovery.types";
 
@@ -16,7 +17,8 @@ export function analyzeDiscovery(
   riskBufferPct = 0,
 ): DiscoveryResult {
   const estimate = computeEstimate(p);
-  const timeline = computeTimeline(p, estimate, cal, riskBufferPct);
+  // A skipped Timeline section (7) means no start date / review turnaround.
+  const timeline = computeTimeline(withSkippedSections(p), estimate, cal, riskBufferPct);
   const risk = computeRisk(p, timeline);
   return { estimate, timeline, risk };
 }

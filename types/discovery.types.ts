@@ -99,6 +99,12 @@ export interface DiscoveryProject {
   has_retainer: boolean;
   retainer_hours_per_month: number | null;
 
+  /**
+   * Sections switched off for this job (3–8 only). Their questions stop
+   * counting as required and their hours leave the estimate. Absent = all on.
+   */
+  skipped_sections?: number[];
+
   created_at: string;
   updated_at: string;
 }

@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Minus } from "lucide-react";
 
 import { DiscoveryField } from "@/components/features/discovery/DiscoveryField";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -14,7 +15,9 @@ import {
 } from "@/components/ui/card";
 import {
   DISCOVERY_SECTIONS,
+  SKIPPABLE_SECTIONS,
   getSectionQuestions,
+  isSectionSkipped,
   unansweredBySection,
   type DiscoveryFieldId,
 } from "@/lib/discovery/questions";
@@ -27,12 +30,15 @@ type DiscoveryWizardProps = {
   project: DiscoveryProject;
   onChange: (id: DiscoveryFieldId, value: FieldValue) => void;
   onViewEstimate: () => void;
+  /** Switch a section (3–8) in or out of this estimate. */
+  onToggleSection?: (section: number, included: boolean) => void;
 };
 
 export function DiscoveryWizard({
   project,
   onChange,
   onViewEstimate,
+  onToggleSection,
 }: DiscoveryWizardProps) {
   const [section, setSection] = React.useState(1);
 
@@ -43,6 +49,7 @@ export function DiscoveryWizard({
   const current = DISCOVERY_SECTIONS.find((s) => s.n === section)!;
   const questions = getSectionQuestions(section, project);
   const isLast = section === DISCOVERY_SECTIONS.length;
+  const skipped = isSectionSkipped(project, section);
 
   return (
     <div className="grid gap-5 lg:grid-cols-[14rem_1fr]">
@@ -52,6 +59,7 @@ export function DiscoveryWizard({
         {DISCOVERY_SECTIONS.map((s) => {
           const active = s.n === section;
           const open = unanswered[s.n] ?? 0;
+          const off = isSectionSkipped(project, s.n);
           return (
             <button
               key={s.n}
@@ -59,7 +67,11 @@ export function DiscoveryWizard({
               onClick={() => setSection(s.n)}
               aria-current={active ? "step" : undefined}
               aria-label={`Section ${s.n}: ${s.title}${
-                open === 0 ? " (complete)" : `, ${open} required left`
+                off
+                  ? " (left out)"
+                  : open === 0
+                    ? " (complete)"
+                    : `, ${open} required left`
               }`}
               className={cn(
                 "flex shrink-0 items-center gap-2.5 rounded-xl text-left text-sm transition-colors lg:shrink lg:border lg:px-3 lg:py-2",
@@ -71,7 +83,9 @@ export function DiscoveryWizard({
               <span
                 className={cn(
                   "relative flex size-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold ring-2 lg:size-6 lg:ring-0",
-                  open === 0
+                  off
+                    ? "bg-muted text-muted-foreground"
+                    : open === 0
                     ? "bg-green-500/15 text-green-600 dark:text-green-400"
                     : active
                       ? "bg-primary text-primary-foreground"
@@ -79,7 +93,13 @@ export function DiscoveryWizard({
                   active ? "ring-primary" : "ring-transparent",
                 )}
               >
-                {open === 0 ? <Check className="size-3.5" /> : s.n}
+                {off ? (
+                  <Minus className="size-3.5" />
+                ) : open === 0 ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  s.n
+                )}
                 {/* Phones show no section titles, so the count rides on the circle. */}
                 {open > 0 ? (
                   <span
@@ -91,16 +111,27 @@ export function DiscoveryWizard({
                 ) : null}
               </span>
               <span className="hidden min-w-0 lg:block">
-                <span className="block truncate font-medium">{s.title}</span>
+                <span
+                  className={cn(
+                    "block truncate font-medium",
+                    off && "text-muted-foreground line-through",
+                  )}
+                >
+                  {s.title}
+                </span>
                 <span
                   className={cn(
                     "block text-[0.7rem]",
-                    open === 0
+                    off || open === 0
                       ? "text-muted-foreground"
                       : "font-medium text-amber-700 dark:text-amber-300",
                   )}
                 >
-                  {open === 0 ? "Complete" : `${open} required left`}
+                  {off
+                    ? "Left out"
+                    : open === 0
+                      ? "Complete"
+                      : `${open} required left`}
                 </span>
               </span>
             </button>
@@ -118,7 +149,22 @@ export function DiscoveryWizard({
             {current.title}
           </CardTitle>
           <CardDescription>{current.subtitle}</CardDescription>
-          {(unanswered[section] ?? 0) > 0 ? (
+          {onToggleSection && SKIPPABLE_SECTIONS.has(section) ? (
+            <label className="mt-2 flex w-fit items-center gap-2 text-sm">
+              <Checkbox
+                checked={!skipped}
+                onCheckedChange={(v) => onToggleSection(section, v === true)}
+              />
+              Include this section in the estimate
+            </label>
+          ) : null}
+          {skipped ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              Left out of this project — its questions aren&apos;t required
+              and add no hours. Tick the box to bring it back; your answers
+              are kept.
+            </p>
+          ) : (unanswered[section] ?? 0) > 0 ? (
             <p className="mt-1 text-xs font-medium text-amber-700 dark:text-amber-300">
               {`${unanswered[section]} required question${unanswered[section] === 1 ? "" : "s"} left in this section — highlighted below.`}
             </p>
@@ -129,14 +175,16 @@ export function DiscoveryWizard({
           )}
         </CardHeader>
         <CardContent className="flex flex-col gap-5 pb-5">
-          {questions.map((q) => (
-            <DiscoveryField
-              key={q.id}
-              question={q}
-              project={project}
-              onChange={onChange}
-            />
-          ))}
+          {skipped
+            ? null
+            : questions.map((q) => (
+                <DiscoveryField
+                  key={q.id}
+                  question={q}
+                  project={project}
+                  onChange={onChange}
+                />
+              ))}
 
           <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-4">
             <Button

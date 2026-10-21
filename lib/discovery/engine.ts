@@ -13,6 +13,11 @@ import {
   optionLabel,
   productCountLabel,
 } from "@/lib/discovery/constants";
+import {
+  DISCOVERY_SECTIONS,
+  isSectionSkipped,
+  withSkippedSections,
+} from "@/lib/discovery/questions";
 import type {
   DiscoveryProject,
   Estimate,
@@ -65,7 +70,17 @@ function buildPhase(id: PhaseId, drafts: Draft[]): EstimatePhase {
   return { id, label: meta.label, description: meta.description, tasks, ...range };
 }
 
-export function computeEstimate(p: DiscoveryProject): Estimate {
+/** The questionnaire section that owns a whole phase (and can switch it off). */
+const PHASE_SECTION: Partial<Record<PhaseId, number>> = {
+  design: 3,
+  content: 4,
+  seo: 6,
+};
+
+export function computeEstimate(raw: DiscoveryProject): Estimate {
+  // A switched-off section's answers read as not asked (no extras), and the
+  // three sections that own a whole phase take its base tasks out too.
+  const p = withSkippedSections(raw);
   const pages = num(p.total_pages);
   const templates = num(p.unique_templates);
 
@@ -310,7 +325,11 @@ export function computeEstimate(p: DiscoveryProject): Estimate {
     launch: buildPhase("launch", launch),
   };
 
-  const phases = PHASE_ORDER.map((id) => phasesById[id]);
+  // A phase whose section is switched off leaves the estimate entirely — no
+  // hours, no Gantt row, no sprint on Start project, no review gate before it.
+  const phases = PHASE_ORDER.filter(
+    (id) => !(id in PHASE_SECTION && isSectionSkipped(p, PHASE_SECTION[id]!)),
+  ).map((id) => phasesById[id]);
   const total = phases.reduce<HoursRange>(
     (acc, ph) => ({ min: acc.min + ph.min, mid: acc.mid + ph.mid, max: acc.max + ph.max }),
     { min: 0, mid: 0, max: 0 },
@@ -357,7 +376,9 @@ function buildAssumptions(p: DiscoveryProject): string[] {
     a.push("Internal system integration (scope undefined — high uncertainty)");
   if (num(p.migration_page_count) > 0)
     a.push(`Content migration: ${num(p.migration_page_count)} pages`);
-  if (p.sc_writes_copy) a.push(`SC writing copy for ${num(p.copy_page_count)} pages`);
+  if (isSectionSkipped(p, 4)) {
+    // Content is out of scope — say nothing about whose copy it is.
+  } else if (p.sc_writes_copy) a.push(`SC writing copy for ${num(p.copy_page_count)} pages`);
   else if (!p.copy_ready) a.push("Client copy NOT ready — timeline risk");
   else a.push("Client copy provided & ready");
   if (p.on_page_seo_included)
@@ -366,5 +387,7 @@ function buildAssumptions(p: DiscoveryProject): string[] {
   a.push(`${num(p.design_revision_rounds, 2)} design revision rounds`);
   if (p.has_retainer)
     a.push(`Post-launch retainer: ${num(p.retainer_hours_per_month)} hrs/month (separate line)`);
+  const out = DISCOVERY_SECTIONS.filter((s) => isSectionSkipped(p, s.n)).map((s) => s.title);
+  if (out.length) a.push(`Not in this project: ${out.join(", ")}`);
   return a;
 }

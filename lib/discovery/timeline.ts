@@ -75,7 +75,8 @@ export function computeTimeline(
   const contentStart = 0; // concurrent with discovery
   const contentEnd = contentStart + dur("content");
 
-  const designStart = discoveryEnd + buffer;
+  // No design phase (section switched off) = no design review to wait for.
+  const designStart = dur("design") ? discoveryEnd + buffer : discoveryEnd;
   const designEnd = designStart + dur("design");
 
   const developmentStart = Math.max(designEnd, contentEnd) + buffer;
@@ -131,7 +132,8 @@ export function computeTimeline(
     };
   });
 
-  const milestones: Milestone[] = MILESTONES.map((m) => {
+  const present = new Set(estimate.phases.map((ph) => ph.id));
+  const milestones: Milestone[] = MILESTONES.filter((m) => present.has(m.phaseId)).map((m) => {
     const offset = offsets[m.phaseId].end;
     return { id: m.id, label: m.label, phaseId: m.phaseId, offset, date: fmt(offset) };
   });

@@ -4433,7 +4433,8 @@
     "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended.",
     "Holidays: every federal holiday is a day off unless holiday_settings marks it worked (admin, Settings -> Workspace -> Holidays). isUsHoliday and friends exclude worked holidays; federalHolidaysForYear lists all for the card.",
     "Every project gets a PO: Start project raises it (PO first, then the project) and is offered only when canStartProject (a PO already, or a won deal). Standalone Create PO exists only for projects started before 2026-10-21.",
-    "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price."
+    "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
+    "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count."
   ],
   "permissionsMatrix": {
     "columns": [

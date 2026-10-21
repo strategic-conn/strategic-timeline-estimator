@@ -566,6 +566,8 @@ Apply `0047` first (`npm run db:push`).
 - [ ] **Already billed skips billing.** An estimate with a PO but no project: Start project → Review schedule shows "Billed as PO … already" and **Confirm & create**, no billing step.
 - [ ] **From the list.** A won estimate's card shows **Start project**; it opens the estimate with the Start project dialog already open.
 - [ ] **Legacy only.** A project started before this change with no PO still shows **Create PO** on its estimate (header + card).
+- [ ] **Switch a questionnaire section off.** Scope & risk → Questionnaire → **SEO & Digital Marketing** → untick **Include this section in the estimate** → the section shows "Left out" (struck through) in the list, its questions disappear, Hours has no SEO phase, the Timeline has no SEO bar, and the total drops. Tick it again → everything returns with the old answers. Sections 1 and 2 have no checkbox.
+- [ ] **Skipped required questions don't count.** Clear the Project Start Date (section 7) → "1 required left"; switch section 7 off → the count and the risk score's unanswered figure drop.
 - [ ] **Who does the work (Adjust tab).** A new estimate's card shows **Best-fit** selected and "Launches <date>". Pick **Fastest** → the launch date updates and the Timeline (Scope & risk) shows "Planned with Fastest (set on the Adjust tab)". The price on the Totals card does NOT change.
 - [ ] **Frozen on approval.** Approve the estimate (or win its deal) → the picker is disabled and the card says "Quoted launch: <date>". Set it back to Draft → the picker works again.
 - [ ] **Start project uses it.** Start project shows "Plan: Fastest, as quoted" (no picker). If the team got busier since approval, Review schedule shows an amber "Quoted launch X → now Y".

@@ -404,6 +404,24 @@ interface ClientQuote {
 - **Guided** — "Start guided scoping", then answer the questionnaire (the former Discovery wizard, 67 fields — anything the Setup tab already knows is mirrored by `syncDiscoveryToQuote`, never re-asked: title/client, and what the platform implies, e.g. Shopify ⇒ e-commerce + goal + hosting). The rules engine (`lib/discovery`, `analyzeDiscovery`) computes **Min/Mid/Max** hours per phase, a **timeline/Gantt**, and a **risk score**; **Generate line items** turns that estimate into the quote's line items (via `regenerateLineItems` → `proposalDraftFromDiscovery`). Primary Business Goal is context only — not required, drives no hours or risk, printed on the PDF/Excel/preview meta block. The answers are stored on the quote as `discovery` (JSONB); risk/timeline are derived on the fly, not stored.
   Every question has an **(i)** beside its label (`InfoTip`, `components/common/info-tip.tsx`) with a plain-English description of what to ask the client and what to pick when unsure. The copy lives in **`lib/discovery/question-help.ts`** (one file, like `estimator-help.tsx`); the hours effect stays in each question's `impact` line, so the help never repeats numbers the engine owns. `e2e/question-help.spec.ts` fails on any question without help. `InfoTip` opens on **hover** with a mouse and on **tap/click** everywhere (a click pins it); it ignores the synthetic "mouse" event a tap fires, which otherwise re-opened the panel the tap had just closed.
   **Required questions stand out** (`DiscoveryField`): a "Required" pill instead of the old asterisk, and while one is blank an amber highlight plus "Answer this for an accurate estimate. Blank required questions raise the risk score." — both clear the moment it's answered (pill turns to a green "✓ Required"). Each section title says how many required questions are left in it, and on a phone (where the section rail shows only numbered circles) each circle carries an amber count badge. Inputs carry `aria-required`. `e2e/required-questions.spec.ts`.
+  **Sections 3–8 can be switched off** (decided 2026-10-21) — a build-only job
+  with no SEO, say. Each has an **Include this section in the estimate**
+  checkbox (`DiscoveryWizard`); off = struck through and "Left out" in the
+  rail, questions hidden, nothing required. Stored as
+  `discovery.skipped_sections` (inside the jsonb — no migration). The engine
+  sees a skipped section through **`withSkippedSections`**
+  (`lib/discovery/questions.ts`): its toggles read off and its fields empty, so
+  it adds no hours, no risk flags and no required gaps — applied in
+  `computeEstimate`, `computeRisk`, `analyzeDiscovery` (timeline) and the three
+  count helpers. Sections that own a whole phase (**3 Design, 4 Content,
+  6 SEO**, `PHASE_SECTION` in the engine) drop that phase from the estimate
+  entirely — no Gantt row, no milestone, no sprint on Start project, and with
+  no design phase there's no design review gate before Development. 5 and 8
+  only remove their extras (integrations, CMS training, retainer); 7 drops the
+  start date (→ today) and review turnaround. The PDF's assumptions say "Not in
+  this project: …". **1–2 can never be skipped** (`SKIPPABLE_SECTIONS`). Saved
+  answers are kept, so switching back restores the estimate exactly.
+  `e2e/skip-sections.spec.ts`.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
 **Section help ("?" in each section's top-right corner).** Every page header
