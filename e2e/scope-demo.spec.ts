@@ -21,11 +21,12 @@ test("the scope demo walks end to end, says it's a demo, and writes nothing", as
   await waitForApp(page);
   await page.getByRole("link", { name: "Try the demo" }).click();
   await expect(page).toHaveURL(/\/proposals\/scope-demo$/);
-  await expect(page.getByText("Demo UI only")).toBeVisible();
+  await expect(page.getByText("Demo UI only.")).toBeVisible();
 
-  await page.getByRole("button", { name: /create & draft lines/i }).click();
-  await expect(page.getByText("18 items read → 13 lines")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText("Demo UI only")).toBeVisible();
+  await page.getByRole("button", { name: /draft with esther/i }).click();
+  await expect(page.getByText("Esther is drafting your lines")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Review Esther's draft" })).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText("Demo UI only.")).toBeVisible();
 
   const add = page.getByRole("button", { name: /^Add \d+ lines \(demo\)/ });
   await expect(add).toHaveText(/Add 13 lines/);

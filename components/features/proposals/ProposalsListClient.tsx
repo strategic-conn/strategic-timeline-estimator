@@ -417,7 +417,7 @@ export function ProposalsListClient() {
           <FlaskConical className="size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
           <span>
             <span className="font-medium">Preview:</span>{" "}
-            draft an estimate from a client&apos;s scope. Demo UI only, nothing is saved.
+            draft an estimate from a client&apos;s scope with Esther. Demo UI only, nothing is saved.
           </span>
         </span>
         <Button variant="outline" size="sm" className="gap-1.5" asChild>

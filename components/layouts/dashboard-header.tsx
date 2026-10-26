@@ -47,6 +47,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   settings: "Settings",
   reports: "Reports",
   proposals: "Proposals",
+  "scope-demo": "Draft from scope (demo)",
   activity: "Activity",
   workload: "Workload",
 };
@@ -134,6 +135,9 @@ function descriptionForPath(pathname: string) {
   }
   if (/^\/projects\/[^/]+\/tasks\/?$/.test(pathname)) {
     return "Tasks for this project";
+  }
+  if (/^\/proposals\/scope-demo\/?$/.test(pathname)) {
+    return "Demo UI only: a preview of drafting an estimate with Esther";
   }
   if (/^\/proposals\/[^/]+\/?$/.test(pathname)) {
     return "Edit line items, complexity tiers, and print preview";

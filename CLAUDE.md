@@ -758,8 +758,9 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
 
 > **"Draft from client scope" is a DEMO page, not a feature** (2026-10-26).
 > `/proposals/scope-demo` (`ScopeDraftDemo.tsx`, linked from a dashed
-> "Preview" strip on the Estimator list) shows the planned hybrid flow —
-> paste a scope → catalog/library matches + AI-drafted lines → review → add —
+> "Preview" strip on the Estimator list) shows the planned hybrid flow, branded as
+> Esther — paste a scope → catalog/library matches + Esther-drafted lines →
+> review (scope pinned beside the lines from `xl`, folded above them below) → add —
 > on fixed sample data (the Bespoke Tile Sample Box scope). It is labelled
 > "Demo UI only", calls no AI, and **writes nothing**: `e2e/scope-demo.spec.ts`
 > fails on any non-GET during the walk. Only its prices are real (the
