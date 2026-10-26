@@ -756,6 +756,16 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    discoverable by going back to the estimate, which is the one place nobody
    looks while rescheduling.
 
+> **"Draft from client scope" is a DEMO page, not a feature** (2026-10-26).
+> `/proposals/scope-demo` (`ScopeDraftDemo.tsx`, linked from a dashed
+> "Preview" strip on the Estimator list) shows the planned hybrid flow —
+> paste a scope → catalog/library matches + AI-drafted lines → review → add —
+> on fixed sample data (the Bespoke Tile Sample Box scope). It is labelled
+> "Demo UI only", calls no AI, and **writes nothing**: `e2e/scope-demo.spec.ts`
+> fails on any non-GET during the walk. Only its prices are real (the
+> workspace's hourly rates). When the real feature is built, replace the file
+> and the strip; don't extend the fixtures.
+
 > **Esther is built but HIDDEN** (2026-10-21). `components/features/esther/`
 > holds a working chat client over `lib/esther/engine` (`analyzeBrief` →
 > `discoveryFromEstherAnalysis` → a seeded estimate), but it has **no nav entry**
