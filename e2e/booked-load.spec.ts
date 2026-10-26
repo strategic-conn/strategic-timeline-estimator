@@ -44,9 +44,12 @@ test("Best-fit keeps the strongest person, with honest dates", () => {
     "efficient",
   );
   expect(booked.assigneeId).toBe("ann");
-  // 40h at 8h/day is a working week of existing work before this task starts.
+  // 40h at 8h/day is a working week of existing work (Mon 1 – Fri 5 March),
+  // so this task starts the next Monday. It read 03-09 until 2026-10-27: every
+  // calendar lost its first day (fixed in makeClock; timeline-stress.spec.ts).
   expect(booked.startDate! > unbooked.startDate!).toBe(true);
-  expect(booked.startDate).toBe("2027-03-09");
+  expect(unbooked.startDate).toBe("2027-03-01");
+  expect(booked.startDate).toBe("2027-03-08");
   expect(booked.reason).toContain("after 40h already booked");
   expect(unbooked.reason).not.toContain("booked");
 });

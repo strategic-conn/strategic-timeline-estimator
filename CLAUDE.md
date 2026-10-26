@@ -1546,6 +1546,27 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
    win under Fastest (`e2e/booked-load.spec.ts` pins both). Nobody booked →
    plans are byte-identical to before.
 
+> **Stress-audited (2026-10-27), `e2e/timeline-stress.spec.ts`.** Seeded
+> random teams (keys, skills, hours/day, approved leave, booked work) and
+> start dates around Thanksgiving / Christmas / New Year and weekends, 2,500
+> plans per strategy + 2,500 estimate timelines + the working-day walk. Every
+> task is checked for: no weekend / holiday / own-leave day at either end, no
+> double-booking (a person's tasks never overlap), no gap inside a task, booked
+> work first and no idle day after it, seniority (keys), phase order, and
+> determinism; every timeline phase for working-day dates, sequencing, and never
+> landing on a day the whole team is off. A failure prints the seed. It found
+> and fixed two bugs: **every person's calendar lost its first day**
+> (`makeClock` started at 0 h, so `place` stepped to the next workday — free
+> people began a day late, booked work ran from tomorrow), and **a start date
+> on a weekend or federal holiday put the first phases on that day off**
+> (`resolveStart` now rolls to the next working day, which also moves the
+> sprints and PO dates built from it). `booked-load.spec.ts` had pinned the
+> first bug (03-09 → 03-08). Known, by design: partial-day leave is a full
+> working day to the planner (it plans in whole days) but half a day to the
+> timeline and Workload; booked work is modelled FIFO from today, not on its
+> real task dates; adjacent phases share their boundary day (a phase's end
+> date is the next one's start).
+
 > **No role columns on `tasks`, deliberately** (the plan proposed
 > `tasks.responsible/level`). A seeded task already links to its line through
 > `source_line_item_id`, and the line carries the role — a copy on the task

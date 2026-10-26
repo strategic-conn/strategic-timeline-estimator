@@ -2,7 +2,9 @@
  * Timeline engine — converts phase hours to business days and sequences phases per
  * the SC Estimator spec §3.2 (with content concurrency and SEO overlap).
  */
-import { format, isValid, parseISO } from "date-fns";
+import { addDays, format, isValid, isWeekend, parseISO } from "date-fns";
+
+import { isUsHoliday } from "@/lib/calendar/us-holidays";
 
 import { BUSINESS_HOURS_PER_DAY, MILESTONES, PHASE_META } from "@/lib/discovery/constants";
 import { addWorkingDays, type TeamCalendar } from "@/lib/discovery/team-calendar";
@@ -35,11 +37,21 @@ export function resolveProjectStart(value: string | null | undefined): Date {
 }
 
 function resolveStart(value: string): Date {
+  let d = new Date();
   if (value) {
     const parsed = parseISO(value);
-    if (isValid(parsed)) return parsed;
+    if (isValid(parsed)) d = parsed;
   }
-  return new Date();
+  // Work can't begin on a day off. A start date on a weekend or a federal
+  // holiday (or "today" on a Saturday) used to put the first phases — and the
+  // sprints Start project scaffolds from them — on that day; it now rolls to
+  // the next working day. Found by e2e/timeline-stress.spec.ts, 2026-10-27.
+  let guard = 0;
+  while ((isWeekend(d) || isUsHoliday(format(d, "yyyy-MM-dd"))) && guard < 14) {
+    d = addDays(d, 1);
+    guard += 1;
+  }
+  return d;
 }
 
 /**

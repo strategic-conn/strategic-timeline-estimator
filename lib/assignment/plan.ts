@@ -217,13 +217,19 @@ interface Clock {
 }
 
 function makeClock(dev: PlanDev, start: Date): Clock {
-  return {
+  const clock: Clock = {
     dev,
     pto: new Set(dev.ptoDays ?? []),
     hoursPerDay: Math.max(1, dev.hoursPerDay),
     day: new Date(start.getTime()),
-    hoursLeftToday: 0, // forces a fresh working day on first use
+    hoursLeftToday: 0,
   };
+  // The first day is a full day when it is a working one. It used to start at
+  // 0 h, which made `place` step to the NEXT workday: every free person began a
+  // day late, and booked work was worked off from tomorrow instead of today
+  // (found by e2e/timeline-stress.spec.ts, 2026-10-27).
+  if (isWorkday(clock, clock.day)) clock.hoursLeftToday = clock.hoursPerDay;
+  return clock;
 }
 function isWorkday(clock: Clock, d: Date): boolean {
   // Holidays here as well as in the tentative timeline: without it the estimate
