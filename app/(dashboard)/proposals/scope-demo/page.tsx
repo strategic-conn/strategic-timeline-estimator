@@ -1,12 +1,8 @@
-import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
-import { ScopeDraftDemo } from "@/components/features/proposals/ScopeDraftDemo";
-
-export const metadata: Metadata = {
-  title: "Draft from scope (demo)",
-  description: "Demo UI only — a preview of drafting estimate lines from a client's scope.",
-};
-
+// The "Draft from client scope" demo is hidden for now (2026-10-28): no entry on
+// the Estimator, and old links land there. The demo itself is parked in
+// components/features/proposals/ScopeDraftDemo.tsx, ready to bring back.
 export default function ScopeDemoPage() {
-  return <ScopeDraftDemo />;
+  redirect("/proposals");
 }

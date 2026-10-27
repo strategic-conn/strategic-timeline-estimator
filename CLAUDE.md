@@ -756,7 +756,13 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    discoverable by going back to the estimate, which is the one place nobody
    looks while rescheduling.
 
-> **"Draft from client scope" is a DEMO page, not a feature** (2026-10-26).
+> **"Draft from client scope" is a DEMO page, and it is HIDDEN** (built
+> 2026-10-26, hidden 2026-10-28). The Estimator's "Preview" strip is gone and
+> `/proposals/scope-demo` redirects to `/proposals`, like Esther; the demo
+> itself stays in `ScopeDraftDemo.tsx`. Bringing it back = the page route
+> rendering `<ScopeDraftDemo />` again, the strip on `ProposalsListClient`, and
+> the walk-through `e2e/scope-demo.spec.ts` from git history (today that spec
+> only asserts it stays hidden). What it was:
 > `/proposals/scope-demo` (`ScopeDraftDemo.tsx`, linked from a dashed
 > "Preview" strip on the Estimator list) shows the planned hybrid flow, branded as
 > Esther — paste a scope → catalog/library matches + Esther-drafted lines →

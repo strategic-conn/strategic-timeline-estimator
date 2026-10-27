@@ -6,7 +6,7 @@
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
     "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (45 migrations).",
-    "dateMapped": "2026-10-26",
+    "dateMapped": "2026-10-28",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -4435,7 +4435,7 @@
     "Every project gets a PO: Start project raises it (PO first, then the project) and is offered only when canStartProject (a PO already, or a won deal). Standalone Create PO exists only for projects started before 2026-10-21.",
     "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
     "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count.",
-    "/proposals/scope-demo is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships."
+    "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships."
   ],
   "permissionsMatrix": {
     "columns": [

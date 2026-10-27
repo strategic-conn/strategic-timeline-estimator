@@ -8,7 +8,6 @@ import {
   Briefcase,
   Columns3,
   FileText,
-  FlaskConical,
   FolderPlus,
   Layers,
   Link2,
@@ -409,21 +408,6 @@ export function ProposalsListClient() {
           </div>
         }
       />
-
-      {/* DEMO ONLY: entry to the "Draft from client scope" preview
-          (ScopeDraftDemo). Remove with it once the real feature ships. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-dashed border-amber-500/50 bg-amber-500/5 px-3 py-2 text-sm">
-        <span className="flex items-center gap-2">
-          <FlaskConical className="size-4 shrink-0 text-amber-700 dark:text-amber-300" aria-hidden />
-          <span>
-            <span className="font-medium">Preview:</span>{" "}
-            draft an estimate from a client&apos;s scope with Esther. Demo UI only, nothing is saved.
-          </span>
-        </span>
-        <Button variant="outline" size="sm" className="gap-1.5" asChild>
-          <Link href="/proposals/scope-demo">Try the demo</Link>
-        </Button>
-      </div>
 
       {!proposalsLoaded ? (
         <p className="py-10 text-center text-sm text-muted-foreground">

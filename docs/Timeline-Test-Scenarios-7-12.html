@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Timeline Test Scenarios 7–12</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
+<style>
+  /* Source for docs/Timeline-Test-Scenarios-7-12.pdf — `node scripts/render-qa-pdf.mjs docs/Timeline-Test-Scenarios-7-12.html` */
+  @page { size: A4; margin: 16mm 16mm 18mm; }
+  :root { --ink:#17181c; --muted:#5f6470; --line:#e3e5ea; --soft:#f6f7f9; --est:#6d4ee6; --est-bg:#efebfd; --set:#0e7490; --set-bg:#e6f4f7; --warn:#b42318; --ok:#15803d; }
+  * { box-sizing: border-box; }
+  body { margin:0; color:var(--ink); font:10pt/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif; }
+  h1,h2,h3 { font-family:"Inter Tight","Segoe UI",system-ui,sans-serif; letter-spacing:-0.01em; }
+  .eyebrow,.label,code,.tag { font-family:"IBM Plex Mono",Consolas,monospace; }
+  .eyebrow { font-size:7.5pt; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); margin:6mm 0 3mm; }
+  h1 { font-size:25pt; line-height:1.1; margin:0 0 3mm; }
+  .lede { font-size:11.5pt; color:var(--muted); margin:0 0 5mm; }
+  h2 { font-size:15pt; margin:7mm 0 1.5mm; break-after:avoid; }
+  h3 { font-size:11pt; margin:4mm 0 1.5mm; break-after:avoid; }
+  p { margin:0 0 2mm; }
+  .box { border:1px solid var(--line); border-radius:8px; padding:3.5mm 4.5mm; margin:0 0 4mm; break-inside:avoid; }
+  .box.warn { border-left:3px solid var(--warn); }
+  .box.ok { border-left:3px solid var(--ok); }
+  .label { font-size:7pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 1.5mm; display:block; }
+  ul,ol { margin:0 0 2mm; padding-left:5mm; }
+  li { margin:.8mm 0; }
+  table { width:100%; border-collapse:collapse; margin:0 0 4mm; font-size:9.2pt; break-inside:avoid; }
+  th,td { text-align:left; vertical-align:top; padding:1.6mm 2.4mm; border-bottom:1px solid var(--line); }
+  th { font-size:7.5pt; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--soft); }
+  code { font-size:8.3pt; background:var(--soft); border:1px solid var(--line); border-radius:3px; padding:0 3px; }
+  .scenario { break-before:page; }
+  .head { display:flex; align-items:baseline; gap:3mm; border-bottom:1.5px solid var(--ink); padding-bottom:2mm; margin-bottom:3mm; }
+  .head .n { font-family:"IBM Plex Mono",monospace; font-size:20pt; color:var(--est); }
+  .head h2 { margin:0; }
+  .tag { font-size:7pt; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--est-bg); color:var(--est); margin-right:4px; }
+  .tag.set { background:var(--set-bg); color:var(--set); }
+  .checks li { list-style:none; margin-left:-5mm; padding-left:6mm; text-indent:-6mm; }
+  .checks li::before { content:"☐  "; font-family:"IBM Plex Mono",monospace; }
+  .record td { height:9mm; }
+  .results td { height:8mm; }
+  .muted { color:var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">Manual test · Timeline generator · Part 2 of 2 · October 2026</div>
+<h1>Timeline Test Scenarios 7–12</h1>
+<p class="lede">The second half of the run: worked holidays, overload, work nobody can take, skipped sections with a risk buffer, a quoted launch date that slips, and an estimate change after the project exists. Then a final sweep across everything the twelve projects created.</p>
+
+<div class="box warn">
+<span class="label">Before you continue</span>
+<ul>
+<li>Same browser, same demo server (<code>http://localhost:3001</code>, sidebar badge <b>Demo</b>), role <b>Admin</b>, as in Part 1.</li>
+<li>Scenarios 1–6 should already be projects. Workload → Team should show Daniel, Ronel, Francis Jan and Martin carrying the new work.</li>
+<li>Same checks on every scenario as in Part 1: no weekends, holidays or leave days; no overlapping tasks per person; no gaps; QA after development; IT Level 2 only to Daniel or Patrick.</li>
+</ul>
+</div>
+
+<!-- ───────────── S7 ───────────── -->
+<section>
+<div class="head"><span class="n">07</span><h2>Maple Dental: a holiday marked as a working day</h2></div>
+<p><span class="tag set">Holidays</span><span class="tag">Guided</span> Tests that an admin's holiday setting changes every plan, and changes it back.</p>
+<h3>Inputs</h3>
+<table>
+<tr><th>Where</th><th>Value</th></tr>
+<tr><td>New estimate</td><td>S7 Maple Dental / Maple Dental / WordPress</td></tr>
+<tr><td>Guided scoping</td><td>6 pages, 2 templates; sections 4, 5, 6 and 8 off</td></tr>
+<tr><td>Section 7</td><td>Project Start Date <b>2027-01-11</b> (Mon), review turnaround 0</td></tr>
+<tr><td>Then</td><td>Generate line items → Adjust → Best-fit</td></tr>
+</table>
+<h3>Steps</h3>
+<ol>
+<li>Timeline tab: note the launch date. The Gantt names <b>Martin Luther King Jr. Day</b> (Mon 2027-01-18), and nothing is dated on it.</li>
+<li><b>Settings → Workspace → Holidays</b>: set Martin Luther King Jr. Day to <b>Working</b>. The page reloads.</li>
+<li>Back on the estimate: the launch date moves <b>one working day earlier</b>, and Jan 18 can now hold work.</li>
+<li>Set it back to <b>Day off</b>: the original launch date returns.</li>
+<li>Leave it as Day off, then Approve → Start project → Confirm.</li>
+</ol>
+<ul class="checks">
+<li>Launch with MLK Day off: ________ · with it worked: ________ · back: ________</li>
+<li>No task is dated Jan 18 once it's a Day off again.</li>
+</ul>
+</section>
+
+<!-- ───────────── S8 ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">08</span><h2>Summit Outfitters: overload and long queues</h2></div>
+<p><span class="tag">Overload</span><span class="tag">Best-fit vs Fastest</span> Tests what happens when the best Level 2 person is weeks deep in work.</p>
+<h3>Inputs</h3>
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Title / Client</td><td>S8 Summit Outfitters / Summit Outfitters</td></tr>
+<tr><td>Line items</td><td>Product configurator: <b>IT L2</b>, 40 h · Checkout rules: <b>IT L2</b>, 24 h · Product pages: IT L1, 16 h · QA pass 8: QA Tester L1, 8 h</td></tr>
+</table>
+<h3>Steps and expected</h3>
+<ol>
+<li>Adjust → <b>Best-fit</b> → See who does what. Both Level 2 tasks go to <b>Daniel</b> (★5 beats Patrick's ★4), queued "after N h already booked". The launch date is far out.</li>
+<li>Switch to <b>Fastest</b>. The Level 2 tasks go to whichever of <b>Daniel or Patrick</b> finishes first, likely Patrick now. Product pages go to the freest IT person. The launch date comes in.</li>
+<li>Pick Fastest, Approve → Start project → Confirm.</li>
+</ol>
+<ul class="checks">
+<li>The Level 2 tasks are never given to Ronel or Arvin, under either option.</li>
+<li>Workload may now show people over 100%. That's allowed: the plan queues work rather than squeezing it.</li>
+<li>Calendar (Team view): pick the busiest person and walk their tasks in date order. No two overlap; each starts on or after the previous one ends.</li>
+<li>Best-fit launch: ________ · Fastest launch: ________</li>
+</ul>
+</section>
+
+<!-- ───────────── S9 ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">09</span><h2>Orbit Agency: work nobody is qualified for</h2></div>
+<p><span class="tag">Work keys</span><span class="tag">Unassigned</span> Tests that work with no qualified person is left for a human, never given to the wrong level.</p>
+<h3>Inputs</h3>
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Title / Client</td><td>S9 Orbit Agency / Orbit Agency</td></tr>
+<tr><td>Line items</td><td>Brand strategy workshop: <b>Project Manager Level 2</b>, 6 h · Logo refresh: <b>Creative Level 2</b>, 8 h · Landing page: IT L1, 6 h</td></tr>
+<tr><td>Who does the work</td><td>Best-fit</td></tr>
+</table>
+<h3>Expected</h3>
+<ul class="checks">
+<li>Brand strategy workshop: <b>no one</b>. The reason says "Nobody holds Project Manager Level 2 — assign manually" (Francis Jan holds only Level 1). The card shows e.g. "2 of 3 tasks have someone".</li>
+<li>Logo refresh → <b>Martin</b> (Creative L2), at 4 h a day, after his existing work.</li>
+<li>Landing page → an IT key holder.</li>
+<li>The unassigned task still takes time on the timeline. It isn't skipped, and it isn't dated on a weekend or holiday.</li>
+<li>Approve → Start project → Confirm. The workshop task exists in the project with <b>no assignee</b>. Assign Francis Jan by hand on the board: that's allowed. The rule only covers automatic assignment.</li>
+</ul>
+</section>
+
+<!-- ───────────── S10 ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">10</span><h2>Willow School: skipped sections and a risk buffer</h2></div>
+<p><span class="tag">Guided</span><span class="tag">Risk buffer</span> Tests that switched-off sections leave no phase behind, and that the buffer moves dates but never the price.</p>
+<h3>Inputs</h3>
+<table>
+<tr><th>Where</th><th>Value</th></tr>
+<tr><td>New estimate</td><td>S10 Willow School / Willow School / WordPress</td></tr>
+<tr><td>Guided scoping</td><td>8 pages, 3 templates; switch off <b>4 Content</b> and <b>6 SEO</b> only (keep Design, Technical, Post-launch on, everything No)</td></tr>
+<tr><td>Section 7</td><td>Project Start Date <b>2027-02-01</b> (Mon), review turnaround <b>2</b></td></tr>
+<tr><td>Then</td><td>Generate line items</td></tr>
+</table>
+<h3>Steps and expected</h3>
+<ol>
+<li>Timeline tab: <b>no Content and no SEO rows</b>. Presidents' Day (Mon 2027-02-15) is named and skipped.</li>
+<li>Adjust → Risk buffer <b>0%</b>: note the launch date and the price (top right).</li>
+<li>Risk buffer <b>20%</b>: the launch date moves later and the Gantt says "incl. 20% risk buffer". The <b>price doesn't change</b>.</li>
+<li>Tick a section back on (Content) in the questionnaire: a Content row returns. Untick it again.</li>
+<li>Keep 20%, Best-fit, Approve → Start project → Confirm.</li>
+</ol>
+<ul class="checks">
+<li>Price at 0%: ________ · at 20%: ________ (must match)</li>
+<li>Launch at 0%: ________ · at 20%: ________ (later)</li>
+<li>The project has no Content or SEO sprint, and its own risk buffer reads <b>0%</b> (the 20% is already in the dates).</li>
+</ul>
+</section>
+
+<!-- ───────────── S11 ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">11</span><h2>Granite Law: the quoted launch date slips</h2></div>
+<p><span class="tag">Quoted launch</span><span class="tag set">Time off</span> Tests the warning when the plan the client agreed to no longer fits.</p>
+<h3>Inputs</h3>
+<table>
+<tr><th>Field</th><th>Value</th></tr>
+<tr><td>Title / Client</td><td>S11 Granite Law / Granite Law</td></tr>
+<tr><td>Line items</td><td>Practice area pages: IT L1, 10 h · Attorney profiles: IT L1, 8 h</td></tr>
+<tr><td>Who does the work</td><td>Best-fit</td></tr>
+</table>
+<h3>Steps and expected</h3>
+<ol>
+<li>See who does what: note the person and the launch date.</li>
+<li>Set the status to <b>Approved</b>. The card shows "Quoted launch: <i>date</i>", and the Best-fit / Fastest / Manual buttons are locked.</li>
+<li><b>Settings → Time off → Team time off</b>: give the person from step 1 <b>two weeks of PTO</b> starting on their first task's start date.</li>
+<li>Back on the estimate: <b>Start project → Review schedule</b>. An amber note says <b>"Quoted launch X → now Y"</b> and the tasks avoid the leave.</li>
+<li>Confirm &amp; create. It warns; it doesn't block.</li>
+</ol>
+<ul class="checks">
+<li>Quoted launch: ________ · new launch: ________</li>
+<li>Set the status back to <b>Draft</b> on a copy (or another estimate): the picker unlocks and the quoted date clears.</li>
+</ul>
+</section>
+
+<!-- ───────────── S12 ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">12</span><h2>Northwind returns: change after the project exists</h2></div>
+<p><span class="tag">Sync schedule</span> Tests that adding work to an estimate later schedules only the new work, and never moves what the team already has.</p>
+<h3>Steps and expected</h3>
+<ol>
+<li>Open <b>S1 Northwind Bakery</b> → Line items → add <b>Newsletter signup: IT L1, 2 h</b>.</li>
+<li>Go to its project (<b>View project</b>) → <b>Sync schedule from estimate</b>.</li>
+<li>The preview shows <b>1 new task</b> with a person and dates, and no renames or removals. Existing tasks keep their dates.</li>
+<li>Confirm. The new task lands behind its person's current queue, not on top of it.</li>
+</ol>
+<ul class="checks">
+<li>Every S1 task kept its original dates and person.</li>
+<li>The new task's person and dates: ________</li>
+</ul>
+</section>
+
+<!-- ───────────── Final sweep ───────────── -->
+<section class="scenario">
+<div class="head"><span class="n">✓</span><h2>Final sweep across all twelve projects</h2></div>
+<ul class="checks">
+<li><b>Timeline</b> (sidebar): every project's bars are in order. Nothing starts on a weekend.</li>
+<li><b>Calendar → Team</b>: no task of anyone's on <b>Thu 2026-11-26</b>, <b>Fri 2026-12-25</b>, <b>Fri 2027-01-01</b>, <b>Mon 2027-01-18</b> or <b>Mon 2027-02-15</b>.</li>
+<li>Daniel has <b>no tasks</b> on his S4 leave week. The S11 person has none on their two weeks.</li>
+<li><b>Workload → Team</b>: for each person, open their open tasks. In date order none overlap, and no day holds more than their daily hours (Ronel 6.4, Martin 4, others 8).</li>
+<li>No IT Level 2 task belongs to Ronel or Arvin.</li>
+<li>Only the S9 workshop has no assignee, or it has Francis Jan if you assigned him by hand.</li>
+</ul>
+
+<h3>Results sheet</h3>
+<table class="results">
+<tr><th style="width:9%">#</th><th style="width:33%">Scenario</th><th style="width:12%">Pass</th><th>Notes / what looked wrong</th></tr>
+<tr><td>1</td><td>Small build, Best-fit</td><td></td><td></td></tr>
+<tr><td>2</td><td>Fastest vs Best-fit</td><td></td><td></td></tr>
+<tr><td>3</td><td>Seniority (Level 2)</td><td></td><td></td></tr>
+<tr><td>4</td><td>Approved leave</td><td></td><td></td></tr>
+<tr><td>5</td><td>Guided across Thanksgiving</td><td></td><td></td></tr>
+<tr><td>6</td><td>Start on Christmas Day</td><td></td><td></td></tr>
+<tr><td>7</td><td>Holiday marked Working</td><td></td><td></td></tr>
+<tr><td>8</td><td>Overload and queues</td><td></td><td></td></tr>
+<tr><td>9</td><td>Nobody qualified</td><td></td><td></td></tr>
+<tr><td>10</td><td>Skipped sections + buffer</td><td></td><td></td></tr>
+<tr><td>11</td><td>Quoted launch slips</td><td></td><td></td></tr>
+<tr><td>12</td><td>Sync after the project exists</td><td></td><td></td></tr>
+<tr><td>✓</td><td>Final sweep</td><td></td><td></td></tr>
+</table>
+<p class="muted">Something looks wrong? Note the scenario, the person, the task and the dates shown, plus a screenshot of See who does what or Review schedule. That's enough to reproduce it. To rerun from scratch, clear site data for localhost:3001 and start again at Part 0.</p>
+</section>
+
+</body>
+</html>
