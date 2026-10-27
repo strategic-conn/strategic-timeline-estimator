@@ -2,276 +2,438 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<title>Timeline Test Scenarios 1–6 (Clean Start)</title>
+<title>Timeline Testing Guide · Part 1</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@600;700&family=IBM+Plex+Sans:wght@400;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet" />
 <style>
-  /* Source for docs/Timeline-Test-Scenarios-Clean-1-6.pdf — `node scripts/render-qa-pdf.mjs docs/Timeline-Test-Scenarios-Clean-1-6.html` */
-  @page { size: A4; margin: 16mm 16mm 18mm; }
-  :root { --ink:#17181c; --muted:#5f6470; --line:#e3e5ea; --soft:#f6f7f9; --est:#6d4ee6; --est-bg:#efebfd; --set:#0e7490; --set-bg:#e6f4f7; --warn:#b42318; --ok:#15803d; }
+  /* Source for docs/Timeline-Test-Scenarios-Clean-1-6.pdf — `node scripts/render-qa-pdf.mjs docs/Timeline-Test-Scenarios-Clean-1-6.html`
+     Same layout as the Clean-7-12 guide: keep the two in step. */
+  @page { size: A4; margin: 15mm 16mm 17mm; }
+  :root { --ink:#17181c; --muted:#5f6470; --line:#e3e5ea; --soft:#f6f7f9; --brand:#6d4ee6; --brand-bg:#efebfd; --warn:#b42318; --warn-bg:#fdf0ef; --ok:#15803d; --ok-bg:#ecf7ef; --note:#8a5a00; --note-bg:#fdf6e3; }
   * { box-sizing: border-box; }
-  body { margin:0; color:var(--ink); font:10pt/1.55 "IBM Plex Sans","Segoe UI",system-ui,sans-serif; }
+  body { margin:0; color:var(--ink); font:10.5pt/1.6 "IBM Plex Sans","Segoe UI",system-ui,sans-serif; }
   h1,h2,h3 { font-family:"Inter Tight","Segoe UI",system-ui,sans-serif; letter-spacing:-0.01em; }
-  .eyebrow,.label,code,.tag { font-family:"IBM Plex Mono",Consolas,monospace; }
-  .eyebrow { font-size:7.5pt; letter-spacing:.22em; text-transform:uppercase; color:var(--muted); margin:6mm 0 3mm; }
-  h1 { font-size:25pt; line-height:1.1; margin:0 0 3mm; }
-  .lede { font-size:11.5pt; color:var(--muted); margin:0 0 5mm; }
-  h2 { font-size:15pt; margin:7mm 0 1.5mm; break-after:avoid; }
-  h3 { font-size:11pt; margin:4mm 0 1.5mm; break-after:avoid; }
-  p { margin:0 0 2mm; }
-  .box { border:1px solid var(--line); border-radius:8px; padding:3.5mm 4.5mm; margin:0 0 4mm; break-inside:avoid; }
-  .box.warn { border-left:3px solid var(--warn); }
-  .box.ok { border-left:3px solid var(--ok); }
-  .label { font-size:7pt; letter-spacing:.16em; text-transform:uppercase; color:var(--muted); margin:0 0 1.5mm; display:block; }
-  ul,ol { margin:0 0 2mm; padding-left:5mm; }
-  li { margin:.8mm 0; }
-  table { width:100%; border-collapse:collapse; margin:0 0 4mm; font-size:9.2pt; break-inside:avoid; }
-  th,td { text-align:left; vertical-align:top; padding:1.6mm 2.4mm; border-bottom:1px solid var(--line); }
-  th { font-size:7.5pt; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); background:var(--soft); }
-  code { font-size:8.3pt; background:var(--soft); border:1px solid var(--line); border-radius:3px; padding:0 3px; }
-  .scenario { break-before:page; }
-  .head { display:flex; align-items:baseline; gap:3mm; border-bottom:1.5px solid var(--ink); padding-bottom:2mm; margin-bottom:3mm; }
-  .head .n { font-family:"IBM Plex Mono",monospace; font-size:20pt; color:var(--est); }
-  .head h2 { margin:0; }
-  .tag { font-size:7pt; letter-spacing:.06em; text-transform:uppercase; padding:2px 6px; border-radius:4px; background:var(--est-bg); color:var(--est); margin-right:4px; }
-  .tag.set { background:var(--set-bg); color:var(--set); }
-  .checks li { list-style:none; margin-left:-5mm; padding-left:6mm; text-indent:-6mm; }
-  .checks li::before { content:"☐  "; font-family:"IBM Plex Mono",monospace; }
-  .record td { height:9mm; }
+  h1 { font-size:26pt; line-height:1.1; margin:0 0 3mm; }
+  h2 { font-size:17pt; margin:0 0 2mm; break-after:avoid; }
+  h3 { font-size:11.5pt; margin:5mm 0 2mm; break-after:avoid; display:flex; align-items:center; gap:2.5mm; }
+  p { margin:0 0 2.5mm; }
+  b { font-weight:600; }
+  .eyebrow { font:500 7.5pt "IBM Plex Mono",monospace; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin:4mm 0 3mm; }
+  .lede { font-size:12pt; color:var(--muted); margin:0 0 5mm; max-width:160mm; }
+  .page { break-before:page; }
+  .card { border:1px solid var(--line); border-radius:8px; padding:4mm 5mm; margin:0 0 4.5mm; break-inside:avoid; }
+  .card.warn { background:var(--warn-bg); border-color:#f3c9c5; }
+  .card.ok { background:var(--ok-bg); border-color:#c6e6cf; }
+  .card.note { background:var(--note-bg); border-color:#efdca8; }
+  .card-title { font:600 11pt "Inter Tight","Segoe UI",sans-serif; margin:0 0 2mm; }
+  ol,ul { margin:0 0 1mm; padding-left:6mm; }
+  li { margin:1.2mm 0; }
+  .steps { list-style:none; padding:0; counter-reset:s; }
+  .steps > li { counter-increment:s; position:relative; padding-left:10mm; margin:2.6mm 0; }
+  .steps > li::before { content:counter(s); position:absolute; left:0; top:-.2mm; width:6.5mm; height:6.5mm; border-radius:50%; background:var(--ink); color:#fff; font:600 8.5pt/6.5mm "IBM Plex Mono",monospace; text-align:center; }
+  .checks { list-style:none; padding:0; }
+  .checks li { position:relative; padding-left:8mm; }
+  .checks li::before { content:""; position:absolute; left:0; top:1.1mm; width:4mm; height:4mm; border:1.3px solid var(--ink); border-radius:2px; }
+  .ui { font-weight:600; color:var(--brand); }
+  .type { font:500 9.5pt "IBM Plex Mono",Consolas,monospace; background:var(--soft); border:1px solid var(--line); border-radius:3px; padding:0 4px; white-space:nowrap; }
   .muted { color:var(--muted); }
+  .small { font-size:9pt; }
+  table { width:100%; border-collapse:collapse; margin:0 0 3mm; font-size:10pt; break-inside:avoid; }
+  th,td { text-align:left; vertical-align:top; padding:1.8mm 2.6mm; border-bottom:1px solid var(--line); }
+  th { font-size:7.5pt; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); background:var(--soft); font-weight:600; }
+  .pill { display:inline-block; font:600 7pt "IBM Plex Mono",monospace; letter-spacing:.1em; text-transform:uppercase; padding:1mm 2.2mm; border-radius:99px; }
+  .p-do { background:var(--ink); color:#fff; }
+  .p-see { background:var(--ok-bg); color:var(--ok); border:1px solid #c6e6cf; }
+  .p-write { background:var(--brand-bg); color:var(--brand); }
+  .p-opt { background:var(--soft); color:var(--muted); border:1px solid var(--line); }
+  .head { display:flex; align-items:center; gap:4mm; margin:0 0 1.5mm; }
+  .num { flex:none; width:13mm; height:13mm; border-radius:10px; background:var(--brand); color:#fff; font:600 16pt/13mm "IBM Plex Mono",monospace; text-align:center; }
+  .head h2 { margin:0; }
+  .goal { font-size:11.5pt; margin:0 0 4mm; padding:0 0 3.5mm; border-bottom:1.5px solid var(--ink); }
+  .goal b { color:var(--brand); }
+  .fields { display:grid; grid-template-columns:34mm 1fr; gap:1.2mm 3mm; margin:0 0 1mm; }
+  .fields div:nth-child(odd) { color:var(--muted); }
+  .write { display:grid; grid-template-columns:repeat(auto-fit,minmax(48mm,1fr)); gap:3mm; margin-top:2mm; break-inside:avoid; }
+  .write div { border:1px dashed #b9bdc7; border-radius:6px; padding:2mm 3mm 9mm; font-size:8.5pt; color:var(--muted); }
+  .verdict { display:flex; gap:6mm; align-items:center; margin-top:3mm; font-size:10pt; }
+  .verdict span::before { content:"○ "; font-size:12pt; }
+  .legend { display:grid; grid-template-columns:auto 1fr; gap:2mm 4mm; align-items:center; }
+  .stage { display:flex; align-items:center; gap:3mm; margin:6mm 0 2mm; }
+  .stage .letter { width:9mm; height:9mm; border-radius:50%; border:1.6px solid var(--ink); font:600 11pt/8.6mm "Inter Tight",sans-serif; text-align:center; }
+  .stage h3 { margin:0; font-size:13pt; }
+  .toc td { padding:.9mm 2.4mm; }
+  .toc td:first-child { font:600 10pt "IBM Plex Mono",monospace; color:var(--brand); width:12mm; white-space:nowrap; }
 </style>
 </head>
 <body>
 
-<div class="eyebrow">Manual test · Timeline generator · Clean start · Part 1 of 2 · October 2026</div>
-<h1>Timeline Test Scenarios 1–6 <span style="color:var(--muted);font-weight:600">· Clean start</span></h1>
-<p class="lede">Twelve client estimates arrive one after another. Each one becomes a project, so every new estimate is planned around the work the last ones already gave the team. This version starts from an <b>empty workspace</b>: no projects, no estimates, nobody booked. It's how a fresh database looks on day one. Part 1 empties the demo, sets up the team and runs scenarios 1–6. Part 2 runs 7–12 and a final sweep.</p>
+<!-- ═════════════ Cover ═════════════ -->
+<div class="eyebrow">Timeline estimator · Testing guide · Part 1 of 2</div>
+<h1>Testing the timeline, step by step</h1>
+<p class="lede">You'll play a coordinator who receives six client estimates in a row and turns each one into a project. After each one you check that the app planned it sensibly. You can't break anything: it all runs in a practice copy of the app.</p>
 
-<div class="box warn">
-<span class="label">Run this in demo mode, not the live app</span>
-<p>Start project in the live app creates a <b>real Zoho deal and a real PBS purchase order</b>, and PBS can't delete a PO. Demo mode runs the same estimator and planner with everything kept in your browser: no Zoho, no PBS, no database.</p>
-<ol>
-<li>Stop any running <code>npm run dev</code>. Only one dev server can run per project folder.</li>
-<li>In a <b>Git Bash</b> terminal in the project folder, run:<br><code>NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= npx next dev -p 3001</code><br><span class="muted">Don't use PowerShell for this: setting a variable to "" there deletes it, and the app would load the live keys.</span></li>
-<li>Open <code>http://localhost:3001/dashboard</code>. The badge next to "Timeline Estimator" at the top of the sidebar must say <b>Demo</b>. If it says <b>Live</b>, stop: you're on the real database.</li>
-<li>To start over at any point: DevTools → Application → Storage → <b>Clear site data</b> for localhost:3001, then reload.</li>
-</ol>
+<div class="card">
+<div class="card-title">What's in this part</div>
+<table class="toc">
+<tr><td>A–D</td><td><b>Setup</b> (once, about 15 minutes)</td></tr>
+<tr><td>1</td><td>Northwind Bakery: a small website</td></tr>
+<tr><td>2</td><td>Northwind phase 2: sharing work out</td></tr>
+<tr><td>3</td><td>Cedar Clinic: senior-only work</td></tr>
+<tr><td>4</td><td>Lakeside Gym: someone on vacation</td></tr>
+<tr><td>5</td><td>Harbor Realty: Thanksgiving</td></tr>
+<tr><td>6</td><td>Pine &amp; Co: starting on Christmas Day</td></tr>
+</table>
+<p class="muted small" style="margin:0">Each scenario takes 5–10 minutes. Do them <b>in order, in one sitting</b>: each project keeps people busy for the next one. Part 2 (scenarios 7–12) continues in the same browser.</p>
 </div>
 
-<div class="box">
-<span class="label">How to read a plan</span>
+<div class="card">
+<div class="card-title">How every scenario page works</div>
+<div class="legend">
+<span class="pill p-do">Do</span><span>Numbered steps. Do them top to bottom. <span class="ui">Purple words</span> are buttons or tabs to click; <span class="type">grey boxes</span> are text to type.</span>
+<span class="pill p-see">Check</span><span>What you should see. Tick each box.</span>
+<span class="pill p-write">Write down</span><span>Copy one or two dates from the screen.</span>
+<span class="pill p-opt">Optional</span><span>An extra test. Skip it if you're short on time.</span>
+</div>
+</div>
+
+<div class="card">
+<div class="card-title">Five words you'll see</div>
 <ul>
-<li><b>Day 1</b> = the first working day on or after the day you run the scenario. Run scenarios 1–4 in one sitting so Day 1 stays the same.</li>
-<li>With nobody booked, scenario 1 is the only time every person is free. Each later scenario adds to their queues.</li>
-<li><b>Adjust tab → Who does the work</b> shows the launch date. <b>See who does what</b> lists each task with its person, its dates and a reason (e.g. "Daniel · IT L1 · wordpress ★5 · 8h/day · after 17h already booked").</li>
-<li><b>Start project → Review schedule</b> shows the same plan before anything is created. <b>Confirm &amp; create</b> makes the project. Its tasks then count as booked work for every later scenario.</li>
-<li><b>Workload → Team</b> shows each person's open hours. Check it after every Start project.</li>
+<li><b>Day 1</b>: the first weekday on or after the day you're testing. If you test on a Tuesday, Day 1 is that Tuesday; Day 2 is Wednesday.</li>
+<li><b>Best-fit</b>: give each task to the most skilled person, even if they're busy.</li>
+<li><b>Fastest</b>: give each task to whoever can finish it soonest.</li>
+<li><b>Work key</b>: what a person is allowed to do, e.g. "IT Level 2". Level 2 is senior and can also take Level 1 work; Level 1 can't take Level 2.</li>
+<li><b>"after 17h already booked"</b>: that person had 17 hours of earlier work, so this task waits behind it.</li>
 </ul>
 </div>
 
-<h2>Part 0 · Empty the workspace, then set up the team (once)</h2>
-<ol>
-<li>In the sidebar's user card (bottom left), switch the role dropdown to <b>Admin</b>. Work keys, holidays and deleting projects need it.</li>
-<li><b>Projects</b>: delete all four sample projects (<b>Timeline Estimator</b>, <b>Client Portal</b>, <b>Internal Tools</b>, <b>Website Redesign</b>) from each one's menu → Delete. Their 20 sample tasks go with them.</li>
-<li><b>Workload → Team</b> should now show <b>no open work for anyone</b>, and the <b>Estimator</b> list should be empty. If any hours remain, stop: the expectations below assume zero.</li>
-<li><b>Team</b> → the ☆ button on each person → <b>Work keys &amp; skills</b>. Set exactly this, then Close:</li>
-</ol>
-<table>
-<tr><th>Person</th><th>Work keys</th><th>Stars to set (other skills don't matter)</th><th>Weekly hours</th><th>Already booked</th></tr>
-<tr><td><b>Daniel</b></td><td>IT · L2</td><td>WordPress ★5 (already)</td><td>40</td><td>0 h</td></tr>
-<tr><td><b>Ronel</b></td><td>IT · L1</td><td>WordPress <b>★3</b> (change it from ★4)</td><td><b>32</b> (set it)</td><td>0 h</td></tr>
-<tr><td><b>Arvin</b></td><td>IT · L1</td><td>WordPress ★4 (already)</td><td>40</td><td>0 h</td></tr>
-<tr><td><b>Patrick</b></td><td>IT · L2</td><td><b>Add</b> WordPress ★4</td><td>40</td><td>0 h</td></tr>
-<tr><td><b>Martin</b></td><td>Creative · L2</td><td>leave as is</td><td>20 (already)</td><td>0 h</td></tr>
-<tr><td><b>Francis Jan</b></td><td>QA Tester · L1 and Project Manager · L1</td><td><b>Add</b> Quality Assurance ★4</td><td>40</td><td>0 h</td></tr>
-</table>
-<p class="muted">The demo already gives everyone skills. With work keys set, only the WordPress stars of IT key holders and the Quality Assurance stars of QA key holders decide who wins a tie, so those are the only ones to set exactly.</p>
-<ol start="5">
-<li><b>Workload → Team</b>: set Ronel's weekly hours to <b>32</b> (6.4 h a day). Everyone should read 0 h open.</li>
-<li><b>Settings → Workspace → Holidays</b>: all eleven set to <b>Day off</b>.</li>
-<li><b>Settings → Time off → Team time off</b>: delete the two sample entries: Martin's "Annual leave" and Arvin's pending "Morning only" partial day. Otherwise they'd move Martin's design work.</li>
+<!-- ═════════════ Setup ═════════════ -->
+<section class="page">
+<div class="eyebrow">Setup · do this once</div>
+<h2>Get the practice app ready</h2>
+<p class="muted">Four short stages. When you finish D, everyone on the team is free and set up the same way the expected results assume.</p>
+
+<div class="stage"><span class="letter">A</span><h3>Open the practice copy</h3></div>
+<div class="card warn">
+<p style="margin:0"><b>Why not the real app?</b> In the real app, starting a project creates a real deal in Zoho and a real purchase order in billing, and billing can't delete one. The practice copy (called <b>Demo</b>) plans exactly the same way but keeps everything in your browser.</p>
+</div>
+<ol class="steps">
+<li>If the app is already running in a terminal, stop it (click the terminal, press <b>Ctrl + C</b>).</li>
+<li>Open <b>Git Bash</b> in the project folder (not PowerShell) and paste:<br><span class="type">NEXT_PUBLIC_SUPABASE_URL= NEXT_PUBLIC_SUPABASE_ANON_KEY= npx next dev -p 3001</span></li>
+<li>When it says "Ready", open <span class="type">http://localhost:3001/dashboard</span> in Chrome.</li>
+<li>Top left, next to "Timeline Estimator", the badge must say <b>Demo</b>. If it says <b>Live</b>, close the tab and ask for help.</li>
 </ol>
 
-<div class="box ok">
-<span class="label">Check these on every scenario</span>
+<div class="stage"><span class="letter">B</span><h3>Empty the sample data</h3></div>
+<ol class="steps">
+<li>Bottom left, in your name card, change the role dropdown to <span class="ui">Admin</span>.</li>
+<li>Click <span class="ui">Projects</span>. Delete all four sample projects: open each one's <span class="ui">⋯</span> menu → <span class="ui">Delete</span> → confirm.</li>
+<li>Click <span class="ui">Workload</span> → <span class="ui">Team</span>. Everyone should show <b>0 h</b> of open work.</li>
+<li>Click <span class="ui">Settings</span> → <span class="ui">Time off</span> → <span class="ui">Team time off</span>. Delete both sample entries (Martin's "Annual leave" and Arvin's "Morning only").</li>
+</ol>
+
+<div class="stage page" style="margin-top:0"><span class="letter">C</span><h3>Set up the team</h3></div>
+<p>Click <span class="ui">Team</span>. For each person, click the <span class="ui">☆</span> button on their row → <span class="ui">Work keys &amp; skills</span>, make it match the table, then <span class="ui">Close</span>.</p>
+<table>
+<tr><th>Person</th><th>Work key(s)</th><th>Star rating to set</th></tr>
+<tr><td><b>Daniel</b></td><td>IT · Level 2</td><td>WordPress ★5 <span class="muted">(already set)</span></td></tr>
+<tr><td><b>Ronel</b></td><td>IT · Level 1</td><td>WordPress <b>★3</b> <span class="muted">(change from ★4)</span></td></tr>
+<tr><td><b>Arvin</b></td><td>IT · Level 1</td><td>WordPress ★4 <span class="muted">(already set)</span></td></tr>
+<tr><td><b>Patrick</b></td><td>IT · Level 2</td><td><b>Add</b> WordPress ★4</td></tr>
+<tr><td><b>Martin</b></td><td>Creative · Level 2</td><td><span class="muted">leave as is</span></td></tr>
+<tr><td><b>Francis Jan</b></td><td>QA Tester · Level 1 <b>and</b> Project Manager · Level 1</td><td><b>Add</b> Quality Assurance ★4</td></tr>
+</table>
+<p class="muted small">Ignore all other skills: only the ones in the table matter for these tests.</p>
+
+<div class="stage"><span class="letter">D</span><h3>Hours and holidays</h3></div>
+<ol class="steps">
+<li><span class="ui">Workload</span> → <span class="ui">Team</span>: set Ronel's weekly hours to <span class="type">32</span>. Everyone else stays at 40, except Martin at 20.</li>
+<li><span class="ui">Settings</span> → <span class="ui">Workspace</span> → <span class="ui">Holidays</span>: all eleven should say <b>Day off</b>.</li>
+</ol>
+<div class="card ok" style="margin-top:4mm">
+<p style="margin:0"><b>Setup done.</b> Projects list empty, Estimator list empty, everyone at 0 h, badge says Demo.</p>
+</div>
+</section>
+
+<!-- ═════════════ How-to ═════════════ -->
+<section class="page">
+<div class="eyebrow">Read once before scenario 1</div>
+<h2>Three things you'll do in every scenario</h2>
+
+<div class="card">
+<div class="card-title">1 · Create an estimate and add its lines</div>
+<ol class="steps">
+<li><span class="ui">Estimator</span> → <span class="ui">New estimate</span>. Type the title and client from the scenario page; platform stays <b>WordPress</b>. Click <span class="ui">Create and open</span>.</li>
+<li>You land on <span class="ui">Line items</span>. There's one empty starter row: <b>use it for the first line</b>.</li>
+<li>For each line: type the <b>title</b>, open the row's details, set <b>Role</b> and <b>Base hours</b>. Leave Tier on Basic and Qty on 1.</li>
+<li>For the next line, click <span class="ui">Add row</span> and repeat.</li>
+</ol>
+<p class="muted small" style="margin:0">A row without a title doesn't become a task, so don't leave the starter row empty.</p>
+</div>
+
+<div class="card">
+<div class="card-title">2 · Look at the plan</div>
+<ol class="steps">
+<li>Click the <span class="ui">Adjust</span> tab. Find the card <b>Who does the work</b>.</li>
+<li>Pick <span class="ui">Best-fit</span> or <span class="ui">Fastest</span>, as the scenario says. The card shows the <b>launch date</b>.</li>
+<li>Click <span class="ui">See who does what</span>: every task with its person and dates.</li>
+</ol>
+</div>
+
+<div class="card">
+<div class="card-title">3 · Turn it into a project</div>
+<ol class="steps">
+<li>Top right, change the status to <span class="ui">Approved</span>.</li>
+<li>Click <span class="ui">Start project</span> → <span class="ui">Review schedule</span>. It should match what you saw on the Adjust tab.</li>
+<li>Click <span class="ui">Confirm &amp; create</span>. The project now exists, and its people are busy for the next scenario.</li>
+</ol>
+</div>
+
+<div class="card ok">
+<div class="card-title">Glance at these every time</div>
+<p>You don't need to write these down. Just stop and note it if one looks wrong.</p>
 <ul class="checks">
-<li>No task starts or ends on a Saturday, a Sunday or a federal holiday.</li>
-<li>No task starts or ends on a day its person has approved leave.</li>
-<li>A person's tasks never overlap. The next one starts on or after the day the last one ends.</li>
-<li>No unexplained gaps. An 8 h task for an 8 h/day person takes one day; for Ronel (6.4 h/day) it takes two.</li>
-<li>QA starts on or after the day development ends.</li>
-<li>An IT Level 2 task only ever goes to Daniel or Patrick.</li>
-<li>The plan in Review schedule matches what the Adjust tab showed.</li>
+<li>No task starts or ends on a <b>weekend</b> or a <b>holiday</b>.</li>
+<li>One person never has <b>two tasks at the same time</b>.</li>
+<li><b>QA</b> (testing) comes after the building work, not before.</li>
+<li><b>IT Level 2</b> work only ever goes to <b>Daniel or Patrick</b>.</li>
 </ul>
 </div>
 
-<p class="muted">Every line item below is added on <b>Line items → Add row</b>: type the title, then open the row's details to set <b>Role</b> and <b>Base hours</b>. Tier stays Basic and Qty 1. The starter row has no title, so give it one or remove it; a row with no title creates no task.</p>
+<div class="card note">
+<p style="margin:0"><b>Something looks wrong?</b> Write down the scenario number, the person, the task and the dates shown, and take a screenshot of <b>See who does what</b>. Then carry on with the next step.</p>
+</div>
+</section>
 
-<!-- ───────────── S1 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">01</span><h2>Northwind Bakery: small build, Best-fit</h2></div>
-<p><span class="tag">Estimator</span><span class="tag">Best-fit</span> Tests the basics: the best-skilled person gets the work, starts on Day 1 (not Day 2), and tasks are packed back to back.</p>
-<h3>Inputs</h3>
+<!-- ═════════════ S1 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">1</span><h2>Northwind Bakery: a small website</h2></div>
+<p class="goal">You're checking that <b>the most skilled person gets the work and starts on Day 1</b>.</p>
+
+<h3><span class="pill p-do">Do</span></h3>
+<div class="fields">
+<div>Title</div><div><span class="type">S1 Northwind Bakery</span></div>
+<div>Client</div><div><span class="type">Northwind Bakery</span></div>
+</div>
 <table>
-<tr><th>Field</th><th>Value</th></tr>
-<tr><td>New estimate → Title / Client / Platform</td><td>S1 Northwind Bakery / Northwind Bakery / WordPress</td></tr>
-<tr><td>Line items</td><td>Homepage build: IT Level 1, 8 h<br>About &amp; Services pages: IT Level 1, 6 h<br>Contact form: IT Level 1, 3 h<br>QA pass: <b>QA Tester Level 1</b>, 4 h</td></tr>
-<tr><td>Adjust → Who does the work</td><td>Best-fit</td></tr>
+<tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
+<tr><td>Homepage build</td><td>IT · Level 1</td><td>8</td></tr>
+<tr><td>About &amp; Services pages</td><td>IT · Level 1</td><td>6</td></tr>
+<tr><td>Contact form</td><td>IT · Level 1</td><td>3</td></tr>
+<tr><td>QA pass</td><td>QA Tester · Level 1</td><td>4</td></tr>
 </table>
-<h3>Steps</h3>
-<ol>
+<ol class="steps">
 <li>Create the estimate and add the four lines.</li>
-<li>Adjust tab: choose <b>Best-fit</b>, note the launch date, open <b>See who does what</b>.</li>
-<li>Set the status (top right) to <b>Approved</b>. The Who does the work card locks and shows "Quoted launch".</li>
-<li><b>Start project → Review schedule</b>: compare with step 2, then <b>Confirm &amp; create</b>.</li>
+<li><span class="ui">Adjust</span> → pick <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>.</li>
+<li>Set the status to <span class="ui">Approved</span>. The card locks and now says "Quoted launch".</li>
+<li><span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
-<h3>Expected</h3>
+
+<h3><span class="pill p-see">Check</span></h3>
 <table>
-<tr><th>Task</th><th>Person</th><th>Dates</th></tr>
+<tr><th>Task</th><th>Should go to</th><th>When</th></tr>
 <tr><td>Homepage build</td><td>Daniel</td><td>Day 1</td></tr>
 <tr><td>About &amp; Services pages</td><td>Daniel</td><td>Day 2</td></tr>
 <tr><td>Contact form</td><td>Daniel</td><td>Day 2 → Day 3</td></tr>
-<tr><td>QA pass</td><td>Francis Jan</td><td>Day 3 or later (no "already booked": he's free)</td></tr>
+<tr><td>QA pass</td><td>Francis Jan</td><td>Day 3 or later</td></tr>
 </table>
 <ul class="checks">
-<li>Daniel wins every IT task: the most WordPress stars (★5). Best-fit ignores that Ronel, Arvin and Patrick are just as free.</li>
-<li>Homepage starts on <b>Day 1</b>. Day 2 would mean the first-day bug is back.</li>
-<li>Workload: Daniel now has 17 h open and Francis 4 h, all as pending. Everyone else is still 0 h.</li>
+<li>Daniel gets all the IT work: he has the most stars (★5), and Best-fit only cares about skill.</li>
+<li>The homepage starts on <b>Day 1</b>, not Day 2.</li>
+<li><span class="ui">Workload</span> → <span class="ui">Team</span>: Daniel <b>17 h</b>, Francis <b>4 h</b>, everyone else 0 h.</li>
 </ul>
-<table class="record"><tr><th>Launch date shown</th><th>Pass / Fail</th><th>Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>Launch date</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
-<!-- ───────────── S2 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">02</span><h2>Northwind Bakery phase 2: Fastest vs Best-fit</h2></div>
-<p><span class="tag">Fastest</span><span class="tag">Booked work</span> Tests that Fastest spreads work across everyone who's free, while Best-fit queues it all on the best person.</p>
-<h3>Inputs</h3>
+<!-- ═════════════ S2 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">2</span><h2>Northwind phase 2: sharing work out</h2></div>
+<p class="goal">You're checking that <b>Fastest spreads work across free people</b>, while Best-fit piles it on the best one.</p>
+
+<h3><span class="pill p-do">Do</span></h3>
+<div class="fields">
+<div>Title</div><div><span class="type">S2 Northwind Phase 2</span></div>
+<div>Client</div><div><span class="type">Northwind Bakery</span></div>
+</div>
 <table>
-<tr><th>Field</th><th>Value</th></tr>
-<tr><td>Title / Client</td><td>S2 Northwind Phase 2 / Northwind Bakery</td></tr>
-<tr><td>Line items</td><td>Blog setup: IT L1, 8 h · Menu page: IT L1, 6 h · Gallery: IT L1, 3 h · QA pass 2: QA Tester L1, 4 h</td></tr>
+<tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
+<tr><td>Blog setup</td><td>IT · Level 1</td><td>8</td></tr>
+<tr><td>Menu page</td><td>IT · Level 1</td><td>6</td></tr>
+<tr><td>Gallery</td><td>IT · Level 1</td><td>3</td></tr>
+<tr><td>QA pass 2</td><td>QA Tester · Level 1</td><td>4</td></tr>
 </table>
-<h3>Steps</h3>
-<ol>
-<li>Adjust tab → <b>Best-fit</b> → See who does what. Note the launch date. Everything should go to Daniel, starting Day 3, "after 17h already booked".</li>
-<li>Switch to <b>Fastest</b> and compare. The launch date should be the same or earlier.</li>
-<li>Leave it on Fastest, Approve, Start project → Review → Confirm &amp; create.</li>
+<ol class="steps">
+<li>Create the estimate and add the four lines.</li>
+<li><span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. Everything goes to Daniel, "after 17h already booked". Write down the launch date.</li>
+<li>Switch to <span class="ui">Fastest</span>. Write down the launch date again: same or earlier.</li>
+<li>Leave it on <b>Fastest</b>. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
-<h3>Expected (Fastest)</h3>
+
+<h3><span class="pill p-see">Check</span> <span class="muted small" style="font-weight:400">(with Fastest)</span></h3>
 <table>
-<tr><th>Task</th><th>Person</th><th>Dates</th><th>Why</th></tr>
-<tr><td>Blog setup (8 h)</td><td>Arvin</td><td>Day 1</td><td>Free, 8 h/day, finishes Day 1; ★4 beats Ronel's ★3 on the tie</td></tr>
-<tr><td>Menu page (6 h)</td><td>Patrick</td><td>Day 1</td><td>Free; an IT L2 key covers L1 work</td></tr>
-<tr><td>Gallery (3 h)</td><td>Ronel</td><td>Day 1</td><td>The last free person</td></tr>
-<tr><td>QA pass 2</td><td>Francis Jan</td><td>On or after the day development ends</td><td>"after 4h already booked" (S1's QA)</td></tr>
+<tr><th>Task</th><th>Should go to</th><th>When</th></tr>
+<tr><td>Blog setup</td><td>Arvin</td><td>Day 1</td></tr>
+<tr><td>Menu page</td><td>Patrick</td><td>Day 1</td></tr>
+<tr><td>Gallery</td><td>Ronel</td><td>Day 1</td></tr>
+<tr><td>QA pass 2</td><td>Francis Jan</td><td>after the building work</td></tr>
 </table>
 <ul class="checks">
-<li>Three different people work in parallel on Day 1. Daniel gets nothing, because his S1 work would make him finish last.</li>
-<li>Nobody gets more than their hours in a day.</li>
-<li>Workload: Daniel 17 h, Arvin 8 h, Patrick 6 h, Ronel 3 h, Francis 8 h.</li>
+<li>Three people work at the same time on Day 1. Daniel gets nothing: he's still busy with scenario 1.</li>
+<li><span class="ui">Workload</span> → <span class="ui">Team</span>: Daniel 17 h, Arvin 8 h, Patrick 6 h, Ronel 3 h, Francis 8 h.</li>
 </ul>
-<table class="record"><tr><th>Best-fit launch</th><th>Fastest launch</th><th>Pass / Fail · Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>Launch with Best-fit</div><div>Launch with Fastest</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
-<!-- ───────────── S3 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">03</span><h2>Cedar Clinic portal: seniority (Level 2)</h2></div>
-<p><span class="tag">Work keys</span><span class="tag">Fastest</span> Tests that a Level 2 task never goes to a Level 1, even when the Level 1 is freer.</p>
-<h3>Inputs</h3>
+<!-- ═════════════ S3 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">3</span><h2>Cedar Clinic: senior-only work</h2></div>
+<p class="goal">You're checking that <b>Level 2 work never goes to a Level 1 person</b>, even one who is free.</p>
+
+<h3><span class="pill p-do">Do</span></h3>
+<div class="fields">
+<div>Title</div><div><span class="type">S3 Cedar Clinic Portal</span></div>
+<div>Client</div><div><span class="type">Cedar Clinic</span></div>
+</div>
 <table>
-<tr><th>Field</th><th>Value</th></tr>
-<tr><td>Title / Client</td><td>S3 Cedar Clinic Portal / Cedar Clinic</td></tr>
-<tr><td>Line items</td><td>Patient login (custom): <b>IT Level 2</b>, 16 h · Appointment page: IT L1, 4 h · QA pass 3: QA Tester L1, 3 h</td></tr>
-<tr><td>Who does the work</td><td>Fastest</td></tr>
+<tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
+<tr><td>Patient login</td><td><b>IT · Level 2</b></td><td>16</td></tr>
+<tr><td>Appointment page</td><td>IT · Level 1</td><td>4</td></tr>
+<tr><td>QA pass 3</td><td>QA Tester · Level 1</td><td>3</td></tr>
 </table>
-<h3>Expected</h3>
+<ol class="steps">
+<li>Create the estimate and add the three lines.</li>
+<li><span class="ui">Adjust</span> → <span class="ui">Fastest</span> → <span class="ui">See who does what</span>.</li>
+<li>Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+</ol>
+
+<h3><span class="pill p-see">Check</span></h3>
 <table>
-<tr><th>Task</th><th>Person</th><th>Dates</th></tr>
-<tr><td>Patient login (IT L2)</td><td>Patrick</td><td>Day 1 → Day 3 ("after 6h already booked")</td></tr>
+<tr><th>Task</th><th>Should go to</th><th>When</th></tr>
+<tr><td>Patient login (Level 2)</td><td>Patrick</td><td>Day 1 → Day 3</td></tr>
 <tr><td>Appointment page</td><td>Arvin</td><td>Day 2</td></tr>
-<tr><td>QA pass 3</td><td>Francis Jan</td><td>Day 3 or later (after the login work ends)</td></tr>
+<tr><td>QA pass 3</td><td>Francis Jan</td><td>after the login work</td></tr>
 </table>
 <ul class="checks">
-<li>The Level 2 task goes to <b>Daniel or Patrick only</b>, never Ronel or Arvin, even though Ronel would finish sooner.</li>
-<li>Extra check: temporarily set Patrick's IT key to <b>None</b> (Team → ☆). The login task must move to <b>Daniel</b>, not to Ronel or Arvin, even though Ronel has almost nothing booked. Set Patrick back to <b>IT · L2</b> before approving.</li>
-<li>Approve, Start project, Confirm. Workload: Daniel 17 h, Patrick 22 h, Arvin 12 h, Ronel 3 h, Francis 11 h.</li>
+<li>The Level 2 task went to <b>Daniel or Patrick</b>, never Ronel or Arvin.</li>
+<li><span class="ui">Workload</span> → <span class="ui">Team</span>: Daniel 17 h, Patrick 22 h, Arvin 12 h, Ronel 3 h, Francis 11 h.</li>
 </ul>
-<table class="record"><tr><th>Who got the L2 task</th><th>Pass / Fail</th><th>Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
+
+<h3><span class="pill p-opt">Optional</span> <span style="font-weight:400;font-size:10.5pt">Do this between steps 2 and 3</span></h3>
+<p>On <span class="ui">Team</span>, set Patrick's IT key to <b>None</b>, then go back to the estimate. The login task should move to <b>Daniel</b>, not to Ronel or Arvin. <b>Set Patrick back to IT · Level 2</b> before you approve.</p>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>Who got the Level 2 task</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
-<!-- ───────────── S4 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">04</span><h2>Lakeside Gym: approved leave</h2></div>
-<p><span class="tag set">Time off</span><span class="tag">Best-fit</span> Tests that nobody is given work on a day they're on approved leave, and that work resumes after it.</p>
-<h3>Before you start</h3>
-<ol>
-<li><b>Settings → Time off → Team time off</b> → Person: <b>Daniel</b> → <b>Add for Daniel</b>: Type <b>PTO / vacation</b>, Start = <b>next Monday</b>, End = <b>next Friday</b>. Save. An admin's entry is approved straight away.</li>
-<li>Write the dates down: <b>________ to ________</b></li>
+<!-- ═════════════ S4 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">4</span><h2>Lakeside Gym: someone on vacation</h2></div>
+<p class="goal">You're checking that <b>nobody gets work on a vacation day</b>, and their work picks up after it.</p>
+
+<h3><span class="pill p-do">Do</span></h3>
+<ol class="steps">
+<li><b>First, book Daniel's vacation.</b> <span class="ui">Settings</span> → <span class="ui">Time off</span> → <span class="ui">Team time off</span> → choose <b>Daniel</b> → <span class="ui">Add for Daniel</span>. Type: <b>PTO / vacation</b>. Start: <b>next Monday</b>. End: <b>next Friday</b>. Save.</li>
 </ol>
-<h3>Inputs</h3>
+<div class="write" style="margin:0 0 3mm"><div>Daniel's vacation: from ____ to ____</div></div>
+<div class="fields">
+<div>Title</div><div><span class="type">S4 Lakeside Gym</span></div>
+<div>Client</div><div><span class="type">Lakeside Gym</span></div>
+</div>
 <table>
-<tr><th>Field</th><th>Value</th></tr>
-<tr><td>Title / Client</td><td>S4 Lakeside Gym / Lakeside Gym</td></tr>
-<tr><td>Line items</td><td>Homepage: IT L1, 12 h · Class schedule: IT L1, 10 h · Membership page: IT L1, 6 h · QA pass 4: QA Tester L1, 4 h</td></tr>
-<tr><td>Who does the work</td><td>Best-fit</td></tr>
+<tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
+<tr><td>Homepage</td><td>IT · Level 1</td><td>12</td></tr>
+<tr><td>Class schedule</td><td>IT · Level 1</td><td>10</td></tr>
+<tr><td>Membership page</td><td>IT · Level 1</td><td>6</td></tr>
+<tr><td>QA pass 4</td><td>QA Tester · Level 1</td><td>4</td></tr>
 </table>
-<h3>Expected</h3>
+<ol class="steps" start="2" style="counter-reset:s 1">
+<li>Create the estimate and add the four lines.</li>
+<li><span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. Write down the launch date.</li>
+<li>Switch to <span class="ui">Fastest</span>. Write down the launch date again.</li>
+<li>Pick whichever you prefer. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+</ol>
+
+<h3><span class="pill p-see">Check</span></h3>
 <ul class="checks">
-<li>All IT tasks go to Daniel (★5), queued behind his 17 h from S1. Without the leave they'd run Day 3 → Day 6. With it, any day in his leave week is skipped.</li>
-<li><b>None</b> of Daniel's tasks start or end on his leave days. A task that runs into the leave stops before it and continues the Monday after.</li>
-<li>The Calendar (Team view) shows Daniel's leave, and no task bar of his on those days.</li>
-<li>Now switch the card to <b>Fastest</b>: the work spreads to Arvin, Ronel and Daniel, all finishing by about Day 3, and the launch date comes earlier. Pick the one you want before approving.</li>
-<li>Delete Daniel's leave (Settings → Time off → Team time off), reopen the Adjust tab: his tasks pull back by a week. Add it again before you Start project.</li>
+<li>With Best-fit, all IT work goes to Daniel, behind his scenario 1 work.</li>
+<li><b>None</b> of Daniel's tasks are dated inside his vacation week. A task that reaches it stops, and carries on the Monday after.</li>
+<li>With Fastest, the work is shared out and the launch date is earlier.</li>
+<li><span class="ui">Calendar</span> → <span class="ui">Team</span>: Daniel's vacation shows, with no task of his on those days.</li>
 </ul>
-<table class="record"><tr><th>Launch (Best-fit)</th><th>Launch (Fastest)</th><th>Pass / Fail · Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>Launch with Best-fit</div><div>Launch with Fastest</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
-<!-- ───────────── S5 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">05</span><h2>Harbor Realty: guided estimate across Thanksgiving</h2></div>
-<p><span class="tag">Guided</span><span class="tag">Holiday</span> Tests a questionnaire estimate: phases in order, every discipline routed by its work key, and nothing on Thanksgiving.</p>
-<h3>Inputs</h3>
-<table>
-<tr><th>Where</th><th>Value</th></tr>
-<tr><td>New estimate</td><td>S5 Harbor Realty / Harbor Realty / WordPress</td></tr>
-<tr><td>Scope &amp; risk → <b>Start guided scoping</b></td><td>Section 2 Scope &amp; Structure: Total Pages <b>6</b>, Unique Templates <b>2</b>, everything else No</td></tr>
-<tr><td>Switch off (untick "Include this section")</td><td>4 Content, 5 Technical, 6 SEO, 8 Post-launch</td></tr>
-<tr><td>Section 7 Timeline</td><td>Project Start Date <b>2026-11-23</b> (Mon), client review turnaround <b>0</b></td></tr>
-<tr><td>Then</td><td><b>Generate line items</b> → Adjust → <b>Best-fit</b></td></tr>
-</table>
-<p class="muted">If Thanksgiving 2026 has already passed when you test, use Presidents' Day instead: start 2027-02-08, and check Mon 2027-02-15.</p>
-<h3>Expected</h3>
+<!-- ═════════════ S5 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">5</span><h2>Harbor Realty: Thanksgiving</h2></div>
+<p class="goal">You're checking that a <b>questionnaire estimate</b> runs in the right order and <b>skips Thanksgiving</b>.</p>
+
+<div class="card note small">This one uses the questionnaire instead of typing lines. If Thanksgiving 2026 has already passed, use start date <b>2027-02-08</b> and check <b>Mon 2027-02-15</b> (Presidents' Day) instead.</div>
+
+<h3><span class="pill p-do">Do</span></h3>
+<ol class="steps">
+<li><span class="ui">New estimate</span>: title <span class="type">S5 Harbor Realty</span>, client <span class="type">Harbor Realty</span>.</li>
+<li>Click the <span class="ui">Scope &amp; risk</span> tab → <span class="ui">Start guided scoping</span>.</li>
+<li>Section <b>2 Scope &amp; Structure</b>: Total Pages <span class="type">6</span>, Unique Templates <span class="type">2</span>. Answer <b>No</b> to everything else.</li>
+<li>Sections <b>4, 5, 6 and 8</b>: untick <b>Include this section in the estimate</b> on each.</li>
+<li>Section <b>7 Timeline</b>: Project Start Date <span class="type">2026-11-23</span>, review turnaround <span class="type">0</span>.</li>
+<li>Click <span class="ui">Generate line items</span>, then <span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>.</li>
+<li>Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+</ol>
+
+<h3><span class="pill p-see">Check</span></h3>
 <ul class="checks">
-<li>Timeline tab: the Gantt names <b>Thanksgiving</b>. No phase starts or ends on <b>Thu 2026-11-26</b>. Fri 11-27 is a normal working day (it isn't a federal holiday).</li>
-<li>See who does what: Discovery tasks → <b>Francis Jan</b> (Project Manager key); Design → <b>Martin</b> (Creative, only 4 h/day, so it's slow); Development and Launch → IT key holders; QA → Francis Jan.</li>
-<li>Every phase starts on or after 2026-11-23. Development starts after Design.</li>
-<li>No task of anyone's starts or ends on 11-26.</li>
-<li>Approve, Start project, Confirm. The project page has one sprint per phase, with no Content or SEO sprint.</li>
+<li><span class="ui">Timeline</span> tab: the chart mentions <b>Thanksgiving</b>, and nothing starts or ends on <b>Thu Nov 26</b>. (Fri Nov 27 is a normal working day.)</li>
+<li>The right people: planning → <b>Francis Jan</b>, design → <b>Martin</b> (slow: 4 h a day), building → IT people, testing → <b>Francis Jan</b>.</li>
+<li>Design comes before building; nothing starts before Nov 23.</li>
+<li>The new project has no <b>Content</b> or <b>SEO</b> sprint (you switched those off).</li>
 </ul>
-<table class="record"><tr><th>Launch date</th><th>Pass / Fail</th><th>Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>Launch date</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
-<!-- ───────────── S6 ───────────── -->
-<section class="scenario">
-<div class="head"><span class="n">06</span><h2>Pine &amp; Co: start date on Christmas Day</h2></div>
-<p><span class="tag">Guided</span><span class="tag">Holiday</span> Tests the 2026-10-27 fix: a start date that falls on a day off rolls forward to the next working day.</p>
-<h3>Inputs</h3>
-<table>
-<tr><th>Where</th><th>Value</th></tr>
-<tr><td>New estimate</td><td>S6 Pine &amp; Co / Pine &amp; Co / WordPress</td></tr>
-<tr><td>Guided scoping</td><td>Same as S5 (6 pages, 2 templates, sections 4/5/6/8 off)</td></tr>
-<tr><td>Section 7</td><td>Project Start Date <b>2026-12-25</b> (Friday, Christmas Day)</td></tr>
-<tr><td>Then</td><td>Generate line items → Adjust → Fastest</td></tr>
-</table>
-<h3>Expected</h3>
+<!-- ═════════════ S6 ═════════════ -->
+<section class="page">
+<div class="head"><span class="num">6</span><h2>Pine &amp; Co: starting on Christmas Day</h2></div>
+<p class="goal">You're checking that a start date <b>on a day off moves to the next working day</b>.</p>
+
+<h3><span class="pill p-do">Do</span></h3>
+<ol class="steps">
+<li><span class="ui">New estimate</span>: title <span class="type">S6 Pine &amp; Co</span>, client <span class="type">Pine &amp; Co</span>.</li>
+<li><span class="ui">Scope &amp; risk</span> → <span class="ui">Start guided scoping</span>. Answer it <b>the same as scenario 5</b> (6 pages, 2 templates, sections 4, 5, 6, 8 off).</li>
+<li>Section <b>7</b>: Project Start Date <span class="type">2026-12-25</span> (Christmas, a Friday).</li>
+<li><span class="ui">Generate line items</span> → <span class="ui">Adjust</span> → <span class="ui">Fastest</span>.</li>
+<li>Open the <span class="ui">Timeline</span> tab and look at the first bar.</li>
+<li>Try two more start dates in section 7: <span class="type">2026-12-26</span> (Saturday), then <span class="type">2026-12-28</span>. Then set it back to <span class="type">2026-12-25</span>.</li>
+<li>Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+</ol>
+
+<h3><span class="pill p-see">Check</span></h3>
 <ul class="checks">
-<li>Timeline tab: the first phase starts <b>Mon 2026-12-28</b>, not Dec 25.</li>
-<li>Change the start date to <b>2026-12-26</b> (Saturday): still Dec 28. Change it to <b>2026-12-28</b>: identical plan. Set it back to 12-25.</li>
-<li>Nothing starts or ends on <b>Fri 2027-01-01</b> (New Year's Day).</li>
-<li>Start project → Review schedule: no task dated Dec 25, 26, 27 or Jan 1.</li>
-<li>Confirm. Workload and Calendar show the new work from Dec 28.</li>
+<li>The first bar starts <b>Mon Dec 28</b>, not Dec 25.</li>
+<li>Dec 26 and Dec 28 give the <b>same</b> plan as Dec 25.</li>
+<li>Nothing starts or ends on <b>Fri Jan 1</b> (New Year's Day).</li>
+<li>In Review schedule, no task is dated Dec 25, 26, 27 or Jan 1.</li>
 </ul>
-<table class="record"><tr><th>First phase starts</th><th>Launch date</th><th>Pass / Fail · Notes</th></tr><tr><td></td><td></td><td></td></tr></table>
-<p class="muted">Continue with Part 2 (Clean start, scenarios 7–12) in the same browser. Don't clear site data in between.</p>
+
+<h3><span class="pill p-write">Write down</span></h3>
+<div class="write"><div>First bar starts</div><div>Launch date</div></div>
+<div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
+
+<div class="card ok" style="margin-top:8mm">
+<p style="margin:0"><b>Part 1 done.</b> You should have six projects. Carry on with <b>Part 2</b> in the same browser. Don't clear anything in between: scenarios 7–12 build on this work.</p>
+</div>
 </section>
 
 </body>
