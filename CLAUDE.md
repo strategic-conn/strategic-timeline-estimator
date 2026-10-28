@@ -1983,7 +1983,7 @@ URL Configuration — not in the repo):
    invites to real staff silently never arrived. Settings → Authentication →
    Emails → SMTP: host `smtp.resend.com`, port `465`, user `resend`, password =
    a Resend API key, sender on a verified subdomain
-   (`no-reply@mail.strategicconnection.net`); then raise **Authentication →
+   (`no-reply@mail.strategicsuite.net`, DNS on Vercel, region us-east-1, click tracking OFF — it rewrites the one-time links); then raise **Authentication →
    Rate Limits → emails**. Not Microsoft 365 SMTP: Supabase needs
    username/password SMTP auth, which Microsoft is retiring. Until it is live,
    the setup-link key button (no email) is the way in.
