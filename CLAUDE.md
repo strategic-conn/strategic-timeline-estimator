@@ -1970,6 +1970,9 @@ calls `inviteUserByEmail` → the email link → **`/auth/confirm`** (a page wit
 **Supabase dashboard settings this depends on** (Authentication → Emails /
 URL Configuration — not in the repo):
 
+ - **Full branded bodies** (subject line in each file's header comment) live in
+   `supabase/email-templates/invite.html` + `reset-password.html` — paste them
+   into the dashboard; edit the FILE first so the repo stays the source of truth.
  - **Invite user** template link:
    `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/accept-invite`
  - **Reset password** template link:

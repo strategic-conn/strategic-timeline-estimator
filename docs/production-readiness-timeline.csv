@@ -1,0 +1,25 @@
+ID,Phase,Task,Description,Source,Est. Hours,Start,End,Depends On,Assignee,Status,Notes
+1,1. Finish setup,Fix Vercel anon key + redeploy,"Replace NEXT_PUBLIC_SUPABASE_ANON_KEY with the new publishable key, remove the unused PUBLISHABLE_KEY var, redeploy, confirm admin sign-in",Suggested,1,2026-11-02,2026-11-02,,,Not started,Blocks everything else
+2,1. Finish setup,Verify Supabase Auth settings,"SMTP (Resend), email rate limit, Invite + Reset password templates, Site URL + Redirect URLs on the new project",Suggested,2,2026-11-02,2026-11-02,1,,Not started,
+3,1. Finish setup,Reconnect Zoho on the new domain,"Add ZOHO_REDIRECT_URI in Vercel + the same URL in the Zoho API Console, redeploy, Settings > Workspace > Connect Zoho CRM",Suggested,2,2026-11-02,2026-11-02,1,,Not started,Tokens lived in the old DB
+4,1. Finish setup,Workspace configuration,"Check hourly rates, holiday settings and the PBS default client against the old app; copy over anything that was changed",Suggested,2,2026-11-03,2026-11-03,1,,Not started,
+5,1. Finish setup,Security + automated checks,"Run npm run e2e:seed-user, node scripts/security-probe.mjs (all PASS) and the e2e suite against the new DB",Suggested,4,2026-11-03,2026-11-03,1,,Not started,
+6,1. Finish setup,Database backups,"New org is on the FREE plan, which has no backups. Upgrade to Pro (daily backups) or schedule a manual pg_dump before real users add data",Suggested,2,2026-11-03,2026-11-03,,,Not started,Decision needed from supervisor (cost)
+7,1. Finish setup,Email deliverability test,"Send a real invite + password reset to a company inbox (Outlook / SafeLinks) and a gmail inbox; confirm links work and mail is not in spam",Suggested,2,2026-11-04,2026-11-04,2,,Not started,
+8,2. Use case testing,Write test plan,"Use the Timeline Test Scenarios guides (1-6, 7-12) + add role scenarios: admin, manager, member, viewer",Your list,4,2026-11-04,2026-11-04,5,,Not started,
+9,2. Use case testing,Use cases test - Estimator + Zoho + PBS,"Guided + catalog estimates, Send to Zoho, stage board, won deal > Start project > PO (use a test PBS client only - POs cannot be deleted)",Your list,10,2026-11-05,2026-11-06,8,,Not started,Never send real client data to Zoho in tests
+10,2. Use case testing,Use cases test - Projects + tasks,"Sprints, Kanban/list/table, assign/accept/decline, comments, time logging, Sync schedule, risk buffer",Your list,8,2026-11-05,2026-11-06,8,,Not started,
+11,2. Use case testing,Use cases test - Team + scheduling,"Invite flow, roles + page access, PTO request/approve, calendar, workload, dashboard, reports, tours",Your list,8,2026-11-06,2026-11-09,8,,Not started,
+12,2. Use case testing,Mobile + browser check,"375px phone, iPad, desktop; Chrome, Edge, Safari",Suggested,4,2026-11-09,2026-11-09,8,,Not started,
+13,2. Use case testing,Bug triage,"Log every issue in one list with severity (blocker / major / minor) and decide what must be fixed before launch",Suggested,3,2026-11-10,2026-11-10,9;10;11;12,,Not started,
+14,3. Fix,Fixing bugs found - blockers + majors,Fix everything marked blocker or major in triage,Your list,24,2026-11-12,2026-11-17,13,,Not started,Nov 11 is Veterans Day (holiday)
+15,3. Fix,Fixing bugs found - minors,Fix minor issues if time allows; park the rest for after launch,Your list,8,2026-11-17,2026-11-18,13,,Not started,
+16,4. Retest,Retesting after fixes,Re-run every failed scenario plus a quick pass over the main flows to catch regressions,Your list,10,2026-11-18,2026-11-19,14;15,,Not started,
+17,4. Retest,Re-run automated checks,Security probe + e2e suite on the final build,Suggested,3,2026-11-19,2026-11-19,16,,Not started,
+18,4. Retest,Go / no-go review,Walk the supervisor through results; sign off on launch,Suggested,2,2026-11-20,2026-11-20,16;17,,Not started,
+19,5. Launch prep,Cleaning DB after tests,"Delete test projects, estimates, tasks, time entries, notifications and test users; remove the gmail admin from allowed_emails; keep hourly rates + holidays",Your list,4,2026-11-20,2026-11-20,18,,Not started,Back up first; also remove test Zoho deals / PBS POs by hand
+20,5. Launch prep,Domain cutover,"Redirect app.strategicsuite.net to estimator.strategicsuite.net, remove the old URL from Supabase Redirect URLs",Suggested,1,2026-11-23,2026-11-23,18,,Not started,
+21,5. Launch prep,Short user guide + feedback channel,"One-page how-to for testers (sign in, where the ? tours are) + where to report issues (form, Teams channel or email)",Suggested,4,2026-11-23,2026-11-23,18,,Not started,
+22,6. Launch,Inviting Users,"Invite testers from Team page with the right role + page access; confirm each one can sign in, send setup links to anyone stuck",Your list,4,2026-11-24,2026-11-24,19;20;21,,Not started,
+23,6. Launch,First-week support,"Watch Vercel logs + Supabase logs, answer questions, fix urgent issues",Suggested,8,2026-11-24,2026-11-25,22,,Not started,Thanksgiving Nov 26-27
+24,6. Launch,Retire old Supabase project,Pause the old personal project once the new one has run cleanly for 1-2 weeks,Suggested,1,2026-12-07,2026-12-07,22,,Not started,After the timeline - optional

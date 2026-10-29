@@ -1,0 +1,123 @@
+<!--
+  Supabase → Authentication → Emails → Templates → "Invite user"
+  Subject: You're invited to Strategic Estimator
+  Paste everything below this comment into the Message body.
+  The link MUST stay on /auth/confirm (scanner-safe; see CLAUDE.md "Invites & password setup").
+-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>You're invited to Strategic Estimator</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f4f8;-webkit-text-size-adjust:100%;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">Your team set up an account for you. Choose a password to get started.&#8199;&#847;&#8199;&#847;&#8199;&#847;&#8199;&#847;</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f4f8;">
+  <tr>
+    <td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px;">
+
+        <!-- Brand -->
+        <tr>
+          <td style="padding:0 4px 20px 4px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                <td width="32" height="32" align="center" valign="middle" style="width:32px;height:32px;background-color:#4f39f6;border-radius:8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;color:#ffffff;line-height:32px;">S</td>
+                <td style="padding-left:10px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#18181b;letter-spacing:-0.01em;">Strategic Estimator</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Card -->
+        <tr>
+          <td style="background-color:#ffffff;border:1px solid #e4e4ec;border-radius:14px;overflow:hidden;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr><td height="4" style="height:4px;line-height:4px;font-size:0;background-color:#4f39f6;background-image:linear-gradient(90deg,#4f39f6,#7c6cff);">&nbsp;</td></tr>
+              <tr>
+                <td style="padding:36px 36px 8px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                  <p style="margin:0 0 6px 0;font-size:12px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#4f39f6;">You're invited</p>
+                  <h1 style="margin:0 0 14px 0;font-size:24px;line-height:1.3;font-weight:700;color:#18181b;letter-spacing:-0.02em;">Join your team on Strategic Estimator</h1>
+                  <p style="margin:0 0 8px 0;font-size:15px;line-height:1.6;color:#3f3f46;">Hi{{ if .Data.name }} {{ .Data.name }}{{ end }},</p>
+                  <p style="margin:0 0 26px 0;font-size:15px;line-height:1.6;color:#3f3f46;">Your team has set up an account for you. It's where we scope and quote client work, plan projects on a timeline, and keep track of who's working on what.</p>
+
+                  <!-- Button -->
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                    <tr>
+                      <td align="center" bgcolor="#4f39f6" style="border-radius:10px;background-color:#4f39f6;">
+                        <a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/accept-invite" target="_blank" style="display:inline-block;padding:14px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;border-radius:10px;">Accept invitation &rarr;</a>
+                      </td>
+                    </tr>
+                  </table>
+                  <p style="margin:12px 0 0 0;font-size:13px;line-height:1.5;color:#71717a;">You'll sign in as <strong style="color:#3f3f46;">{{ .Email }}</strong></p>
+                </td>
+              </tr>
+
+              <!-- What happens next -->
+              <tr>
+                <td style="padding:28px 36px 8px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f7f7fb;border-radius:10px;">
+                    <tr><td style="padding:18px 20px 6px 20px;font-size:13px;font-weight:600;color:#18181b;">What happens next</td></tr>
+                    <tr>
+                      <td style="padding:6px 20px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td width="22" valign="top" style="width:22px;padding-top:0;"><div style="width:22px;height:22px;background-color:#e8e5ff;border-radius:11px;font-size:12px;font-weight:700;color:#4f39f6;line-height:22px;text-align:center;">1</div></td>
+                            <td style="padding-left:12px;font-size:14px;line-height:1.57;color:#3f3f46;">Click <strong>Continue</strong> on the page that opens</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 20px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td width="22" valign="top" style="width:22px;padding-top:0;"><div style="width:22px;height:22px;background-color:#e8e5ff;border-radius:11px;font-size:12px;font-weight:700;color:#4f39f6;line-height:22px;text-align:center;">2</div></td>
+                            <td style="padding-left:12px;font-size:14px;line-height:1.57;color:#3f3f46;">Choose a password for your account</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding:6px 20px 18px 20px;">
+                        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                          <tr>
+                            <td width="22" valign="top" style="width:22px;padding-top:0;"><div style="width:22px;height:22px;background-color:#e8e5ff;border-radius:11px;font-size:12px;font-weight:700;color:#4f39f6;line-height:22px;text-align:center;">3</div></td>
+                            <td style="padding-left:12px;font-size:14px;line-height:1.57;color:#3f3f46;">Look around &mdash; the <strong>?</strong> button at the top of each page gives you a quick tour</td>
+                          </tr>
+                        </table>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+
+              <!-- Fallback link -->
+              <tr>
+                <td style="padding:20px 36px 32px 36px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+                  <p style="margin:0 0 6px 0;font-size:13px;line-height:1.5;color:#71717a;">Button not working? Copy this link into your browser:</p>
+                  <p style="margin:0;font-size:12px;line-height:1.5;word-break:break-all;"><a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=invite&next=/accept-invite" target="_blank" style="color:#4f39f6;text-decoration:underline;">{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=invite&amp;next=/accept-invite</a></p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td style="padding:24px 8px 0 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;line-height:1.6;color:#a1a1aa;text-align:center;">
+            This invite link works once. If it has expired, ask your admin to send a new one.<br>
+            Weren't expecting this? You can safely ignore this email.<br><br>
+            <span style="color:#71717a;">Strategic Connection &middot; Strategic Estimator</span>
+          </td>
+        </tr>
+
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>

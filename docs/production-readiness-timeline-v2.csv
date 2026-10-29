@@ -1,0 +1,31 @@
+ID,Phase,Task,Description,Est. Hours,Start,End,Depends On,Assignee,Status,Notes
+1,1. Finish setup,Verify Supabase Auth settings,"SMTP (Resend), email rate limit, Invite + Reset password templates, Site URL + Redirect URLs on the new project",2,11/2/2026,11/2/2026,,,Not started,
+2,1. Finish setup,Reconnect Zoho on the new domain,"Add ZOHO_REDIRECT_URI in Vercel + the same URL in the Zoho API Console, redeploy, Settings > Workspace > Connect Zoho CRM",2,11/2/2026,11/2/2026,,,Not started,Tokens lived in the old DB
+3,1. Finish setup,Workspace configuration,"Check hourly rates, holiday settings and the PBS default client against the old app; copy over anything that was changed",2,11/3/2026,11/3/2026,,,Not started,
+4,1. Finish setup,Security + automated checks,"Run npm run e2e:seed-user, node scripts/security-probe.mjs (all PASS) and the e2e suite against the new DB",4,11/3/2026,11/3/2026,,,Not started,
+5,1. Finish setup,Email deliverability test,Send a real invite + password reset to a company inbox (Outlook / SafeLinks) and a gmail inbox; confirm links work and mail is not in spam,2,11/4/2026,11/4/2026,1,,Not started,
+6,2. Use cases test,Get the practice app ready,"Setup stages A-D from the Timeline Test Scenarios guide (Part 1): team, work keys, skills, hours",2,11/4/2026,11/4/2026,,,Not started,Guide: docs/Timeline-Test-Scenarios-Clean-1-6.pdf
+7,2. Use cases test,S1 - Northwind Bakery: a small website,Most skilled person gets the work and starts on Day 1,2,11/4/2026,11/4/2026,6,,Not started,
+8,2. Use cases test,S2 - Northwind phase 2: sharing work out,Fastest spreads work across free people,2,11/4/2026,11/4/2026,7,,Not started,
+9,2. Use cases test,S3 - Cedar Clinic: senior-only work,Level 2 work never goes to a Level 1 person,1.5,11/5/2026,11/5/2026,6,,Not started,
+10,2. Use cases test,S4 - Lakeside Gym: someone on vacation,Approved leave moves the work and dates,2,11/5/2026,11/5/2026,6,,Not started,
+11,2. Use cases test,S5 - Harbor Realty: Thanksgiving,Timeline skips the Thanksgiving holiday,1.5,11/5/2026,11/5/2026,6,,Not started,
+12,2. Use cases test,S6 - Pine & Co: starting on Christmas Day,Start date on a holiday rolls to the next working day,1.5,11/5/2026,11/5/2026,6,,Not started,
+13,2. Use cases test,S7 - Maple Dental: a holiday turned into a working day,Holiday marked Working is scheduled like a normal day,1.5,11/5/2026,11/5/2026,6,,Not started,Guide: docs/Timeline-Test-Scenarios-Clean-7-12.pdf
+14,2. Use cases test,S8 - Summit Outfitters: the senior people are swamped,Booked work pushes new tasks back / to free people,2,11/6/2026,11/6/2026,6,,Not started,
+15,2. Use cases test,S9 - Orbit Agency: work nobody is qualified for,Unqualified work is left unassigned with a clear reason,1.5,11/6/2026,11/6/2026,6,,Not started,
+16,2. Use cases test,S10 - Willow School: left-out sections and extra safety time,Skipped sections drop out and the risk buffer moves dates only,2,11/6/2026,11/6/2026,6,,Not started,
+17,2. Use cases test,S11 - Granite Law: the promised launch date slips,Start project warns when the quoted launch date is now later,2,11/6/2026,11/6/2026,6,,Not started,
+18,2. Use cases test,S12 - Northwind returns: adding work to a live project,Sync schedule adds the new work to the existing project,2.5,11/9/2026,11/9/2026,8,,Not started,
+19,2. Use cases test,Final check + results sheet,Run the guide's final check and fill in the Pass/Fail results sheet,2,11/9/2026,11/9/2026,7;8;9;10;11;12;13;14;15;16;17;18,,Not started,
+20,2. Use cases test,Live smoke test on the new DB,"The scenarios run in the practice app; also check the real setup once: sign in, invite, estimate > Send to Zoho, won deal > Start project > PO (test PBS client only)",4,11/9/2026,11/10/2026,4,,Not started,POs cannot be deleted - use a test client
+21,2. Use cases test,Mobile + browser check,"375px phone, iPad, desktop; Chrome, Edge, Safari",3,11/10/2026,11/10/2026,6,,Not started,
+22,2. Use cases test,Bug triage,Log every failed check in one list with severity (blocker / major / minor) and decide what must be fixed before launch,2,11/10/2026,11/10/2026,19;20;21,,Not started,
+23,3. Fix,Fixing bugs found - blockers + majors,Fix everything marked blocker or major in triage,24,11/12/2026,11/17/2026,22,,Not started,Nov 11 is Veterans Day (holiday)
+24,3. Fix,Fixing bugs found - minors,Fix minor issues if time allows; park the rest for after launch,8,11/17/2026,11/18/2026,22,,Not started,
+25,4. Retest,Retesting after fixes,Re-run every failed scenario from the results sheet plus a quick pass over S1 + S12 to catch regressions,10,11/18/2026,11/19/2026,23;24,,Not started,
+26,4. Retest,Re-run automated checks,Security probe + e2e suite on the final build,3,11/19/2026,11/19/2026,25,,Not started,
+27,5. Launch prep,Cleaning DB after tests,"Delete test projects, estimates, tasks, time entries, notifications and test users; remove the gmail admin from allowed_emails; keep hourly rates + holidays",4,11/20/2026,11/20/2026,25;26,,Not started,Back up first; also remove test Zoho deals / PBS POs by hand
+28,5. Launch prep,Short user guide + feedback channel,"One-page how-to for testers (sign in, where the ? tours are) + where to report issues (form, Teams channel or email)",4,11/23/2026,11/23/2026,25;26,,Not started,
+29,6. Launch,Inviting Users,"Invite testers from Team page with the right role + page access; confirm each one can sign in, send setup links to anyone stuck",4,11/24/2026,11/24/2026,25;26;27;28,,Not started,
+30,6. Launch,First-week support,"Watch Vercel logs + Supabase logs, answer questions, fix urgent issues",8,11/24/2026,11/25/2026,29,,Not started,Thanksgiving Nov 26-27
