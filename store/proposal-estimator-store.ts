@@ -453,6 +453,7 @@ async function seedAssignments(
       `${actor} assigned you ${n} task${n === 1 ? "" : "s"} on "${projectName}" — accept or decline`,
       `/projects/${projectId}`,
       projectId,
+      { email: true },
     );
   }
 }

@@ -73,17 +73,23 @@ function bodyPreview(body: string, max = 60): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s;
 }
 
-/** Send a targeted notification about a task (actor auto-excluded by the store). */
+/**
+ * Send a targeted notification about a task (actor auto-excluded by the store).
+ * `email` = also email it: assignments, declines and mentions only — a move or
+ * a comment on every task would bury the ones that matter.
+ */
 function notifyAboutTask(
   recipientIds: string[],
   text: string,
   task: Task,
+  email = false,
 ): void {
   notifyUsers(
     recipientIds,
     withProjectScope(text, task.project_id),
     taskBoardRelativePath(task),
     task.project_id,
+    { email },
   );
 }
 
@@ -683,6 +689,7 @@ export const useTasksDataStore = create<TasksState>()(
             task.assignee_ids,
             `${actorName()} assigned you a new task: "${titleOf(task)}"`,
             task,
+            true,
           );
           return;
         }
@@ -794,6 +801,7 @@ export const useTasksDataStore = create<TasksState>()(
             saved.assignee_ids,
             `${actorName()} assigned you a new task: "${titleOf(saved)}"`,
             saved,
+            true,
           );
         })();
       },
@@ -858,6 +866,7 @@ export const useTasksDataStore = create<TasksState>()(
               addedIds,
               `${actorName()} assigned you a task: "${titleOf(t)}" — accept or decline`,
               t,
+              true,
             );
           }
         }
@@ -1292,10 +1301,18 @@ export const useTasksDataStore = create<TasksState>()(
         const task = get().tasks.find((t) => t.id === taskId);
         if (task) {
           notifyReplyAdded(task, mentionIds.length);
+          // Mentioned people get their own (emailed) line; everyone else
+          // following the task gets the usual bell-only reply notice.
           notifyAboutTask(
-            commentRecipients(task, mentionIds),
+            commentRecipients(task).filter((id) => !mentionIds.includes(id)),
             `${actorName()} replied on "${titleOf(task)}": "${bodyPreview(body)}"`,
             task,
+          );
+          notifyAboutTask(
+            mentionIds,
+            `${actorName()} mentioned you on "${titleOf(task)}": "${bodyPreview(body)}"`,
+            task,
+            true,
           );
         }
 
@@ -1453,6 +1470,7 @@ export const useTasksDataStore = create<TasksState>()(
             added,
             `${actorName()} assigned you a task: "${titleOf(task)}" — accept or decline`,
             task,
+            true,
           );
         }
 
@@ -1524,6 +1542,7 @@ export const useTasksDataStore = create<TasksState>()(
           assigner ? [assigner] : [],
           `${actorName()} ${verb} "${titleOf(task0)}"${note ? `: "${bodyPreview(note)}"` : ""}`,
           task0,
+          response !== "accepted",
         );
 
         if (!isSupabaseConfigured) return;
@@ -1589,6 +1608,7 @@ export const useTasksDataStore = create<TasksState>()(
             [toProfileId],
             `${actorName()} passed you a task: "${titleOf(task)}" — accept or decline`,
             task,
+            true,
           );
           notifyAboutTask(
             assigner ? [assigner] : [],

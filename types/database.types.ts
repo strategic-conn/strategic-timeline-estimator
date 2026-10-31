@@ -278,6 +278,7 @@ export type Database = {
         Row: {
           actor_id: string | null
           created_at: string
+          emailed_at: string | null
           href: string | null
           id: string
           project_id: string | null
@@ -288,6 +289,7 @@ export type Database = {
         Insert: {
           actor_id?: string | null
           created_at?: string
+          emailed_at?: string | null
           href?: string | null
           id?: string
           project_id?: string | null
@@ -298,6 +300,7 @@ export type Database = {
         Update: {
           actor_id?: string | null
           created_at?: string
+          emailed_at?: string | null
           href?: string | null
           id?: string
           project_id?: string | null
@@ -360,6 +363,7 @@ export type Database = {
           created_at: string
           deactivated_at: string | null
           email: string
+          email_notifications: boolean
           id: string
           name: string
           page_access: string[] | null
@@ -373,6 +377,7 @@ export type Database = {
           created_at?: string
           deactivated_at?: string | null
           email: string
+          email_notifications?: boolean
           id: string
           name: string
           page_access?: string[] | null
@@ -386,6 +391,7 @@ export type Database = {
           created_at?: string
           deactivated_at?: string | null
           email?: string
+          email_notifications?: boolean
           id?: string
           name?: string
           page_access?: string[] | null

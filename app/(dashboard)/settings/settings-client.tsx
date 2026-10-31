@@ -7,6 +7,7 @@ import { HolidaysCard } from "@/components/features/settings/HolidaysCard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
+import { EmailNotificationsCard } from "@/components/features/settings/EmailNotificationsCard";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
 import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
 import { ZohoConnectionCard } from "@/components/features/settings/ZohoConnectionCard";
@@ -104,6 +105,7 @@ export function SettingsClient() {
           {...tourAnchor("settings.profile")}
         >
           <ProfileForm />
+          <EmailNotificationsCard />
           <TourSettingsCard />
         </TabsContent>
 

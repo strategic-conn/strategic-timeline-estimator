@@ -554,6 +554,21 @@ Run `node scripts/security-probe.mjs` — P22–P26 must PASS.
 - [ ] **Deleting keeps hours.** Log time on a task, delete the task → the person's "Logged this wk" (Workload) and Reports' per-person hours are unchanged. The delete dialog says the hours stay.
 - [ ] **Bell times are real.** New notifications and activity show "just now", never a past date.
 
+## ✉️ Notification emails (0051)
+
+Automated: `npx playwright test e2e/notification-email.spec.ts --project=desktop` (live Supabase + Resend, recipient is Resend's `delivered@resend.dev` sink). Needs `RESEND_API_KEY` on the server (Vercel) — without it the route is a silent no-op.
+
+- [ ] **Assignment emails.** As a manager, assign a task to a teammate → they get the bell AND an email "<you> assigned you a task: …" from `no-reply@mail.strategicsuite.net`; **Open in Strategic Estimator** lands on that task's board.
+- [ ] **Not for noise.** Moving that task to In progress, commenting on it, or reacting → bell only, **no** email.
+- [ ] **Mentions.** Reply to a comment @mentioning someone → they get "mentioned you on …" by email; other task followers get the bell-only "replied on …".
+- [ ] **Decline / pass.** The assignee declines → the assigner gets an email. Accepting sends no email. Passing a task emails the new person.
+- [ ] **Time off.** A member requests time off → every admin/manager gets an email; approving/declining it emails the requester.
+- [ ] **Start project.** Auto-assigned people get ONE email each ("assigned you N tasks on …"), not one per task.
+- [ ] **Won deal.** A deal reaching Closed Won emails admins + managers (except the person who moved it).
+- [ ] **Never to yourself.** Assigning a task to yourself sends no email.
+- [ ] **Opt-out.** Settings → Profile → **Email notifications** → untick "Email me about these" → assign them a task → bell yes, email no. Tick it back.
+- [ ] **Deliverability.** Check one in Outlook (company inbox) and one in Gmail — not in spam, button works on a phone.
+
 ## 🧭 Product decisions (2026-10-12)
 
 Apply `0047` first (`npm run db:push`).

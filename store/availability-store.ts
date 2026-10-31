@@ -264,6 +264,8 @@ export const useAvailabilityStore = create<AvailabilityState>()(
             approverIds(),
             `${useAuthStore.getState().user.name?.trim() || "Someone"} requested time off (${rangeLabel(entry.start_date, entry.end_date)})`,
             "/settings",
+            null,
+            { email: true },
           );
         }
 
@@ -387,7 +389,7 @@ export const useAvailabilityStore = create<AvailabilityState>()(
           `Your time off (${rangeLabel(prev.start_date, prev.end_date)}) was ${verb}${note?.trim() ? `: "${note.trim()}"` : ""}`,
           "/settings",
           null,
-          { includeSelf: true },
+          { includeSelf: true, email: true },
         );
         pushWorkspaceActivity(
           `${verb} a time-off request (${rangeLabel(prev.start_date, prev.end_date)})`,

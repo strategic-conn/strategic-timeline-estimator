@@ -5,8 +5,8 @@
     "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
-    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (45 migrations).",
-    "dateMapped": "2026-10-28",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (51 migrations).",
+    "dateMapped": "2026-10-31",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -444,7 +444,7 @@
       "layer": "state",
       "label": "notifications-store",
       "sub": "timeline-notifications",
-      "purpose": "Personal bell. notify() inserts one row per recipient (excludes actor); realtime filtered to recipient.",
+      "purpose": "Personal bell. notify() inserts one row per recipient (excludes actor); realtime filtered to recipient. opts.email (assignments, passed tasks, declines, @mentions, time-off request/decision, seeded assignments, won deals) then POSTs the new row ids to /api/notifications/email after the insert succeeds.",
       "files": [
         "store/notifications-store.ts:122"
       ],
@@ -941,8 +941,8 @@
       "id": "t-notifications",
       "layer": "data",
       "label": "notifications",
-      "sub": "0001 +0025",
-      "purpose": "recipient_id, actor_id, project_id, text, href, read. Realtime + RLS recipient-only.",
+      "sub": "0001 +0025 +0051",
+      "purpose": "recipient_id, actor_id, project_id, text, href, read. Realtime + RLS recipient-only. emailed_at (0051): the server's once-only email claim; stamp_feed_row nulls it on insert.",
       "files": [
         "supabase/migrations/0025_notifications_actor.sql"
       ]
@@ -1053,11 +1053,13 @@
     {
       "id": "x-email",
       "layer": "external",
-      "label": "Supabase email (GoTrue SMTP)",
-      "sub": "built-in",
-      "purpose": "Sends invite + recovery emails. No Postmark/Resend/SendGrid/SMTP lib anywhere — built-in only.",
+      "label": "Email (Supabase SMTP + Resend API)",
+      "sub": "Resend · mail.strategicsuite.net",
+      "purpose": "Invite + recovery emails go through Supabase Auth's custom SMTP (Resend). Notification emails go straight to the Resend HTTP API from api-notifemail (RESEND_API_KEY, optional EMAIL_FROM) — no mail library. Sender no-reply@mail.strategicsuite.net; click tracking OFF (it rewrites one-time links).",
       "files": [
-        ".env.example:9"
+        ".env.example",
+        "app/api/notifications/email/route.ts",
+        "supabase/email-templates/invite.html"
       ]
     },
     {
@@ -1543,6 +1545,22 @@
         "components/features/settings/HolidaysCard.tsx",
         "components/layouts/holiday-refresh.tsx",
         "lib/calendar/us-holidays.ts"
+      ]
+    },
+    {
+      "id": "api-notifemail",
+      "layer": "bridge",
+      "label": "/api/notifications/email",
+      "sub": "POST · any signed-in user",
+      "purpose": "Emails copies of bell rows the CALLER created. Claims rows with a compare-and-set update (actor_id = caller, emailed_at is null, created < 15 min ago) using the service key, then sends one Resend email per recipient. Skips the actor, deactivated people and profiles.email_notifications = false (Settings → Profile). No RESEND_API_KEY = no-op. Template: lib/email/notification-email.ts (escapes all text).",
+      "files": [
+        "app/api/notifications/email/route.ts",
+        "lib/email/notification-email.ts",
+        "components/features/settings/EmailNotificationsCard.tsx"
+      ],
+      "tables": [
+        "notifications",
+        "profiles"
       ]
     }
   ],
@@ -2786,6 +2804,26 @@
       "from": "st-tours",
       "to": "t-tour-progress",
       "label": "select / upsert / delete"
+    },
+    {
+      "from": "st-notifications",
+      "to": "api-notifemail",
+      "label": "email: ids"
+    },
+    {
+      "from": "api-notifemail",
+      "to": "t-notifications",
+      "label": "claim emailed_at"
+    },
+    {
+      "from": "api-notifemail",
+      "to": "x-email",
+      "label": "Resend API"
+    },
+    {
+      "from": "s-settings",
+      "to": "t-profiles",
+      "label": "email_notifications"
     }
   ],
   "flows": [
@@ -4435,7 +4473,8 @@
     "Every project gets a PO: Start project raises it (PO first, then the project) and is offered only when canStartProject (a PO already, or a won deal). Standalone Create PO exists only for projects started before 2026-10-21.",
     "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
     "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count.",
-    "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships."
+    "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships.",
+    "Notification emails are a COPY of a bell row, never a separate message: only rows the caller created in the last 15 min, claimed once via notifications.emailed_at (0051), only for the important events (opts.email), and never to the actor, a deactivated person or someone with profiles.email_notifications off."
   ],
   "permissionsMatrix": {
     "columns": [

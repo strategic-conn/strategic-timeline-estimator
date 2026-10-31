@@ -53,13 +53,17 @@ interface NotificationsState {
    * just did. Pass `includeSelf` for events the app DETECTED rather than the
    * user performing: whoever's browser happened to notice is not the person who
    * caused it, and excluding them means a lone admin gets no notification at all.
+   *
+   * `email` also sends each recipient an email copy (live mode only) — for the
+   * important events: assignments, mentions, time off, won deals. The server
+   * route decides whether it may (see /api/notifications/email).
    */
   notify: (
     recipientIds: string[],
     text: string,
     href?: string,
     project_id?: string | null,
-    opts?: { includeSelf?: boolean },
+    opts?: { includeSelf?: boolean; email?: boolean },
   ) => void;
   markRead: (id: string) => void;
   markAllRead: () => void;
@@ -191,11 +195,21 @@ export const useNotificationsStore = create<NotificationsState>()(
           const { error } = await supabase
             .from("notifications")
             .insert(rows.map((r) => ({ ...r, project_id: project_id ?? null })));
+          let saved = !error;
           if (error) {
             // project_id may reference a just-deleted project (FK) — retry unscoped.
-            await supabase
+            const retry = await supabase
               .from("notifications")
               .insert(rows.map((r) => ({ ...r, project_id: null })));
+            saved = !retry.error;
+          }
+          if (saved && opts?.email) {
+            // Fire-and-forget: the bell row already exists; the email is a copy.
+            void fetch("/api/notifications/email", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ids: rows.map((r) => r.id) }),
+            }).catch(() => {});
           }
         })();
       },

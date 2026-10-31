@@ -81,7 +81,7 @@ export function announceWin(
       : `"${label}" was moved to ${nextStage} — ready to raise the PO and start the project`,
     href,
     null,
-    { includeSelf: observed },
+    { includeSelf: observed, email: true },
   );
 }
 

@@ -198,7 +198,8 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0048 logged_hours derived from time_entries, entries survive a
                         #   task delete, feed rows server-stamped + length-capped ·
                         #   0049 holiday_settings (which federal holidays are WORKED; admin-set) ·
-                        #   0050 proposals.schedule_plan (Best-fit/Fastest/Manual + quoted launch)
+                        #   0050 proposals.schedule_plan (Best-fit/Fastest/Manual + quoted launch) ·
+                        #   0051 notification emails (notifications.emailed_at + profiles.email_notifications)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -294,7 +295,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `time_entries` (hour attribution)     | select / insert                   | `tasks-store` (logged via accepted assignees) | Wired |
 | `task_comments` (+ `comment_reactions`)| select / insert / update / delete + Realtime | `tasks-store` / `TaskCommentSection` | Wired |
 | `profiles` (team directory + `work_keys`) | select / update (keys: admin only) + Realtime | `team-store` / `useTeamMembers` (`setWorkKeys`) | Wired |
-| `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` | Wired |
+| `notifications`                       | select / insert / update / delete + Realtime | `notifications-store` (+ email copy via `/api/notifications/email`) | Wired |
 | `activity` (workspace log)            | select / insert + Realtime | `activity-store`            | Wired |
 | `availability_entries` (+ `status` approval) | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
@@ -1923,6 +1924,42 @@ started from the header's **?** (`HelpMenu`). Engine: **driver.js**, wrapped in
    `quoteUpdatePayload`). *Show me* sets a pending tour + navigates; TourHost
    starts it at that step once the page renders. Settings accepts `?tab=` for
    this (the Zoho item lands on Workspace).
+
+## Notification emails (0051)
+
+The important bell notifications are also **emailed**: task assigned / passed
+to you, an assignee **declining** your task, an **@mention** in a reply, a
+time-off **request** (to approvers) and **decision** (to the requester), Start
+project's seeded assignments (one email per person), and a **won deal** (admins
++ managers). Everything else (moves, comments, reactions, deletes) stays
+bell-only — the point is that these few get read.
+
+ - **Opt-in per call:** `notifyUsers(…, { email: true })` / `notifyAboutTask(…, true)`.
+   After the bell rows insert, `notifications-store` POSTs their ids to
+   **`/api/notifications/email`**. Adding an email for a new event = that flag,
+   plus a line in the Settings card's description and the email footer.
+ - **The route decides whether it MAY send**: only rows whose `actor_id` is the
+   signed-in caller, created in the last 15 minutes, with `emailed_at` null —
+   claimed with one compare-and-set update (service key), so a retry or two tabs
+   send once. A member can therefore email exactly whom they could already put a
+   bell row in front of, once. `stamp_feed_row` nulls `emailed_at` on insert.
+ - **Never emailed:** the actor themselves, deactivated people, and anyone with
+   **`profiles.email_notifications = false`** (Settings → Profile → *Email
+   notifications*, self-editable, not admin-guarded — it is their own inbox).
+ - **Sent with the Resend HTTP API** (no mail library): `RESEND_API_KEY`
+   (server-only; **no key = silent no-op**, so local dev without it and the demo
+   never send), optional `EMAIL_FROM` (default
+   `Strategic Estimator <no-reply@mail.strategicsuite.net>`). Links use the
+   request's origin + the row's `href` (internal-only by CHECK, 0041).
+ - **Template:** `lib/email/notification-email.ts` — same brand shell as the
+   invite/reset templates; every interpolation is HTML-escaped (titles, comment
+   previews and leave notes are user-written).
+ - **No retry queue, on purpose:** the bell row is the record; a failed send is
+   logged (`[notifications/email]` in Vercel logs) and stays claimed.
+ - `e2e/notification-email.spec.ts` (desktop only): sends once, refuses a
+   second call / someone else's row / a stale row, honours the opt-out, can't be
+   pre-stamped, 401 signed out, escaping, and the Settings toggle. Recipient is
+   Resend's `delivered@resend.dev` sink — never a real inbox.
 
 ## Invites & password setup
 
