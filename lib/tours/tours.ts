@@ -58,7 +58,8 @@ export type TourId =
   | "settings-profile"
   | "settings-skills"
   | "settings-timeoff"
-  | "settings-workspace";
+  | "settings-workspace"
+  | "settings-security";
 
 export type TourDef = {
   id: TourId;
@@ -826,6 +827,21 @@ export const TOURS: TourDef[] = [
         title: "Zoho CRM",
         body: "Connect once for the whole workspace. Nobody else ever sees a Zoho sign-in screen.",
         when: (c) => c.role === "admin",
+      },
+    ],
+  },
+
+  {
+    id: "settings-security",
+    version: 1,
+    title: "Settings: Security",
+    match: exact("/settings"),
+    scope: "settings.security",
+    steps: [
+      {
+        target: "settings.2fa",
+        title: "Two-factor sign-in",
+        body: "Add a 6-digit code from an authenticator app on your phone to every sign-in, so a leaked password alone can't get into your account. Takes about a minute.",
       },
     ],
   },

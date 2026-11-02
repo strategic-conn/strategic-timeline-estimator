@@ -126,6 +126,8 @@ if (botId) {
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify([
       { profile_id: botId, tour_id: "intro-hint", version: 1, status: "dismissed" },
+      // Never show the bot the two-factor reminder (TWO_FACTOR_REMIND_OFF_VERSION).
+      { profile_id: botId, tour_id: "2fa-reminder", version: 1000, status: "dismissed" },
     ]),
   });
 }

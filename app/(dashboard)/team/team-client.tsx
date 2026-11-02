@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   ShieldAlert,
+  ShieldOff,
   SlidersHorizontal,
   Star,
   Trash2,
@@ -118,6 +119,24 @@ export function TeamClientPage() {
   const [deactivateTarget, setDeactivateTarget] =
     React.useState<TeamMember | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<TeamMember | null>(null);
+  const [mfaResetTarget, setMfaResetTarget] = React.useState<TeamMember | null>(null);
+
+  // Lost phone: remove their authenticator app so the password works alone again.
+  const resetMfa = async (m: TeamMember) => {
+    const res = await fetch(`/api/users/${m.id}/mfa`, { method: "DELETE" });
+    const payload = (await res.json().catch(() => ({}))) as { error?: string; removed?: number };
+    if (!res.ok) {
+      toast.error("Couldn't reset two-factor", {
+        description: payload.error ?? `Request failed (${res.status}).`,
+      });
+    } else if (!payload.removed) {
+      toast.info(`${m.name} hasn't set up two-factor sign-in`);
+    } else {
+      toast.success(`Two-factor reset for ${m.name}`, {
+        description: "They can sign in with their password and set up a new app in Settings → Security.",
+      });
+    }
+  };
   const [statusSaving, setStatusSaving] = React.useState(false);
 
   const active = members.filter((m) => !m.deactivated_at);
@@ -343,6 +362,19 @@ export function TeamClientPage() {
                       {canEditRoles && !isSelf && isSupabaseConfigured ? (
                         <SetupLinkButton email={m.email} name={m.name} />
                       ) : null}
+                      {canEditRoles && !isSelf && isSupabaseConfigured ? (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="text-muted-foreground hover:text-foreground"
+                          title="Reset two-factor sign-in"
+                          aria-label={`Reset two-factor for ${m.name}`}
+                          onClick={() => setMfaResetTarget(m)}
+                        >
+                          <ShieldOff className="size-4" />
+                        </Button>
+                      ) : null}
                       {canEditRoles && !isSelf ? (
                         <Button
                           type="button"
@@ -554,6 +586,39 @@ export function TeamClientPage() {
               }}
             >
               Deactivate
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={mfaResetTarget != null}
+        onOpenChange={(v) => {
+          if (!v) setMfaResetTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Reset two-factor for {mfaResetTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Their authenticator app is removed, so their password alone signs
+              them in until they set up a new one. Only do this once you&apos;ve
+              confirmed it&apos;s really them asking — for example, they lost
+              their phone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const m = mfaResetTarget;
+                setMfaResetTarget(null);
+                if (m) void resetMfa(m);
+              }}
+            >
+              Reset two-factor
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -9,6 +9,7 @@ import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header"
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
 import { EmailNotificationsCard } from "@/components/features/settings/EmailNotificationsCard";
 import { ProfileForm } from "@/components/features/settings/ProfileForm";
+import { TwoFactorCard } from "@/components/features/settings/TwoFactorCard";
 import { TimeOffSettingsSection } from "@/components/features/settings/TimeOffSettingsSection";
 import { ZohoConnectionCard } from "@/components/features/settings/ZohoConnectionCard";
 import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
@@ -28,20 +29,16 @@ import { tourAnchor } from "@/lib/tours/ids";
 import { TourSettingsCard } from "@/components/features/tour/TourSettingsCard";
 import { AppHelp } from "@/components/common/app-help";
 
-export function SettingsClient() {
+export function SettingsClient({ requestedTab }: { requestedTab?: string }) {
   const selfId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const isAdmin = useAuthStore((s) => s.user.role) === "admin";
   const { canViewHourlyRates } = usePermissions();
-  // Land on Workspace after the Zoho OAuth redirect (?zoho=...), or on the
-  // tab a link asks for (?tab=workspace — the checklist's "Connect Zoho").
+  // The tab a link asks for (?tab=security — the checklist's "Show me";
+  // ?zoho=… → workspace, see page.tsx).
   const [defaultTab] = React.useState(() => {
-    if (typeof window === "undefined") return "profile";
-    const params = new URLSearchParams(window.location.search);
-    if (params.has("zoho")) return "workspace";
-    const tab = params.get("tab");
     const tabs = ["profile", "skills", "timeoff", "security"];
     if (canViewHourlyRates) tabs.push("workspace");
-    return tab && tabs.includes(tab) ? tab : "profile";
+    return requestedTab && tabs.includes(requestedTab) ? requestedTab : "profile";
   });
 
   return (
@@ -148,13 +145,18 @@ export function SettingsClient() {
           </TabsContent>
         ) : null}
 
-        <TabsContent value="security" className="mt-0 outline-none">
+        <TabsContent
+          value="security"
+          className="mt-0 space-y-6 outline-none"
+          {...tourAnchor("settings.security")}
+        >
+          <TwoFactorCard />
           <Card>
             <CardHeader>
-              <CardTitle>Security</CardTitle>
+              <CardTitle>Password</CardTitle>
               <CardDescription>
-                Password change, active sessions, and two-factor authentication
-                will be configured here with the backend.
+                Changing your password from here isn&apos;t wired yet — use
+                &quot;Forgot password?&quot; on the sign-in page.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

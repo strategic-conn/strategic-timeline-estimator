@@ -10,6 +10,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { mfaRequired, mfaState, type MfaState } from "@/lib/auth/mfa-gate";
+
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -60,9 +62,19 @@ export async function updateSession(request: NextRequest) {
   // failure here (Supabase unreachable, a mangled cookie) must not take down
   // every route: treat it as "not signed in" and let the guards below decide.
   let signedIn = false;
+  let mfa: MfaState = "ok";
   try {
     const { data } = await supabase.auth.getUser();
     signedIn = Boolean(data.user);
+    if (data.user) {
+      // Factors from getUser (verified by the auth server), aal from the JWT.
+      const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      mfa = mfaState({
+        hasVerifiedFactor: (data.user.factors ?? []).some((f) => f.status === "verified"),
+        aal: aal?.currentLevel,
+        required: mfaRequired(),
+      });
+    }
   } catch (e) {
     console.error("[auth] getUser failed in proxy", e);
   }
@@ -98,6 +110,22 @@ export async function updateSession(request: NextRequest) {
 
   // Already signed in → keep them out of the auth screens.
   if (signedIn && isAuthRoute) return redirectTo("/dashboard");
+
+  // Two-factor owed (lib/auth/mfa-gate.ts) → /mfa for pages, 401 for APIs.
+  // `/api/auth/*` stays open: signIn() marks password_set before the code step.
+  // The database refuses the aal1 session anyway (0052); this is the UX half.
+  if (signedIn && mfa !== "ok" && !isPublic && path !== "/mfa" && !path.startsWith("/api/auth/")) {
+    if (path.startsWith("/api/")) {
+      const denied = NextResponse.json(
+        { error: "Two-factor verification required.", mfa },
+        { status: 401 },
+      );
+      for (const cookie of response.cookies.getAll()) denied.cookies.set(cookie);
+      return denied;
+    }
+    return redirectTo("/mfa");
+  }
+  if (signedIn && mfa === "ok" && path === "/mfa") return redirectTo("/dashboard");
 
   return response;
 }

@@ -569,6 +569,20 @@ Automated: `npx playwright test e2e/notification-email.spec.ts --project=desktop
 - [ ] **Opt-out.** Settings → Profile → **Email notifications** → untick "Email me about these" → assign them a task → bell yes, email no. Tick it back.
 - [ ] **Deliverability.** Check one in Outlook (company inbox) and one in Gmail — not in spam, button works on a phone.
 
+## 🔐 Two-factor sign-in (0052)
+
+Automated: `npx playwright test e2e/mfa.spec.ts --project=desktop`.
+
+- [ ] **Set up.** Settings → Security → **Set up authenticator app** → scan the QR with Google/Microsoft Authenticator → enter the code → "On since …".
+- [ ] **Sign in.** Sign out, sign in with the password → you land on **Two-factor sign-in**; a wrong code says so; the right one opens the dashboard.
+- [ ] **No way around it.** At the code screen, typing `/dashboard` or `/projects` in the address bar returns you to the code screen.
+- [ ] **Turn off.** Settings → Security → Turn off → confirm → next sign-in asks for the password only.
+- [ ] **Lost phone.** As admin: Team → the member's shield button → Reset two-factor → confirm → they sign in with the password alone. The button is not on your own row.
+- [ ] **Others unaffected.** A teammate without two-factor signs in exactly as before.
+- [ ] **Reminder.** As someone without two-factor, open the dashboard → a "Protect your account" toast appears once (Set up opens Settings → Security). Reload → it does not come back (next one in 14 days). Never shown on Settings or once two-factor is on.
+- [ ] **Checklist.** Getting started lists "Turn on two-factor sign-in"; Show me opens Settings → **Security** (not Profile) with a tour step on the card; it ticks itself once two-factor is on.
+- [ ] **(Only when deciding to require it)** set `MFA_REQUIRED=true` in Vercel + redeploy → a user without an app is walked through set-up before anything else.
+
 ## 🧭 Product decisions (2026-10-12)
 
 Apply `0047` first (`npm run db:push`).

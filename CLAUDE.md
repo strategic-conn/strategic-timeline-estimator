@@ -199,7 +199,8 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   task delete, feed rows server-stamped + length-capped ·
                         #   0049 holiday_settings (which federal holidays are WORKED; admin-set) ·
                         #   0050 proposals.schedule_plan (Best-fit/Fastest/Manual + quoted launch) ·
-                        #   0051 notification emails (notifications.emailed_at + profiles.email_notifications)
+                        #   0051 notification emails (notifications.emailed_at + profiles.email_notifications) ·
+                        #   0052 two-factor: restrictive `mfa_aal2` policy on every public table
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -1961,6 +1962,59 @@ bell-only — the point is that these few get read.
    pre-stamped, 401 signed out, escaping, and the Settings toggle. Recipient is
    Resend's `delivered@resend.dev` sink — never a real inbox.
 
+## Two-factor sign-in (0052)
+
+**Authenticator app (TOTP) via Supabase Auth MFA — optional today, one env
+var from required** (decided 2026-11-02). Email codes were rejected: Supabase
+has no email MFA factor, and a code to the same inbox a password reset goes to
+is not a second factor.
+
+ - **Set up / turn off:** Settings → Security → `TwoFactorCard` (QR + manual
+   key + one code, `TotpEnroll`, shared with `/mfa`). Turning off needs the
+   aal2 session they already have.
+ - **Sign-in:** password as before; the proxy (`lib/supabase/middleware.ts`)
+   asks `mfaState` (`lib/auth/mfa-gate.ts`, pure) and sends a session that
+   still owes a code to **`/mfa`** (pages) or a **401 `{mfa}`** (API).
+   `/api/auth/*` stays open (signIn marks `password_set` before the code step).
+   Factors come from `getUser()` (server-verified), the level from the JWT.
+ - **The database is the real gate.** `0052` adds a RESTRICTIVE policy
+   `mfa_aal2` on every RLS table: `public.mfa_satisfied()` = the JWT's `aal`
+   is `aal2`, or the person has no verified factor. So a stolen password used
+   straight against PostgREST reads nothing once 2FA is on; people without a
+   factor are untouched. **A new table needs the same policy** — rerun 0052's
+   `do $$ … $$` block (idempotent) in the migration that creates it.
+ - **Requiring it:** set **`MFA_REQUIRED=true`** (server env, Vercel) and
+   redeploy. Everyone without a factor is sent to `/mfa` to set one up before
+   any page or API works. That half is proxy-only (PostgREST still answers a
+   factor-less aal1 token, as it does today). ⚠️ It also locks out the e2e bot
+   (`e2e:seed-user` has no factor) — the suite would need the bot enrolled
+   (secret in `.env.local`, codes computed as `e2e/mfa.spec.ts` does) first.
+ - **Lost phone:** Team → the member's **shield** button → confirm →
+   `DELETE /api/users/[id]/mfa` (admin-only, not for yourself) removes their
+   factors; they sign in with the password and set up a new app.
+ - `e2e/mfa.spec.ts`: the rule table; enrol over the API; old and fresh aal1
+   tokens read 0 rows while aal2 reads; browser sign-in → `/mfa` (API 401) →
+   code → dashboard; admin reset from Team; set-up + turn-off from Settings.
+   Two throwaway `[E2E]` accounts, TOTP computed from the secret (RFC 6238).
+ - **Nudging people to turn it on** (while optional):
+   - **Reminder toast** "Protect your account" (`TwoFactorReminder`, mounted in
+     the dashboard layout) for anyone without a factor, **at most once every 14
+     days** (`shouldRemindTwoFactor`, `TWO_FACTOR_REMIND_DAYS`). The SHOWING is
+     recorded (`tour_progress` `2fa-reminder`), so Set up / Not now / ignoring
+     it all wait 14 days, on every device. Never on Settings, during a tour, or
+     before a newcomer has answered the welcome dialog. A `2fa-reminder` entry at
+     version **1000** means never — only the e2e bot has it (seeded), so a toast
+     can't appear mid-suite.
+   - **Getting started item** "Turn on two-factor sign-in" (live mode only),
+     ticked from `useHasTwoFactor()`; **Show me** → Settings → Security → the
+     `settings-security` tour on the card.
+   - Settings now takes its tab from the page's **`searchParams`** (page.tsx →
+     `requestedTab`), not `window.location`: on a client-side "Show me" the
+     address bar had not updated yet, so every `?tab=` link (the Zoho item's too)
+     opened Profile and broke hydration.
+ - Enrolment names are unique per attempt — a remount (or dev StrictMode's
+   double effect) runs two enrolments, and Supabase refuses a duplicate name.
+
 ## Invites & password setup
 
 **The flow:** Team → invite (admin) → `/api/invites` allow-lists the email and
@@ -2081,6 +2135,8 @@ a one-time token) and walks the way out end to end, including both refusals.
 | Change hourly rates | Yes | No | No | No |
 | Set work keys (who can be given a task) | Yes | No | No | No |
 | Mark holidays as working days | Yes | No (reads) | No | No |
+| Own two-factor sign-in (set up / turn off) | Yes | Yes | Yes | Yes |
+| Reset someone's two-factor (lost phone) | Yes | No | No | No |
 | Own onboarding tour progress | Yes | Yes | Yes | Yes |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.

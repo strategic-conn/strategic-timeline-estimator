@@ -382,10 +382,20 @@ test.describe("newcomer", () => {
       await p.waitForTimeout(2000);
       await expect(dialog).toHaveCount(0);
 
-      // ── Checklist: welcome done, photo to do, the rest N/A for a new member. ──
+      // ── Two-factor reminder: shown once the welcome is answered (before or
+      //    after that reload), recorded, then quiet for 14 days. ──
+      await expect
+        .poll(async () => (await progress()).some((r) => r.tour_id === "2fa-reminder"), { timeout: 20_000 })
+        .toBe(true);
+      await p.reload();
+      await waitForApp(p);
+      await p.waitForTimeout(4000);
+      await expect(p.getByText("Protect your account")).toHaveCount(0);
+
+      // ── Checklist: welcome done, 2FA + photo to do, the rest N/A for a new member. ──
       const card = p.locator('[data-tour="dashboard.checklist"]');
       await expect(card).toBeVisible({ timeout: 15_000 });
-      await expect(card).toContainText("1 of 2 done");
+      await expect(card).toContainText("1 of 3 done");
       await expect(card.getByText("Nothing assigned to you yet")).toBeVisible();
       expect(await hasHorizontalScroll(p)).toBe(false);
 
@@ -393,6 +403,15 @@ test.describe("newcomer", () => {
       await card.getByRole("button", { name: "Show me how: Add a profile photo" }).click();
       await p.waitForURL(/\/settings/);
       await expect(p.locator(".driver-popover-title")).toHaveText("Your photo", { timeout: 15_000 });
+      await p.keyboard.press("Escape");
+      await expect(p.locator(".driver-popover")).toHaveCount(0);
+
+      // ── Show me → Settings → Security, on the two-factor card. ──
+      await p.goto("/dashboard");
+      await waitForApp(p);
+      await card.getByRole("button", { name: "Show me how: Turn on two-factor sign-in" }).click();
+      await p.waitForURL(/tab=security/);
+      await expect(p.locator(".driver-popover-title")).toHaveText("Two-factor sign-in", { timeout: 15_000 });
       await p.keyboard.press("Escape");
       await expect(p.locator(".driver-popover")).toHaveCount(0);
 
@@ -434,6 +453,8 @@ test.describe("checklist rules (pure)", () => {
     teamSize: 1,
     zohoConnected: false,
     zohoAvailable: true,
+    hasTwoFactor: false,
+    twoFactorAvailable: true,
     ...over,
   });
   const state = (i: ChecklistInput, id: string) => checklistItems(i).find((x) => x.id === id)?.state;
@@ -475,10 +496,11 @@ test.describe("checklist rules (pure)", () => {
   });
 
   test("items follow role and page access", () => {
-    expect(ids(base())).toEqual(["welcome", "photo", "respond", "log-hours"]);
-    expect(ids(base({ role: "viewer" }))).toEqual(["welcome", "photo", "timeline"]);
+    expect(ids(base())).toEqual(["welcome", "two-factor", "photo", "respond", "log-hours"]);
+    expect(ids(base({ role: "viewer" }))).toEqual(["welcome", "two-factor", "photo", "timeline"]);
     expect(ids(base({ role: "manager", canCreateProject: true, canExportProposals: true }))).toEqual([
       "welcome",
+      "two-factor",
       "photo",
       "weekly-hours",
       "project",
@@ -486,12 +508,17 @@ test.describe("checklist rules (pure)", () => {
     ]);
     expect(
       ids(base({ role: "admin", canCreateProject: true, canExportProposals: true, canManageTeam: true })),
-    ).toEqual(["welcome", "photo", "weekly-hours", "project", "estimate", "invite", "zoho"]);
+    ).toEqual(["welcome", "two-factor", "photo", "weekly-hours", "project", "estimate", "invite", "zoho"]);
+    // Two-factor: ticks itself, and demo mode (no auth server) has no item.
+    expect(state(base({ hasTwoFactor: true }), "two-factor")).toBe("done");
+    expect(state(base({ hasTwoFactor: null }), "two-factor")).toBe("unknown");
+    expect(ids(base({ twoFactorAvailable: false }))).not.toContain("two-factor");
     // Demo mode has no Zoho to connect.
     expect(ids(base({ role: "admin", canManageTeam: true, zohoAvailable: false }))).not.toContain("zoho");
     // No page access, no item that sends you there.
     expect(ids(base({ role: "viewer", accessible: new Set(["/dashboard", "/settings"]) }))).toEqual([
       "welcome",
+      "two-factor",
       "photo",
     ]);
   });
@@ -499,7 +526,9 @@ test.describe("checklist rules (pure)", () => {
   test("N/A never blocks 100%, unknown holds it back", () => {
     const at = new Date().toISOString();
     const done = base({ hasAvatar: true, progress: { welcome: { version: 1, status: "completed", at } } });
-    expect(checklistProgress(checklistItems(done))).toEqual({ done: 2, total: 2, ready: true, complete: true });
+    const doneAll = { ...done, hasTwoFactor: true };
+    expect(checklistProgress(checklistItems(doneAll))).toEqual({ done: 3, total: 3, ready: true, complete: true });
+    expect(checklistProgress(checklistItems(done)).complete).toBe(false); // 2FA still to do
     const loading = base({ assignments: null });
     expect(checklistProgress(checklistItems(loading)).ready).toBe(false);
     expect(checklistProgress(checklistItems(loading)).complete).toBe(false);

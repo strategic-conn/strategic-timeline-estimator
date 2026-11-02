@@ -50,6 +50,10 @@ export type ChecklistInput = {
   zohoConnected: boolean | null;
   /** False in demo mode: there is no server to connect Zoho through. */
   zohoAvailable: boolean;
+  /** Has a verified authenticator app (live mode only). */
+  hasTwoFactor: boolean | null;
+  /** False in demo mode: no auth server to enrol with. */
+  twoFactorAvailable: boolean;
 };
 
 const bool = (v: boolean | null): ChecklistState =>
@@ -66,6 +70,15 @@ export function checklistItems(i: ChecklistInput): ChecklistItem[] {
     state: i.progress == null ? "unknown" : bool(i.progress.welcome?.status === "completed"),
     action: { href: "", tourId: "welcome" },
   });
+
+  if (i.twoFactorAvailable) {
+    items.push({
+      id: "two-factor",
+      label: "Turn on two-factor sign-in",
+      state: bool(i.hasTwoFactor),
+      action: { href: "/settings?tab=security", tourId: "settings-security", target: "settings.2fa" },
+    });
+  }
 
   items.push({
     id: "photo",

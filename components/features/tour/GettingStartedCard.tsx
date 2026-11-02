@@ -13,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useHasTwoFactor } from "@/hooks/useHasTwoFactor";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
 import { usePermissions } from "@/hooks/usePermissions";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
@@ -135,6 +136,7 @@ export function GettingStartedCard({ className }: { className?: string }) {
   const loggedAny = useLoggedAny(userId, mine.acceptedLogged);
   const zohoAvailable = isSupabaseConfigured && user.role === "admin";
   const zohoConnected = useZohoConnected(zohoAvailable);
+  const hasTwoFactor = useHasTwoFactor();
 
   const entry = progress?.checklist;
   const visible = checklistOpen || (isNew === true && progress != null && !entry);
@@ -160,6 +162,8 @@ export function GettingStartedCard({ className }: { className?: string }) {
         teamSize: teamLoaded ? members.length : null,
         zohoConnected,
         zohoAvailable,
+        hasTwoFactor,
+        twoFactorAvailable: isSupabaseConfigured,
       }),
     [
       user.role,
@@ -181,6 +185,7 @@ export function GettingStartedCard({ className }: { className?: string }) {
       members.length,
       zohoConnected,
       zohoAvailable,
+      hasTwoFactor,
     ],
   );
   const { done, total, ready, complete } = checklistProgress(items);

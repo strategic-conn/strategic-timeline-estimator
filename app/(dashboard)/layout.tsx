@@ -9,6 +9,7 @@ import { DashboardSidebarNav } from "@/components/layouts/dashboard-sidebar-nav"
 import { PageAccessGuard } from "@/components/layouts/page-access-guard";
 import { SidebarUserCard } from "@/components/layouts/sidebar-user-card";
 import { TourHost } from "@/components/features/tour/TourHost";
+import { TwoFactorReminder } from "@/components/features/tour/TwoFactorReminder";
 import { WorkspaceSync } from "@/components/layouts/workspace-sync";
 import { HolidayRefresh } from "@/components/layouts/holiday-refresh";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +36,7 @@ export default function DashboardLayout({
       <WorkspaceSync />
       <PageAccessGuard />
       <TourHost />
+      <TwoFactorReminder />
       <AppAtmosphere variant="app" />
 
       {/* Tablet (md) shows a 64px icon rail; labels appear from lg up. Keeps nav

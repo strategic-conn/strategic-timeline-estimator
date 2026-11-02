@@ -5,8 +5,8 @@
     "subtitle": "Every actor, route, store, Supabase table, trigger, realtime channel and external service — and the flows that connect them. Pick a flow to trace the path; click any node to see its files.",
     "stack": "Next.js 16 (App Router) · React 19 · TypeScript · Zustand 5 (synced-store bridge) · Supabase (Auth · Postgres · RLS · Realtime · Storage) · Zoho CRM (OAuth2, read + 3 allow-listed writes) · PBS billing (create-only) · Tailwind 4 / shadcn",
     "repoRoot": "timeline-estimator-project-management-tool",
-    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (51 migrations).",
-    "dateMapped": "2026-10-31",
+    "mappedFrom": "Static code analysis of app/, store/, hooks/, lib/, components/, supabase/migrations/ (52 migrations).",
+    "dateMapped": "2026-11-02",
     "modeSwitch": "isSupabaseConfigured (lib/supabase/config.ts): NEXT_PUBLIC_SUPABASE_* present -> live Supabase (this map); absent -> Zustand + localStorage demo with DUMMY_* seeds.",
     "redirects": [
       "/tasks -> /projects",
@@ -1562,6 +1562,32 @@
         "notifications",
         "profiles"
       ]
+    },
+    {
+      "id": "s-mfa",
+      "layer": "surfaces",
+      "label": "/mfa",
+      "sub": "(auth)/mfa",
+      "purpose": "Two-factor step: 6-digit code (challengeAndVerify → aal2) or, with MFA_REQUIRED, authenticator set-up. Settings → Security (TwoFactorCard) sets it up / turns it off; Team's shield button resets it via DELETE /api/users/[id]/mfa. While optional, TwoFactorReminder (dashboard layout) toasts people without a factor at most every 14 days (tour_progress '2fa-reminder'; version 1000 = never, the e2e bot), and Getting started has a 'Turn on two-factor sign-in' item.",
+      "files": [
+        "app/(auth)/mfa/page.tsx",
+        "components/features/auth/TotpEnroll.tsx",
+        "components/features/settings/TwoFactorCard.tsx",
+        "app/api/users/[id]/mfa/route.ts",
+        "lib/auth/mfa-gate.ts",
+        "components/features/tour/TwoFactorReminder.tsx",
+        "hooks/useHasTwoFactor.ts"
+      ]
+    },
+    {
+      "id": "au-mfa",
+      "layer": "auth",
+      "label": "mfa_aal2 (restrictive)",
+      "sub": "0052",
+      "purpose": "RESTRICTIVE policy on every public RLS table: public.mfa_satisfied() = JWT aal2, or no verified factor. A password-only session of someone with 2FA reads/writes nothing.",
+      "files": [
+        "supabase/migrations/0052_mfa_aal2.sql"
+      ]
     }
   ],
   "edges": [
@@ -2824,6 +2850,21 @@
       "from": "s-settings",
       "to": "t-profiles",
       "label": "email_notifications"
+    },
+    {
+      "from": "b-middleware",
+      "to": "s-mfa",
+      "label": "owes 2FA → /mfa"
+    },
+    {
+      "from": "s-mfa",
+      "to": "au-gotrue",
+      "label": "challengeAndVerify"
+    },
+    {
+      "from": "au-mfa",
+      "to": "au-rls",
+      "label": "ANDed with every policy"
     }
   ],
   "flows": [
@@ -4474,7 +4515,8 @@
     "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
     "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count.",
     "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships.",
-    "Notification emails are a COPY of a bell row, never a separate message: only rows the caller created in the last 15 min, claimed once via notifications.emailed_at (0051), only for the important events (opts.email), and never to the actor, a deactivated person or someone with profiles.email_notifications off."
+    "Notification emails are a COPY of a bell row, never a separate message: only rows the caller created in the last 15 min, claimed once via notifications.emailed_at (0051), only for the important events (opts.email), and never to the actor, a deactivated person or someone with profiles.email_notifications off.",
+    "Two-factor: once a person has a verified TOTP factor, only an aal2 session may touch any public table (0052 restrictive mfa_aal2 policy); the proxy's /mfa redirect is UX. MFA_REQUIRED=true (proxy-only) forces set-up for everyone. A new RLS table needs the mfa_aal2 policy too."
   ],
   "permissionsMatrix": {
     "columns": [
@@ -4623,6 +4665,16 @@
           "Yes"
         ],
         "rls": "0045: tour_progress self-only (profile_id = auth.uid())"
+      },
+      {
+        "cap": "Reset someone's two-factor",
+        "v": [
+          "Yes",
+          "No",
+          "No",
+          "No"
+        ],
+        "rls": "app/api/users/[id]/mfa (requireAdmin)"
       }
     ]
   }

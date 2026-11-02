@@ -120,6 +120,8 @@ export const TOUR_TARGETS = [
   "settings.workspace",
   "settings.rates",
   "settings.zoho",
+  "settings.security",
+  "settings.2fa",
 ] as const;
 
 export type TourTarget = (typeof TOUR_TARGETS)[number];
