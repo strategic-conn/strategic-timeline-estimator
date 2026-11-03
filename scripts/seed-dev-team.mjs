@@ -16,13 +16,17 @@
 import { readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 
+// Test roster for timeline testing (revised 2026-11-04: Patrick QA, Carl + Sydney Creative).
 const DEVS = [
-  { email: "daniel.dev@example.com", name: "Daniel", hours: 40, skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 3], ["Shopify", 5], ["Next.js", 5], ["React", 5]] },
-  { email: "francis.dev@example.com", name: "Francis Jan", hours: 40, skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 4], ["Shopify", 5], ["Wix", 5]] },
-  { email: "martin.dev@example.com", name: "Martin", hours: 20, skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 5], ["PHP", 5], ["InMotion Hosting", 5], ["Domain Config", 5], ["DNS Config", 5], ["Next.js", 5], ["React", 5]] },
-  { email: "arvin.dev@example.com", name: "Arvin", hours: 40, skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 4], ["Shopify", 4], ["Wix", 5]] },
-  { email: "ronel.dev@example.com", name: "Ronel", hours: 40, skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 4], ["Shopify", 4], ["Wix", 5], ["Quality Assurance", 5]] },
-  { email: "patrick.dev@example.com", name: "Patrick", hours: 40, skills: [["Quality Assurance", 5]] },
+  { email: "daniel.dev@example.com", name: "Daniel", hours: 40, keys: ["IT|Level 2"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 3], ["Shopify", 5], ["Next.js", 5], ["React", 5]] },
+  { email: "francis.dev@example.com", name: "Francis Jan", hours: 40, keys: ["IT|Level 2"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 4], ["Shopify", 5], ["Wix", 5]] },
+  { email: "martin.dev@example.com", name: "Martin", hours: 20, keys: ["IT|Level 2"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 5], ["Custom Plugin WordPress", 5], ["PHP", 5], ["InMotion Hosting", 5], ["Domain Config", 5], ["DNS Config", 5], ["Next.js", 5], ["React", 5]] },
+  { email: "jeff.dev@example.com", name: "Jeff", hours: 40, keys: ["IT|Level 2"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 4], ["PHP", 4], ["Shopify", 3]] },
+  { email: "arvin.dev@example.com", name: "Arvin", hours: 40, keys: ["IT|Level 1"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 4], ["Shopify", 4], ["Wix", 5]] },
+  { email: "ronel.dev@example.com", name: "Ronel", hours: 32, keys: ["IT|Level 1"], skills: [["HTML", 5], ["CSS", 5], ["JavaScript", 5], ["WordPress", 3], ["Shopify", 4], ["Wix", 5]] },
+  { email: "patrick.dev@example.com", name: "Patrick", hours: 40, keys: ["QA Tester|Level 2"], skills: [["Quality Assurance", 5]] },
+  { email: "carl.dev@example.com", name: "Carl", hours: 40, keys: ["Creative|Level 2"], skills: [["Figma", 5], ["UI/UX Design", 5], ["Photoshop", 4], ["Illustrator", 4], ["Branding", 4]] },
+  { email: "sydney.dev@example.com", name: "Sydney", hours: 32, keys: ["Creative|Level 1"], skills: [["Figma", 4], ["UI/UX Design", 3], ["Photoshop", 5], ["Illustrator", 5], ["Branding", 3]] },
 ];
 
 function loadEnv() {
@@ -112,6 +116,15 @@ for (const dev of DEVS) {
     console.log(`  exists   ${dev.name} <${dev.email}>`);
   }
 
+  // On the roster (confirmed), work keys set, and never emailed: example.com
+  // addresses would bounce off the sending domain (notification emails, 0051).
+  const prof = await req(`/rest/v1/profiles?id=eq.${user.id}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ name: dev.name, work_keys: dev.keys, email_notifications: false, confirmed_at: new Date("2026-01-01").toISOString() }),
+  });
+  if (!prof.ok) console.error(`  profile ${dev.name}: ${prof.status} ${JSON.stringify(prof.body)}`);
+
   // Skills: replace wholesale so re-runs stay clean.
   await req(`/rest/v1/member_skills?profile_id=eq.${user.id}`, {
     method: "DELETE",
@@ -134,4 +147,4 @@ for (const dev of DEVS) {
   if (!cap.ok) console.error(`  capacity ${dev.name}: ${cap.status} ${JSON.stringify(cap.body)}`);
 }
 
-console.log(`\nDone — ${created} created, ${refreshed} already existed. Skills + hours set for all ${DEVS.length}.`);
+console.log(`\nDone — ${created} created, ${refreshed} already existed. Keys + skills + hours set for all ${DEVS.length}.`);
