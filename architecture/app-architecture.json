@@ -4516,7 +4516,8 @@
     "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count.",
     "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships.",
     "Notification emails are a COPY of a bell row, never a separate message: only rows the caller created in the last 15 min, claimed once via notifications.emailed_at (0051), only for the important events (opts.email), and never to the actor, a deactivated person or someone with profiles.email_notifications off.",
-    "Two-factor: once a person has a verified TOTP factor, only an aal2 session may touch any public table (0052 restrictive mfa_aal2 policy); the proxy's /mfa redirect is UX. MFA_REQUIRED=true (proxy-only) forces set-up for everyone. A new RLS table needs the mfa_aal2 policy too."
+    "Two-factor: once a person has a verified TOTP factor, only an aal2 session may touch any public table (0052 restrictive mfa_aal2 policy); the proxy's /mfa redirect is UX. MFA_REQUIRED=true (proxy-only) forces set-up for everyone. A new RLS table needs the mfa_aal2 policy too.",
+    "computeTimeline's client-review wait only follows a phase that exists (reviewAfter): the first phase starts on the project start. Guided estimates always have Discovery, so their dates are unaffected; existing project sprints and frozen quoted_finish values never move."
   ],
   "permissionsMatrix": {
     "columns": [

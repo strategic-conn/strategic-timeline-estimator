@@ -418,7 +418,8 @@ interface ClientQuote {
   count helpers. Sections that own a whole phase (**3 Design, 4 Content,
   6 SEO**, `PHASE_SECTION` in the engine) drop that phase from the estimate
   entirely — no Gantt row, no milestone, no sprint on Start project, and with
-  no design phase there's no design review gate before Development. 5 and 8
+  no design phase there's no design review gate before Development (only
+  Discovery's own review remains). 5 and 8
   only remove their extras (integrations, CMS training, retainer); 7 drops the
   start date (→ today) and review turnaround. The PDF's assumptions say "Not in
   this project: …". **1–2 can never be skipped** (`SKIPPABLE_SECTIONS`). Saved
@@ -662,6 +663,13 @@ move dates people had agreed to.
    lose. (Playwright's `reuseExistingServer: true` means a long-running dev
    server serves hot-reloaded code, which made the intermediate states
    confusing to read.)
+ - **The client-review wait follows a phase that exists** (`reviewAfter` in
+   `computeTimeline`, fixed 2026-11-04). It used to apply even with nothing
+   before it, so a catalog quote's first phase began 3 business days out and a
+   build-only quote waited 3 days on a review of nothing. The first phase now
+   starts on the project start. Guided estimates always have a Discovery phase,
+   so their dates did not move (384 combinations compared with the old code).
+   Catalog drafts move earlier; projects and frozen `quoted_finish` values do not.
  - **Applied by scaling every offset**, starts included, in `computeTimeline`.
    Buffering only the END offsets would leave each phase finishing later while
    the next still began on its original day — the plan has to stay continuous.

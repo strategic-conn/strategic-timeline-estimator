@@ -86,6 +86,11 @@
 - [ ] Book PTO Mon–Fri of Thanksgiving week and approve it → the note reads "(40h − 4 days off − 1 holiday)", NOT 5 days off. Capacity must not go below 0.
 - [ ] Start project on an estimate spanning a holiday → no seeded task is due on the holiday.
 
+**Client-review wait follows a real phase**
+- [ ] New catalog estimate with add-ons on → Timeline: **Design starts on the project start** (today, or the next working day), and Development starts after Design plus the review wait.
+- [ ] Turn all add-ons off with IT lines only → **Development starts on the project start**, with no wait before it.
+- [ ] Guided estimate → Discovery starts on the project start and Design still waits for the review turnaround after it.
+
 **Timeline generator respects PTO**
 - [ ] Open an estimate's **Timeline** tab with nobody on leave → note the launch date. It must be unchanged from before this feature.
 - [ ] Approve PTO for **one** person across a week that the timeline spans → reopen the Timeline: the launch date moves later and the header says "**N days later for booked time off**" in amber. "business days" itself must NOT change — it is the same amount of work.

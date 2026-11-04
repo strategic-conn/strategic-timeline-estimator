@@ -87,11 +87,16 @@ export function computeTimeline(
   const contentStart = 0; // concurrent with discovery
   const contentEnd = contentStart + dur("content");
 
-  // No design phase (section switched off) = no design review to wait for.
-  const designStart = dur("design") ? discoveryEnd + buffer : discoveryEnd;
+  // The review buffer follows an approval gate, so it only applies once a phase
+  // has finished for the client to approve. A catalog quote with no Discovery
+  // phase starts its first phase on day one; a build-only quote starts
+  // Development there too, instead of waiting on a review of nothing.
+  const reviewAfter = (end: number) => (end > 0 ? end + buffer : 0);
+
+  const designStart = dur("design") ? reviewAfter(discoveryEnd) : discoveryEnd;
   const designEnd = designStart + dur("design");
 
-  const developmentStart = Math.max(designEnd, contentEnd) + buffer;
+  const developmentStart = reviewAfter(Math.max(designEnd, contentEnd));
   const developmentEnd = developmentStart + dur("development");
 
   const qaStart = developmentEnd; // immediately after dev

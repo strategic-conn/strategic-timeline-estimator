@@ -171,3 +171,32 @@ test("a Creative line lands in Design with the design add-on, not in Development
     ["development", 30],
   ]);
 });
+
+test.describe("the client-review wait follows a phase that exists", () => {
+  const startOf = (q: ClientQuote, id: PhaseId) =>
+    resultFromQuote(q).timeline.phases.find((p) => p.id === id)?.startOffset;
+  const noAddons = {
+    ...DEFAULT_ADDONS,
+    pm_enabled: false,
+    responsive_enabled: false,
+    design_enabled: false,
+    qa_enabled: false,
+  };
+
+  test("a build-only quote starts Development on day one", () => {
+    expect(startOf(quote({ line_items: [line()], addons: noAddons }), "development")).toBe(0);
+  });
+
+  test("the first phase starts on day one, and Development still waits for its review", () => {
+    // Default add-ons draw a Design phase: 4h dev -> <1 day of design, then 3 days' review.
+    const q = quote({ line_items: [line()] });
+    expect(startOf(q, "design")).toBe(0);
+    expect(startOf(q, "development")).toBe(4);
+  });
+
+  test("a Discovery phase still gets its review before Design", () => {
+    const q = quote({ line_items: [line({ responsible: "Project Manager" }), line()] });
+    expect(startOf(q, "discovery")).toBe(0);
+    expect(startOf(q, "design")).toBe(4);
+  });
+});
