@@ -1,6 +1,6 @@
 "use client";
 
-import { differenceInCalendarDays, format, parseISO } from "date-fns";
+import { differenceInCalendarDays, parseISO } from "date-fns";
 import { CalendarClock, Lock } from "lucide-react";
 import * as React from "react";
 
@@ -14,15 +14,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { formatLaunchDay, useQuoteSchedule } from "@/hooks/useQuoteSchedule";
 import { quoteIsFrozen } from "@/lib/sync/estimate-project-sync";
 import { cn } from "@/lib/utils";
 import {
-  previewFinish,
   strategyOf,
   useProposalEstimatorStore,
 } from "@/store/proposal-estimator-store";
-import { useTasksDataStore } from "@/store/tasks-store";
-import { useTeamStore } from "@/store/team-store";
 import type { ClientQuote, ScheduleStrategy } from "@/types/proposal.types";
 
 export const STRATEGY_OPTIONS: [ScheduleStrategy, string, string][] = [
@@ -32,10 +30,7 @@ export const STRATEGY_OPTIONS: [ScheduleStrategy, string, string][] = [
 ];
 
 // Never throws: a date this card can't read is shown as-is, not a crashed page.
-const day = (iso: string) => {
-  const d = parseISO(iso);
-  return Number.isNaN(d.getTime()) ? iso : format(d, "MMM d, yyyy");
-};
+const day = formatLaunchDay;
 
 /**
  * How the timeline is planned — Best-fit / Fastest / Manual — chosen on the
@@ -56,25 +51,11 @@ export function SchedulePlanCard({
   help?: React.ReactNode;
 }) {
   const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
-  const previewConversion = useProposalEstimatorStore((s) => s.previewConversion);
-  // The plan reads the roster and everyone's open work; re-forecast when they load.
-  const members = useTeamStore((s) => s.members);
-  const tasks = useTasksDataStore((s) => s.tasks);
   const strategy = strategyOf(quote);
   const frozen = quoteIsFrozen(quote);
   const [open, setOpen] = React.useState(false);
 
-  const preview = React.useMemo(
-    () =>
-      previewConversion(quote.id, {
-        seedTasks: true,
-        strategy: strategy === "none" ? undefined : strategy,
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- what the forecast reads
-    [quote.id, quote.line_items, quote.discovery, quote.addons, quote.risk_buffer_pct, quote.requirements_unclear, strategy, members, tasks, previewConversion],
-  );
-  const finish = preview ? previewFinish(preview) : null;
-  const quoted = quote.schedule_plan?.quoted_finish ?? null;
+  const { preview, finish, quoted } = useQuoteSchedule(quote);
   const slipDays = quoted && finish ? differenceInCalendarDays(parseISO(finish), parseISO(quoted)) : 0;
   const slip = Number.isNaN(slipDays) ? 0 : slipDays;
 

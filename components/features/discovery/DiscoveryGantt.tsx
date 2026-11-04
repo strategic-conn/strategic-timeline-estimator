@@ -39,13 +39,17 @@ export function DiscoveryGantt({
   result,
   project,
   teamCalendar,
+  plannedLaunch,
 }: {
   result: DiscoveryResult;
   project: DiscoveryProject;
+  /** The estimate's launch date from its people plan (`useQuoteSchedule`). */
+  plannedLaunch?: string | null;
   /** Booked time off already folded into `result`; passed only to explain it. */
   teamCalendar?: TeamCalendar | null;
 }) {
   const { timeline, estimate } = result;
+  const launchDate = plannedLaunch ?? timeline.launchDate;
   // Memoised because `resolveProjectStart` returns a fresh Date every call, and
   // the derivations below take it as a dependency — an unstable identity would
   // re-walk the calendar on every render.
@@ -159,11 +163,17 @@ export function DiscoveryGantt({
                     {timeline.baseBusinessDays})
                   </span>
                 ) : null}{" "}
-                · launches {timeline.launchDate}
+                · launches {launchDate}
                 {shiftReason ? (
                   <span className="text-amber-700 dark:text-amber-400">
                     {" · "}
                     {shift.days} day{shift.days === 1 ? "" : "s"} later — {shiftReason}
+                  </span>
+                ) : null}
+                {launchDate !== timeline.launchDate ? (
+                  <span className="mt-1 block text-xs">
+                    Bars assume one person at a time and include DNS time, so they
+                    can run past the launch date, which comes from the people plan.
                   </span>
                 ) : null}
               </CardDescription>
@@ -445,7 +455,9 @@ export function DiscoveryGantt({
                 </span>
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{m.label}</p>
-                  <p className="text-xs text-muted-foreground">{m.date}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {m.id === "go_live" ? launchDate : m.date}
+                  </p>
                 </div>
               </div>
             );

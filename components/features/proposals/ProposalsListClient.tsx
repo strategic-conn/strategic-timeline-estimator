@@ -124,7 +124,10 @@ export function ProposalsListClient() {
    * add storage for a per-session toggle when the default already matches how
    * it is used.
    */
-  const [view, setView] = React.useState<"list" | "stages">("stages");
+  const [view, setView] = React.useState<"list" | "stages">(
+    // The board reads Zoho's stages, and the demo has no Zoho.
+    isSupabaseConfigured ? "stages" : "list",
+  );
   const [createOpen, setCreateOpen] = React.useState(false);
   // Which estimate the PO dialog is for. The list can hold several won deals, so
   // this is an id — and an id rather than the row itself, because the store

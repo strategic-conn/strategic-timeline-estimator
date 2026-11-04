@@ -91,6 +91,19 @@
 - [ ] Turn all add-ons off with IT lines only → **Development starts on the project start**, with no wait before it.
 - [ ] Guided estimate → Discovery starts on the project start and Design still waits for the review turnaround after it.
 
+**One launch date**
+- [ ] Guided estimate: the **Who does the work** card, the Scope & risk summary, the Timeline caption and the **Go-Live** milestone all show the same date.
+- [ ] Switch Best-fit ↔ Fastest → all four follow.
+- [ ] Approve → they show the quoted date.
+
+**Sync preview names new tasks**
+- [ ] Add a line to a started estimate → **Sync schedule from estimate** → the preview lists the line under its sprint as "Existing sprint", with a person and dates.
+
+**Demo mode basics**
+- [ ] Demo: reload an open estimate → it stays on that estimate, not the list.
+- [ ] Demo: the Estimator opens on **List** with no Zoho error.
+- [ ] Demo: delete a project → Workload drops its hours. **Undo** brings back the project, its sprints and its tasks.
+
 **Timeline generator respects PTO**
 - [ ] Open an estimate's **Timeline** tab with nobody on leave → note the launch date. It must be unchanged from before this feature.
 - [ ] Approve PTO for **one** person across a week that the timeline spans → reopen the Timeline: the launch date moves later and the header says "**N days later for booked time off**" in amber. "business days" itself must NOT change — it is the same amount of work.

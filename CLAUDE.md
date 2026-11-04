@@ -2023,6 +2023,32 @@ is not a second factor.
  - Enrolment names are unique per attempt — a remount (or dev StrictMode's
    double effect) runs two enrolments, and Supabase refuses a duplicate name.
 
+## Timeline test team and guide
+
+`docs/Timeline-Test-Scenarios-Clean-1-6` and `-7-12` (HTML + PDF, `node scripts/render-qa-pdf.mjs <html>`)
+walk 12 scenarios in **demo mode**, because Start project on live creates a real Zoho deal and PBS PO.
+Their expected results were produced by driving the real demo app in a browser (Day 1 = Wed
+2026-11-04). The older non-"Clean" guides describe the previous 6-person team and are stale.
+
+ - **One 9-person team, two places:** `lib/dummy/tasks.data.ts` (demo) and `scripts/seed-dev-team.mjs`
+   (live, `@example.com` addresses with `email_notifications` off so nothing bounces). Change both.
+   Nobody holds a Project Manager key on purpose, so planning tasks stay unassigned.
+ - **Demo team edits don't survive a reload** (`team-store` isn't persisted). Hours and skills do.
+ - **Demo deleting a project also deletes its tasks and sprints**, as Postgres does on live. They used
+   to stay behind, counting as open work and booked hours for the planner.
+ - **`persistHydrated` starts false in the estimate editor, on purpose.** The first client render
+   still sees the server's empty store even though persist has finished, so reading "no quote" there
+   redirected every reload of a demo estimate to the list.
+ - **The demo Estimator opens on List**, since the Stages board needs Zoho.
+ - **An estimate has ONE launch date: `useQuoteSchedule().launch`.** The people plan's finish, or the
+   frozen `quoted_finish` once approved. The plan card, the Scope & risk summary, the Gantt caption
+   and its Go-Live milestone all read it. `timeline.launchDate` is the single-stream chart's end
+   (one person at a time, plus `DNS_BUFFER_DAYS`) and is no longer displayed as the launch; it still
+   drives the hard-deadline risk flag and the standalone PO date pre-fill. So the quoted date does
+   NOT include the DNS wait.
+ - **Sync schedule's preview lists new tasks landing in existing sprints** ("Existing sprint"),
+   not only those under new sprints. `e2e/schedule-surfaces.spec.ts` covers this and the launch date.
+
 ## Invites & password setup
 
 **The flow:** Team → invite (admin) → `/api/invites` allow-lists the email and

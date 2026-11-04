@@ -13,6 +13,8 @@ import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { parseSupabaseError } from "@/lib/supabase/parse-error";
 import { offerUndoToast } from "@/lib/undo/offer-undo-toast";
 import { useAuthStore } from "@/store/auth-store";
+import { useSprintsStore } from "@/store/sprints-store";
+import { useTasksDataStore } from "@/store/tasks-store";
 import type { Database } from "@/types/database.types";
 import type { Project, ProjectStatus } from "@/types/project.types";
 
@@ -281,9 +283,17 @@ export const useProjectsStore = create<ProjectsState>()(
         set((s) => ({ projects: s.projects.filter((p) => p.id !== id) }));
 
         if (!isSupabaseConfigured) {
-          offerUndoToast("Project deleted", () =>
-            useProjectsStore.setState({ projects: before }),
-          );
+          // Live mode cascades in Postgres; here its tasks would stay behind as
+          // open work on Workload and booked hours for the planner.
+          const tasksBefore = useTasksDataStore.getState().tasks;
+          const sprintsBefore = useSprintsStore.getState().sprints;
+          useTasksDataStore.setState({ tasks: tasksBefore.filter((t) => t.project_id !== id) });
+          useSprintsStore.setState({ sprints: sprintsBefore.filter((x) => x.project_id !== id) });
+          offerUndoToast("Project deleted", () => {
+            useProjectsStore.setState({ projects: before });
+            useTasksDataStore.setState({ tasks: tasksBefore });
+            useSprintsStore.setState({ sprints: sprintsBefore });
+          });
           if (proj) {
             pushWorkspaceActivity(
               `Deleted project "${proj.name}"`,

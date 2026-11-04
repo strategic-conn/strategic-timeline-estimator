@@ -442,9 +442,8 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
           <DialogHeader>
             <DialogTitle>Review the schedule</DialogTitle>
             <DialogDescription>
-              Nothing has been created yet. This is exactly what will be added to
-              this project when you confirm — existing sprints and tasks are left
-              untouched.
+              Nothing has changed yet. This is exactly what will happen to this
+              project when you confirm. Anything not listed here is left untouched.
             </DialogDescription>
           </DialogHeader>
           {syncPreview ? <SchedulePreviewPanel preview={syncPreview} /> : null}

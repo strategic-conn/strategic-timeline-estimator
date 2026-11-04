@@ -96,6 +96,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useQuoteSchedule } from "@/hooks/useQuoteSchedule";
 import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import {
   TIER_OPTIONS,
@@ -307,9 +308,10 @@ export function ProposalEditorClient({
   // Live mode: gate on the Supabase fetch finishing (WorkspaceSync hydrates the
   // store). Demo mode: gate on localStorage rehydration completing.
   const liveLoaded = useProposalEstimatorStore((s) => s.loaded);
-  const [persistHydrated, setPersistHydrated] = React.useState(() =>
-    useProposalEstimatorStore.persist.hasHydrated(),
-  );
+  // Starts false even when persist is already done: the first client render
+  // still sees the server's empty store, and reading "no quote" from it would
+  // redirect every reload of a demo estimate to the list.
+  const [persistHydrated, setPersistHydrated] = React.useState(false);
   const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
@@ -449,6 +451,7 @@ export function ProposalEditorClient({
   const tentProject = React.useMemo(() => tentativeProject(), []);
   /** Whichever timeline this quote actually has — guided answers or line items. */
   const activeResult = scopeResult ?? catalogResult;
+  const { launch: plannedLaunch } = useQuoteSchedule(quote);
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -1257,7 +1260,9 @@ export function ProposalEditorClient({
                       ) : null}
                       <span className="tabular-nums text-muted-foreground">
                         ~{scopeResult.timeline.totalWeeks} wks · launch{" "}
-                        {scopeResult.timeline.launchDate}
+                        <span data-testid="summary-launch">
+                          {plannedLaunch ?? scopeResult.timeline.launchDate}
+                        </span>
                       </span>
                       <span className="text-muted-foreground">
                         Platform:{" "}
@@ -1391,6 +1396,7 @@ export function ProposalEditorClient({
                           result={scopeResult}
                           project={quote.discovery}
                           teamCalendar={teamCalendar}
+                          plannedLaunch={plannedLaunch}
                         />
                       </div>
                     )}
@@ -1430,6 +1436,7 @@ export function ProposalEditorClient({
                       result={catalogResult}
                       project={tentProject}
                       teamCalendar={teamCalendar}
+                      plannedLaunch={plannedLaunch}
                     />
                   </>
                 )}

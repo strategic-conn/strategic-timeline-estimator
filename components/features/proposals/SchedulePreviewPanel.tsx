@@ -51,6 +51,11 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
     return map;
   }, [tasks]);
 
+  // A sync adds tasks to sprints the project already has, and those phases are
+  // not in `sprints` (new ones only), so they get a group of their own.
+  const newLabels = new Set(sprints.map((s) => s.label));
+  const existingPhases = [...byPhase.keys()].filter((label) => !newLabels.has(label));
+
   if (
     !tasks.length &&
     !sprints.length &&
@@ -69,12 +74,14 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
     <div className="space-y-3">
       {/* Headline numbers */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs">
-        <span className="flex items-center gap-1.5">
-          <CalendarRange className="size-3.5 shrink-0 text-primary" aria-hidden />
-          <span className="font-medium">
-            {sprints.length} sprint{sprints.length === 1 ? "" : "s"}
+        {sprints.length || !tasks.length ? (
+          <span className="flex items-center gap-1.5">
+            <CalendarRange className="size-3.5 shrink-0 text-primary" aria-hidden />
+            <span className="font-medium">
+              {sprints.length} sprint{sprints.length === 1 ? "" : "s"}
+            </span>
           </span>
-        </span>
+        ) : null}
         <span className="flex items-center gap-1.5">
           <UserCheck
             className="size-3.5 shrink-0 text-green-600 dark:text-green-400"
@@ -177,7 +184,10 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
 
       {/* Sprint + task breakdown */}
       <ul className="space-y-2">
-        {sprints.map((s) => {
+        {[
+          ...sprints,
+          ...existingPhases.map((label) => ({ label, start: null, end: null })),
+        ].map((s) => {
           const phaseTasks = byPhase.get(s.label) ?? [];
           return (
             <li
@@ -187,7 +197,7 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
               <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 border-b border-border/50 bg-muted/30 px-3 py-2">
                 <span className="text-sm font-medium">{s.label}</span>
                 <span className="text-xs tabular-nums text-muted-foreground">
-                  {fmt(s.start)} – {fmt(s.end)}
+                  {s.start ? `${fmt(s.start)} – ${fmt(s.end)}` : "Existing sprint"}
                 </span>
               </div>
               {phaseTasks.length ? (

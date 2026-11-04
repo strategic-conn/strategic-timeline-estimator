@@ -62,6 +62,17 @@
   .stage h3 { margin:0; font-size:13pt; }
   .toc td { padding:.9mm 2.4mm; }
   .toc td:first-child { font:600 10pt "IBM Plex Mono",monospace; color:var(--brand); width:12mm; white-space:nowrap; }
+  /* Keep each scenario on one A4 page. */
+  body { font-size:10pt; line-height:1.5; }
+  h3 { margin:3.2mm 0 1.4mm; }
+  li { margin:.8mm 0; }
+  .steps > li { margin:1.7mm 0; }
+  th,td { padding:1.2mm 2.4mm; }
+  table { font-size:9.5pt; margin:0 0 2mm; }
+  .goal { margin:0 0 2.5mm; padding:0 0 2.5mm; }
+  .write div { padding:1.5mm 3mm 6mm; }
+  .verdict { margin-top:2mm; }
+  .card { padding:3mm 4mm; margin:0 0 3mm; }
 </style>
 </head>
 <body>
@@ -90,6 +101,7 @@
 <li>The badge top left says <b>Demo</b> (address <span class="type">http://localhost:3001</span>).</li>
 <li>Your role (bottom left) is <b>Admin</b>.</li>
 <li><span class="ui">Projects</span> shows exactly <b>six</b> projects, from Part 1.</li>
+<li>For typed-in lines, keep unticking the four <span class="ui">Roll-up add-ons</span> on the <span class="ui">Adjust</span> tab, as in Part 1.</li>
 </ul>
 </div>
 
@@ -109,33 +121,39 @@
 <li>No task on a <b>weekend</b> or <b>holiday</b>.</li>
 <li>One person never has <b>two tasks at the same time</b>.</li>
 <li><b>QA</b> comes after the building work.</li>
-<li><b>IT Level 2</b> work only goes to <b>Daniel or Patrick</b>.</li>
+<li><b>IT Level 2</b> work only goes to <b>Daniel, Francis Jan, Martin or Jeff</b>.</li>
 </ul>
 </div>
 
 <!-- ═════════════ S7 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">7</span><h2>Maple Dental: a holiday turned into a working day</h2></div>
-<p class="goal">You're checking that when an admin <b>marks a holiday as a working day</b>, plans use it, and go back when it's undone.</p>
+<p class="goal">You're checking that <b>when an admin marks a holiday as a working day, plans use it</b>, and go back when it's undone.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <ol class="steps">
-<li><span class="ui">New estimate</span>: title <span class="type">S7 Maple Dental</span>, client <span class="type">Maple Dental</span>.</li>
-<li><span class="ui">Scope &amp; risk</span> → <span class="ui">Start guided scoping</span>. Section 2: <span class="type">6</span> pages, <span class="type">2</span> templates, everything else No. Untick sections <b>4, 5, 6 and 8</b>.</li>
-<li>Section <b>7</b>: Project Start Date <span class="type">2027-01-11</span>, review turnaround <span class="type">0</span>.</li>
-<li><span class="ui">Generate line items</span> → <span class="ui">Adjust</span> → <span class="ui">Best-fit</span>. Open the <span class="ui">Timeline</span> tab and <b>write down the launch date (A)</b>.</li>
-<li><span class="ui">Settings</span> → <span class="ui">Workspace</span> → <span class="ui">Holidays</span>: set <b>Martin Luther King Jr. Day</b> to <b>Working</b>. The page reloads.</li>
-<li>Go back to the estimate's Timeline tab. <b>Write down the launch date (B).</b></li>
-<li>Back in Holidays, set MLK Day to <b>Day off</b> again. Check the estimate: <b>write down the launch date (C)</b>.</li>
+<li>New estimate: title <span class="type">S7 Maple Dental</span>, client <span class="type">Maple Dental</span>.</li>
+<li><span class="ui">Scope &amp; risk</span> → <span class="ui">Start guided scoping</span>. Section 2: 6 pages, 2 templates, everything else No. Untick sections 4, 5, 6 and 8.</li>
+<li>Section 7: Project Start Date <span class="type">2027-01-11</span>, review turnaround <span class="type">1</span>.</li>
+<li><span class="ui">Generate line items</span> → <span class="ui">Adjust</span> → <span class="ui">Best-fit</span>. Open <span class="ui">Scope &amp; risk</span> and read the launch date in the summary at the top (A).</li>
+<li><span class="ui">Settings</span> → <span class="ui">Workspace</span> → <span class="ui">Holidays</span>: set <b>Martin Luther King Jr. Day</b> to <span class="ui">Working</span>.</li>
+<li>Go back to the estimate. Read the same launch date (B).</li>
+<li>Back in Holidays, set MLK Day to <span class="ui">Day off</span> again. Check the estimate: read the launch date (C).</li>
 <li>Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
+<table>
+<tr><th>Reading</th><th>Summary launch date</th></tr>
+<tr><td>A · MLK Day off</td><td>Mar 4, 2027</td></tr>
+<tr><td>B · MLK Day worked</td><td>Mar 3, 2027</td></tr>
+<tr><td>C · back to Day off</td><td>Mar 4, 2027</td></tr>
+</table>
 <ul class="checks">
-<li>At step 4 the chart mentions <b>Martin Luther King Jr. Day</b> (Mon Jan 18), and nothing is dated on it.</li>
-<li>B is <b>one working day earlier</b> than A.</li>
-<li>C is the <b>same</b> as A.</li>
-<li>In Review schedule, no task is dated Jan 18.</li>
+<li>B is one working day earlier than A, and C is the same as A.</li>
+<li>At step 4 the Timeline chart mentions Martin Luther King Jr. Day (Mon Jan 18).</li>
+<li>"Visual design system" runs Jan 14–19, stepping over Jan 18. In Review schedule, no task is dated Jan 18.</li>
+<li>The Who does the work card shows the same launch date as the summary.</li>
 </ul>
 
 <h3><span class="pill p-write">Write down</span></h3>
@@ -146,7 +164,7 @@
 <!-- ═════════════ S8 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">8</span><h2>Summit Outfitters: the senior people are swamped</h2></div>
-<p class="goal">You're checking that <b>senior work waits for a senior person</b>, even when they're busy for a long time.</p>
+<p class="goal">You're checking that <b>senior work stays with senior people</b>, and that Fastest routes around whoever is buried.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <div class="fields">
@@ -155,25 +173,34 @@
 </div>
 <table>
 <tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
-<tr><td>Product configurator</td><td><b>IT · Level 2</b></td><td>40</td></tr>
-<tr><td>Checkout rules</td><td><b>IT · Level 2</b></td><td>24</td></tr>
+<tr><td>Product configurator</td><td>IT · Level 2</td><td>40</td></tr>
+<tr><td>Checkout rules</td><td>IT · Level 2</td><td>24</td></tr>
 <tr><td>Product pages</td><td>IT · Level 1</td><td>16</td></tr>
 <tr><td>QA pass 8</td><td>QA Tester · Level 1</td><td>8</td></tr>
 </table>
 <ol class="steps">
 <li>Create the estimate and add the four lines.</li>
-<li><span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. Write down the launch date.</li>
+<li><span class="ui">Adjust</span> → <span class="ui">Roll-up add-ons</span>: untick all four (<span class="ui">Responsive</span>, <span class="ui">Design</span>, <span class="ui">QA</span>, <span class="ui">PM</span>).</li>
+<li><span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. Write down the launch date.</li>
 <li>Switch to <span class="ui">Fastest</span>. Write down the launch date again.</li>
-<li>Leave it on <b>Fastest</b>. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+<li>Leave it on Fastest. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
+<table>
+<tr><th>Task</th><th>Best-fit</th><th>Fastest</th></tr>
+<tr><td>Product configurator</td><td>Francis Jan, Nov 18–25</td><td>Jeff, Nov 6–16</td></tr>
+<tr><td>Checkout rules</td><td>Francis Jan, Nov 25 – Dec 1</td><td>Jeff, Nov 16–19</td></tr>
+<tr><td>Product pages</td><td>Martin, Nov 24–30</td><td>Ronel, Nov 5–9</td></tr>
+<tr><td>QA pass 8</td><td>Patrick, Dec 1</td><td>Patrick, Nov 30</td></tr>
+<tr><td><b>Launch</b></td><td><b>Dec 1</b></td><td><b>Nov 30</b></td></tr>
+</table>
 <ul class="checks">
-<li>Best-fit: both Level 2 tasks go to <b>Daniel</b> (most stars), queued behind his other work. The launch is far away.</li>
-<li>Fastest: the Level 2 tasks go to whichever of <b>Daniel or Patrick</b> is free sooner. The launch comes earlier.</li>
-<li>Either way, <b>Ronel and Arvin never get</b> a Level 2 task.</li>
+<li>Best-fit keeps to ★5 people and starts about two weeks later, because they're busy.</li>
+<li>Fastest puts both Level 2 tasks on Jeff, who holds Level 2 and is much freer. It also finishes the building work almost two weeks sooner.</li>
+<li>Either way, Ronel and Arvin never get a Level 2 task.</li>
+<li>Jeff's work steps over Veterans Day (Nov 11), and Francis's steps over Thanksgiving (Nov 26).</li>
 <li><span class="ui">Workload</span> may now show someone over 100%. That's fine: the plan queues work instead of cramming it.</li>
-<li><span class="ui">Calendar</span> → <span class="ui">Team</span>: pick the busiest person and go through their tasks in date order. None overlap.</li>
 </ul>
 
 <h3><span class="pill p-write">Write down</span></h3>
@@ -184,7 +211,7 @@
 <!-- ═════════════ S9 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">9</span><h2>Orbit Agency: work nobody is qualified for</h2></div>
-<p class="goal">You're checking that work <b>nobody is qualified for is left for a person to assign</b>, never given to someone too junior.</p>
+<p class="goal">You're checking that <b>work nobody is qualified for is left for a person to assign</b>, never given to someone too junior.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <div class="fields">
@@ -193,51 +220,63 @@
 </div>
 <table>
 <tr><th>Line title</th><th>Role</th><th>Base hours</th></tr>
-<tr><td>Brand strategy workshop</td><td><b>Project Manager · Level 2</b></td><td>6</td></tr>
-<tr><td>Logo refresh</td><td><b>Creative · Level 2</b></td><td>8</td></tr>
+<tr><td>Brand strategy workshop</td><td>Project Manager · Level 2</td><td>6</td></tr>
+<tr><td>Logo refresh</td><td>Creative · Level 2</td><td>8</td></tr>
 <tr><td>Landing page</td><td>IT · Level 1</td><td>6</td></tr>
 </table>
 <ol class="steps">
 <li>Create the estimate and add the three lines.</li>
-<li><span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>.</li>
+<li><span class="ui">Adjust</span> → <span class="ui">Roll-up add-ons</span>: untick all four (<span class="ui">Responsive</span>, <span class="ui">Design</span>, <span class="ui">QA</span>, <span class="ui">PM</span>).</li>
+<li><span class="ui">Best-fit</span> → <span class="ui">See who does what</span>.</li>
 <li>Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
-<li>Open the new project and find the workshop task. Assign <b>Francis Jan</b> to it by hand.</li>
+<li>Open the new project and find the workshop task. Assign Francis Jan to it by hand.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
+<table>
+<tr><th>Task</th><th>Should go to</th><th>When</th></tr>
+<tr><td>Brand strategy workshop</td><td><b>Nobody</b></td><td>Nov 4 (not a weekend or holiday)</td></tr>
+<tr><td>Logo refresh</td><td>Carl</td><td>Nov 20–23</td></tr>
+<tr><td>Landing page</td><td>Francis Jan</td><td>Nov 23</td></tr>
+</table>
 <ul class="checks">
-<li>The workshop has <b>no one</b>, with the note "Nobody holds Project Manager Level 2 — assign manually". (Francis Jan is only Level 1.)</li>
-<li>The card says something like "<b>2 of 3 tasks have someone</b>".</li>
-<li>Logo refresh → <b>Martin</b>. Landing page → an IT person.</li>
-<li>The unassigned workshop still gets dates on the timeline (not a weekend or holiday).</li>
-<li>Step 4 works: assigning by hand is allowed.</li>
+<li>The card says "2 of 3 tasks have someone".</li>
+<li>Hover over "unassigned" on the workshop: "Not auto-assigned (design/planning) — assign manually". Nobody holds a Project Manager key.</li>
+<li>Logo refresh is queued behind Carl's earlier work, and Landing page waits until after it.</li>
+<li>Step 5 works: assigning by hand is allowed.</li>
 </ul>
 
+<div class="card" style="margin-top:3mm"><p style="margin:0"><span class="pill p-opt">Optional</span> <b>This is the real junior test. Do it between steps 3 and 4, using the sidebar and not a reload.</b> On <span class="ui">Team</span>, set Carl's Creative key to L1, then go back with the browser's Back button. Logo refresh becomes unassigned ("Nobody holds Creative Level 2 — assign manually"). It does <b>not</b> go to Sydney, and the card says "1 of 3". Set Carl back to L2 before you approve.</p></div>
 <div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
 <!-- ═════════════ S10 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">10</span><h2>Willow School: left-out sections and extra safety time</h2></div>
-<p class="goal">You're checking that <b>left-out sections disappear from the timeline</b>, and that the <b>risk buffer moves dates but never the price</b>.</p>
+<p class="goal">You're checking that <b>left-out sections disappear from the timeline</b>, and that the risk buffer moves dates but <b>never the price</b>.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <ol class="steps">
-<li><span class="ui">New estimate</span>: title <span class="type">S10 Willow School</span>, client <span class="type">Willow School</span>.</li>
-<li><span class="ui">Scope &amp; risk</span> → <span class="ui">Start guided scoping</span>. Section 2: <span class="type">8</span> pages, <span class="type">3</span> templates, everything else No. Untick <b>only sections 4 and 6</b>.</li>
-<li>Section <b>7</b>: Project Start Date <span class="type">2027-02-01</span>, review turnaround <span class="type">2</span>.</li>
+<li>New estimate: title <span class="type">S10 Willow School</span>, client <span class="type">Willow School</span>.</li>
+<li><span class="ui">Scope &amp; risk</span> → <span class="ui">Start guided scoping</span>. Section 2: 8 pages, 3 templates, everything else No. Untick only sections 4 and 6.</li>
+<li>Section 7: Project Start Date <span class="type">2027-02-01</span>, review turnaround <span class="type">2</span>.</li>
 <li><span class="ui">Generate line items</span>. Open the <span class="ui">Timeline</span> tab.</li>
-<li><span class="ui">Adjust</span> → set <b>Risk buffer</b> to <span class="type">0</span>%. Write down the launch date and the price (top right).</li>
-<li>Set Risk buffer to <span class="type">20</span>%. Write down both again.</li>
-<li>Back in the questionnaire, tick section <b>4</b> on: a Content bar appears. Untick it again.</li>
-<li>Keep 20%, pick <span class="ui">Best-fit</span>. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
+<li><span class="ui">Adjust</span> → set <b>Risk buffer</b> to <span class="type">0</span>, pick <span class="ui">Best-fit</span>. Write down the launch date from the card and the price (top right).</li>
+<li>Set Risk buffer to <span class="type">20</span>. Write down both again.</li>
+<li>Back in the questionnaire, tick section 4 on: a Content bar appears. Untick it again.</li>
+<li>Keep 20%. Approve → <span class="ui">Start project</span> → <span class="ui">Review schedule</span> → <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
+<table>
+<tr><th>Risk buffer</th><th>Launch (card)</th><th>Price</th></tr>
+<tr><td>0%</td><td>Mar 29, 2027</td><td>$17,860</td></tr>
+<tr><td>20%</td><td>Apr 7, 2027</td><td>$17,860</td></tr>
+</table>
 <ul class="checks">
-<li>The timeline has <b>no Content</b> and <b>no SEO</b> bars, and skips <b>Presidents' Day</b> (Mon Feb 15).</li>
-<li>At 20% the launch is <b>later</b>, and the chart says "incl. 20% risk buffer".</li>
-<li>The <b>price is exactly the same</b> at 0% and 20%.</li>
+<li>The timeline has no Content and no SEO bars, and nothing is dated Presidents' Day (Mon Feb 15).</li>
+<li>At 20% the launch is later, and the chart says "incl. 20% risk buffer".</li>
+<li>The price is <b>exactly the same</b> at 0% and 20%.</li>
 <li>The new project has no Content or SEO sprint, and its own risk buffer shows <b>0%</b> (the 20% is already built into its dates).</li>
 </ul>
 
@@ -249,7 +288,7 @@
 <!-- ═════════════ S11 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">11</span><h2>Granite Law: the promised launch date slips</h2></div>
-<p class="goal">You're checking that the app <b>warns you when the date you quoted the client no longer holds</b>.</p>
+<p class="goal">You're checking that <b>the app warns you when the date you quoted the client no longer holds</b>.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <div class="fields">
@@ -263,43 +302,51 @@
 </table>
 <ol class="steps">
 <li>Create the estimate and add the two lines.</li>
-<li><span class="ui">Adjust</span> → <span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. <b>Write down the person and the launch date.</b></li>
+<li><span class="ui">Adjust</span> → <span class="ui">Roll-up add-ons</span>: untick all four (<span class="ui">Responsive</span>, <span class="ui">Design</span>, <span class="ui">QA</span>, <span class="ui">PM</span>).</li>
+<li><span class="ui">Best-fit</span> → <span class="ui">See who does what</span>. You should see <b>Francis Jan</b> on both tasks (Nov 24–27), launching <b>Nov 27</b>.</li>
 <li>Set the status to <span class="ui">Approved</span>. The card now shows "Quoted launch", and the Best-fit / Fastest / Manual buttons are locked.</li>
-<li><span class="ui">Settings</span> → <span class="ui">Time off</span> → <span class="ui">Team time off</span>: give that person <b>two weeks of PTO</b>, starting on the day their first task starts.</li>
+<li><span class="ui">Settings</span> → <span class="ui">Time off</span> → <span class="ui">Team time off</span>: give Francis Jan PTO from <b>Nov 24</b> to <b>Dec 7</b> (the day their first task starts, plus two weeks).</li>
 <li>Back on the estimate: <span class="ui">Start project</span> → <span class="ui">Review schedule</span>.</li>
 <li>Click <span class="ui">Confirm &amp; create</span>.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
+<table>
+<tr><th>Task</th><th>Should go to</th><th>When</th></tr>
+<tr><td>Practice area pages</td><td>Martin</td><td>Dec 2–7</td></tr>
+<tr><td>Attorney profiles</td><td>Daniel</td><td>Dec 7</td></tr>
+</table>
 <ul class="checks">
-<li>At step 5 there's an amber note: <b>"Quoted launch X → now Y"</b>.</li>
-<li>The tasks now avoid the two weeks off.</li>
-<li>Step 6 still works: it warns you, it doesn't stop you.</li>
+<li>At step 6 there's an amber note: "Quoted launch 2026-11-27 → now 2026-12-07".</li>
+<li>The tasks moved away from Francis Jan, who is now away.</li>
+<li>Step 7 still works: it warns you, it doesn't stop you.</li>
 </ul>
 
 <h3><span class="pill p-write">Write down</span></h3>
-<div class="write"><div>Person</div><div>Quoted launch (X)</div><div>New launch (Y)</div></div>
+<div class="write"><div>Quoted launch</div><div>New launch</div></div>
 <div class="verdict"><b>Result:</b><span>Pass</span><span>Fail</span></div>
 </section>
 
 <!-- ═════════════ S12 ═════════════ -->
 <section class="page">
 <div class="head"><span class="num">12</span><h2>Northwind returns: adding work to a live project</h2></div>
-<p class="goal">You're checking that adding a line later <b>schedules only the new work</b> and leaves the existing tasks alone.</p>
+<p class="goal">You're checking that <b>adding a line later schedules only the new work</b> and leaves the existing tasks alone.</p>
 
 <h3><span class="pill p-do">Do</span></h3>
 <ol class="steps">
-<li>Open the estimate <b>S1 Northwind Bakery</b>. Before changing anything, open its project (<span class="ui">View project</span>) and note the dates of its tasks.</li>
-<li>Back on the estimate, <span class="ui">Line items</span> → <span class="ui">Add row</span>: <span class="type">Newsletter signup</span>, IT · Level 1, <span class="type">2</span> hours.</li>
-<li><span class="ui">View project</span> → <span class="ui">Sync schedule from estimate</span>.</li>
-<li>Read the preview, then confirm.</li>
+<li>Open the estimate <b>S1 Northwind Bakery</b>. Before changing anything, open its project (<span class="ui">View project</span>) and note its tasks: Development shows 0/3 tasks, 17 h.</li>
+<li>Back on the estimate, <span class="ui">Line items</span> → <span class="ui">Add row</span>: <span class="type">Newsletter signup</span>, IT · Level 1, 2 hours.</li>
+<li><span class="ui">View project</span> → <span class="ui">Sync schedule from estimate</span> → choose <span class="ui">Best-fit &amp; auto-assign</span>.</li>
+<li>Read the preview, then click <span class="ui">Confirm &amp; apply</span>.</li>
 </ol>
 
 <h3><span class="pill p-see">Check</span></h3>
 <ul class="checks">
-<li>The preview shows <b>1 new task</b>, with a person and dates, and nothing renamed or removed.</li>
-<li>Every original S1 task <b>kept its person and dates</b>.</li>
-<li>The new task sits after its person's other work, not on top of it.</li>
+<li>The preview lists <b>Newsletter signup</b> under <b>Development</b>, marked "Existing sprint", going to <b>Martin</b> on <b>Dec 7</b>.</li>
+<li>Nothing is listed as renamed or removed.</li>
+<li>After confirming, Development shows <b>0/4 tasks, 19 h</b>, and the sprint's own dates haven't changed.</li>
+<li>Every original S1 task kept its person and dates.</li>
+<li>Newsletter signup appears on the Timeline, assigned to the person the preview named.</li>
 </ul>
 
 <h3><span class="pill p-write">Write down</span></h3>
@@ -312,11 +359,11 @@
 <div class="head"><span class="num">✓</span><h2>Final check</h2></div>
 <p class="goal">One last look across <b>all twelve projects</b> together.</p>
 <ul class="checks">
-<li><span class="ui">Calendar</span> → <span class="ui">Team</span>: nobody has a task on <b>Thu Nov 26</b>, <b>Fri Dec 25</b>, <b>Fri Jan 1</b>, <b>Mon Jan 18</b> or <b>Mon Feb 15</b>.</li>
-<li>Daniel has no tasks during his scenario 4 vacation. The scenario 11 person has none during their two weeks off.</li>
+<li><span class="ui">Calendar</span> → <span class="ui">Team</span>: nobody has a task on <b>Wed Nov 11</b>, <b>Thu Nov 26</b>, <b>Fri Dec 25</b>, <b>Fri Jan 1</b>, <b>Mon Jan 18</b> or <b>Mon Feb 15</b>.</li>
+<li>Daniel has no tasks during his scenario 4 vacation. Francis Jan has none from Nov 24 to Dec 7.</li>
 <li><span class="ui">Workload</span> → <span class="ui">Team</span>: open each person's task list. In date order, none overlap.</li>
 <li>Ronel and Arvin have <b>no IT Level 2</b> tasks.</li>
-<li>The only task that had no one was the scenario 9 workshop (now Francis Jan's, if you assigned it).</li>
+<li>The only tasks with no one are the 2 planning tasks in each of scenarios 5, 6, 7 and 10, plus the scenario 9 workshop if you didn't assign it.</li>
 </ul>
 
 <h3>Results sheet</h3>
