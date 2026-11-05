@@ -18,14 +18,33 @@ import { Textarea } from "@/components/ui/textarea";
 import { PHASE_META, RISK_LEVEL_META } from "@/lib/discovery/constants";
 import { formatHours } from "@/lib/discovery";
 import { cn } from "@/lib/utils";
-import type { DiscoveryResult } from "@/types/discovery.types";
+import type { DiscoveryResult, PhaseId } from "@/types/discovery.types";
 
 export function DiscoveryHoursBreakdown({
   result,
   onAssumptionsChange,
   assumptionsEdited = false,
+  lineHours,
+  onAddPhases,
 }: {
   result: DiscoveryResult;
+  /**
+   * Adds the questionnaire's tasks for phases the line items leave empty —
+   * time the schedule reserves but the price didn't include.
+   */
+  onAddPhases?: (phases: PhaseId[]) => void;
+  /**
+   * The quote's actual line-item hours per phase. Shown as a "Your lines"
+   * column next to the questionnaire's estimate — a typed-in estimate rarely
+   * matches it, and the two used to sit on different tabs with nothing
+   * linking them.
+   */
+  lineHours?: {
+    byPhase: Partial<Record<PhaseId, number>>;
+    /** Each line item and the phase it lands in — listed under that phase. */
+    lines: { id: string; phase: PhaseId; title: string; hours: number }[];
+    total: number;
+  } | null;
   /**
    * Makes the assumptions editable. Receives the edited list, or `null` to go
    * back to the list generated from the answers.
@@ -37,6 +56,17 @@ export function DiscoveryHoursBreakdown({
   const { estimate, risk } = result;
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
   const totalMid = estimate.total.mid || 1;
+  // Phases the questionnaire puts work in but no line item covers: they stay on
+  // the schedule (Discovery, Launch…) yet nobody is paying for them.
+  const uncovered = lineHours
+    ? estimate.phases
+        .map((ph) => ({
+          phase: ph,
+          hours: ph.tasks.reduce((sum, t) => sum + (t.mid > 0 ? t.mid : 0), 0),
+        }))
+        .filter((x) => x.hours > 0 && !(lineHours.byPhase[x.phase.id] ?? 0))
+    : [];
+  const uncoveredHours = uncovered.reduce((sum, x) => sum + x.hours, 0);
 
   const toggle = (id: string) =>
     setExpanded((prev) => {
@@ -78,9 +108,48 @@ export function DiscoveryHoursBreakdown({
       <Card>
         <CardHeader className="pb-3">
           <CardTitle>Hours breakdown</CardTitle>
+          {lineHours ? (
+            <CardDescription>
+              {(() => {
+                const diff = Math.round((lineHours.total - estimate.total.mid) * 10) / 10;
+                const gap =
+                  diff === 0
+                    ? "the same as"
+                    : `${formatHours(Math.abs(diff))} h ${diff > 0 ? "over" : "under"}`;
+                return `Your line items total ${formatHours(lineHours.total)} h — ${gap} the questionnaire's mid (${formatHours(estimate.total.mid)} h). The quote is priced from your line items.`;
+              })()}
+            </CardDescription>
+          ) : null}
+          {uncovered.length && onAddPhases ? (
+            <div
+              role="status"
+              className="mt-2 flex flex-wrap items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+            >
+              <p className="min-w-0 flex-1">
+                <strong>Not priced:</strong>{" "}
+                {`${uncovered.map((x) => x.phase.label).join(" and ")} ${uncovered.length === 1 ? "is" : "are"} on the schedule, but none of your line items cover ${uncovered.length === 1 ? "it" : "them"} (${formatHours(uncoveredHours)} h at the questionnaire's mid).`}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="h-7 shrink-0 bg-background"
+                onClick={() => onAddPhases(uncovered.map((x) => x.phase.id))}
+              >
+                {`Add ${uncovered.length === 1 ? "it" : `these ${uncovered.length}`} as line items`}
+              </Button>
+            </div>
+          ) : null}
         </CardHeader>
         <CardContent className="pb-4">
-          <div className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-x-3 gap-y-1 text-sm sm:grid-cols-[1fr_8rem_auto_auto_auto] sm:gap-x-4">
+          <div
+            className={cn(
+              "grid items-center gap-x-3 gap-y-1 text-sm sm:gap-x-4",
+              lineHours
+                ? "grid-cols-[1fr_auto_auto_auto_auto] sm:grid-cols-[1fr_8rem_auto_auto_auto_auto]"
+                : "grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_8rem_auto_auto_auto]",
+            )}
+          >
             {/* Header */}
             <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Phase
@@ -97,6 +166,11 @@ export function DiscoveryHoursBreakdown({
             <div className="w-12 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">
               Max
             </div>
+            {lineHours ? (
+              <div className="w-14 text-right text-xs font-medium uppercase tracking-wide text-foreground">
+                Your lines
+              </div>
+            ) : null}
 
             {estimate.phases.map((phase) => {
               const isOpen = expanded.has(phase.id);
@@ -142,6 +216,11 @@ export function DiscoveryHoursBreakdown({
                     <span className="w-12 text-right tabular-nums text-muted-foreground">
                       {formatHours(phase.max)}
                     </span>
+                    {lineHours ? (
+                      <span className="w-14 text-right font-semibold tabular-nums">
+                        {formatHours(lineHours.byPhase[phase.id] ?? 0)}
+                      </span>
+                    ) : null}
                   </button>
 
                   {isOpen
@@ -180,9 +259,37 @@ export function DiscoveryHoursBreakdown({
                             <span className="w-12 text-right text-xs tabular-nums text-muted-foreground">
                               {formatHours(task.max)}
                             </span>
+                            {lineHours ? <span /> : null}
                           </div>
                         );
                       })
+                    : null}
+                  {/* The quote's own lines in this phase — what is actually
+                      priced, next to what the questionnaire expected. */}
+                  {isOpen && lineHours
+                    ? lineHours.lines
+                        .filter((l) => l.phase === phase.id)
+                        .map((l) => (
+                          <div
+                            key={l.id}
+                            className="col-span-full grid grid-cols-subgrid items-center gap-x-3 border-l-2 bg-primary/[0.03] py-1.5 pl-4 sm:gap-x-4"
+                            style={{ borderColor: meta.hex }}
+                          >
+                            <span className="flex min-w-0 items-center gap-2 pl-4">
+                              <span className="truncate text-sm">{l.title}</span>
+                              <span className="shrink-0 rounded bg-primary/10 px-1.5 py-0.5 text-[0.6rem] font-medium uppercase tracking-wide text-primary">
+                                Your line
+                              </span>
+                            </span>
+                            <span className="hidden sm:block" />
+                            <span />
+                            <span />
+                            <span />
+                            <span className="w-14 text-right text-xs font-medium tabular-nums">
+                              {formatHours(l.hours)}
+                            </span>
+                          </div>
+                        ))
                     : null}
                 </React.Fragment>
               );
@@ -206,13 +313,18 @@ export function DiscoveryHoursBreakdown({
               <span className="w-12 text-right font-semibold tabular-nums text-muted-foreground">
                 {formatHours(estimate.total.max)}
               </span>
+              {lineHours ? (
+                <span className="w-14 text-right text-base font-bold tabular-nums">
+                  {formatHours(lineHours.total)}
+                </span>
+              ) : null}
             </div>
 
             {estimate.retainer ? (
               <div className="col-span-full grid grid-cols-subgrid items-center gap-x-3 pt-2 text-sm text-muted-foreground sm:gap-x-4">
                 <span>Post-launch retainer (excluded from total)</span>
                 <span className="hidden sm:block" />
-                <span className="col-span-3 text-right tabular-nums">
+                <span className={cn("text-right tabular-nums", lineHours ? "col-span-4" : "col-span-3")}>
                   {estimate.retainer.hoursPerMonth} hrs / month
                 </span>
               </div>

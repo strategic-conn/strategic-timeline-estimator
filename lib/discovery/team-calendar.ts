@@ -420,3 +420,27 @@ export function bufferPlanHours<T extends { id: string; phase: string; hours: nu
   target.forEach((t, i) => out.set(t.id, roundHours(t.hours + shares[i])));
   return out;
 }
+
+/**
+ * How many working days of each phase are risk buffer: the phase's length in
+ * the buffered plan minus its length in the same plan without the buffer.
+ * Length, not end date — QA ending later because Development did is a shift,
+ * not buffer. Only phases that grew are returned. Pure; drives the Gantt's
+ * striped buffer segment.
+ */
+export function bufferDaysByPhase(
+  planned: ReadonlyArray<{ label: string; start: string; end: string }>,
+  unbuffered: ReadonlyArray<{ label: string; start: string; end: string }>,
+  cal?: TeamCalendar | null,
+): Map<string, number> {
+  const out = new Map<string, number>();
+  const base = new Map(unbuffered.map((p) => [p.label, p]));
+  for (const p of planned) {
+    const u = base.get(p.label);
+    if (!u) continue;
+    const grew =
+      workingDaysBetween(p.start, p.end, cal) - workingDaysBetween(u.start, u.end, cal);
+    if (grew > 0) out.set(p.label, grew);
+  }
+  return out;
+}

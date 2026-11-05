@@ -105,6 +105,7 @@ import {
   lineEffectiveHours,
   lineRate,
   quoteDevHours,
+  roundHours,
   quoteIsFrozen,
   quotePricing,
   splitAmount,
@@ -125,6 +126,7 @@ import {
 import { analyzeDiscovery, formatHours } from "@/lib/discovery";
 import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
 import {
+  phaseIdForLineItem,
   quoteHasWork,
   resultFromQuote,
   tentativeProject,
@@ -172,7 +174,7 @@ import {
   STRATEGY_OPTIONS,
   SchedulePlanCard,
 } from "@/components/features/proposals/SchedulePlanCard";
-import type { DiscoveryProject } from "@/types/discovery.types";
+import type { DiscoveryProject, PhaseId } from "@/types/discovery.types";
 import type {
   ClientQuote,
   ProposalLineItem,
@@ -266,6 +268,7 @@ export function ProposalEditorClient({
     (s) => s.setProposalStatus,
   );
   const setDiscovery = useProposalEstimatorStore((s) => s.setDiscovery);
+  const addScopePhaseLines = useProposalEstimatorStore((s) => s.addScopePhaseLines);
   const regenerateLineItems = useProposalEstimatorStore(
     (s) => s.regenerateLineItems,
   );
@@ -446,6 +449,23 @@ export function ProposalEditorClient({
     [quote, teamCalendar],
   );
 
+  // The quote's actual line hours per questionnaire phase, for the Hours tab's
+  // "Your lines" column — placed by the same rule the plan and Gantt use, so a
+  // typed-in estimate can be compared with what the questionnaire expected.
+  const lineHours = React.useMemo(() => {
+    if (!quote || !scopeResult || !quote.line_items.length) return null;
+    const phases = new Set(scopeResult.estimate.phases.map((ph) => ph.id));
+    const byPhase: Partial<Record<PhaseId, number>> = {};
+    const lines: { id: string; phase: PhaseId; title: string; hours: number }[] = [];
+    for (const li of quote.line_items) {
+      const id = phaseIdForLineItem(li, phases);
+      const hours = lineEffectiveHours(li, quote.requirements_unclear);
+      byPhase[id] = roundHours((byPhase[id] ?? 0) + hours);
+      lines.push({ id: li.id, phase: id, title: li.title.trim() || "(untitled)", hours });
+    }
+    return { byPhase, lines, total: quoteDevHours(quote) };
+  }, [quote, scopeResult]);
+
   // Catalog / manual estimates (no guided scope): a tentative timeline from the
   // line items + add-ons, through the same engine. Recomputes as the quote changes.
   const catalogResult = React.useMemo(
@@ -458,10 +478,15 @@ export function ProposalEditorClient({
   const tentProject = React.useMemo(() => tentativeProject(), []);
   /** Whichever timeline this quote actually has — guided answers or line items. */
   const activeResult = scopeResult ?? catalogResult;
-  const { launch: plannedLaunch, preview: schedulePreview } = useQuoteSchedule(quote);
+  const {
+    launch: plannedLaunch,
+    preview: schedulePreview,
+    unbuffered: unbufferedPreview,
+  } = useQuoteSchedule(quote);
   // The plan's phase dates, for the Gantt — only when a people plan exists
   // (Manual has none, and its phases are the timeline's own anyway).
   const plannedPhases = schedulePreview?.plan ? schedulePreview.sprints : null;
+  const unbufferedPhases = unbufferedPreview?.plan ? unbufferedPreview.sprints : null;
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -1396,6 +1421,13 @@ export function ProposalEditorClient({
                   <TabsContent value="hours">
                     <DiscoveryHoursBreakdown
                       result={scopeResult}
+                      lineHours={lineHours}
+                      onAddPhases={(phases) => {
+                        addScopePhaseLines(quote.id, phases);
+                        toast.success("Added to your line items", {
+                          description: "Priced at each role's current rate. Edit or remove them on the Line items tab.",
+                        });
+                      }}
                       assumptionsEdited={quote.discovery!.assumptions != null}
                       onAssumptionsChange={(assumptions) =>
                         setDiscovery(quote.id, {
@@ -1418,6 +1450,7 @@ export function ProposalEditorClient({
                           teamCalendar={teamCalendar}
                           plannedLaunch={plannedLaunch}
                           plannedPhases={plannedPhases}
+                          unbufferedPhases={unbufferedPhases}
                         />
                       </div>
                     )}
@@ -1459,6 +1492,7 @@ export function ProposalEditorClient({
                       teamCalendar={teamCalendar}
                       plannedLaunch={plannedLaunch}
                       plannedPhases={plannedPhases}
+                      unbufferedPhases={unbufferedPhases}
                     />
                   </>
                 )}

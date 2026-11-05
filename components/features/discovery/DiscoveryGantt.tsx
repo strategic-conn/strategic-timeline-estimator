@@ -18,6 +18,7 @@ import { resolveProjectStart } from "@/lib/discovery/timeline";
 import {
   addWorkingDays,
   alignTimelineToPlan,
+  bufferDaysByPhase,
   timelineShift,
   type TeamCalendar,
 } from "@/lib/discovery/team-calendar";
@@ -42,6 +43,7 @@ export function DiscoveryGantt({
   teamCalendar,
   plannedLaunch,
   plannedPhases,
+  unbufferedPhases,
 }: {
   result: DiscoveryResult;
   project: DiscoveryProject;
@@ -52,6 +54,11 @@ export function DiscoveryGantt({
    * When given, the bars are drawn on these instead of the team-level timeline.
    */
   plannedPhases?: ReadonlyArray<{ label: string; start: string; end: string }> | null;
+  /**
+   * The same plan WITHOUT the risk buffer. With it, the part of each bar that
+   * is buffer is drawn striped (`bufferDaysByPhase`).
+   */
+  unbufferedPhases?: ReadonlyArray<{ label: string; start: string; end: string }> | null;
   /** Booked time off already folded into `result`; passed only to explain it. */
   teamCalendar?: TeamCalendar | null;
 }) {
@@ -74,6 +81,14 @@ export function DiscoveryGantt({
     [result.timeline, plannedPhases, start, teamCalendar],
   );
   const launchDate = plannedLaunch ?? timeline.launchDate;
+  // Working days of each phase that are risk buffer, by phase label.
+  const bufferDays = React.useMemo(
+    () =>
+      plannedPhases?.length && unbufferedPhases?.length
+        ? bufferDaysByPhase(plannedPhases, unbufferedPhases, teamCalendar)
+        : new Map<string, number>(),
+    [plannedPhases, unbufferedPhases, teamCalendar],
+  );
   const total = Math.max(timeline.totalBusinessDays, 1);
   /**
    * Why the dates sit later than a plain business-day count, and by how much.
@@ -182,7 +197,7 @@ export function DiscoveryGantt({
                 ) : timeline.riskBufferPct > 0 ? (
                   // On the people plan the buffer is planned into Development.
                   <span className="text-primary">
-                    {` (incl. ${timeline.riskBufferPct}% risk buffer, spread over Development)`}
+                    {` (incl. ${timeline.riskBufferPct}% risk buffer, spread over Development${bufferDays.size ? " — striped" : ""})`}
                   </span>
                 ) : null}{" "}
                 · launches {launchDate}
@@ -246,6 +261,19 @@ export function DiscoveryGantt({
               aria-label="Gantt chart of project phases"
               className="min-w-full"
             >
+              <defs>
+                {/* Risk buffer: white stripes over the phase colour. */}
+                <pattern
+                  id="gantt-buffer-hatch"
+                  width={6}
+                  height={6}
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <rect width={6} height={6} fill="transparent" />
+                  <line x1={0} y1={0} x2={0} y2={6} stroke="#fff" strokeWidth={2.5} strokeOpacity={0.75} />
+                </pattern>
+              </defs>
               {/* Month dividers */}
               {geom.months.map((m, i) => (
                 <g key={`m-${i}`}>
@@ -341,6 +369,23 @@ export function DiscoveryGantt({
                           rx={4}
                           fill={meta.hex}
                         />
+                        {(() => {
+                          const days = bufferDays.get(phase.label) ?? 0;
+                          if (!days) return null;
+                          const w = Math.min(days * pxPerDay, barW);
+                          return (
+                            <rect
+                              x={barX + barW - w}
+                              y={barY}
+                              width={w}
+                              height={barH}
+                              rx={4}
+                              fill="url(#gantt-buffer-hatch)"
+                            >
+                              <title>{`Risk buffer: ${days} working day${days === 1 ? "" : "s"}`}</title>
+                            </rect>
+                          );
+                        })()}
                         {barW > 50 ? (
                           <text
                             x={barX + barW / 2}

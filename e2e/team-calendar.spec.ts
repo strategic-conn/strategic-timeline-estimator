@@ -4,6 +4,7 @@ import { addBusinessDays, format } from "date-fns";
 import {
   addWorkingDays,
   alignTimelineToPlan,
+  bufferDaysByPhase,
   bufferPlanHours,
   buildTeamCalendar,
   followPlannedWork,
@@ -331,4 +332,19 @@ test.describe("the risk buffer is planned into Development", () => {
     expect([h.get("q1"), h.get("q2")]).toEqual([11, 11]);
     expect(bufferPlanHours(tasks, 0, 70).get("d1")).toBe(40);
   });
+});
+
+test("the Gantt's buffer stripe is how much LONGER a phase got, not how much later", () => {
+  // March 2027, no holidays.
+  const planned = [
+    { label: "Development", start: "2027-03-01", end: "2027-03-10" }, // 7 working days
+    { label: "QA & Testing", start: "2027-03-10", end: "2027-03-12" }, // shifted, same length
+  ];
+  const unbuffered = [
+    { label: "Development", start: "2027-03-01", end: "2027-03-08" }, // 5 working days
+    { label: "QA & Testing", start: "2027-03-08", end: "2027-03-10" },
+  ];
+  const b = bufferDaysByPhase(planned, unbuffered, null);
+  expect(b.get("Development")).toBe(2);
+  expect(b.has("QA & Testing")).toBe(false);
 });

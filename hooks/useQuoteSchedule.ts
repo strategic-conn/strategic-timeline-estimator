@@ -44,8 +44,29 @@ export function useQuoteSchedule(quote: ClientQuote | null | undefined) {
     [quote?.id, quote?.line_items, quote?.discovery, quote?.addons, quote?.risk_buffer_pct, quote?.requirements_unclear, strategy, members, tasks, previewConversion],
   );
 
+  // The same plan without the risk buffer — only to measure it, so the Gantt
+  // can show how much of each phase is buffer. Skipped when there is none.
+  const unbuffered = React.useMemo(
+    () =>
+      quote && preview?.plan && (quote.risk_buffer_pct ?? 0) > 0
+        ? previewConversion(quote.id, {
+            seedTasks: true,
+            strategy: strategy === "none" || !strategy ? undefined : strategy,
+            buffer: false,
+          })
+        : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- recomputed with `preview`
+    [preview],
+  );
+
   const finish = preview ? previewFinish(preview) : null;
   const quoted = quote?.schedule_plan?.quoted_finish ?? null;
   const launch = quote && quoteIsFrozen(quote) && quoted ? quoted : finish;
-  return { preview, finish, quoted, launch: launch ? formatLaunchDay(launch) : null };
+  return {
+    preview,
+    unbuffered,
+    finish,
+    quoted,
+    launch: launch ? formatLaunchDay(launch) : null,
+  };
 }

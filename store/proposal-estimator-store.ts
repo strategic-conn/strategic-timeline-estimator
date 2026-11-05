@@ -16,6 +16,7 @@ import {
   roundHours,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
+import { PHASE_META } from "@/lib/discovery/constants";
 import {
   phaseIdForLineItem,
   phaseIdFromLabel,
@@ -831,6 +832,12 @@ interface ProposalEstimatorState {
    */
   regenerateLineItems: (id: string) => void;
   /**
+   * Add the questionnaire's tasks for these phases as line items, keeping every
+   * existing line. For a typed-in estimate whose lines leave a phase the
+   * schedule still reserves time for (Discovery, Launch…) unpriced.
+   */
+  addScopePhaseLines: (id: string, phases: PhaseId[]) => void;
+  /**
    * Re-price a quote at TODAY's rates — the deliberate counterpart to
    * snapshots (pricing plan decision 1). Writes the exact object the preview
    * rendered (`repriceToCurrentRates`), never a recompute, and lines + add-on
@@ -887,7 +894,12 @@ interface ProposalEstimatorState {
    */
   previewConversion: (
     proposalId: string,
-    input: { seedTasks: boolean; strategy?: PlanStrategy },
+    input: {
+      seedTasks: boolean;
+      strategy?: PlanStrategy;
+      /** false = plan WITHOUT the risk buffer, only to measure it (the Gantt's stripe). */
+      buffer?: boolean;
+    },
   ) => SchedulePreview | null;
   /** Same, for re-syncing an existing project's schedule (only the MISSING parts). */
   previewSchedule: (
@@ -925,6 +937,30 @@ interface ProposalEstimatorState {
     partial: LineItemPatch,
   ) => void;
   removeLineItem: (proposalId: string, lineId: string) => void;
+}
+
+/**
+ * Questionnaire tasks as priced line items — ONE builder for "Generate line
+ * items" and "Add missing phases", so a line made either way is identical.
+ */
+function scopeLineItems(
+  lines: ProposalDraftInput["line_items"],
+  platform: ProposalPlatform,
+): ProposalLineItem[] {
+  return lines
+    .map((li) => ({
+      id: uid(),
+      title: li.title,
+      module: li.module ?? null,
+      category_id: li.category_id ?? null,
+      catalog_id: li.catalog_id ?? null,
+      base_hours: li.base_hours,
+      tier: li.tier,
+      quantity: li.quantity,
+      hours: computeLineHours(li.base_hours, li.tier, li.quantity),
+      depends_on: [],
+    }))
+    .map((li) => withPricing(li, platform, liveRates()));
 }
 
 function recomputeHours(line: ProposalLineItem): ProposalLineItem {
@@ -1205,6 +1241,31 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         persistQuoteDoc(id, get, ["line_items", "addons"]);
       },
 
+      addScopePhaseLines: (id, phases) => {
+        const quote = get().proposals.find((p) => p.id === id);
+        if (!quote?.discovery || !phases.length) return;
+        const labels = new Set(phases.map((ph) => PHASE_META[ph].label));
+        const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
+        const draft = proposalDraftFromDiscovery(quote.discovery, result);
+        const added = scopeLineItems(
+          draft.line_items.filter((li) => li.module && labels.has(li.module)),
+          quote.platform,
+        );
+        if (!added.length) return;
+        set((s) => ({
+          proposals: s.proposals.map((p) =>
+            p.id === id
+              ? {
+                  ...p,
+                  line_items: [...p.line_items, ...added],
+                  updated_at: new Date().toISOString(),
+                }
+              : p,
+          ),
+        }));
+        persistQuoteDoc(id, get, ["line_items"]);
+      },
+
       regenerateLineItems: (id) => {
         const quote = get().proposals.find((p) => p.id === id);
         if (!quote?.discovery) return;
@@ -1213,20 +1274,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // hours — and the price — which is exactly what it must never do.
         const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
         const draft = proposalDraftFromDiscovery(quote.discovery, result);
-        const line_items: ProposalLineItem[] = draft.line_items
-          .map((li) => ({
-            id: uid(),
-            title: li.title,
-            module: li.module ?? null,
-            category_id: li.category_id ?? null,
-            catalog_id: li.catalog_id ?? null,
-            base_hours: li.base_hours,
-            tier: li.tier,
-            quantity: li.quantity,
-            hours: computeLineHours(li.base_hours, li.tier, li.quantity),
-            depends_on: [],
-          }))
-          .map((li) => withPricing(li, quote.platform, liveRates()));
+        const line_items = scopeLineItems(draft.line_items, quote.platform);
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id
@@ -1380,7 +1428,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const scaffold = phaseScaffold(quote, { buffered: !planned });
         const plan =
           input.strategy && planned
-            ? planSeeds(quote, seeds, input.strategy, scaffold, undefined, { buffer: true })
+            ? planSeeds(quote, seeds, input.strategy, scaffold, undefined, {
+                buffer: input.buffer !== false,
+              })
             : null;
         return toPreview(seeds, scaffold, plan);
       },
