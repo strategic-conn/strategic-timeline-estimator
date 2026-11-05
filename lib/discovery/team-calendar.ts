@@ -14,7 +14,7 @@
  * for a team, not for a named individual. Once the work is actually assigned,
  * `planSchedule` does the per-person version with real `ptoDays`.
  */
-import { addBusinessDays, addDays, isWeekend } from "date-fns";
+import { addBusinessDays, addDays, format, isWeekend, parseISO } from "date-fns";
 
 import { isUsHoliday, usHolidaysInRange, type UsHoliday } from "@/lib/calendar/us-holidays";
 import {
@@ -23,6 +23,7 @@ import {
   type AwayEntryLike,
 } from "@/lib/constants/workload";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
+import type { DiscoveryTimeline } from "@/types/discovery.types";
 
 export interface TeamCalendar {
   /**
@@ -303,4 +304,96 @@ export function bufferSprintDates(
     }
   }
   return out;
+}
+
+/**
+ * A phase with no tasks (Launch & Handoff, usually) gets no dates from the
+ * people plan, so it kept the team-level timeline's — and when the plan
+ * finished sooner or later than that timeline, it sat apart from the work:
+ * "Launches Dec 1" above a Launch & Handoff running Dec 10–17.
+ *
+ * Every task-less phase AFTER the last planned one keeps its length and its gap
+ * from that phase (client review time and the like), measured in working days,
+ * but is re-anchored to where the plan actually ended it. Phases before any
+ * planned work keep their dates. Mutates `sprintDates`.
+ */
+export function followPlannedWork(
+  scaffold: ReadonlyArray<{ label: string; start_date: string; end_date: string }>,
+  sprintDates: Map<string, { start: string; end: string }>,
+  cal?: TeamCalendar | null,
+): void {
+  let anchor = -1;
+  scaffold.forEach((ph, i) => {
+    if (sprintDates.has(ph.label)) anchor = i;
+  });
+  if (anchor < 0) return;
+  const from = scaffold[anchor];
+  const plannedEnd = sprintDates.get(from.label)!.end;
+  if (plannedEnd === from.end_date) return;
+
+  const day = (s: string) => new Date(`${s}T12:00:00`);
+  for (const ph of scaffold.slice(anchor + 1)) {
+    if (sprintDates.has(ph.label)) continue;
+    const gap = workingDaysBetween(from.end_date, ph.start_date, cal);
+    const length = workingDaysBetween(ph.start_date, ph.end_date, cal);
+    const start = addWorkingDays(day(plannedEnd), gap, cal);
+    sprintDates.set(ph.label, {
+      start: formatYmdLocal(start),
+      end: formatYmdLocal(addWorkingDays(start, length, cal)),
+    });
+  }
+}
+
+/**
+ * The phase chart redrawn on the people plan's dates — the same phase dates
+ * the "Who does the work" card lists, Start project creates as sprints, and
+ * the launch date comes from. Before this the bars stayed on the team-level
+ * timeline and could run a week past the launch shown above them.
+ *
+ * A phase the plan doesn't list keeps its own dates. Offsets are working days
+ * from `start`, counted as `addWorkingDays` would, so the month dividers still
+ * line up. Milestones sit at their phase's new end. Pure.
+ */
+export function alignTimelineToPlan(
+  timeline: DiscoveryTimeline,
+  planned: ReadonlyArray<{ label: string; start: string; end: string }>,
+  start: Date,
+  cal?: TeamCalendar | null,
+): DiscoveryTimeline {
+  const byLabel = new Map(planned.map((p) => [p.label, p]));
+  if (!timeline.phases.some((ph) => byLabel.has(ph.label))) return timeline;
+
+  const from = formatYmdLocal(start);
+  const offset = (ymd: string) => workingDaysBetween(from, ymd, cal);
+  const show = (ymd: string) => format(parseISO(ymd), "MMM d, yyyy");
+
+  const phases = timeline.phases.map((ph) => {
+    const p = byLabel.get(ph.label);
+    if (!p) return ph;
+    const s = offset(p.start);
+    const e = Math.max(s, offset(p.end));
+    return {
+      ...ph,
+      startOffset: s,
+      endOffset: e,
+      durationDays: e - s,
+      startDate: show(p.start),
+      endDate: show(p.end),
+    };
+  });
+  const endOf = new Map(phases.map((ph) => [ph.id, ph]));
+  const milestones = timeline.milestones.map((m) => {
+    const ph = endOf.get(m.phaseId);
+    return ph ? { ...m, offset: ph.endOffset, date: ph.endDate } : m;
+  });
+  const last = phases.reduce((a, b) => (b.endOffset > a.endOffset ? b : a), phases[0]);
+  const totalBusinessDays = Math.max(0, ...phases.map((ph) => ph.endOffset));
+  return {
+    ...timeline,
+    phases,
+    milestones,
+    totalBusinessDays,
+    totalWeeks: Math.max(1, Math.ceil(totalBusinessDays / 5)),
+    launchDate: last ? last.endDate : timeline.launchDate,
+  };
 }

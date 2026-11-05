@@ -34,6 +34,7 @@ import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import { currentTeamCalendar } from "@/hooks/useTeamCalendar";
+import { followPlannedWork } from "@/lib/discovery/team-calendar";
 import {
   applyTaskToLineItems,
   diffEstimateToProject,
@@ -215,8 +216,10 @@ function planSeeds(
       end: cur && cur.end > p.endDate ? cur.end : p.endDate,
     });
   }
+  followPlannedWork(scaffold, sprintDates, currentTeamCalendar());
   return { byLineItem, sprintDates };
 }
+
 
 /** One planned task, shaped for display in the preview step. */
 export interface SchedulePreviewTask {
@@ -243,7 +246,7 @@ export interface SchedulePreview {
   tasks: SchedulePreviewTask[];
   assignedCount: number;
   unassignedCount: number;
-  /** Latest planned end date across all tasks. */
+  /** Launch: the latest end across planned tasks and phases (see toPreview). */
   finishDate: string | null;
   /** Existing tasks the estimate has changed under — renamed and/or re-houred. */
   edits: SchedulePreviewEdit[];
@@ -302,10 +305,16 @@ function toPreview(
     };
   });
   const assignedCount = tasks.filter((t) => t.assigneeName).length;
+  // The launch is when the LAST phase ends — Launch & Handoff has no tasks but
+  // is still work — not just when the last task does. Only once a plan exists:
+  // without one (Manual) `previewFinish` falls back to the phases anyway.
   let finishDate: string | null = null;
   for (const t of tasks) {
     if (t.endDate && (!finishDate || t.endDate > finishDate))
       finishDate = t.endDate;
+  }
+  if (plan && finishDate) {
+    for (const sp of sprints) if (sp.end > finishDate) finishDate = sp.end;
   }
   return {
     sprints,

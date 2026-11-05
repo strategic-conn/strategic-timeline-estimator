@@ -547,9 +547,25 @@ date, how many tasks have someone, and "See who does what".
    "finishes first" weighs (hours/day, booked work, approved leave, weekends,
    holidays). It mirrors `planSchedule`'s sort in `lib/assignment/plan.ts` —
    change it in the same commit as that sort or the eligibility rules.
- - **The Gantt bars stay team-level** (business-day offsets per phase); the
-   card above them is the people plan. Redrawing the bars per person was out of
-   scope.
+ - **Phases with no tasks follow the people plan** (2026-11-05). Launch &
+   Handoff (and any task-less phase after the last planned one) keeps its
+   length and its gap from that phase, in working days, but is re-anchored to
+   where the plan really ended it (`followPlannedWork`,
+   `lib/discovery/team-calendar.ts`). The launch date is the latest end across
+   planned tasks AND phases (`toPreview`), so a task-less Launch phase is no
+   longer left out of it ("Launches Dec 1" above "Launch & Handoff Dec 10–17").
+ - **The Gantt is drawn on the people plan's phase dates** (2026-11-05,
+   `alignTimelineToPlan` in `lib/discovery/team-calendar.ts`, fed the preview's
+   sprints via the `plannedPhases` prop) whenever a plan exists — bars, Go-Live
+   and the launch date are the card's dates. Manual (no plan) keeps the
+   team-level timeline. Bars are still per phase, not per person.
+ - **The PO's date range follows the same plan.** `CreatePoDialog` pre-fills,
+   in order: the schedule just reviewed (Start project) → the project's own
+   sprints → the estimate's people plan → the team-level timeline
+   (`estimateDateRange`) as a last resort.
+ - ⚠️ **Known gap:** the people plan (`planSchedule`) does not apply the risk
+   buffer — the buffered timeline only sets each phase's earliest start. So a
+   plan-driven launch date can carry less buffer than the team-level timeline.
  - `schedule_plan` is in all three whitelists (`rowToQuote`,
    `quoteUpdatePayload`, the `Pick` on `updateProposal`). Old approved quotes
    have no `quoted_finish`, so they show the lock without a quoted date.

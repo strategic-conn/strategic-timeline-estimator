@@ -458,7 +458,10 @@ export function ProposalEditorClient({
   const tentProject = React.useMemo(() => tentativeProject(), []);
   /** Whichever timeline this quote actually has — guided answers or line items. */
   const activeResult = scopeResult ?? catalogResult;
-  const { launch: plannedLaunch } = useQuoteSchedule(quote);
+  const { launch: plannedLaunch, preview: schedulePreview } = useQuoteSchedule(quote);
+  // The plan's phase dates, for the Gantt — only when a people plan exists
+  // (Manual has none, and its phases are the timeline's own anyway).
+  const plannedPhases = schedulePreview?.plan ? schedulePreview.sprints : null;
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -1414,6 +1417,7 @@ export function ProposalEditorClient({
                           project={quote.discovery}
                           teamCalendar={teamCalendar}
                           plannedLaunch={plannedLaunch}
+                          plannedPhases={plannedPhases}
                         />
                       </div>
                     )}
@@ -1454,6 +1458,7 @@ export function ProposalEditorClient({
                       project={tentProject}
                       teamCalendar={teamCalendar}
                       plannedLaunch={plannedLaunch}
+                      plannedPhases={plannedPhases}
                     />
                   </>
                 )}

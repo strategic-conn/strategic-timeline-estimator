@@ -23,10 +23,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePbsPoTarget } from "@/hooks/usePbsClients";
+import { useQuoteSchedule } from "@/hooks/useQuoteSchedule";
 import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import { estimateDateRange } from "@/lib/discovery/from-line-items";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
+import { useSprintsStore } from "@/store/sprints-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /**
@@ -120,8 +122,39 @@ export function CreatePoDialog({
       teamCalendar,
     ],
   );
-  const derivedStart = schedule?.start ?? derived?.start ?? null;
-  const derivedEnd = schedule?.end ?? derived?.end ?? null;
+  // Where the dates come from, most real first: the schedule just reviewed
+  // (Start project); the project's own sprints (Create PO for an existing
+  // project — the plan the team follows); the estimate's people plan, the same
+  // dates the "Who does the work" card and the Gantt show; and only then the
+  // team-level timeline. They used to skip straight to the last, so the PO
+  // could end a week after the launch date on screen.
+  const allSprints = useSprintsStore((s) => s.sprints);
+  const projectRange = React.useMemo(
+    () =>
+      quote.project_id
+        ? rangeOf(allSprints.filter((sp) => sp.project_id === quote.project_id)
+            .map((sp) => ({ start: sp.start_date, end: sp.end_date })))
+        : null,
+    [allSprints, quote.project_id],
+  );
+  const { preview } = useQuoteSchedule(
+    open && !schedule && !projectRange ? quote : null,
+  );
+  const planRange = React.useMemo(
+    () => (preview ? rangeOf(preview.sprints) : null),
+    [preview],
+  );
+  const source = schedule
+    ? { range: schedule, note: "From the schedule you just reviewed. " }
+    : projectRange
+      ? { range: projectRange, note: "From this project's sprints. " }
+      : planRange
+        ? { range: planRange, note: "From this estimate's plan (Who does the work). " }
+        : derived
+          ? { range: derived, note: "From this estimate's timeline. " }
+          : null;
+  const derivedStart = source?.range.start ?? null;
+  const derivedEnd = source?.range.end ?? null;
 
   const [startDate, setStartDate] = React.useState("");
   const [endDate, setEndDate] = React.useState("");
@@ -416,11 +449,9 @@ export function CreatePoDialog({
                         ? "Both project dates are required."
                         : "The end date must be on or after the start date."}
                     </p>
-                  ) : derivedStart && (schedule || derived) ? (
+                  ) : derivedStart && source ? (
                     <p className="text-[0.7rem] text-muted-foreground">
-                      {schedule
-                        ? "From the schedule you just reviewed. "
-                        : "From this estimate's timeline. "}
+                      {source.note}
                       PBS stores this range
                       with the PO and can&apos;t change it afterwards.
                     </p>
@@ -558,4 +589,15 @@ export function CreatePoDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+/** Earliest start and latest end of a set of ISO-dated ranges, or null. */
+function rangeOf(
+  ranges: ReadonlyArray<{ start: string; end: string }>,
+): { start: string; end: string } | null {
+  const iso = ranges
+    .flatMap((r) => [r.start, r.end])
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+    .sort();
+  return iso.length ? { start: iso[0], end: iso[iso.length - 1] } : null;
 }

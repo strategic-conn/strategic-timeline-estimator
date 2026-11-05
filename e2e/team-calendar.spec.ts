@@ -3,7 +3,9 @@ import { addBusinessDays, format } from "date-fns";
 
 import {
   addWorkingDays,
+  alignTimelineToPlan,
   buildTeamCalendar,
+  followPlannedWork,
   timelineShift,
   type CalendarMember,
 } from "../lib/discovery/team-calendar";
@@ -220,5 +222,85 @@ test.describe("how it moves the timeline", () => {
     // Bounded by MAX_WALK_DAYS rather than hanging the estimator.
     expect(out.getTime()).toBeGreaterThan(D("2026-10-05").getTime());
     expect(Number.isNaN(out.getTime())).toBe(false);
+  });
+});
+
+test.describe("phases with no tasks follow the planned work", () => {
+  // March 2027: no federal holidays, so only weekends are skipped.
+  const scaffold = [
+    { label: "Discovery & Strategy", start_date: "2027-02-22", end_date: "2027-02-26" },
+    { label: "Development", start_date: "2027-03-01", end_date: "2027-03-12" },
+    { label: "QA & Testing", start_date: "2027-03-12", end_date: "2027-03-17" },
+    { label: "Launch & Handoff", start_date: "2027-03-24", end_date: "2027-03-31" },
+  ];
+
+  test("Launch keeps its gap and length, re-anchored to where QA really ends", () => {
+    const dates = new Map([
+      ["Development", { start: "2027-03-01", end: "2027-03-05" }],
+      ["QA & Testing", { start: "2027-03-05", end: "2027-03-08" }],
+    ]);
+    followPlannedWork(scaffold, dates, null);
+    // Scaffold: 5 working days after QA, 5 long. QA now ends Mon Mar 8.
+    expect(dates.get("Launch & Handoff")).toEqual({ start: "2027-03-15", end: "2027-03-22" });
+    // Before any planned work: untouched (not added to the plan's dates).
+    expect(dates.has("Discovery & Strategy")).toBe(false);
+  });
+
+  test("a plan that ends late pushes Launch later too", () => {
+    const dates = new Map([["QA & Testing", { start: "2027-03-12", end: "2027-03-19" }]]);
+    followPlannedWork(scaffold, dates, null);
+    expect(dates.get("Launch & Handoff")).toEqual({ start: "2027-03-26", end: "2027-04-02" });
+  });
+
+  test("no change when the plan ends where the timeline did", () => {
+    const dates = new Map([["QA & Testing", { start: "2027-03-12", end: "2027-03-17" }]]);
+    followPlannedWork(scaffold, dates, null);
+    expect(dates.has("Launch & Handoff")).toBe(false);
+  });
+});
+
+test.describe("the Gantt is drawn on the people plan", () => {
+  // Mon 1 Mar 2027 start; no holidays in March.
+  const start = new Date("2027-03-01T12:00:00");
+  const phase = (id: string, label: string, s: number, e: number) => ({
+    id, label, startOffset: s, endOffset: e, durationDays: e - s, startDate: "x", endDate: "y",
+  });
+  const timeline = {
+    phases: [
+      phase("development", "Development", 0, 10),
+      phase("qa", "QA & Testing", 10, 13),
+      phase("launch", "Launch & Handoff", 18, 23),
+    ],
+    milestones: [{ id: "go_live", label: "Go-Live", phaseId: "launch", offset: 23, date: "z" }],
+    totalBusinessDays: 23,
+    baseBusinessDays: 20,
+    riskBufferPct: 15,
+    totalWeeks: 5,
+    launchDate: "Apr 1, 2027",
+  } as unknown as Parameters<typeof alignTimelineToPlan>[0];
+
+  test("bars, Go-Live and the launch date move to the plan's dates", () => {
+    const t = alignTimelineToPlan(
+      timeline,
+      [
+        { label: "Development", start: "2027-03-01", end: "2027-03-05" },
+        { label: "QA & Testing", start: "2027-03-05", end: "2027-03-08" },
+        { label: "Launch & Handoff", start: "2027-03-15", end: "2027-03-22" },
+      ],
+      start,
+      null,
+    );
+    const launch = t.phases.find((p) => p.label === "Launch & Handoff")!;
+    expect([launch.startOffset, launch.endOffset]).toEqual([10, 15]);
+    expect(launch.endDate).toBe("Mar 22, 2027");
+    expect(t.milestones[0]).toMatchObject({ offset: 15, date: "Mar 22, 2027" });
+    expect(t.totalBusinessDays).toBe(15);
+    expect(t.launchDate).toBe("Mar 22, 2027");
+  });
+
+  test("a phase the plan doesn't list keeps its own dates; no plan, no change", () => {
+    const t = alignTimelineToPlan(timeline, [{ label: "QA & Testing", start: "2027-03-05", end: "2027-03-08" }], start, null);
+    expect(t.phases[0]).toEqual(timeline.phases[0]);
+    expect(alignTimelineToPlan(timeline, [], start, null)).toBe(timeline);
   });
 });

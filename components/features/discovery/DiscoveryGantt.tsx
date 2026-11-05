@@ -17,6 +17,7 @@ import { formatHours } from "@/lib/discovery";
 import { resolveProjectStart } from "@/lib/discovery/timeline";
 import {
   addWorkingDays,
+  alignTimelineToPlan,
   timelineShift,
   type TeamCalendar,
 } from "@/lib/discovery/team-calendar";
@@ -40,16 +41,21 @@ export function DiscoveryGantt({
   project,
   teamCalendar,
   plannedLaunch,
+  plannedPhases,
 }: {
   result: DiscoveryResult;
   project: DiscoveryProject;
   /** The estimate's launch date from its people plan (`useQuoteSchedule`). */
   plannedLaunch?: string | null;
+  /**
+   * The people plan's phase dates (ISO), same as the "Who does the work" card.
+   * When given, the bars are drawn on these instead of the team-level timeline.
+   */
+  plannedPhases?: ReadonlyArray<{ label: string; start: string; end: string }> | null;
   /** Booked time off already folded into `result`; passed only to explain it. */
   teamCalendar?: TeamCalendar | null;
 }) {
-  const { timeline, estimate } = result;
-  const launchDate = plannedLaunch ?? timeline.launchDate;
+  const { estimate } = result;
   // Memoised because `resolveProjectStart` returns a fresh Date every call, and
   // the derivations below take it as a dependency — an unstable identity would
   // re-walk the calendar on every render.
@@ -57,6 +63,17 @@ export function DiscoveryGantt({
     () => resolveProjectStart(project.project_start_date),
     [project.project_start_date],
   );
+  // Drawn on the people plan when there is one, so the bars, the launch date
+  // above them and Start project's sprints are the same dates.
+  const aligned = Boolean(plannedPhases?.length);
+  const timeline = React.useMemo(
+    () =>
+      plannedPhases?.length
+        ? alignTimelineToPlan(result.timeline, plannedPhases, start, teamCalendar)
+        : result.timeline,
+    [result.timeline, plannedPhases, start, teamCalendar],
+  );
+  const launchDate = plannedLaunch ?? timeline.launchDate;
   const total = Math.max(timeline.totalBusinessDays, 1);
   /**
    * Why the dates sit later than a plain business-day count, and by how much.
@@ -153,7 +170,7 @@ export function DiscoveryGantt({
               <CardDescription>
                 {timeline.totalWeeks} weeks · {timeline.totalBusinessDays} business
                 days
-                {timeline.riskBufferPct > 0 ? (
+                {timeline.riskBufferPct > 0 && !aligned ? (
                   /* Say where the extra days came from. The bars stretched, so
                      without this the estimate simply looks bigger than the
                      hours justify. */
@@ -170,7 +187,7 @@ export function DiscoveryGantt({
                     {shift.days} day{shift.days === 1 ? "" : "s"} later — {shiftReason}
                   </span>
                 ) : null}
-                {launchDate !== timeline.launchDate ? (
+                {!aligned && launchDate !== timeline.launchDate ? (
                   <span className="mt-1 block text-xs">
                     Bars assume one person at a time and include DNS time, so they
                     can run past the launch date, which comes from the people plan.
