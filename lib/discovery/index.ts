@@ -6,7 +6,11 @@ import { withSkippedSections } from "@/lib/discovery/questions";
 import type { TeamCalendar } from "@/lib/discovery/team-calendar";
 import type { DiscoveryProject, DiscoveryResult } from "@/types/discovery.types";
 
-export { computeEstimate } from "@/lib/discovery/engine";
+export {
+  computeEstimate,
+  generatedAssumptions,
+  scopeAssumptions,
+} from "@/lib/discovery/engine";
 export { computeTimeline } from "@/lib/discovery/timeline";
 export { computeRisk } from "@/lib/discovery/risk";
 

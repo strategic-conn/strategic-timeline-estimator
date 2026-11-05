@@ -425,6 +425,14 @@ interface ClientQuote {
   this project: …". **1–2 can never be skipped** (`SKIPPABLE_SECTIONS`). Saved
   answers are kept, so switching back restores the estimate exactly.
   `e2e/skip-sections.spec.ts`.
+  **Scope assumptions are editable and printed on the quote** (2026-11-05).
+  Generated from the answers by default; **Edit** on the Hours tab saves the
+  coordinator's list as `discovery.assumptions` (inside the jsonb — no
+  migration), **Reset to defaults** sets it back to `null`. An edited list no
+  longer follows answer changes. `scopeAssumptions` (`lib/discovery/engine.ts`)
+  is the one read, used by the Hours tab, the PDF, Excel and the client
+  preview. Guided quotes only — a catalog quote has no questionnaire.
+  `e2e/scope-assumptions.spec.ts`.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
 **Section help ("?" in each section's top-right corner).** Every page header

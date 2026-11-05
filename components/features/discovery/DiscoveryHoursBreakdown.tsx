@@ -1,15 +1,20 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight, Pencil, RotateCcw } from "lucide-react";
 
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
+import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { PHASE_META, RISK_LEVEL_META } from "@/lib/discovery/constants";
 import { formatHours } from "@/lib/discovery";
 import { cn } from "@/lib/utils";
@@ -17,8 +22,17 @@ import type { DiscoveryResult } from "@/types/discovery.types";
 
 export function DiscoveryHoursBreakdown({
   result,
+  onAssumptionsChange,
+  assumptionsEdited = false,
 }: {
   result: DiscoveryResult;
+  /**
+   * Makes the assumptions editable. Receives the edited list, or `null` to go
+   * back to the list generated from the answers.
+   */
+  onAssumptionsChange?: (assumptions: string[] | null) => void;
+  /** The list on screen is the coordinator's edit, not the generated one. */
+  assumptionsEdited?: boolean;
 }) {
   const { estimate, risk } = result;
   const [expanded, setExpanded] = React.useState<Set<string>>(new Set());
@@ -207,27 +221,139 @@ export function DiscoveryHoursBreakdown({
         </CardContent>
       </Card>
 
-      {/* Assumptions */}
-      {estimate.assumptions.length ? (
+      {onAssumptionsChange ? (
+        <ScopeAssumptionsCard
+          assumptions={estimate.assumptions}
+          edited={assumptionsEdited}
+          onChange={onAssumptionsChange}
+        />
+      ) : estimate.assumptions.length ? (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Scope assumptions</CardTitle>
           </CardHeader>
           <CardContent className="pb-4">
-            <ul className="grid gap-2 sm:grid-cols-2">
-              {estimate.assumptions.map((a) => (
-                <li
-                  key={a}
-                  className="flex items-start gap-2 text-sm text-muted-foreground"
-                >
-                  <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-                  {a}
-                </li>
-              ))}
-            </ul>
+            <AssumptionList items={estimate.assumptions} />
           </CardContent>
         </Card>
       ) : null}
     </div>
+  );
+}
+
+function AssumptionList({ items }: { items: string[] }) {
+  return (
+    <ul className="grid gap-2 sm:grid-cols-2">
+      {items.map((a, i) => (
+        <li
+          key={`${i}-${a}`}
+          className="flex items-start gap-2 text-sm text-muted-foreground"
+        >
+          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
+          {a}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The scope assumptions, editable. Starts from the list generated from the
+ * answers; once edited, the coordinator's list is what the quote prints, and
+ * later answer changes no longer rewrite it (Reset brings the generated one
+ * back). Edited as one line per assumption — the simplest thing that can't
+ * lose a line to a fiddly per-row control on a phone.
+ */
+function ScopeAssumptionsCard({
+  assumptions,
+  edited,
+  onChange,
+}: {
+  assumptions: string[];
+  edited: boolean;
+  onChange: (assumptions: string[] | null) => void;
+}) {
+  const [draft, setDraft] = React.useState<string | null>(null);
+
+  const save = () => {
+    if (draft === null) return;
+    const lines = draft
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    onChange(lines);
+    setDraft(null);
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="text-base">Scope assumptions</CardTitle>
+        <CardDescription>
+          {edited
+            ? "Edited. Printed on the quote as shown; changing answers no longer updates this list."
+            : "Generated from the answers. Printed on the quote."}
+        </CardDescription>
+        {draft === null ? (
+          <CardAction className="flex gap-1.5">
+            {edited ? (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => onChange(null)}
+              >
+                <RotateCcw className="size-3.5" aria-hidden />
+                Reset to defaults
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setDraft(assumptions.join("\n"))}
+            >
+              <Pencil className="size-3.5" aria-hidden />
+              Edit
+            </Button>
+          </CardAction>
+        ) : null}
+      </CardHeader>
+      <CardContent className="pb-4">
+        {draft !== null ? (
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="scope-assumptions" className="text-xs text-muted-foreground">
+              One assumption per line
+            </Label>
+            <Textarea
+              id="scope-assumptions"
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={Math.max(4, draft.split("\n").length + 1)}
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setDraft(null)}
+              >
+                Cancel
+              </Button>
+              <Button type="button" size="sm" onClick={save}>
+                Save assumptions
+              </Button>
+            </div>
+          </div>
+        ) : assumptions.length ? (
+          <AssumptionList items={assumptions} />
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            No assumptions. The quote won&apos;t show this section.
+          </p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

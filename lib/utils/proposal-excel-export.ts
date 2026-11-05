@@ -8,6 +8,7 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
+import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -148,6 +149,13 @@ export async function downloadProposalExcel(
     pricing.pricedHours,
     pricing.grandAmount,
   ]);
+
+  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
+  if (assumptions.length) {
+    rows.push([]);
+    rows.push(["Assumptions"]);
+    for (const a of assumptions) rows.push([a]);
+  }
 
   if (quote.notes?.trim()) {
     rows.push([]);
