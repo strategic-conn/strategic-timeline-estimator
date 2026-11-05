@@ -16,6 +16,7 @@ import {
   PHASE_ROLE,
   currentAddonRates,
   defaultRoleFor,
+  rateBreakdown,
   repriceToCurrentRates,
   withPricing,
 } from "../lib/pricing/line-pricing";
@@ -262,5 +263,32 @@ test.describe("risk buffer is priced", () => {
     ).toBe(4_400);
     // Draft/sent -> priced.
     expect(quotePricing(quote({ ...base, status: "sent" })).grandAmount).toBe(4_400);
+  });
+});
+
+test.describe("rates breakdown", () => {
+  test("groups by role + level and adds up to the price, buffer included", () => {
+    const q = quote({
+      line_items: [
+        line({ base_hours: 10, rate: 120, responsible: "IT", level: 2 }),
+        line({ base_hours: 5, rate: 120, responsible: "IT", level: 2 }),
+        line({ base_hours: 8, rate: 80, responsible: "Project Manager", level: 1 }),
+        line({ base_hours: 3, rate: 100 }), // no role
+      ],
+      addons: { ...DEFAULT_ADDONS, responsive_enabled: false, design_enabled: false, qa_enabled: true, qa_pct: 20, pm_enabled: false, rates: { responsive: 100, design: 100, qa: 80, pm: 80 } },
+      risk_buffer_pct: 10,
+    });
+    const b = rateBreakdown(q);
+    const p = quotePricing(q);
+    const it = b.rows.find((r) => r.label === "IT · Level 2")!;
+    expect(it).toMatchObject({ rate: 120, hours: 15, amount: 1_800 });
+    expect(b.rows.find((r) => r.label === "No role set")).toMatchObject({ rate: 100, hours: 3 });
+    expect(b.rows.find((r) => r.label === "QA Tester · Level 1")?.rate).toBe(80);
+    expect(b.buffer).toEqual({ pct: 10, hours: p.bufferHours, amount: p.bufferAmount });
+    const sum = b.rows.reduce((s, r) => s + r.amount, 0) + (b.buffer?.amount ?? 0);
+    expect(sum).toBe(p.grandAmount);
+    expect(b.totalAmount).toBe(p.grandAmount);
+    expect(b.totalHours).toBe(p.pricedHours);
+    expect(b.rows[0].label).toBe("IT · Level 2"); // busiest first
   });
 });

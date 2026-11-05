@@ -1,4 +1,12 @@
-import { LEGACY_HOURLY_RATE } from "@/lib/constants/proposal-estimator";
+import {
+  LEGACY_HOURLY_RATE,
+  addonRates,
+  lineAmount,
+  lineEffectiveHours,
+  lineRate,
+  quotePricing,
+  roundHours,
+} from "@/lib/constants/proposal-estimator";
 import { PHASE_META } from "@/lib/discovery/constants";
 import {
   DEFAULT_HOURLY_RATES,
@@ -165,4 +173,62 @@ export function repriceToCurrentRates(
     return { ...li, responsible: role.responsible, level: role.level, rate };
   });
   return { line_items, addonRates: currentAddonRates(rates), changedLines };
+}
+
+/** One row of the rates breakdown: a role + level at one rate. */
+export type RateBreakdownRow = {
+  /** "IT · Level 2", or "No role set" for a line without one. */
+  label: string;
+  rate: number;
+  hours: number;
+  amount: number;
+};
+
+export type RateBreakdown = {
+  rows: RateBreakdownRow[];
+  /** The priced risk buffer, or null when there is none. */
+  buffer: { pct: number; hours: number; amount: number } | null;
+  totalHours: number;
+  totalAmount: number;
+};
+
+/**
+ * Who the quote's hours are priced for: every line and add-on grouped by
+ * role + level + rate, plus the risk buffer. Built from the same pieces as
+ * `quotePricing` (each line's `lineAmount`, each add-on's amount), so the rows
+ * always add up to the quote's price to the dollar. Busiest rows first.
+ */
+export function rateBreakdown(quote: ClientQuote): RateBreakdown {
+  const p = quotePricing(quote);
+  const unclear = quote.requirements_unclear;
+  const groups = new Map<string, RateBreakdownRow>();
+  const add = (role: RoleKey | null, rate: number, hours: number, amount: number) => {
+    if (hours <= 0 && amount <= 0) return;
+    const label = role ? `${role.responsible} · Level ${role.level}` : "No role set";
+    const key = `${label}|${rate}`;
+    const row = groups.get(key) ?? { label, rate, hours: 0, amount: 0 };
+    row.hours = roundHours(row.hours + hours);
+    row.amount += amount;
+    groups.set(key, row);
+  };
+
+  for (const li of quote.line_items) {
+    add(roleOf(li), lineRate(li), lineEffectiveHours(li, unclear), lineAmount(li, unclear));
+  }
+  const t = p.totals;
+  const ar = addonRates(quote.addons);
+  add(ADDON_ROLE.responsive, ar.responsive, t.responsiveHours, p.responsiveAmount);
+  add(ADDON_ROLE.design, ar.design, t.designHours, p.designAmount);
+  add(ADDON_ROLE.qa, ar.qa, t.qaHours, p.qaAmount);
+  add(ADDON_ROLE.pm, ar.pm, t.pmHours, p.pmAmount);
+
+  return {
+    rows: [...groups.values()].sort((a, b) => b.hours - a.hours || b.rate - a.rate),
+    buffer:
+      p.bufferPct > 0
+        ? { pct: p.bufferPct, hours: p.bufferHours, amount: p.bufferAmount }
+        : null,
+    totalHours: p.pricedHours,
+    totalAmount: p.grandAmount,
+  };
 }
