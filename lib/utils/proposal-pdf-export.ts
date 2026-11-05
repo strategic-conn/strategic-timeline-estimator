@@ -9,6 +9,7 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
+import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -183,6 +184,33 @@ async function buildProposalPdfDoc(
 
   y = (doc as DocWithAutoTable).lastAutoTable?.finalY ?? y;
   y += 8;
+
+  // Scope assumptions — guided quotes only (the coordinator can edit them).
+  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
+  if (assumptions.length) {
+    if (y > doc.internal.pageSize.getHeight() - 40) {
+      doc.addPage();
+      y = margin;
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor(30, 30, 30);
+    doc.text("Assumptions", margin, y);
+    y += 5;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(60, 60, 60);
+    for (const a of assumptions) {
+      const wrapped = doc.splitTextToSize(`- ${a}`, pageW - margin * 2);
+      if (y + wrapped.length * 4.5 > doc.internal.pageSize.getHeight() - margin) {
+        doc.addPage();
+        y = margin;
+      }
+      doc.text(wrapped, margin, y);
+      y += wrapped.length * 4.5;
+    }
+    y += 4;
+  }
 
   // Dependencies appendix (only if anything has deps)
   const withDeps = quote.line_items.filter((li) => li.depends_on.length);

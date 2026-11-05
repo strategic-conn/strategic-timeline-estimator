@@ -10,6 +10,7 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
+import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import { cn } from "@/lib/utils";
 import type { ClientQuote } from "@/types/proposal.types";
@@ -27,6 +28,7 @@ export function ProposalPdfPreviewMock({
 }: ProposalPdfPreviewMockProps) {
   const pricing = quotePricing(quote);
   const totals = pricing.totals;
+  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
   const dateStr = format(new Date(quote.updated_at), "MMMM d, yyyy");
   const goal = primaryGoalLabel(
     quote.discovery?.primary_goal ?? "",
@@ -182,6 +184,17 @@ export function ProposalPdfPreviewMock({
           </div>
         </dl>
       </section>
+
+      {assumptions.length ? (
+        <section className="mt-8 border-t border-slate-200 pt-6 print:pt-4">
+          <h2 className="text-sm font-semibold text-slate-800">Assumptions</h2>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-700">
+            {assumptions.map((a, i) => (
+              <li key={`${i}-${a}`}>{a}</li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {quote.notes?.trim() ? (
         <section className="mt-8 border-t border-slate-200 pt-6 print:pt-4">

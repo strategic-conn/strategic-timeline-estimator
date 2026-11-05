@@ -105,6 +105,12 @@ export interface DiscoveryProject {
    */
   skipped_sections?: number[];
 
+  /**
+   * The scope assumptions as the coordinator edited them — printed on the
+   * quote. Absent/null = the list generated from the answers (the default).
+   */
+  assumptions?: string[] | null;
+
   created_at: string;
   updated_at: string;
 }

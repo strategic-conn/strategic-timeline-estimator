@@ -1385,7 +1385,17 @@ export function ProposalEditorClient({
                     />
                   </TabsContent>
                   <TabsContent value="hours">
-                    <DiscoveryHoursBreakdown result={scopeResult} />
+                    <DiscoveryHoursBreakdown
+                      result={scopeResult}
+                      assumptionsEdited={quote.discovery!.assumptions != null}
+                      onAssumptionsChange={(assumptions) =>
+                        setDiscovery(quote.id, {
+                          ...quote.discovery!,
+                          assumptions,
+                          updated_at: new Date().toISOString(),
+                        })
+                      }
+                    />
                   </TabsContent>
                   <TabsContent value="timeline">
                     {linkedProject ? (

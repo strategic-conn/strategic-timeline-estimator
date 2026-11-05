@@ -343,8 +343,22 @@ export function computeEstimate(raw: DiscoveryProject): Estimate {
     phases,
     total,
     retainer,
-    assumptions: buildAssumptions(p),
+    assumptions: scopeAssumptions(raw),
   };
+}
+
+/**
+ * The scope assumptions a quote states: the coordinator's edited list when
+ * there is one, else the list generated from the answers. One definition, read
+ * by the Hours tab and by the PDF / Excel / client preview.
+ */
+export function scopeAssumptions(raw: DiscoveryProject): string[] {
+  return raw.assumptions ?? generatedAssumptions(raw);
+}
+
+/** The list generated from the answers — what "Reset to defaults" restores. */
+export function generatedAssumptions(raw: DiscoveryProject): string[] {
+  return buildAssumptions(withSkippedSections(raw));
 }
 
 function buildAssumptions(p: DiscoveryProject): string[] {
