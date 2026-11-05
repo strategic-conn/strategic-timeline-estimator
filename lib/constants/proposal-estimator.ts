@@ -287,17 +287,54 @@ export function lineAmount(
   );
 }
 
+/**
+ * An approved or billed estimate is the price the client agreed to, so task
+ * edits on its project no longer flow back into it (the project → estimate
+ * mirror stops). The project is the plan from then on; the quote stays what
+ * was signed. Billed = a PO exists, by either identifier. Estimate → project
+ * (Sync schedule) is unaffected — it is a deliberate, previewed action.
+ */
+export function quoteIsFrozen(quote: {
+  status?: string | null;
+  pbs?: { po_no?: string | null; po_id?: string | number | null } | null;
+}): boolean {
+  return quote.status === "approved" || !!quote.pbs?.po_no || !!quote.pbs?.po_id;
+}
+
+/**
+ * Whether the schedule risk buffer is part of this quote's PRICE. It always
+ * is, except on a quote that was approved or billed before the buffer was
+ * priced: that is the price the client agreed to, and it must not move. A
+ * quote approved since carries `schedule_plan.buffer_priced` (stamped by the
+ * approval write), so freezing it never drops the buffer line either.
+ */
+export function riskBufferPriced(
+  quote: Pick<ClientQuote, "status" | "pbs" | "schedule_plan">,
+): boolean {
+  return !quoteIsFrozen(quote) || quote.schedule_plan?.buffer_priced === true;
+}
+
 export interface QuotePricing {
-  /** The hours roll-up, unchanged — pricing never alters hours. */
+  /** The WORK hours roll-up, without the buffer — what the timeline schedules. */
   totals: QuoteTotals;
   devAmount: number;
   responsiveAmount: number;
   designAmount: number;
   qaAmount: number;
   pmAmount: number;
-  /** Sum of the parts above — every component is whole dollars, so exact. */
+  /** Lines + add-ons, before the risk buffer. */
+  subtotalAmount: number;
+  /** The buffer % priced in — 0 when there is none, or on a pre-buffer frozen quote. */
+  bufferPct: number;
+  /** `bufferPct` of the work hours — shown on the buffer line. */
+  bufferHours: number;
+  /** `bufferPct` of the subtotal, whole dollars. */
+  bufferAmount: number;
+  /** Work hours + buffer hours — the hours the quote charges for. */
+  pricedHours: number;
+  /** subtotal + buffer — every component is whole dollars, so exact. */
   grandAmount: number;
-  /** grandAmount / grandHours; null when there are no hours. */
+  /** grandAmount / pricedHours; null when there are no hours. */
   averageRate: number | null;
   /** The single rate every priced hour used, or null when rates vary. */
   uniformRate: number | null;
@@ -326,8 +363,18 @@ export function quotePricing(quote: ClientQuote): QuotePricing {
   const designAmount = amountAt(totals.designHours, r.design);
   const qaAmount = amountAt(totals.qaHours, r.qa);
   const pmAmount = amountAt(totals.pmHours, r.pm);
-  const grandAmount =
+  const subtotalAmount =
     devAmount + responsiveAmount + designAmount + qaAmount + pmAmount;
+
+  // The buffer is priced as the same share of hours AND money, so the line
+  // reads at the quote's own blended rate and "at $100/h" stays true.
+  const bufferPct = riskBufferPriced(quote)
+    ? Math.max(0, Math.min(100, Math.round(quote.risk_buffer_pct ?? 0)))
+    : 0;
+  const bufferHours = roundHours(totals.grandHours * (bufferPct / 100));
+  const bufferAmount = Math.round(subtotalAmount * (bufferPct / 100));
+  const pricedHours = roundHours(totals.grandHours + bufferHours);
+  const grandAmount = subtotalAmount + bufferAmount;
 
   const used = new Set<number>();
   for (const li of quote.line_items) {
@@ -345,8 +392,13 @@ export function quotePricing(quote: ClientQuote): QuotePricing {
     designAmount,
     qaAmount,
     pmAmount,
+    subtotalAmount,
+    bufferPct,
+    bufferHours,
+    bufferAmount,
+    pricedHours,
     grandAmount,
-    averageRate: totals.grandHours > 0 ? grandAmount / totals.grandHours : null,
+    averageRate: pricedHours > 0 ? grandAmount / pricedHours : null,
     uniformRate: used.size === 1 ? [...used][0] : null,
   };
 }

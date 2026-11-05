@@ -144,8 +144,9 @@ const HELP = {
           the scope is firm and each line uses its own tier again.
         </p>
         <p>
-          This changes the{" "}<strong>price</strong>. To change only the{" "}
-          <strong>dates</strong>, use the risk buffer below.
+          This changes the{" "}<strong>price</strong>{" "}through each line&apos;s
+          hours. The risk buffer below adds a separate line and also moves the
+          dates.
         </p>
       </>
     ),
@@ -252,10 +253,15 @@ const HELP = {
           a slow client, an undocumented system, a late surprise.
         </p>
         <p>
-          It moves the{" "}<strong>dates only</strong>. Hours and price stay the
-          same. If you&apos;re unsure how much{" "}<em>work</em>{" "}there is (not how
-          long it takes), use{" "}<strong>Requirements not pinned down</strong>{" "}
-          instead — that one changes the price.
+          It adjusts the{" "}<strong>dates and the price</strong>. The quote gets a{" "}
+          <strong>Schedule risk buffer</strong>{" "}line: that percentage of the
+          estimate&apos;s hours, priced at the same percentage of its price. It
+          shows on the PDF, the Excel file and the price sent to Zoho.
+        </p>
+        <p>
+          It is locked once the estimate is approved or billed. An estimate
+          approved before the buffer was priced keeps the price the client
+          agreed to.
         </p>
         <p>
           The buffer carries over to the project when you press{" "}

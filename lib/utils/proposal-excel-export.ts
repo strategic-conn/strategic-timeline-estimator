@@ -125,6 +125,18 @@ export async function downloadProposalExcel(
       totals.pmHours,
       pricing.pmAmount,
     ]);
+  if (pricing.bufferPct > 0)
+    rows.push([
+      "",
+      "",
+      "",
+      "",
+      "",
+      "",
+      `Schedule risk buffer (${pricing.bufferPct}%)`,
+      pricing.bufferHours,
+      pricing.bufferAmount,
+    ]);
   rows.push([
     "",
     "",
@@ -133,7 +145,7 @@ export async function downloadProposalExcel(
     "",
     "",
     "Total",
-    totals.grandHours,
+    pricing.pricedHours,
     pricing.grandAmount,
   ]);
 

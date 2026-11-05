@@ -37,7 +37,7 @@ export const zohoConfig = {
   clientSecret: process.env.ZOHO_CLIENT_SECRET ?? "",
   redirectUri:
     process.env.ZOHO_REDIRECT_URI ??
-    "https://timeline-estimator-project-manageme.vercel.app/api/zoho/callback",
+    "https://estimator.strategicsuite.net/api/zoho/callback",
   scopes: process.env.ZOHO_SCOPES ?? DEFAULT_SCOPES,
   accountsDomain: process.env.ZOHO_ACCOUNTS_DOMAIN ?? DEFAULT_ACCOUNTS,
 };

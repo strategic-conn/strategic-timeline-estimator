@@ -453,7 +453,6 @@ export function ProposalsListClient() {
           {sorted.map((q) => {
             const pn = projectName(q.project_id);
             const pricing = quotePricing(q);
-            const totals = pricing.totals;
             return (
               <li key={q.id} className="flex">
                 {/* flex-1: two cards sharing a row (2xl) end level, not ragged. */}
@@ -479,7 +478,7 @@ export function ProposalsListClient() {
                           {platformLabel(q.platform)}
                         </Badge>
                         <Badge variant="secondary" className="tabular-nums">
-                          {totals.grandHours} h
+                          {pricing.pricedHours} h
                         </Badge>
                         <Badge variant="secondary" className="tabular-nums">
                           {formatAmount(pricing.grandAmount)}

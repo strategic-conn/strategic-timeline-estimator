@@ -628,21 +628,29 @@ move dates people had agreed to.
 > would have stretched an already-buffered plan again (20% twice is 44%). The
 > buffer travels as dates, exactly as **Apply** leaves it on a hand-made project.
 
-> **It stretches the TIMELINE and nothing else.** Hours are untouched, so
-> the price is untouched. The distinction is the whole reason it is a separate
-> control:
+> **On an ESTIMATE it moves dates AND price** (changed 2026-11-05; it was
+> dates-only before). `quotePricing` adds a **Schedule risk buffer (N%)** line:
+> `bufferHours` = N% of the work hours, `bufferAmount` = N% of the subtotal
+> (lines + add-ons, whole dollars), so the line reads at the quote's own
+> blended rate. `grandAmount` and `pricedHours` include it — every surface
+> (header, totals, list, stage board, PDF, Excel, preview, Zoho send) reads
+> those. `totals.grandHours` stays the WORK hours: the timeline already applies
+> the buffer to dates, so feeding it buffered hours would buffer twice.
+>
+>  - **Agreed prices never move.** `riskBufferPriced` = not frozen
+>    (`quoteIsFrozen`, now defined in `lib/constants/proposal-estimator.ts`), or
+>    `schedule_plan.buffer_priced` — which `planOnStatus` stamps in the same
+>    write as approval. So a quote approved/billed before this change keeps its
+>    old price (the card says the buffer is dates-only there), and one approved
+>    since keeps its buffer line. The card is disabled on a frozen quote.
+>  - **On a PROJECT it is still dates only** (`RiskBufferCard`'s default note).
+>  - `regenerateLineItems` still does **not** pass the buffer: it is a priced
+>    line of its own, never folded into line-item hours.
 >
 > | Control | Effect | Kind of decision |
 > | --- | --- | --- |
-> | `requirements_unclear` | prices every line as Advanced (1.5x) | **pricing** — more hours, more money |
-> | `risk_buffer_pct` | same work, expected to take longer | **scheduling** — dates only |
->
-> They sit next to each other on the Adjust tab precisely so the contrast is on
-> screen, and the card says "moves dates only" in as many words. Folding risk
-> into hours would quietly inflate a client quote, and there is already a
-> control that does that on purpose. `regenerateLineItems` deliberately does
-> **not** pass the buffer — it turns an estimate into line items, and the buffer
-> must never reach them.
+> | `requirements_unclear` | prices every line as Advanced (1.5x) | **pricing** — more hours per line |
+> | `risk_buffer_pct` | longer timeline + a priced buffer line | **scheduling and pricing** |
 
  - **"Requirements not pinned down" must be visible wherever it moves a
    number.** QA read "368–568 hrs" on Scope & risk and "708 h" on Line items
