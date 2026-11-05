@@ -32,6 +32,7 @@ import {
 import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import {
   AUTO_ADVANCE_FROM,
+  NO_PRODUCTS_ERROR,
   PUSHABLE_STAGES,
   shouldAttach,
   zohoPushes,
@@ -112,6 +113,23 @@ export async function POST(
       { error: `"${targetStage}" isn't a stage in this Zoho pipeline.` },
       { status: 400 },
     );
+  }
+  // Send to Zoho (the only caller that sets replace=1) must carry products —
+  // checked before anything is written, so a refused send moves no stage.
+  // Stage moves, import and mark-complete send no products and are unaffected.
+  if (form.get("replace") === "1") {
+    let sent: unknown[] = [];
+    try {
+      sent = parsePackageInput(JSON.parse(String(form.get("products") ?? "[]")));
+    } catch {
+      sent = [];
+    }
+    if (!sent.length) {
+      return NextResponse.json(
+        { error: NO_PRODUCTS_ERROR, code: "no_products" },
+        { status: 400 },
+      );
+    }
   }
 
   const supabase = db();

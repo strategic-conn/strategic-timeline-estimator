@@ -233,9 +233,11 @@ export function ZohoSendDialog({
   // no-op and the PDF is deduped by filename, so an edited estimate's updated
   // document still reaches the deal.
   const reading = loadingDescriptions || loadingLive;
+  // No products, no send — the routes refuse it too (NO_PRODUCTS_ERROR).
   const canSubmit =
     !busy &&
     !reading &&
+    products.length > 0 &&
     (isUpdate || Boolean(accountId && name.trim() && closingDate));
 
   const productPayload = () =>

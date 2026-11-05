@@ -7,7 +7,11 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { applyEstimateToDeal } from "@/lib/zoho/deal-estimate-sync";
 import { parsePackageInput } from "@/lib/zoho/deal-packages";
 import { requireZohoReader, requireZohoWriter } from "@/lib/zoho/guard";
-import { PUSHABLE_STAGES, shouldAttach } from "@/lib/zoho/push-state";
+import {
+  NO_PRODUCTS_ERROR,
+  PUSHABLE_STAGES,
+  shouldAttach,
+} from "@/lib/zoho/push-state";
 import { zohoFetch } from "@/lib/zoho/tokens";
 
 /**
@@ -230,6 +234,14 @@ export async function POST(req: Request) {
   if (!(CREATABLE_STAGES as readonly string[]).includes(stage)) {
     return NextResponse.json(
       { error: `A new deal can't be opened at "${stage}".` },
+      { status: 400 },
+    );
+  }
+  // A deal goes to Zoho with its products, never as a bare total. The send
+  // dialog blocks this too; this is the gate a crafted request can't skip.
+  if (!products.length) {
+    return NextResponse.json(
+      { error: NO_PRODUCTS_ERROR, code: "no_products" },
       { status: 400 },
     );
   }

@@ -140,7 +140,9 @@ import {
   PUSHABLE_STAGES,
   canRaisePo,
   canStartProject,
+  NO_PRODUCTS_ERROR,
   hasPo,
+  hasZohoProducts,
   requestStagePush,
   zohoPushes,
 } from "@/lib/zoho/push-state";
@@ -317,6 +319,11 @@ export function ProposalEditorClient({
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
   const [scopeTab, setScopeTab] = React.useState("questionnaire");
+  /** Where a refused Send to Zoho sends people: Setup, product picker open. */
+  const goChooseProducts = () => {
+    setTab("setup");
+    setProductsOpen(true);
+  };
 
   React.useEffect(() => {
     if (useProposalEstimatorStore.persist.hasHydrated()) {
@@ -1810,7 +1817,18 @@ export function ProposalEditorClient({
                         ? `Open a deal on ${quote.zoho.account ?? "the linked account"}`
                         : "Link the client to a Zoho account first — “Find in Zoho” on Setup"
                   }
-                  onClick={() => setSendOpen(true)}
+                  // Left clickable with no products, so the click can say WHY
+                  // and take them there — a disabled button explains nothing.
+                  onClick={() => {
+                    if (!hasZohoProducts(quote.zoho)) {
+                      toast.error("Can't send to Zoho without products", {
+                        description: NO_PRODUCTS_ERROR,
+                        action: { label: "Choose products", onClick: goChooseProducts },
+                      });
+                      return;
+                    }
+                    setSendOpen(true);
+                  }}
                   {...tourAnchor("estimate.send-zoho")}
                 >
                   <Upload className="size-3.5" aria-hidden />
@@ -1838,6 +1856,25 @@ export function ProposalEditorClient({
                   onClick={() => setTab("setup")}
                 >
                   Go to Setup
+                </Button>
+              </div>
+            ) : !hasZohoProducts(quote.zoho) ? (
+              <div
+                role="status"
+                className="flex flex-wrap items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-sm text-amber-900 dark:text-amber-200"
+              >
+                <TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                <p className="min-w-0 flex-1">
+                  <strong>No products chosen.</strong>{" "}Send to Zoho needs at least one product: they become the deal&apos;s Packages rows. Choose them with{" "}<strong>Add from Zoho</strong>{" "}on the Setup tab.
+                </p>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-7 shrink-0 bg-background"
+                  onClick={goChooseProducts}
+                >
+                  Choose products
                 </Button>
               </div>
             ) : null}
