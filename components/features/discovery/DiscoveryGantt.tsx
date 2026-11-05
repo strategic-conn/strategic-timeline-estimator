@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { addBusinessDays, format } from "date-fns";
+import { format } from "date-fns";
 import { Flag, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -141,7 +141,7 @@ export function DiscoveryGantt({
     );
 
     return { chartW, svgW, svgH, x, weeks, months, milestoneByPhase };
-  }, [start, total, timeline, pxPerDay]);
+  }, [start, total, timeline, pxPerDay, teamCalendar]);
 
   return (
     <div className="flex flex-col gap-5">
