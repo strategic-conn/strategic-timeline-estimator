@@ -1615,7 +1615,9 @@ export function ProposalEditorClient({
 
             <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-                <span className="text-muted-foreground">Dev hours</span>
+                {/* Every phase's lines, not just development — hence not
+                    "Dev hours". */}
+                <span className="text-muted-foreground">Line items</span>
                 {quote.requirements_unclear && pricingChangesTotal ? (
                   <span className="tabular-nums text-muted-foreground">
                     {`${ownTierHours} h at own tiers →`}
@@ -1624,6 +1626,18 @@ export function ProposalEditorClient({
                 <span className="tabular-nums text-base font-semibold">
                   {`${devHours} h`}
                 </span>
+                {/* The header quotes more than the lines whenever add-ons or the
+                    risk buffer are on; say so here, or the two read as a bug. */}
+                {pricing && pricing.pricedHours !== devHours ? (
+                  <span className="tabular-nums text-muted-foreground">
+                    {`· quoted ${pricing.pricedHours} h incl. ${[
+                      pricing.totals.grandHours !== devHours ? "add-ons" : null,
+                      pricing.bufferPct > 0 ? `${pricing.bufferPct}% risk buffer` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(" + ")}`}
+                  </span>
+                ) : null}
                 {quote.requirements_unclear ? (
                   <Badge
                     variant="outline"
