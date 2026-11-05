@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { DEFAULT_PLATFORM, type CatalogItem } from "@/lib/proposal-catalog";
 import {
   DEFAULT_ADDONS,
+  NEW_ESTIMATE_ADDONS,
   DEFAULT_RISK_BUFFER_PCT,
   computeLineHours,
   lineEffectiveHours,
@@ -959,7 +960,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                 ),
               ],
           // Add-on hours are priced at their roles' rates as of today (decision 3).
-          addons: { ...DEFAULT_ADDONS, rates: currentAddonRates(liveRates()) },
+          addons: { ...NEW_ESTIMATE_ADDONS, rates: currentAddonRates(liveRates()) },
           requirements_unclear: false,
           risk_buffer_pct: DEFAULT_RISK_BUFFER_PCT,
           discovery: input.discovery ?? null,
@@ -1050,7 +1051,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           status: "draft",
           line_items,
           addons: {
-            ...DEFAULT_ADDONS,
+            ...NEW_ESTIMATE_ADDONS,
             ...input.addons,
             rates: currentAddonRates(liveRates()),
           },

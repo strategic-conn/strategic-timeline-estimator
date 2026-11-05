@@ -78,6 +78,23 @@ export const DEFAULT_ADDONS: ProposalAddons = {
 };
 
 /**
+ * What a NEW estimate starts with: the workbook percentages, every add-on OFF
+ * (decided 2026-11-05). On by default, a guided estimate charged Design / QA /
+ * PM twice — once as its phases, again as add-ons — until someone noticed.
+ * The coordinator ticks the ones a catalog estimate needs on the Adjust tab.
+ *
+ * `DEFAULT_ADDONS` stays as it is: it fills keys missing from a stored row on
+ * hydrate, and changing it would silently reprice an existing quote.
+ */
+export const NEW_ESTIMATE_ADDONS: ProposalAddons = {
+  ...DEFAULT_ADDONS,
+  pm_enabled: false,
+  responsive_enabled: false,
+  design_enabled: false,
+  qa_enabled: false,
+};
+
+/**
  * The rate every estimate was priced at before per-role rates (pricing plan,
  * Phase 3). A line or add-on with no stored rate was priced at this — so reading
  * it back this way keeps every existing quote's price identical to the dollar.

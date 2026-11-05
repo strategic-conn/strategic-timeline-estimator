@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   DEFAULT_ADDONS,
   LEGACY_HOURLY_RATE,
+  NEW_ESTIMATE_ADDONS,
   lineAmount,
   quotePricing,
   quoteTotals,
@@ -291,4 +292,20 @@ test.describe("rates breakdown", () => {
     expect(b.totalHours).toBe(p.pricedHours);
     expect(b.rows[0].label).toBe("IT · Level 2"); // busiest first
   });
+});
+
+test("a new estimate starts with every roll-up add-on off, same percentages", () => {
+  expect(NEW_ESTIMATE_ADDONS).toMatchObject({
+    responsive_enabled: false,
+    design_enabled: false,
+    qa_enabled: false,
+    pm_enabled: false,
+    responsive_pct: DEFAULT_ADDONS.responsive_pct,
+    design_pct: DEFAULT_ADDONS.design_pct,
+    qa_pct: DEFAULT_ADDONS.qa_pct,
+    pm_pct: DEFAULT_ADDONS.pm_pct,
+  });
+  // No add-on hours on a fresh quote: the price is the lines alone.
+  const p = quotePricing(quote({ line_items: [line({ base_hours: 10, rate: 100 })], addons: NEW_ESTIMATE_ADDONS }));
+  expect(p.grandAmount).toBe(1_000);
 });

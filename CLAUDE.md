@@ -519,7 +519,7 @@ nothing (RLS + `canViewHourlyRates` / `canEditHourlyRates`). Pure rules live in
 > (measured: 0px overflow in 317px). Settings opens on the Profile tab, which is
 > why `layout-integrity` does not see this card — check it by hand after edits.
 
-**Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (defaults PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). Guided estimates ship with add-ons **off** (phases already itemise design/QA/PM).
+**Line-item math:** `base_hours × tierMultiplier × quantity` — **Basic 1× / Advanced 1.5× / Custom 2×** (`TIER_MULTIPLIERS`). **Roll-up add-ons** compound on dev hours: `responsive = dev × pct` → `design = (…) × pct` → `qa = (…) × pct` → `pm = (…) × pct` (PM 10 / Responsive 25 / Design 35 / QA 20 %, each toggleable — `DEFAULT_ADDONS`). **Every new estimate starts with all four OFF** (`NEW_ESTIMATE_ADDONS`, 2026-11-05): on by default, a guided estimate charged Design/QA/PM twice. `DEFAULT_ADDONS` is unchanged because it fills missing keys on hydrate — flipping it would reprice existing quotes. Generate line items still forces them off (phases already itemise design/QA/PM).
 
 **Who does the work — chosen BEFORE the deal closes (`0050`, decided 2026-10-21).**
 Best-fit / Fastest / Manual used to be a picker inside Start project, after the
