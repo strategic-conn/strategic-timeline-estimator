@@ -253,3 +253,16 @@ export async function requestStagePush(
     };
   }
 }
+
+/**
+ * Send to Zoho needs at least one product: the deal's Packages rows are its
+ * products. Shared by the send button, the dialog and both server routes, so
+ * every refusal says the same thing.
+ */
+export const NO_PRODUCTS_ERROR =
+  "Choose at least one product on the Setup tab before sending to Zoho.";
+
+/** The estimate has the products Send to Zoho requires. */
+export function hasZohoProducts(zoho: ProposalZohoLink | null | undefined): boolean {
+  return (zoho?.products?.length ?? 0) > 0;
+}
