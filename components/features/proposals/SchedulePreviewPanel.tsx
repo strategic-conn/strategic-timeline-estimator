@@ -106,9 +106,7 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
         <p className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 text-xs text-amber-800 dark:text-amber-300">
           <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
           <span>
-            {unassignedCount} task{unassignedCount === 1 ? "" : "s"} couldn&apos;t
-            be matched to anyone (usually design/planning work, or no one has the
-            skill). They&apos;ll be created unassigned for you to staff.
+            {`${unassignedCount} task${unassignedCount === 1 ? "" : "s"} couldn't be matched to anyone (usually design/planning work, or no one has the skill). ${unassignedCount === 1 ? "It'll" : "They'll"} be created unassigned for you to staff.`}
           </span>
         </p>
       ) : null}
