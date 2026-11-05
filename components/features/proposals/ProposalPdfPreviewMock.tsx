@@ -160,9 +160,15 @@ export function ProposalPdfPreviewMock({
               value={totals.pmHours}
             />
           ) : null}
+          {pricing.bufferPct > 0 ? (
+            <Row
+              label={`Schedule risk buffer (${pricing.bufferPct}%)`}
+              value={pricing.bufferHours}
+            />
+          ) : null}
           <Row
             label="Total estimated hours"
-            value={totals.grandHours}
+            value={pricing.pricedHours}
             strong
           />
           <div className="col-span-2 mt-2 flex items-baseline justify-between gap-4 border-t border-slate-300 pt-2">

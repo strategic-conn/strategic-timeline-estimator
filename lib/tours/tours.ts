@@ -692,7 +692,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "estimate-adjust",
-    version: 1,
+    version: 2,
     title: "Estimate: Adjust",
     access: "/proposals",
     match: (p) => /^\/proposals\/[^/]+\/?$/.test(p),
@@ -707,7 +707,7 @@ export const TOURS: TourDef[] = [
       {
         target: "estimate.risk-buffer",
         title: "Risk buffer",
-        body: "Adds slack to the timeline only. The dates move; hours and price don't.",
+        body: "Adds slack for surprises. The dates move, and the quote gets a risk buffer line that raises the price by the same percentage.",
       },
       {
         target: "estimate.rates",

@@ -154,9 +154,15 @@ async function buildProposalPdfDoc(
       String(totals.pmHours),
       formatAmount(pricing.pmAmount),
     ]);
+  if (pricing.bufferPct > 0)
+    summaryRows.push([
+      `Schedule risk buffer (${pricing.bufferPct}%)`,
+      String(pricing.bufferHours),
+      formatAmount(pricing.bufferAmount),
+    ]);
   summaryRows.push([
     "Total",
-    `${totals.grandHours} h`,
+    `${pricing.pricedHours} h`,
     formatAmount(pricing.grandAmount),
   ]);
 

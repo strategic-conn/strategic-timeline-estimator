@@ -105,6 +105,7 @@ import {
   lineEffectiveHours,
   lineRate,
   quoteDevHours,
+  quoteIsFrozen,
   quotePricing,
   rateSummary,
   splitAmount,
@@ -823,7 +824,7 @@ export function ProposalEditorClient({
                   {formatAmount(pricing.grandAmount)}
                 </span>
                 <span className="tabular-nums text-[0.7rem] text-muted-foreground">
-                  {`${totals.grandHours} h ${rateSummary(pricing)}`.trim()}
+                  {`${pricing.pricedHours} h ${rateSummary(pricing)}`.trim()}
                 </span>
               </div>
             </div>
@@ -1078,7 +1079,7 @@ export function ProposalEditorClient({
                   {quote.zoho?.products?.length ? (
                     <ProductAllocation
                       products={quote.zoho.products}
-                      totalHours={totals.grandHours}
+                      totalHours={pricing.pricedHours}
                       totalAmount={pricing.grandAmount}
                       onChange={(products) =>
                         updateProposal(quote.id, {
@@ -1704,6 +1705,10 @@ export function ProposalEditorClient({
               }
               baseDays={activeResult?.timeline.baseBusinessDays}
               bufferedDays={activeResult?.timeline.totalBusinessDays}
+              // An approved/billed quote is the agreed price — changing its
+              // buffer would reprice it, same freeze as the schedule plan.
+              disabled={quoteIsFrozen(quote)}
+              note={<RiskBufferPriceNote quote={quote} />}
               tourId="estimate.risk-buffer"
               help={<EstimatorHelp section="riskBuffer" />}
             />
@@ -2138,6 +2143,34 @@ function LiveProjectTimeline({ projectId }: { projectId: string }) {
   );
 }
 
+/**
+ * What the risk buffer does to THIS estimate: dates and price, with the
+ * numbers. A quote approved before the buffer was priced says so instead,
+ * because its price is what the client agreed to.
+ */
+function RiskBufferPriceNote({ quote }: { quote: ClientQuote }) {
+  const pricing = quotePricing(quote);
+  const pct = quote.risk_buffer_pct ?? 0;
+  if (pct > 0 && pricing.bufferPct === 0) {
+    return (
+      <>
+        Moves <span className="font-medium text-foreground">dates only</span>{" "}
+        on this estimate: it was approved before the buffer was priced, so it
+        keeps the price the client agreed to.
+      </>
+    );
+  }
+  return (
+    <>
+      Adjusts <span className="font-medium text-foreground">dates and pricing</span>.{" "}
+      {pricing.bufferPct > 0
+        ? `Adds a "Schedule risk buffer (${pricing.bufferPct}%)" line to the quote: +${pricing.bufferHours} h, +${formatAmount(pricing.bufferAmount)} (${formatAmount(pricing.subtotalAmount)} → ${formatAmount(pricing.grandAmount)}).`
+        : "With a buffer set, the quote gets a Schedule risk buffer line priced at that share of its hours and price."}
+      {quoteIsFrozen(quote) ? " Locked: this estimate is approved or billed." : null}
+    </>
+  );
+}
+
 function TotalsList({ quote }: { quote: ClientQuote }) {
   const pricing: QuotePricing = quotePricing(quote);
   const totals = pricing.totals;
@@ -2168,9 +2201,18 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
           value={totals.pmHours}
         />
       ) : null}
+      {pricing.bufferPct > 0 ? (
+        <>
+          <TotalsRow label="Estimated work hours" value={totals.grandHours} />
+          <TotalsRow
+            label={`Schedule risk buffer (${pricing.bufferPct}%)`}
+            value={pricing.bufferHours}
+          />
+        </>
+      ) : null}
       <TotalsRow
         label="Total estimated hours"
-        value={totals.grandHours}
+        value={pricing.pricedHours}
         strong
       />
       <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-border/60 pt-2">

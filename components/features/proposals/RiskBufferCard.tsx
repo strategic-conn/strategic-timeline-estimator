@@ -35,10 +35,10 @@ export function clampRiskBuffer(value: number): number {
  * Shared by the Estimator (Adjust tab) and a live project, so the two cannot
  * describe the same number differently.
  *
- * ⚠️ The copy carries real weight here. Next to this control sits
- * "Requirements not pinned down yet", which DOES reprice the quote — so this one
- * has to say plainly that it moves dates and not money, or a coordinator will
- * reasonably assume a risk percentage is padding the bill.
+ * ⚠️ The copy carries real weight here: it must say plainly what the buffer
+ * moves. On a project it moves dates only (the default note). On an estimate
+ * it moves dates AND the price — the Estimator passes its own `note` with the
+ * amounts, so nobody has to guess whether a risk percentage pads the bill.
  */
 export function RiskBufferCard({
   value,
@@ -53,6 +53,7 @@ export function RiskBufferCard({
   description = "Contingency for the things you cannot itemise — a slow client, an undocumented API, a scope surprise.",
   tourId,
   help,
+  note,
 }: {
   value: number;
   onChange: (pct: number) => void;
@@ -66,6 +67,8 @@ export function RiskBufferCard({
   tourId?: TourTarget;
   /** A section-help "?" for the top-right corner. */
   help?: React.ReactNode;
+  /** Replaces the "Moves dates only" note — the Estimator's buffer is priced. */
+  note?: React.ReactNode;
 }) {
   const pct = clampRiskBuffer(value);
   // Local text state so the field can be empty mid-typing without snapping to 0
@@ -156,12 +159,14 @@ export function RiskBufferCard({
 
         {footer}
 
-        <p className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-          Moves <span className="font-medium text-foreground">dates only</span>.
-          Hours and the quoted price are unchanged — to price for risk instead,
-          use <span className="font-medium text-foreground">Requirements not
-          pinned down yet</span>.
-        </p>
+        <div className="rounded-lg border border-border/60 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+          {note ?? (
+            <>
+              Moves <span className="font-medium text-foreground">dates only</span>.
+              Hours and the quoted price are unchanged.
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

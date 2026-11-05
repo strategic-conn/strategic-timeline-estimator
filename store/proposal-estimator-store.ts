@@ -358,6 +358,9 @@ function planOnStatus(
       strategy: strategyOf(prev),
       quoted_finish: previewFinish(forecastOf(prev)),
       quoted_at: new Date().toISOString(),
+      // The price being agreed to includes the risk buffer; keep it priced
+      // once frozen (`riskBufferPriced`).
+      buffer_priced: true,
     };
   }
   if (next !== "approved" && prev.status === "approved" && prev.schedule_plan?.quoted_finish) {

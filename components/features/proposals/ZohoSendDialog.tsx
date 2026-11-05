@@ -189,12 +189,11 @@ export function ZohoSendDialog({
 
   const accountId = quote.zoho?.account_id ?? null;
   const pricing = quotePricing(quote);
-  const totals = pricing.totals;
   const products = quote.zoho?.products ?? [];
   // The same derivation the Setup tab shows, so the review can't disagree with
   // what gets sent. MONEY is split directly, never "hour share x a rate": lines
   // carry their own rates now, so there is no single rate to multiply by.
-  const shares = splitHours(totals.grandHours, products.length);
+  const shares = splitHours(pricing.pricedHours, products.length);
   const amounts = splitAmount(pricing.grandAmount, products.length);
   // "Sent" = this estimate's document reached the deal. Keying it on a stage
   // stopped working once every send targets Discovery, which an import records
@@ -253,7 +252,7 @@ export function ZohoSendDialog({
   const descriptionPayload = () =>
     [
       quote.notes?.trim(),
-      `Estimate: ${totals.grandHours} h across ${quote.line_items.length} line item${
+      `Estimate: ${pricing.pricedHours} h across ${quote.line_items.length} line item${
         quote.line_items.length === 1 ? "" : "s"
       } — ${formatAmount(pricing.grandAmount)}.`,
       products.length
@@ -298,7 +297,7 @@ export function ZohoSendDialog({
       form.append("description", descriptionPayload());
       // The estimate's price. It reaches Zoho as a Packages row, never as a
       // direct `Amount` write — Zoho recomputes that field from the subform.
-      form.append("totalHours", String(totals.grandHours));
+      form.append("totalHours", String(pricing.pricedHours));
       form.append("totalAmount", String(pricing.grandAmount));
       // The estimate owns its own pricing, so a re-send reprices the deal rather
       // than skipping a table that already has rows — which is what made an
@@ -388,7 +387,7 @@ export function ZohoSendDialog({
         {formatAmount(pricing.grandAmount)}
       </span>,
     ],
-    ["Hours", `${totals.grandHours} h ${rateSummary(pricing)}`.trim()],
+    ["Hours", `${pricing.pricedHours} h ${rateSummary(pricing)}`.trim()],
     [
       "Packages",
       <>

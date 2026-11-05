@@ -200,3 +200,67 @@ test.describe("who a line is and what it costs", () => {
     expect(out.addonRates.pm).toBe(80);
   });
 });
+
+test.describe("risk buffer is priced", () => {
+  const noAddons = {
+    ...DEFAULT_ADDONS,
+    responsive_enabled: false,
+    design_enabled: false,
+    qa_enabled: false,
+    pm_enabled: false,
+  };
+
+  test("adds the same share of hours and money, at the quote's own rate", () => {
+    const p = quotePricing(
+      quote({
+        line_items: [line({ base_hours: 40, rate: 100 })],
+        addons: noAddons,
+        risk_buffer_pct: 10,
+      }),
+    );
+    expect(p.subtotalAmount).toBe(4_000);
+    expect(p.bufferPct).toBe(10);
+    expect(p.bufferHours).toBe(4);
+    expect(p.bufferAmount).toBe(400);
+    expect(p.grandAmount).toBe(4_400);
+    expect(p.pricedHours).toBe(44);
+    // Work hours (what the timeline schedules) are not touched.
+    expect(p.totals.grandHours).toBe(40);
+    expect(rateSummary(p)).toBe("at $100/h");
+  });
+
+  test("no buffer, no line: identical to before", () => {
+    const q = quote({ line_items: [line({ base_hours: 7, rate: 120 })], addons: noAddons });
+    const p = quotePricing({ ...q, risk_buffer_pct: 0 });
+    expect(p.bufferAmount).toBe(0);
+    expect(p.grandAmount).toBe(p.subtotalAmount);
+    expect(p.pricedHours).toBe(p.totals.grandHours);
+  });
+
+  test("a quote approved before the buffer was priced keeps its agreed price", () => {
+    const base = {
+      line_items: [line({ base_hours: 40, rate: 100 })],
+      addons: noAddons,
+      risk_buffer_pct: 10,
+    };
+    // Approved, no stamp -> agreed before this change -> unchanged.
+    expect(quotePricing(quote({ ...base, status: "approved" })).grandAmount).toBe(4_000);
+    // Billed (PO) without approval stamp -> frozen too.
+    expect(
+      quotePricing(quote({ ...base, status: "sent", pbs: { po_no: "STR-1" } as ClientQuote["pbs"] }))
+        .grandAmount,
+    ).toBe(4_000);
+    // Approved since -> stamped -> buffer stays priced.
+    expect(
+      quotePricing(
+        quote({
+          ...base,
+          status: "approved",
+          schedule_plan: { strategy: "efficient", buffer_priced: true },
+        }),
+      ).grandAmount,
+    ).toBe(4_400);
+    // Draft/sent -> priced.
+    expect(quotePricing(quote({ ...base, status: "sent" })).grandAmount).toBe(4_400);
+  });
+});

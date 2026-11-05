@@ -246,6 +246,12 @@ export interface ProposalSchedulePlan {
   /** Launch date (YYYY-MM-DD) quoted when approved; null until then. */
   quoted_finish?: string | null;
   quoted_at?: string | null;
+  /**
+   * Set when the quote is approved with the risk buffer PRICED in. An
+   * approved/billed quote without it was agreed before the buffer was priced,
+   * so it keeps the price the client saw (see `riskBufferPriced`).
+   */
+  buffer_priced?: boolean;
 }
 
 export interface ClientQuote {
