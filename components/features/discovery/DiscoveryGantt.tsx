@@ -179,6 +179,11 @@ export function DiscoveryGantt({
                     (incl. {timeline.riskBufferPct}% risk buffer on{" "}
                     {timeline.baseBusinessDays})
                   </span>
+                ) : timeline.riskBufferPct > 0 ? (
+                  // On the people plan the buffer is planned into Development.
+                  <span className="text-primary">
+                    {` (incl. ${timeline.riskBufferPct}% risk buffer, spread over Development)`}
+                  </span>
                 ) : null}{" "}
                 · launches {launchDate}
                 {shiftReason ? (

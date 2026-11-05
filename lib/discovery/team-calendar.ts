@@ -22,6 +22,7 @@ import {
   countsAgainstCapacity,
   type AwayEntryLike,
 } from "@/lib/constants/workload";
+import { roundHours, splitHours } from "@/lib/constants/proposal-estimator";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import type { DiscoveryTimeline } from "@/types/discovery.types";
 
@@ -396,4 +397,26 @@ export function alignTimelineToPlan(
     totalWeeks: Math.max(1, Math.ceil(totalBusinessDays / 5)),
     launchDate: last ? last.endDate : timeline.launchDate,
   };
+}
+
+/**
+ * The risk buffer as PLANNING hours: `pct` of the work's hours, spread evenly
+ * over the Development tasks only (decided 2026-11-05), so the people plan's
+ * dates carry the buffer the quote is priced with. With no Development task it
+ * spreads over every task rather than vanish. Returns each task's hours to plan
+ * with — the task's own estimate (and the price) are untouched.
+ */
+export function bufferPlanHours<T extends { id: string; phase: string; hours: number }>(
+  tasks: ReadonlyArray<T>,
+  pct: number,
+  totalHours: number,
+): Map<string, number> {
+  const out = new Map(tasks.map((t) => [t.id, t.hours]));
+  const extra = roundHours(Math.max(0, totalHours) * (Math.max(0, Math.min(100, pct)) / 100));
+  if (extra <= 0 || !tasks.length) return out;
+  const dev = tasks.filter((t) => t.phase === "development");
+  const target = dev.length ? dev : tasks;
+  const shares = splitHours(extra, target.length);
+  target.forEach((t, i) => out.set(t.id, roundHours(t.hours + shares[i])));
+  return out;
 }

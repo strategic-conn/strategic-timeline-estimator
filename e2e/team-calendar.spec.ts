@@ -4,6 +4,7 @@ import { addBusinessDays, format } from "date-fns";
 import {
   addWorkingDays,
   alignTimelineToPlan,
+  bufferPlanHours,
   buildTeamCalendar,
   followPlannedWork,
   timelineShift,
@@ -302,5 +303,32 @@ test.describe("the Gantt is drawn on the people plan", () => {
     const t = alignTimelineToPlan(timeline, [{ label: "QA & Testing", start: "2027-03-05", end: "2027-03-08" }], start, null);
     expect(t.phases[0]).toEqual(timeline.phases[0]);
     expect(alignTimelineToPlan(timeline, [], start, null)).toBe(timeline);
+  });
+});
+
+test.describe("the risk buffer is planned into Development", () => {
+  const tasks = [
+    { id: "d1", phase: "development", hours: 40 },
+    { id: "d2", phase: "development", hours: 20 },
+    { id: "q1", phase: "qa", hours: 10 },
+  ];
+
+  test("pct of the total, split evenly over Development tasks only", () => {
+    const h = bufferPlanHours(tasks, 20, 70); // 14 h of buffer
+    expect(h.get("d1")).toBe(47);
+    expect(h.get("d2")).toBe(27);
+    expect(h.get("q1")).toBe(10);
+  });
+
+  test("uneven splits still add up exactly", () => {
+    const h = bufferPlanHours(tasks, 10, 10); // 1 h over 2 tasks
+    expect((h.get("d1")! - 40) + (h.get("d2")! - 20)).toBeCloseTo(1, 10);
+  });
+
+  test("no Development task: spread over everything; 0% changes nothing", () => {
+    const qaOnly = [{ id: "q1", phase: "qa", hours: 10 }, { id: "q2", phase: "qa", hours: 10 }];
+    const h = bufferPlanHours(qaOnly, 10, 20);
+    expect([h.get("q1"), h.get("q2")]).toEqual([11, 11]);
+    expect(bufferPlanHours(tasks, 0, 70).get("d1")).toBe(40);
   });
 });

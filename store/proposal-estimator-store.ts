@@ -9,6 +9,7 @@ import { DEFAULT_PLATFORM, type CatalogItem } from "@/lib/proposal-catalog";
 import {
   DEFAULT_ADDONS,
   NEW_ESTIMATE_ADDONS,
+  quoteTotals,
   DEFAULT_RISK_BUFFER_PCT,
   computeLineHours,
   lineEffectiveHours,
@@ -34,7 +35,7 @@ import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import { currentTeamCalendar } from "@/hooks/useTeamCalendar";
-import { followPlannedWork } from "@/lib/discovery/team-calendar";
+import { bufferPlanHours, followPlannedWork } from "@/lib/discovery/team-calendar";
 import {
   applyTaskToLineItems,
   diffEstimateToProject,
@@ -93,7 +94,17 @@ function isoFromDisplay(d: string): string {
   return formatDate(parseDate(d, "MMM d, yyyy", new Date()), "yyyy-MM-dd");
 }
 
-function phaseScaffold(quote: ClientQuote) {
+function phaseScaffold(
+  quote: ClientQuote,
+  /**
+   * false when a people plan will carry the buffer instead (planned into
+   * Development by `planSeeds`) — buffering the phases too would count it twice.
+   */
+  { buffered = true }: { buffered?: boolean } = {},
+) {
+  if (!buffered && (quote.risk_buffer_pct ?? 0) > 0) {
+    quote = { ...quote, risk_buffer_pct: 0 };
+  }
   // Booked time off shapes the sprint dates this scaffolds, so a project that
   // starts over a shutdown is not planned as if everyone were at their desk.
   const cal = currentTeamCalendar();
@@ -187,16 +198,27 @@ function planSeeds(
   strategy: PlanStrategy,
   scaffold: ScaffoldPhase[],
   phases: ReadonlySet<PhaseId> = phaseSetOf(scaffold),
+  /** Plan the risk buffer into Development (see `bufferPlanHours`). */
+  { buffer = false }: { buffer?: boolean } = {},
 ): SeedPlan {
   const phaseStart: Partial<Record<PhaseId, string>> = {};
   for (const ph of scaffold) phaseStart[ph.id] = ph.start_date;
 
+  const placed = seeds.map((li) => ({
+    id: li.id,
+    phase: phaseIdForLineItem(li, phases),
+    hours: li.hours,
+  }));
+  const planHours = buffer
+    ? bufferPlanHours(placed, quote.risk_buffer_pct ?? 0, quoteTotals(quote).grandHours)
+    : null;
+
   const result = planSchedule(
-    seeds.map((li) => ({
+    seeds.map((li, i) => ({
       id: li.id,
       title: li.title,
-      phase: phaseIdForLineItem(li, phases),
-      hours: li.hours,
+      phase: placed[i].phase,
+      hours: planHours?.get(li.id) ?? li.hours,
       role: roleOf(li) ?? defaultRoleFor(li, quote.platform),
     })),
     currentRoster(),
@@ -345,12 +367,12 @@ export function previewFinish(p: SchedulePreview): string | null {
 /** What Start project would build today with the estimate's own plan. Writes nothing. */
 function forecastOf(quote: ClientQuote): SchedulePreview {
   const seeds = quote.line_items.filter((li) => li.title.trim());
-  const scaffold = phaseScaffold(quote);
   const strategy = strategyOf(quote);
-  const plan =
-    strategy !== "none" && seeds.length
-      ? planSeeds(quote, seeds, strategy, scaffold)
-      : null;
+  const planned = strategy !== "none" && seeds.length > 0;
+  const scaffold = phaseScaffold(quote, { buffered: !planned });
+  const plan = planned
+    ? planSeeds(quote, seeds, strategy as PlanStrategy, scaffold, undefined, { buffer: true })
+    : null;
   return toPreview(seeds, scaffold, plan);
 }
 
@@ -1354,10 +1376,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const seeds = input.seedTasks
           ? quote.line_items.filter((li) => li.title.trim())
           : [];
-        const scaffold = phaseScaffold(quote);
+        const planned = Boolean(input.strategy && seeds.length);
+        const scaffold = phaseScaffold(quote, { buffered: !planned });
         const plan =
-          input.strategy && seeds.length
-            ? planSeeds(quote, seeds, input.strategy, scaffold)
+          input.strategy && planned
+            ? planSeeds(quote, seeds, input.strategy, scaffold, undefined, { buffer: true })
             : null;
         return toPreview(seeds, scaffold, plan);
       },
@@ -1431,13 +1454,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // strategy is chosen; null keeps the plain phase-scaffold behaviour.
         // A reviewed preview wins: persist exactly what the user approved rather
         // than recomputing against roster data that may have changed since.
-        const scaffold = phaseScaffold(quote);
+        // Same buffering rule as the preview it persists: with a plan, the
+        // buffer is planned into Development, not stretched over the phases.
+        const planned =
+          input.preview !== undefined
+            ? Boolean(input.preview?.plan)
+            : Boolean(input.strategy && seeds.length);
+        const scaffold = phaseScaffold(quote, { buffered: !planned });
         const phases = phaseSetOf(scaffold);
         const plan =
           input.preview !== undefined
             ? (input.preview?.plan ?? null)
             : input.strategy && seeds.length
-              ? planSeeds(quote, seeds, input.strategy, scaffold, phases)
+              ? planSeeds(quote, seeds, input.strategy, scaffold, phases, { buffer: true })
               : null;
         const sprintDatesFor = makeSprintDateResolver(input.preview, plan);
 

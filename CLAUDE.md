@@ -563,9 +563,17 @@ date, how many tasks have someone, and "See who does what".
    in order: the schedule just reviewed (Start project) → the project's own
    sprints → the estimate's people plan → the team-level timeline
    (`estimateDateRange`) as a last resort.
- - ⚠️ **Known gap:** the people plan (`planSchedule`) does not apply the risk
-   buffer — the buffered timeline only sets each phase's earliest start. So a
-   plan-driven launch date can carry less buffer than the team-level timeline.
+ - **The risk buffer is planned into Development** (2026-11-05). With a people
+   plan, `phaseScaffold(quote, { buffered: false })` builds the phases WITHOUT
+   the buffer, and `planSeeds(…, { buffer: true })` adds `risk_buffer_pct` % of
+   the work hours (`quoteTotals().grandHours`, the hours the priced buffer line
+   uses) spread evenly over the Development tasks (`bufferPlanHours`,
+   `lib/discovery/team-calendar.ts`; all tasks if there is no Development).
+   Planning hours only — each task's estimate and the price are untouched.
+   Applied by the card's forecast, Start project's preview and
+   `convertToProject` (which follows the preview it persists). Manual (no plan)
+   keeps the buffer stretched over every phase; Sync schedule on an existing
+   project is unchanged (a project's buffer already lives in its dates).
  - `schedule_plan` is in all three whitelists (`rowToQuote`,
    `quoteUpdatePayload`, the `Pick` on `updateProposal`). Old approved quotes
    have no `quoted_finish`, so they show the lock without a quoted date.
