@@ -19,7 +19,6 @@ import { Label } from "@/components/ui/label";
 import {
   formatAmount,
   quotePricing,
-  rateSummary,
   splitAmount,
   splitHours,
 } from "@/lib/constants/proposal-estimator";
@@ -389,7 +388,7 @@ export function ZohoSendDialog({
         {formatAmount(pricing.grandAmount)}
       </span>,
     ],
-    ["Hours", `${pricing.pricedHours} h ${rateSummary(pricing)}`.trim()],
+    ["Hours", `${pricing.pricedHours} h`],
     [
       "Packages",
       <>

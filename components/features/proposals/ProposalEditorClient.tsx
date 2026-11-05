@@ -107,7 +107,6 @@ import {
   quoteDevHours,
   quoteIsFrozen,
   quotePricing,
-  rateSummary,
   splitAmount,
   splitHours,
   tierLabel,
@@ -831,7 +830,7 @@ export function ProposalEditorClient({
                   {formatAmount(pricing.grandAmount)}
                 </span>
                 <span className="tabular-nums text-[0.7rem] text-muted-foreground">
-                  {`${pricing.pricedHours} h ${rateSummary(pricing)}`.trim()}
+                  {`${pricing.pricedHours} h`}
                 </span>
               </div>
             </div>
@@ -2279,9 +2278,6 @@ function TotalsList({ quote }: { quote: ClientQuote }) {
       <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-border/60 pt-2">
         <dt className="text-sm font-medium">
           Price
-          <span className="ml-1.5 text-xs font-normal text-muted-foreground">
-            {rateSummary(pricing)}
-          </span>
         </dt>
         <dd className="tabular-nums text-base font-semibold">
           {formatAmount(pricing.grandAmount)}
