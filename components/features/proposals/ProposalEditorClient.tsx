@@ -320,7 +320,7 @@ export function ProposalEditorClient({
   const hydrated = isSupabaseConfigured ? liveLoaded : persistHydrated;
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
-  const [scopeTab, setScopeTab] = React.useState("questionnaire");
+  const [reviewTab, setReviewTab] = React.useState("preview");
   /** Where a refused Send to Zoho sends people: Setup, product picker open. */
   const goChooseProducts = () => {
     setTab("setup");
@@ -1386,26 +1386,13 @@ export function ProposalEditorClient({
                   ) : null}
                 </Card>
 
-                <Tabs
-                  value={scopeTab}
-                  onValueChange={setScopeTab}
-                  className="gap-4"
-                >
-                  {/* Wraps instead of scrolling under sm: five tabs need 433px and a 375px
-              phone gives 351px, so "Review" — where Send to Zoho lives — sat
-              off-screen behind a scrollbar nobody sees on touch. */}
-                  <TabsList className="w-full sm:w-fit">
-                    <TabsTrigger value="questionnaire">
-                      Questionnaire
-                    </TabsTrigger>
-                    <TabsTrigger value="hours">Hours</TabsTrigger>
-                    <TabsTrigger value="timeline">Timeline</TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="questionnaire">
                     <DiscoveryWizard
                       project={quote.discovery}
                       onChange={handleScopeChange}
-                      onViewEstimate={() => setScopeTab("hours")}
+                      onViewEstimate={() => {
+                        setReviewTab("hours");
+                        setTab("review");
+                      }}
                       onToggleSection={(n, included) => {
                         const cur = quote.discovery!.skipped_sections ?? [];
                         setDiscovery(quote.id, {
@@ -1417,85 +1404,6 @@ export function ProposalEditorClient({
                         });
                       }}
                     />
-                  </TabsContent>
-                  <TabsContent value="hours">
-                    <DiscoveryHoursBreakdown
-                      result={scopeResult}
-                      lineHours={lineHours}
-                      onAddPhases={(phases) => {
-                        addScopePhaseLines(quote.id, phases);
-                        toast.success("Added to your line items", {
-                          description: "Priced at each role's current rate. Edit or remove them on the Line items tab.",
-                        });
-                      }}
-                      assumptionsEdited={quote.discovery!.assumptions != null}
-                      onAssumptionsChange={(assumptions) =>
-                        setDiscovery(quote.id, {
-                          ...quote.discovery!,
-                          assumptions,
-                          updated_at: new Date().toISOString(),
-                        })
-                      }
-                    />
-                  </TabsContent>
-                  <TabsContent value="timeline">
-                    {linkedProject ? (
-                      <LiveProjectTimeline projectId={linkedProject.id} />
-                    ) : (
-                      <div className="space-y-4">
-                        <SchedulePlanCard quote={quote} editable={false} />
-                        <DiscoveryGantt
-                          result={scopeResult}
-                          project={quote.discovery}
-                          teamCalendar={teamCalendar}
-                          plannedLaunch={plannedLaunch}
-                          plannedPhases={plannedPhases}
-                          unbufferedPhases={unbufferedPhases}
-                        />
-                      </div>
-                    )}
-                  </TabsContent>
-                </Tabs>
-              </>
-            ) : catalogResult ? (
-              <>
-                {linkedProject ? (
-                  <LiveProjectTimeline projectId={linkedProject.id} />
-                ) : (
-                  <>
-                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
-                      <p className="max-w-md text-sm text-muted-foreground">
-                        <span className="font-medium text-foreground">
-                          Tentative timeline
-                        </span>{" "}
-                        — auto-generated from your line items &amp; add-ons,
-                        starting today. Answer the questionnaire for a detailed
-                        timeline and a risk score.
-                      </p>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="gap-1.5"
-                        onClick={startGuided}
-                        {...tourAnchor("estimate.guided-start")}
-                      >
-                        <Compass className="size-3.5" aria-hidden />
-                        Start guided scoping
-                      </Button>
-                      <EstimatorHelp section="tentativeTimeline" />
-                    </div>
-                    <SchedulePlanCard quote={quote} editable={false} />
-                    <DiscoveryGantt
-                      result={catalogResult}
-                      project={tentProject}
-                      teamCalendar={teamCalendar}
-                      plannedLaunch={plannedLaunch}
-                      plannedPhases={plannedPhases}
-                      unbufferedPhases={unbufferedPhases}
-                    />
-                  </>
-                )}
               </>
             ) : (
               <Card className="relative">
@@ -1507,12 +1415,12 @@ export function ProposalEditorClient({
                       aria-hidden
                     />
                   </div>
-                  <CardTitle>Scope this estimate to see a timeline</CardTitle>
+                  <CardTitle>Guided scoping is optional</CardTitle>
                   <CardDescription className="max-w-md text-balance">
-                    Add line items (Line items tab) for a tentative timeline, or
-                    answer the guided questionnaire for Min/Mid/Max hours, a
-                    phased timeline, and a risk score — then generate the line
-                    items for you.
+                    Answer the questionnaire for Min/Mid/Max hours, a phased
+                    timeline and a risk score, then generate the line items
+                    from it. Quoting from line items alone works too: their
+                    hours and timeline are on the Review tab.
                   </CardDescription>
                   <Button
                     type="button"
@@ -1930,7 +1838,107 @@ export function ProposalEditorClient({
                 </Button>
               </div>
             ) : null}
-            <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
+            <Tabs value={reviewTab} onValueChange={setReviewTab} className="gap-4">
+              <TabsList className="w-full sm:w-fit">
+                <TabsTrigger value="preview">Client preview</TabsTrigger>
+                {quote.discovery && scopeResult ? (
+                  <TabsTrigger value="hours">Hours</TabsTrigger>
+                ) : null}
+                <TabsTrigger value="timeline">Timeline</TabsTrigger>
+              </TabsList>
+              <TabsContent value="preview">
+                <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
+              </TabsContent>
+              {quote.discovery && scopeResult ? (
+                <TabsContent value="hours">
+                  <DiscoveryHoursBreakdown
+                    result={scopeResult}
+                    lineHours={lineHours}
+                    onAddPhases={(phases) => {
+                      addScopePhaseLines(quote.id, phases);
+                      toast.success("Added to your line items", {
+                        description: "Priced at each role's current rate. Edit or remove them on the Line items tab.",
+                      });
+                    }}
+                    assumptionsEdited={quote.discovery!.assumptions != null}
+                    onAssumptionsChange={(assumptions) =>
+                      setDiscovery(quote.id, {
+                        ...quote.discovery!,
+                        assumptions,
+                        updated_at: new Date().toISOString(),
+                      })
+                    }
+                  />
+                </TabsContent>
+              ) : null}
+              <TabsContent value="timeline">
+                {quote.discovery && scopeResult ? (
+                  <>
+                    {linkedProject ? (
+                      <LiveProjectTimeline projectId={linkedProject.id} />
+                    ) : (
+                      <div className="space-y-4">
+                        <SchedulePlanCard quote={quote} editable={false} />
+                        <DiscoveryGantt
+                          result={scopeResult}
+                          project={quote.discovery}
+                          teamCalendar={teamCalendar}
+                          plannedLaunch={plannedLaunch}
+                          plannedPhases={plannedPhases}
+                          unbufferedPhases={unbufferedPhases}
+                        />
+                      </div>
+                    )}
+                  </>
+                ) : catalogResult ? (
+              <>
+                {linkedProject ? (
+                  <LiveProjectTimeline projectId={linkedProject.id} />
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3">
+                      <p className="max-w-md text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          Tentative timeline
+                        </span>{" "}
+                        — auto-generated from your line items &amp; add-ons,
+                        starting today. Answer the questionnaire for a detailed
+                        timeline and a risk score.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-1.5"
+                        onClick={() => {
+                          startGuided();
+                          setTab("guided");
+                        }}
+                      >
+                        <Compass className="size-3.5" aria-hidden />
+                        Start guided scoping
+                      </Button>
+                      <EstimatorHelp section="tentativeTimeline" />
+                    </div>
+                    <SchedulePlanCard quote={quote} editable={false} />
+                    <DiscoveryGantt
+                      result={catalogResult}
+                      project={tentProject}
+                      teamCalendar={teamCalendar}
+                      plannedLaunch={plannedLaunch}
+                      plannedPhases={plannedPhases}
+                      unbufferedPhases={unbufferedPhases}
+                    />
+                  </>
+                )}
+              </>
+                ) : (
+                  <p className="rounded-lg border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                    Add line items, or answer the guided questionnaire, to see a timeline.
+                  </p>
+                )}
+              </TabsContent>
+            </Tabs>
           </TabsContent>
         </Tabs>
       </div>

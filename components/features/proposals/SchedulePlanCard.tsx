@@ -38,7 +38,7 @@ const day = formatLaunchDay;
  * agrees to. Dates only: the price is each line's hours × its own rate.
  *
  * Editable on the Adjust tab until the estimate is approved; read-only on the
- * Timeline tab. The forecast is exactly what Start project would build today
+ * Review tab's Timeline view. The forecast is exactly what Start project would build today
  * (`previewConversion`), so the two can't disagree.
  */
 export function SchedulePlanCard({

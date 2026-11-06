@@ -84,6 +84,10 @@ const HELP = {
           <strong>Line items</strong>{" "}tab. You can start guided scoping later
           without losing anything.
         </p>
+        <p>
+          Either way, the hours and the timeline are on the{" "}
+          <strong>Review</strong>{" "}tab.
+        </p>
       </>
     ),
   },

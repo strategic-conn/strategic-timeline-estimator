@@ -61,7 +61,8 @@ test("the plan is picked on Adjust, shown on the timeline, and frozen with its l
     await group.getByRole("button", { name: "Fastest" }).click();
     await expect.poll(async () => (await row(id)).schedule_plan?.strategy, { timeout: 10_000 }).toBe("quick");
 
-    await page.getByRole("tab", { name: /^scope/i }).click();
+    await page.getByRole("tab", { name: /^review/i }).click();
+    await page.getByRole("tab", { name: /^timeline/i }).click();
     await expect(page.getByText("Planned with Fastest (set on the Adjust tab).")).toBeVisible();
 
     // Approve by hand → the launch date is snapshotted in the same write.

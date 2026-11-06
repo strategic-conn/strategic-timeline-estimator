@@ -65,7 +65,8 @@ test("a Creative catalog line draws a Design bar on the timeline", async ({ page
     const gantt = async () => {
       await page.goto(`/proposals/${id}`);
       await waitForApp(page);
-      await page.getByRole("tab", { name: /scope & risk/i }).click();
+      await page.getByRole("tab", { name: /^review/i }).click();
+      await page.getByRole("tab", { name: /^timeline/i }).click();
       const g = page.getByRole("img", { name: "Gantt chart of project phases" }).or(
         page.getByLabel("Gantt chart of project phases"),
       );

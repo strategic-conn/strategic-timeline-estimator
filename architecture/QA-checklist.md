@@ -91,6 +91,12 @@
 - [ ] Turn all add-ons off with IT lines only → **Development starts on the project start**, with no wait before it.
 - [ ] Guided estimate → Discovery starts on the project start and Design still waits for the review turnaround after it.
 
+**Hours + Timeline live on Review**
+- [ ] Estimate with only typed line items: **Review → Timeline** shows the tentative timeline. Scope & risk shows only the "Guided scoping is optional" card.
+- [ ] Guided estimate: **Review** has Client preview · Hours · Timeline; Scope & risk has the questionnaire with no inner tabs.
+- [ ] Questionnaire's last step **View estimate** opens Review → Hours.
+- [ ] 375px: the Review tab's inner tabs fit on one row.
+
 **One launch date**
 - [ ] Guided estimate: the **Who does the work** card, the Scope & risk summary, the Timeline caption and the **Go-Live** milestone all show the same date.
 - [ ] Switch Best-fit ↔ Fastest → all four follow.
@@ -616,7 +622,7 @@ Apply `0047` first (`npm run db:push`).
 - [ ] **Start date on a day off.** Set a guided estimate's Project Start Date to Fri 2026-12-25 → the Timeline's first phases start Mon 2026-12-28, not Christmas. Same for a Saturday.
 - [ ] **A free person starts on day one.** Start project on an estimate whose start date is a Monday with a free, qualified developer → their first task starts that Monday in Review schedule, not Tuesday.
 - [ ] **Scope demo is hidden.** The Estimator list has no "Preview" strip, and visiting `/proposals/scope-demo` lands back on the Estimator. (When it returns, the old check: amber "Demo UI only" on every step, 13 drafted lines, Add … lines (demo), nothing saved.)
-- [ ] **Switch a questionnaire section off.** Scope & risk → Questionnaire → **SEO & Digital Marketing** → untick **Include this section in the estimate** → the section shows "Left out" (struck through) in the list, its questions disappear, Hours has no SEO phase, the Timeline has no SEO bar, and the total drops. Tick it again → everything returns with the old answers. Sections 1 and 2 have no checkbox.
+- [ ] **Switch a questionnaire section off.** Scope & risk → **SEO & Digital Marketing** → untick **Include this section in the estimate** → the section shows "Left out" (struck through) in the list, its questions disappear, Hours has no SEO phase, the Timeline has no SEO bar, and the total drops. Tick it again → everything returns with the old answers. Sections 1 and 2 have no checkbox.
 - [ ] **Skipped required questions don't count.** Clear the Project Start Date (section 7) → "1 required left"; switch section 7 off → the count and the risk score's unanswered figure drop.
 - [ ] **Who does the work (Adjust tab).** A new estimate's card shows **Best-fit** selected and "Launches <date>". Pick **Fastest** → the launch date updates and the Timeline (Scope & risk) shows "Planned with Fastest (set on the Adjust tab)". The price on the Totals card does NOT change.
 - [ ] **Frozen on approval.** Approve the estimate (or win its deal) → the picker is disabled and the card says "Quoted launch: <date>". Set it back to Draft → the picker works again.

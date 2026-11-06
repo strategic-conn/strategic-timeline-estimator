@@ -102,10 +102,10 @@ test.describe("sync surfaces fit and work at every width", () => {
     await page.goto(`/proposals/${found!.quoteId}`);
     await waitForApp(page);
 
-    // Scope & risk → Timeline. Both tab strips wrap rather than scroll, so every
+    // Review → Timeline. Both tab strips wrap rather than scroll, so every
     // trigger is reachable at 375px too. The inner strip only exists once the
     // outer tab's content is mounted, which is why each step is awaited.
-    const scope = page.getByRole("tab", { name: /scope/i }).first();
+    const scope = page.getByRole("tab", { name: /^review/i }).first();
     await expect(scope).toBeVisible({ timeout: 30_000 });
     await scope.click();
     const timeline = page.getByRole("tab", { name: /^timeline$/i }).first();

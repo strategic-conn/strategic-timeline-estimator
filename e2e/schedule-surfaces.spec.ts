@@ -46,6 +46,7 @@ test("a guided estimate's summary, card and Go-Live milestone name one launch da
 
     await page.getByRole("tab", { name: /^scope/i }).click();
     await expect(page.getByTestId("summary-launch")).toHaveText(launch!);
+    await page.getByRole("tab", { name: /^review/i }).click();
     await page.getByRole("tab", { name: /^timeline/i }).click();
     await expect(page.locator("[data-slot=card-description]").filter({ hasText: `launches ${launch}` })).toBeVisible();
     await expect(page.locator("div").filter({ has: page.getByText("Go-Live", { exact: true }) }).last()).toContainText(launch!);
