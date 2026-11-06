@@ -375,7 +375,7 @@ export function GanttClient({
                 </p>
               </div>
             ) : (
-              <div className={cn("relative flex flex-col overflow-hidden bg-linear-to-b", plan ? "max-h-[min(72vh,840px)]" : "h-[min(72vh,840px)] min-h-[300px]", "from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10")}>
+              <div className={cn("relative flex max-h-[min(72vh,840px)] flex-col overflow-hidden bg-linear-to-b from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10")}>
                 <p className="border-b border-border/50 bg-muted/20 px-3 py-2 text-[0.7rem] leading-snug text-muted-foreground md:hidden">
                   <span className="font-medium text-foreground/85">Swipe</span> the
                   timeline right for dates · scroll tasks up and down · headers stay in

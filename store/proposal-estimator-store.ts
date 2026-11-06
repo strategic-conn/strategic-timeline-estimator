@@ -329,7 +329,8 @@ function toPreview(
       startDate: p?.startDate ?? null,
       endDate: p?.endDate ?? null,
       reason: p?.reason ?? "",
-      bufferHours: Math.max(0, (plan?.planHours?.get(li.id) ?? li.hours) - li.hours),
+      // Rounded: a plain subtraction of hours leaves float noise (10.4699999…).
+      bufferHours: roundHours(Math.max(0, (plan?.planHours?.get(li.id) ?? li.hours) - li.hours)),
     };
   });
   const assignedCount = tasks.filter((t) => t.assigneeName).length;
