@@ -26,7 +26,7 @@ import type { ClientQuote, ScheduleStrategy } from "@/types/proposal.types";
 export const STRATEGY_OPTIONS: [ScheduleStrategy, string, string][] = [
   ["efficient", "Best-fit", "Each task goes to the qualified person with the most skill stars, even if they're busier — the launch date waits for them."],
   ["quick", "Fastest", "Each task goes to whichever qualified person can finish it first, so work spreads out and the project launches sooner."],
-  ["none", "Manual", "Nobody is assigned. The timeline is the team-level estimate, and you staff the project after Start project."],
+  // Manual ("none") is parked — see strategyOf.
 ];
 
 // Never throws: a date this card can't read is shown as-is, not a crashed page.
@@ -74,7 +74,7 @@ export function SchedulePlanCard({
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         {editable ? (
-          <div className="grid grid-cols-3 gap-1.5" role="group" aria-label="Timeline plan">
+          <div className="grid grid-cols-2 gap-1.5" role="group" aria-label="Timeline plan">
             {STRATEGY_OPTIONS.map(([val, label]) => (
               <Button
                 key={val}

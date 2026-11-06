@@ -3840,7 +3840,7 @@
           "n": 1,
           "from": "a-manager",
           "to": "s-propeditor",
-          "action": "Approve quote -> Start project (Best-fit / Fastest / Manual)",
+          "action": "Approve quote -> Start project (Best-fit / Fastest; Manual parked)",
           "files": [
             "components/features/proposals/ProposalEditorClient.tsx"
           ]
@@ -4511,7 +4511,7 @@
     "Velocity is one definition (lib/sprints/velocity.ts) in estimated hours: completed = done by the sprint's last day; average over the last 3 ended, non-cancelled sprints; null (shown as —) until one has ended.",
     "Holidays: every federal holiday is a day off unless holiday_settings marks it worked (admin, Settings -> Workspace -> Holidays). isUsHoliday and friends exclude worked holidays; federalHolidaysForYear lists all for the card.",
     "Every project gets a PO: Start project raises it (PO first, then the project) and is offered only when canStartProject (a PO already, or a won deal). Standalone Create PO exists only for projects started before 2026-10-21.",
-    "The timeline plan (Best-fit / Fastest / Manual) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
+    "The timeline plan (Best-fit / Fastest; Manual is parked and a saved Manual reads as Best-fit) lives on the estimate (proposals.schedule_plan, 0050), is chosen on the Adjust tab, and freezes with the price: approval snapshots quoted_finish in the same write as the status. Start project uses it and warns (does not block) when today's team would launch later. It moves dates only, never the price.",
     "Questionnaire sections 3-8 can be switched off per estimate (discovery.skipped_sections, in the jsonb). withSkippedSections() is the one view the engine, risk, timeline and required counts read: a skipped section adds no hours, flags or required gaps, and Design/Content/SEO drop their whole phase. Sections 1-2 always count.",
     "/proposals/scope-demo (HIDDEN since 2026-10-28: redirects to /proposals, no entry point) is a DEMO of the planned 'Draft from client scope' flow: fixed sample data, no AI call, no writes (e2e/scope-demo.spec.ts fails on any non-GET). Replace it, don't extend it, when the real feature ships.",
     "Notification emails are a COPY of a bell row, never a separate message: only rows the caller created in the last 15 min, claimed once via notifications.emailed_at (0051), only for the important events (opts.email), and never to the actor, a deactivated person or someone with profiles.email_notifications off.",

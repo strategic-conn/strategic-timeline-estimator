@@ -52,14 +52,8 @@ test("the plan is picked on Adjust, shown on the timeline, and frozen with its l
     await expect.poll(async () => (await row(id)).schedule_plan?.strategy, { timeout: 10_000 }).toBe("quick");
     await expect(page.getByTestId("plan-finish").first()).toContainText(/Launches/);
 
-    // Manual has no task dates, so the launch comes from the phase dates —
-    // which were display strings ("Dec 10, 2026") and crashed the page.
-    await group.getByRole("button", { name: "Manual" }).click();
-    await expect(page.getByTestId("plan-finish").first()).toContainText(/Launches [A-Z][a-z]{2} \d{1,2}, \d{4}/);
-    await expect(page.getByText("This page couldn't load")).toHaveCount(0);
-    await expect.poll(async () => (await row(id)).schedule_plan?.strategy, { timeout: 10_000 }).toBe("none");
-    await group.getByRole("button", { name: "Fastest" }).click();
-    await expect.poll(async () => (await row(id)).schedule_plan?.strategy, { timeout: 10_000 }).toBe("quick");
+    // Manual is parked: not offered.
+    await expect(group.getByRole("button", { name: "Manual" })).toHaveCount(0);
 
     await page.getByRole("tab", { name: /^review/i }).click();
     await page.getByRole("tab", { name: /^timeline/i }).click();

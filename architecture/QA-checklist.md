@@ -436,7 +436,7 @@ three viewports).
 - [ ] **Back** returns to the options step; changing strategy and re-previewing shows a *different* plan.
 - [ ] **Confirm & create** saves **exactly** what the preview showed — spot-check 2 assignees + sprint dates against the preview.
 - [ ] **Sync schedule** (existing project) shows the same preview, listing what's missing **and** what changed; "already up to date" short-circuits with a toast and no dialog.
-- [ ] **Start project → Manual:** creates project + phase sprints + tasks, **unassigned**.
+- [ ] Adjust → Who does the work offers **Best-fit and Fastest only** (Manual is parked); an older estimate saved as Manual opens on Best-fit.
 - [ ] **Start project → Best-fit:** each dev/QA task gets an assignee; go-live/hosting work lands on the InMotion-skilled dev; QA lands on a QA-skilled dev.
 - [ ] **Start project → Fastest:** work spreads across *more* devs than Best-fit; finish date is the same or earlier.
 - [ ] Nobody is assigned a task whose skill they lack (spot-check 3 tasks against Team → skills).

@@ -360,7 +360,10 @@ function toPreview(
 
 /** The estimate's chosen plan; never chosen = Best-fit (the old dialog's default). */
 export function strategyOf(quote: Pick<ClientQuote, "schedule_plan">): ScheduleStrategy {
-  return quote.schedule_plan?.strategy ?? "efficient";
+  // ponytail: Manual is PARKED (2026-11-07) — a saved "none" plans as Best-fit.
+  // To bring it back: return the stored value again and restore its button.
+  const s = quote.schedule_plan?.strategy;
+  return !s || s === "none" ? "efficient" : s;
 }
 
 /** Launch date of a preview: the last task, else the last phase (Manual has no task dates). */

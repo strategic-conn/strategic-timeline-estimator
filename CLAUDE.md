@@ -526,7 +526,11 @@ Best-fit / Fastest / Manual used to be a picker inside Start project, after the
 client had agreed to a timeline. It is now **`proposals.schedule_plan`**
 (`{strategy, quoted_finish, quoted_at}`, null = Best-fit), set on the
 **Adjust** tab by `SchedulePlanCard`, which also sits read-only above the
-Timeline tab's Gantt. The card's forecast **is** `previewConversion` with that
+Timeline tab's Gantt. **Manual is PARKED** (2026-11-07): only Best-fit and
+Fastest are offered, and `strategyOf` reads a saved `"none"` as Best-fit, so
+the Manual branches below are unreachable until it is restored (return the
+stored value in `strategyOf` + its `STRATEGY_OPTIONS` row and help column).
+The card's forecast **is** `previewConversion` with that
 strategy — the same plan Start project builds — so it shows the real launch
 date, how many tasks have someone, and "See who does what".
 

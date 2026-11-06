@@ -174,7 +174,6 @@ const HELP = {
               <th className="w-[26%]" />
               <th>Best-fit</th>
               <th>Fastest</th>
-              <th>Manual</th>
             </tr>
           </thead>
           <tbody>
@@ -182,29 +181,24 @@ const HELP = {
               <td>Picks</td>
               <td>Most skill stars</td>
               <td>Who finishes first</td>
-              <td>Nobody</td>
             </tr>
             <tr>
               <td>If tied</td>
               <td>Who finishes first</td>
               <td>Most skill stars</td>
-              <td>—</td>
             </tr>
             <tr>
               <td>Launch</td>
               <td>Can be later (waits for the best person)</td>
               <td>Usually earliest</td>
-              <td>Team-level estimate</td>
             </tr>
             <tr>
               <td>Use when</td>
               <td>Quality matters most</td>
               <td>The deadline matters most</td>
-              <td>You&apos;ll staff it yourself</td>
             </tr>
             <tr>
               <td>Price</td>
-              <td>Same</td>
               <td>Same</td>
               <td>Same</td>
             </tr>
