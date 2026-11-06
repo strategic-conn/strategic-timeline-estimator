@@ -238,7 +238,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "project",
-    version: 2,
+    version: 3,
     title: "Project overview",
     access: "/projects",
     match: (p) => /^\/projects\/[^/]+\/?$/.test(p),
@@ -283,12 +283,6 @@ export const TOURS: TourDef[] = [
         target: "project.timeline",
         title: "Timeline",
         body: "The project's schedule, drawn from its sprints. Change a sprint's dates and the chart follows.",
-      },
-      {
-        target: "project.risk-buffer",
-        title: "Risk buffer",
-        body: "Forecasts how much later the project would finish with extra slack. It moves nothing on its own. Applying it shows the new sprint dates for you to confirm first.",
-        when: (c) => c.canEditProject,
       },
       {
         target: "project.velocity",

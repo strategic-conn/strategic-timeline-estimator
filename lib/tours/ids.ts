@@ -42,7 +42,6 @@ export const TOUR_TARGETS = [
   "project.sync",
   "project.zoho-complete",
   "project.timeline",
-  "project.risk-buffer",
   "project.velocity",
   // Task board (sprint + backlog)
   "board.search",

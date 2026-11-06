@@ -718,14 +718,10 @@ move dates people had agreed to.
    **`riskBufferPct`** alongside `totalBusinessDays` (post-buffer), so the Gantt
    can say "54 business days (incl. 20% risk buffer on 45)" rather than just
    looking bigger than the hours justify.
- - **On a project it is a FORECAST first.** The section under the Gantt always
-   shows "planned finish / with buffer"; changing the percentage moves nothing.
-   **Applying** it rewrites real sprint dates, so it goes through a preview and a
-   confirm — sprint dates are the plan the team follows, and nothing in this app
-   overwrites them silently. `bufferSprintDates` re-anchors every sprint against
-   the project start so order and gaps hold.
- - **Applying resets the buffer to 0%.** It is now part of the dates, and a
-   20% buffer applied twice is 44% — which nobody asked for.
+ - **A project has no risk buffer control** (removed 2026-11-07). A started
+   project's dates come from its estimate, buffer included, and are adjusted
+   through its sprints. `projects.risk_buffer_pct` and `bufferSprintDates`
+   (still tested in `e2e/risk-buffer.spec.ts`) remain, unused by the UI.
  - `proposals.risk_buffer_pct` needed **all three** whitelists
    (`rowToQuote`, `quoteUpdatePayload()`, the `Pick<ClientQuote, …>` on
    `updateProposal`), and `projects` needed `rowToProject` + the `updateProject`

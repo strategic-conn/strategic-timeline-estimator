@@ -381,24 +381,6 @@ const HELP = {
       </>
     ),
   },
-  "project.risk-buffer": {
-    label: "the risk buffer",
-    title: "Extra time for surprises",
-    body: (
-      <>
-        <p>
-          A forecast first: pick a percentage and see when the project would
-          finish with that much slack. Nothing moves yet.
-        </p>
-        <p>
-          <strong>Applying</strong>{" "}it shows every sprint&apos;s new dates
-          for you to confirm, then rewrites them and resets the buffer to 0% —
-          so it can&apos;t be applied twice by accident.
-        </p>
-        <p>Hours and prices never change.</p>
-      </>
-    ),
-  },
   "project.velocity": {
     label: "velocity",
     title: "How fast the team is going",

@@ -50,7 +50,6 @@ import {
   useProposalEstimatorStore,
   type SchedulePreview,
 } from "@/store/proposal-estimator-store";
-import { ProjectRiskBufferSection } from "@/components/features/sprints/ProjectRiskBufferSection";
 import { ProjectVelocitySection } from "@/components/features/sprints/ProjectVelocitySection";
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import {
@@ -671,12 +670,6 @@ export function ProjectOverviewPage({ projectId }: ProjectOverviewPageProps) {
               </p>
             </div>
             <GanttClient lockedProjectId={projectId} />
-            {/* Under the chart on purpose: the forecast only means something
-                once you can see the schedule it is stretching. Admin/manager
-                only — it rewrites the dates the team works to. */}
-            {canEditProject ? (
-              <ProjectRiskBufferSection projectId={projectId} />
-            ) : null}
           </section>
         ) : null}
 

@@ -246,8 +246,7 @@
 
 - [ ] New estimate → Adjust tab: the risk buffer starts at **10%**, and the
       timeline is ~10% longer than the same work at 0%. The price is unchanged.
-- [ ] New project (Projects → New project): its risk buffer section shows 10%.
-- [ ] Start project from an estimate set to 20% → the project shows 20%, not 10%.
+- [ ] A started project's page has **no** risk buffer section: its dates come from the estimate and are adjusted through sprints.
 - [ ] An estimate made before this change still shows its old buffer (often 0%).
 
 ## 🧭 Onboarding tours + Getting started

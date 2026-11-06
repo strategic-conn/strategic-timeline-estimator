@@ -1415,11 +1415,10 @@
       "id": "c-riskbuffer",
       "layer": "surfaces",
       "label": "Risk buffer",
-      "sub": "Estimator Adjust + project page",
-      "purpose": "Schedule contingency 0-100%, on proposals and projects (0036). One shared card. On an estimate it stretches the tentative timeline and the sprints Start project scaffolds; on a project it is a forecast until explicitly applied, which rewrites sprint dates behind a preview and resets the buffer to 0 so it cannot compound. Never touches hours or price - that is requirements_unclear.",
+      "sub": "Estimator Adjust tab",
+      "purpose": "Schedule contingency 0-100% on an estimate (0036): stretches the timeline and adds a priced buffer line. Projects carry the column but show no control since 2026-11-07: a started project's dates come from its estimate and are adjusted through its sprints.",
       "files": [
         "components/features/proposals/RiskBufferCard.tsx",
-        "components/features/sprints/ProjectRiskBufferSection.tsx",
         "e2e/risk-buffer.spec.ts"
       ],
       "flags": {
