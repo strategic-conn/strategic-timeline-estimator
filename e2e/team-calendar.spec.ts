@@ -259,6 +259,21 @@ test.describe("phases with no tasks follow the planned work", () => {
     followPlannedWork(scaffold, dates, null);
     expect(dates.has("Launch & Handoff")).toBe(false);
   });
+
+  test("Launch never starts on the day QA ends — the next working day at the earliest", () => {
+    const back2back = [
+      { label: "QA & Testing", start_date: "2027-03-12", end_date: "2027-03-17" },
+      { label: "Launch & Handoff", start_date: "2027-03-17", end_date: "2027-03-22" },
+    ];
+    // Plan ends on Fri Mar 19 → Launch from Mon Mar 22, still 3 working days long.
+    const late = new Map([["QA & Testing", { start: "2027-03-12", end: "2027-03-19" }]]);
+    followPlannedWork(back2back, late, null);
+    expect(late.get("Launch & Handoff")).toEqual({ start: "2027-03-22", end: "2027-03-25" });
+    // Even when the plan ends exactly where the timeline did.
+    const same = new Map([["QA & Testing", { start: "2027-03-12", end: "2027-03-17" }]]);
+    followPlannedWork(back2back, same, null);
+    expect(same.get("Launch & Handoff")).toEqual({ start: "2027-03-18", end: "2027-03-23" });
+  });
 });
 
 test.describe("the Gantt is drawn on the people plan", () => {

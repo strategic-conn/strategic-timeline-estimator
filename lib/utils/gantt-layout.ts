@@ -81,6 +81,13 @@ export type GanttLayoutModel = {
   rows: GanttLayoutRow[];
   rangeStart: Date;
   rangeEnd: Date;
+  /**
+   * The first bar's start and the last bar's end (null with no bars). The
+   * range above is padded for breathing room; this is what the work spans,
+   * and the only pair a header should print.
+   */
+  firstDay: Date | null;
+  lastDay: Date | null;
   totalDays: number;
   todayLinePct: number | null;
   timelineWidthPx: number;
@@ -136,7 +143,16 @@ export function layoutBars<T extends { start: Date; end: Date }>(
     leftPct: (differenceInCalendarDays(r.start, rangeStart) / totalDays) * 100,
     widthPct: Math.max(((differenceInCalendarDays(r.end, r.start) + 1) / totalDays) * 100, 0.45),
   }));
-  return { rows, rangeStart, rangeEnd, totalDays, todayLinePct, timelineWidthPx };
+  return {
+    rows,
+    rangeStart,
+    rangeEnd,
+    firstDay: items.length ? minD : null,
+    lastDay: items.length ? maxD : null,
+    totalDays,
+    todayLinePct,
+    timelineWidthPx,
+  };
 }
 
 export function buildGanttLayout(

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format, isValid, parseISO } from "date-fns";
+import { addDays, differenceInCalendarDays, format, isValid, parseISO } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { CalendarRange, FolderKanban, Info } from "lucide-react";
 
@@ -29,6 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { isUsHoliday } from "@/lib/calendar/us-holidays";
 import { buildGanttLayout, getGanttWeekTicks, layoutBars } from "@/lib/utils/gantt-layout";
 import { cn } from "@/lib/utils";
 import { useProjectsStore } from "@/store/projects-store";
@@ -81,7 +82,32 @@ export type PlannedGanttRow = {
   bufferHours: number;
   /** A phase with no tasks of its own (e.g. Launch & Handoff), drawn as one bar. */
   isPhase?: boolean;
+  /** Delivery order of its phase (Discovery first, Launch last) — rows sort by it. */
+  order?: number;
 };
+
+/** What a bar's hover card says: a heading, then label/value lines. */
+type BarTip = { heading: string; lines: [label: string, value: string][] };
+
+const DAY_FMT = "EEE, MMM d, yyyy";
+
+/** Start, end and length lines shared by both chart modes. */
+function dateLines(start: Date, end: Date): [string, string][] {
+  // Working days: weekends and federal holidays (the ones not marked worked)
+  // are skipped, as the planner skips them. A person's own leave is not known here.
+  let work = 0;
+  const span = differenceInCalendarDays(end, start) + 1;
+  for (let i = 0; i < span && i < 400; i++) {
+    const d = addDays(start, i);
+    const dow = d.getDay();
+    if (dow !== 0 && dow !== 6 && !isUsHoliday(format(d, "yyyy-MM-dd"))) work += 1;
+  }
+  return [
+    ["Starts", formatEnUS(start, DAY_FMT)],
+    ["Ends", formatEnUS(end, DAY_FMT)],
+    ["Length", `${work} working ${work === 1 ? "day" : "days"}`],
+  ];
+}
 
 /** Amber stripes: the risk buffer, distinct from every status colour. */
 const BUFFER_BG =
@@ -136,7 +162,15 @@ export function GanttClient({
           barClass: BAR_BG[r.task.status],
           faded: r.task.status === "done",
           bufferPct: 0,
-          tip: `${r.task.title} — ${formatEnUS(r.start, "MMM d")}–${formatEnUS(r.end, "MMM d")} · Click to open`,
+          tip: {
+            heading: r.task.title,
+            lines: [
+              ["Status", r.task.status.replace("_", " ")],
+              ["Where", `${r.projectName}${r.sprintName ? ` · ${r.sprintName}` : " · Backlog"}`],
+              ...dateLines(r.start, r.end),
+            ],
+          } as BarTip,
+          hint: "Click to open the task",
           leftPct: r.leftPct,
           widthPct: r.widthPct,
         })),
@@ -145,7 +179,12 @@ export function GanttClient({
     const m = layoutBars(
       plan
         .map((r) => ({ r, start: parseISO(r.start), end: parseISO(r.end) }))
-        .sort((a, b) => a.start.getTime() - b.start.getTime() || a.r.title.localeCompare(b.r.title)),
+        .sort(
+          (a, b) =>
+            (a.r.order ?? 0) - (b.r.order ?? 0) ||
+            a.start.getTime() - b.start.getTime() ||
+            a.r.title.localeCompare(b.r.title),
+        ),
     );
     return {
       ...m,
@@ -154,13 +193,33 @@ export function GanttClient({
         return {
           key: r.id,
           title: r.title,
-          subtitle: r.phase,
+          // Dates beside the phase, so they can be read without hovering —
+          // and on a phone, where there is no hover.
+          subtitle: `${r.phase} · ${formatEnUS(start, "MMM d")} – ${formatEnUS(end, "MMM d")}`,
           badge: r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
           href: null as string | null,
           barClass: PLANNED_BG,
           faded: !r.assignee && !r.isPhase,
           bufferPct: total > 0 ? (r.bufferHours / total) * 100 : 0,
-          tip: `${r.title} — ${r.assignee ?? "unassigned"} · ${formatEnUS(start, "MMM d")}–${formatEnUS(end, "MMM d")} · ${r.hours} h${r.bufferHours ? ` + ${r.bufferHours} h risk buffer` : ""}`,
+          tip: {
+            heading: r.title,
+            lines: [
+              ["Who", r.isPhase ? "The team (no tasks of its own)" : r.assignee ?? "Unassigned — pick someone manually"],
+              ["Phase", r.isPhase ? r.title : r.phase],
+              ...dateLines(start, end),
+              ...(r.isPhase
+                ? []
+                : ([
+                    [
+                      "Hours",
+                      r.bufferHours
+                        ? `${r.hours} h + ${r.bufferHours} h risk buffer = ${Math.round((r.hours + r.bufferHours) * 10) / 10} h`
+                        : `${r.hours} h`,
+                    ],
+                  ] as [string, string][])),
+            ],
+          } as BarTip,
+          hint: null as string | null,
           leftPct,
           widthPct,
         };
@@ -168,7 +227,7 @@ export function GanttClient({
     };
   }, [plan, tasks, sprints, projectNameMap, projectId]);
 
-  const { rows, rangeStart, rangeEnd, totalDays, todayLinePct, timelineWidthPx } =
+  const { rows, rangeStart, rangeEnd, firstDay, lastDay, totalDays, todayLinePct, timelineWidthPx } =
     model;
   const hasBuffer = rows.some((r) => r.bufferPct > 0);
 
@@ -207,7 +266,7 @@ export function GanttClient({
   }, []);
 
   return (
-    <TooltipProvider delayDuration={400}>
+    <TooltipProvider delayDuration={150}>
       <div className="flex flex-col gap-6">
         {!lockedProjectId && !plan && (
         <WorkspacePageHeader
@@ -270,9 +329,17 @@ export function GanttClient({
                 </CardTitle>
                 <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground/90">
-                    {formatEnUS(rangeStart, "MMM d, yyyy")}
-                    <span className="text-muted-foreground">→</span>
-                    {formatEnUS(rangeEnd, "MMM d, yyyy")}
+                    {/* What the work spans — never the padded drawing range,
+                        which read as a schedule 10 days longer than the plan. */}
+                    {firstDay && lastDay ? (
+                      <>
+                        {formatEnUS(firstDay, "MMM d, yyyy")}
+                        <span className="text-muted-foreground">→</span>
+                        {formatEnUS(lastDay, "MMM d, yyyy")}
+                      </>
+                    ) : (
+                      "No dates yet"
+                    )}
                   </span>
                   <span className="text-xs">
                     <span className="font-medium text-foreground/90">
@@ -567,15 +634,46 @@ export function GanttClient({
                                 className="absolute left-0 right-0 box-border border-b border-border/30 px-1.5"
                                 style={{ top: i * ROW_PX, height: ROW_PX }}
                               >
-                                {r.href ? (
-                                  <Link href={r.href} className={barCls} style={style} title={r.tip}>
-                                    {inner}
-                                  </Link>
-                                ) : (
-                                  <div className={barCls} style={style} title={r.tip}>
-                                    {inner}
-                                  </div>
-                                )}
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    {r.href ? (
+                                      <Link
+                                        href={r.href}
+                                        className={barCls}
+                                        style={style}
+                                        aria-label={`${r.tip.heading}: ${r.tip.lines.map(([k, v]) => `${k} ${v}`).join(", ")}`}
+                                      >
+                                        {inner}
+                                      </Link>
+                                    ) : (
+                                      <div
+                                        className={barCls}
+                                        style={style}
+                                        tabIndex={0}
+                                        aria-label={`${r.tip.heading}: ${r.tip.lines.map(([k, v]) => `${k} ${v}`).join(", ")}`}
+                                      >
+                                        {inner}
+                                      </div>
+                                    )}
+                                  </TooltipTrigger>
+                                  <TooltipContent
+                                    side="top"
+                                    sideOffset={6}
+                                    className="max-w-xs flex-col items-start gap-1.5 px-3 py-2.5 text-left text-xs leading-snug shadow-md **:text-background"
+                                    data-testid="gantt-bar-tip"
+                                  >
+                                    <p className="w-full font-semibold">{r.tip.heading}</p>
+                                    <dl className="grid w-full grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+                                      {r.tip.lines.map(([k, v]) => (
+                                        <React.Fragment key={k}>
+                                          <dt className="opacity-70">{k}</dt>
+                                          <dd>{v}</dd>
+                                        </React.Fragment>
+                                      ))}
+                                    </dl>
+                                    {r.hint ? <p className="w-full opacity-70">{r.hint}</p> : null}
+                                  </TooltipContent>
+                                </Tooltip>
                               </div>
                             );
                           })}

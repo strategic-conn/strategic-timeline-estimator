@@ -492,16 +492,19 @@ export function ProposalEditorClient({
   const plannedRows = React.useMemo((): PlannedGanttRow[] | null => {
     if (!schedulePreview?.plan) return null;
     const phaseOf = new Map(schedulePreview.sprints.map((s) => [s.label, s]));
+    // Rows read in delivery order (the sprints are in phase order), so Launch
+    // is never drawn above the QA it follows.
+    const order = new Map(schedulePreview.sprints.map((s, i) => [s.label, i]));
     const rows: PlannedGanttRow[] = [];
     for (const t of schedulePreview.tasks) {
       const start = t.startDate ?? phaseOf.get(t.phase)?.start;
       const end = t.endDate ?? phaseOf.get(t.phase)?.end;
       if (!start || !end) continue;
-      rows.push({ id: t.lineId, title: t.title, phase: t.phase, assignee: t.assigneeName, start, end, hours: t.hours, bufferHours: t.bufferHours });
+      rows.push({ id: t.lineId, title: t.title, phase: t.phase, assignee: t.assigneeName, start, end, hours: t.hours, bufferHours: t.bufferHours, order: order.get(t.phase) });
     }
     for (const sp of schedulePreview.sprints) {
       if (schedulePreview.tasks.some((t) => t.phase === sp.label)) continue;
-      rows.push({ id: `phase-${sp.label}`, title: sp.label, phase: "No tasks of its own", assignee: null, start: sp.start, end: sp.end, hours: 0, bufferHours: 0, isPhase: true });
+      rows.push({ id: `phase-${sp.label}`, title: sp.label, phase: "No tasks of its own", assignee: null, start: sp.start, end: sp.end, hours: 0, bufferHours: 0, isPhase: true, order: order.get(sp.label) });
     }
     return rows;
   }, [schedulePreview]);

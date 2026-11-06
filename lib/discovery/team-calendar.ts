@@ -330,12 +330,16 @@ export function followPlannedWork(
   if (anchor < 0) return;
   const from = scaffold[anchor];
   const plannedEnd = sprintDates.get(from.label)!.end;
-  if (plannedEnd === from.end_date) return;
 
   const day = (s: string) => new Date(`${s}T12:00:00`);
   for (const ph of scaffold.slice(anchor + 1)) {
     if (sprintDates.has(ph.label)) continue;
-    const gap = workingDaysBetween(from.end_date, ph.start_date, cal);
+    // The timeline lets a phase start on the day the one before ends. Drawn
+    // task by task, that reads as Launch starting before QA is done, so a
+    // phase here starts on the next working day at the earliest.
+    const scaffoldGap = workingDaysBetween(from.end_date, ph.start_date, cal);
+    if (plannedEnd === from.end_date && scaffoldGap >= 1) continue;
+    const gap = Math.max(1, scaffoldGap);
     const length = workingDaysBetween(ph.start_date, ph.end_date, cal);
     const start = addWorkingDays(day(plannedEnd), gap, cal);
     sprintDates.set(ph.label, {
