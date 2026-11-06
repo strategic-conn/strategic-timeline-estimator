@@ -111,6 +111,34 @@ export function getGanttWeekTicks(
 const MIN_PIXELS_PER_DAY = 12;
 const TIMELINE_MIN_WIDTH_PX = 760;
 
+/** Range, width and today line for any set of dated bars; each row gains left/width %. */
+export function layoutBars<T extends { start: Date; end: Date }>(
+  items: T[],
+): Omit<GanttLayoutModel, "rows"> & { rows: (T & { leftPct: number; widthPct: number })[] } {
+  const today = startOfDay(new Date());
+  // Empty: today -14 → +28 once padded, as before.
+  let minD = items[0]?.start ?? addDays(today, -10);
+  let maxD = items[0]?.end ?? addDays(today, 18);
+  for (const r of items) {
+    minD = dfMin([minD, r.start]);
+    maxD = dfMax([maxD, r.end]);
+  }
+  const rangeStart = addDays(minD, -4);
+  const rangeEnd = addDays(maxD, 10);
+  const totalDays = Math.max(1, differenceInCalendarDays(rangeEnd, rangeStart) + 1);
+  const timelineWidthPx = Math.max(TIMELINE_MIN_WIDTH_PX, totalDays * MIN_PIXELS_PER_DAY);
+  const todayLinePct =
+    today >= rangeStart && today <= rangeEnd
+      ? (differenceInCalendarDays(today, rangeStart) / totalDays) * 100
+      : null;
+  const rows = items.map((r) => ({
+    ...r,
+    leftPct: (differenceInCalendarDays(r.start, rangeStart) / totalDays) * 100,
+    widthPct: Math.max(((differenceInCalendarDays(r.end, r.start) + 1) / totalDays) * 100, 0.45),
+  }));
+  return { rows, rangeStart, rangeEnd, totalDays, todayLinePct, timelineWidthPx };
+}
+
 export function buildGanttLayout(
   tasks: Task[],
   sprints: Sprint[],
@@ -136,72 +164,7 @@ export function buildGanttLayout(
     };
   });
 
-  const today = startOfDay(new Date());
-
-  if (withRange.length === 0) {
-    const rangeStart = addDays(today, -14);
-    const rangeEnd = addDays(today, 28);
-    const totalDays = differenceInCalendarDays(rangeEnd, rangeStart) + 1;
-    const timelineWidthPx = Math.max(
-      TIMELINE_MIN_WIDTH_PX,
-      totalDays * MIN_PIXELS_PER_DAY
-    );
-    const todayLinePct =
-      today >= rangeStart && today <= rangeEnd
-        ? (differenceInCalendarDays(today, rangeStart) / totalDays) * 100
-        : null;
-    return {
-      rows: [],
-      rangeStart,
-      rangeEnd,
-      totalDays,
-      todayLinePct,
-      timelineWidthPx,
-    };
-  }
-
-  let minD = withRange[0].start;
-  let maxD = withRange[0].end;
-  for (const r of withRange) {
-    minD = dfMin([minD, r.start]);
-    maxD = dfMax([maxD, r.end]);
-  }
-
-  const rangeStart = addDays(minD, -4);
-  const rangeEnd = addDays(maxD, 10);
-  const totalDays = Math.max(
-    1,
-    differenceInCalendarDays(rangeEnd, rangeStart) + 1
-  );
-
-  const timelineWidthPx = Math.max(
-    TIMELINE_MIN_WIDTH_PX,
-    totalDays * MIN_PIXELS_PER_DAY
-  );
-
-  let todayLinePct: number | null = null;
-  if (today >= rangeStart && today <= rangeEnd) {
-    todayLinePct = (differenceInCalendarDays(today, rangeStart) / totalDays) * 100;
-  }
-
-  const rows: GanttLayoutRow[] = withRange.map(
-    ({ task, start, end, sprintName, href, projectName }) => {
-      const offset = differenceInCalendarDays(start, rangeStart);
-      const span = differenceInCalendarDays(end, start) + 1;
-      const leftPct = (offset / totalDays) * 100;
-      const widthPct = Math.max((span / totalDays) * 100, 0.45);
-      return {
-        task,
-        projectName,
-        sprintName,
-        start,
-        end,
-        href,
-        leftPct,
-        widthPct,
-      };
-    }
-  );
+  const { rows, ...rest } = layoutBars(withRange);
 
   rows.sort((a, b) => {
     const p = a.projectName.localeCompare(b.projectName);
@@ -211,12 +174,5 @@ export function buildGanttLayout(
     return a.task.title.localeCompare(b.task.title);
   });
 
-  return {
-    rows,
-    rangeStart,
-    rangeEnd,
-    totalDays,
-    todayLinePct,
-    timelineWidthPx,
-  };
+  return { rows, ...rest };
 }

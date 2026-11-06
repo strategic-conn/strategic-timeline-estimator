@@ -186,6 +186,8 @@ interface SeedPlan {
   byLineItem: Map<string, PlannedTask>;
   /** phase label → resource-aware sprint {start,end}. */
   sprintDates: Map<string, { start: string; end: string }>;
+  /** line-item id → hours planned, risk buffer included (null = no buffer planned). */
+  planHours: Map<string, number> | null;
 }
 
 /**
@@ -240,7 +242,7 @@ function planSeeds(
     });
   }
   followPlannedWork(scaffold, sprintDates, currentTeamCalendar());
-  return { byLineItem, sprintDates };
+  return { byLineItem, sprintDates, planHours };
 }
 
 
@@ -256,6 +258,8 @@ export interface SchedulePreviewTask {
   endDate: string | null;
   /** Why this person (skill + stars + hours/day), or why nobody. */
   reason: string;
+  /** Risk-buffer hours planned on top of `hours` (Development only; 0 otherwise). */
+  bufferHours: number;
 }
 
 /**
@@ -325,6 +329,7 @@ function toPreview(
       startDate: p?.startDate ?? null,
       endDate: p?.endDate ?? null,
       reason: p?.reason ?? "",
+      bufferHours: Math.max(0, (plan?.planHours?.get(li.id) ?? li.hours) - li.hours),
     };
   });
   const assignedCount = tasks.filter((t) => t.assigneeName).length;

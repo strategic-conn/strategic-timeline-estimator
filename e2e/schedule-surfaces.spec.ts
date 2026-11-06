@@ -29,7 +29,7 @@ test.beforeEach(({}, info) => {
   test.skip(info.project.name !== "desktop", "writes live data; runs once");
 });
 
-test("a guided estimate's summary, card and Go-Live milestone name one launch date", async ({ page }) => {
+test("a guided estimate's summary, card and planned timeline name one launch date", async ({ page }) => {
   const q = await post("proposals", {
     title: `${E2E_PREFIX} one launch ${run}`,
     platform: "wordpress", status: "draft", requirements_unclear: false, addons: {},
@@ -48,8 +48,16 @@ test("a guided estimate's summary, card and Go-Live milestone name one launch da
     await expect(page.getByTestId("summary-launch")).toHaveText(launch!);
     await page.getByRole("tab", { name: /^review/i }).click();
     await page.getByRole("tab", { name: /^timeline/i }).click();
-    await expect(page.locator("[data-slot=card-description]").filter({ hasText: `launches ${launch}` })).toBeVisible();
-    await expect(page.locator("div").filter({ has: page.getByText("Go-Live", { exact: true }) }).last()).toContainText(launch!);
+    // The task-level chart (same component as the project page). Its last bar
+    // ends on the launch day, and the 10% default buffer is striped on
+    // Development work.
+    await expect(page.getByText("Planned schedule")).toBeVisible();
+    const day = launch!.replace(/, \d{4}$/, "");
+    const ends = await page.locator('[title*=" · "][title*="–"]').evaluateAll((els) =>
+      els.map((e) => e.getAttribute("title") ?? ""),
+    );
+    expect(ends.some((t) => t.includes(`–${day} `)), ends.join(" | ")).toBe(true);
+    expect(await page.getByTestId("gantt-buffer").count()).toBeGreaterThan(0);
   } finally {
     await drop("proposals", q.id);
   }

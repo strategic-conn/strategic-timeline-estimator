@@ -31,11 +31,11 @@ import {
 import { toast } from "sonner";
 
 import { DiscoveryGantt } from "@/components/features/discovery/DiscoveryGantt";
+import { GanttClient, type PlannedGanttRow } from "@/components/features/gantt/GanttClient";
 import {
   poScheduleDrift,
   projectDateRange,
 } from "@/lib/sync/estimate-project-sync";
-import { GanttClient } from "@/components/features/gantt/GanttClient";
 import { DiscoveryHoursBreakdown } from "@/components/features/discovery/DiscoveryHoursBreakdown";
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { DiscoveryWizard } from "@/components/features/discovery/DiscoveryWizard";
@@ -487,6 +487,24 @@ export function ProposalEditorClient({
   // (Manual has none, and its phases are the timeline's own anyway).
   const plannedPhases = schedulePreview?.plan ? schedulePreview.sprints : null;
   const unbufferedPhases = unbufferedPreview?.plan ? unbufferedPreview.sprints : null;
+  // The people plan, task by task, for Review → Timeline: the same chart the
+  // project page draws. Manual (no plan) keeps the phase chart.
+  const plannedRows = React.useMemo((): PlannedGanttRow[] | null => {
+    if (!schedulePreview?.plan) return null;
+    const phaseOf = new Map(schedulePreview.sprints.map((s) => [s.label, s]));
+    const rows: PlannedGanttRow[] = [];
+    for (const t of schedulePreview.tasks) {
+      const start = t.startDate ?? phaseOf.get(t.phase)?.start;
+      const end = t.endDate ?? phaseOf.get(t.phase)?.end;
+      if (!start || !end) continue;
+      rows.push({ id: t.lineId, title: t.title, phase: t.phase, assignee: t.assigneeName, start, end, hours: t.hours, bufferHours: t.bufferHours });
+    }
+    for (const sp of schedulePreview.sprints) {
+      if (schedulePreview.tasks.some((t) => t.phase === sp.label)) continue;
+      rows.push({ id: `phase-${sp.label}`, title: sp.label, phase: "No tasks of its own", assignee: null, start: sp.start, end: sp.end, hours: 0, bufferHours: 0, isPhase: true });
+    }
+    return rows;
+  }, [schedulePreview]);
 
   const startGuided = React.useCallback(() => {
     if (!quote) return;
@@ -1879,14 +1897,18 @@ export function ProposalEditorClient({
                     ) : (
                       <div className="space-y-4">
                         <SchedulePlanCard quote={quote} editable={false} />
-                        <DiscoveryGantt
-                          result={scopeResult}
-                          project={quote.discovery}
-                          teamCalendar={teamCalendar}
-                          plannedLaunch={plannedLaunch}
-                          plannedPhases={plannedPhases}
-                          unbufferedPhases={unbufferedPhases}
-                        />
+                        {plannedRows ? (
+                          <GanttClient plan={plannedRows} />
+                        ) : (
+                          <DiscoveryGantt
+                            result={scopeResult}
+                            project={quote.discovery}
+                            teamCalendar={teamCalendar}
+                            plannedLaunch={plannedLaunch}
+                            plannedPhases={plannedPhases}
+                            unbufferedPhases={unbufferedPhases}
+                          />
+                        )}
                       </div>
                     )}
                   </>
@@ -1921,14 +1943,18 @@ export function ProposalEditorClient({
                       <EstimatorHelp section="tentativeTimeline" />
                     </div>
                     <SchedulePlanCard quote={quote} editable={false} />
-                    <DiscoveryGantt
-                      result={catalogResult}
-                      project={tentProject}
-                      teamCalendar={teamCalendar}
-                      plannedLaunch={plannedLaunch}
-                      plannedPhases={plannedPhases}
-                      unbufferedPhases={unbufferedPhases}
-                    />
+                    {plannedRows ? (
+                      <GanttClient plan={plannedRows} />
+                    ) : (
+                      <DiscoveryGantt
+                        result={catalogResult}
+                        project={tentProject}
+                        teamCalendar={teamCalendar}
+                        plannedLaunch={plannedLaunch}
+                        plannedPhases={plannedPhases}
+                        unbufferedPhases={unbufferedPhases}
+                      />
+                    )}
                   </>
                 )}
               </>

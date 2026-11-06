@@ -559,6 +559,14 @@ date, how many tasks have someone, and "See who does what".
    sprints via the `plannedPhases` prop) whenever a plan exists — bars, Go-Live
    and the launch date are the card's dates. Manual (no plan) keeps the
    team-level timeline. Bars are still per phase, not per person.
+ - **Review → Timeline draws the plan TASK BY TASK** (2026-11-07) with the
+   project page's own chart: `<GanttClient plan={rows}>`, rows built from the
+   preview (`PlannedGanttRow`: title, phase, person, dates; a phase with no
+   tasks, e.g. Launch & Handoff, is one row). Each task's `bufferHours`
+   (`SchedulePreviewTask`, from `SeedPlan.planHours`) is drawn as an **amber
+   striped** end of its bar, so the buffer shows where it sits. Manual (no
+   plan) keeps the phase chart (`DiscoveryGantt`). Project bars still start at
+   their sprint's start: tasks store no start date.
  - **The PO's date range follows the same plan.** `CreatePoDialog` pre-fills,
    in order: the schedule just reviewed (Start project) → the project's own
    sprints → the estimate's people plan → the team-level timeline

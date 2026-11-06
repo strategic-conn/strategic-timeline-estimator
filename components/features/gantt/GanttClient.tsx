@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { format, isValid } from "date-fns";
+import { format, isValid, parseISO } from "date-fns";
 import { enUS } from "date-fns/locale";
 import { CalendarRange, FolderKanban, Info } from "lucide-react";
 
@@ -29,7 +29,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { buildGanttLayout, getGanttWeekTicks } from "@/lib/utils/gantt-layout";
+import { buildGanttLayout, getGanttWeekTicks, layoutBars } from "@/lib/utils/gantt-layout";
 import { cn } from "@/lib/utils";
 import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
@@ -66,15 +66,44 @@ const STATUS_LEGEND: { status: TaskStatus; label: string }[] = [
 
 type ProjectFilter = "all" | string;
 
+/** One task of an estimate's people plan (`SchedulePreview`), drawn like a project task. */
+export type PlannedGanttRow = {
+  id: string;
+  title: string;
+  /** Phase label — the sprint it will land in. */
+  phase: string;
+  assignee: string | null;
+  /** YYYY-MM-DD. */
+  start: string;
+  end: string;
+  /** Estimated hours, and the risk-buffer hours planned on top of them. */
+  hours: number;
+  bufferHours: number;
+  /** A phase with no tasks of its own (e.g. Launch & Handoff), drawn as one bar. */
+  isPhase?: boolean;
+};
+
+/** Amber stripes: the risk buffer, distinct from every status colour. */
+const BUFFER_BG =
+  "bg-[repeating-linear-gradient(135deg,var(--color-amber-500)_0_4px,var(--color-amber-300)_4px_8px)]";
+const PLANNED_BG = BAR_BG.todo;
+
 function formatEnUS(d: Date, pattern: string) {
   return isValid(d) ? format(d, pattern, { locale: enUS }) : "—";
 }
 
 export function GanttClient({
   lockedProjectId,
+  plan,
 }: {
   /** When set, the chart is locked to this project and the page header/filter is hidden (for embedding on a project page). */
   lockedProjectId?: string;
+  /**
+   * Draw an estimate's PLANNED tasks instead of a project's real ones (Estimator
+   * → Review → Timeline). Same chart, so an estimate and the project it becomes
+   * read alike; the risk buffer's share of each bar is striped amber.
+   */
+  plan?: PlannedGanttRow[];
 } = {}) {
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
@@ -93,13 +122,55 @@ export function GanttClient({
       ? "All projects"
       : projectNameMap.get(projectId) ?? "Project";
 
-  const model = React.useMemo(
-    () => buildGanttLayout(tasks, sprints, projectNameMap, projectId),
-    [tasks, sprints, projectNameMap, projectId]
-  );
+  const model = React.useMemo(() => {
+    if (!plan) {
+      const m = buildGanttLayout(tasks, sprints, projectNameMap, projectId);
+      return {
+        ...m,
+        rows: m.rows.map((r) => ({
+          key: r.task.id,
+          title: r.task.title,
+          subtitle: `${r.projectName}${r.sprintName ? ` · ${r.sprintName}` : " · Backlog"}`,
+          badge: r.task.status.replace("_", " "),
+          href: r.href as string | null,
+          barClass: BAR_BG[r.task.status],
+          faded: r.task.status === "done",
+          bufferPct: 0,
+          tip: `${r.task.title} — ${formatEnUS(r.start, "MMM d")}–${formatEnUS(r.end, "MMM d")} · Click to open`,
+          leftPct: r.leftPct,
+          widthPct: r.widthPct,
+        })),
+      };
+    }
+    const m = layoutBars(
+      plan
+        .map((r) => ({ r, start: parseISO(r.start), end: parseISO(r.end) }))
+        .sort((a, b) => a.start.getTime() - b.start.getTime() || a.r.title.localeCompare(b.r.title)),
+    );
+    return {
+      ...m,
+      rows: m.rows.map(({ r, start, end, leftPct, widthPct }) => {
+        const total = r.hours + r.bufferHours;
+        return {
+          key: r.id,
+          title: r.title,
+          subtitle: r.phase,
+          badge: r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
+          href: null as string | null,
+          barClass: PLANNED_BG,
+          faded: !r.assignee && !r.isPhase,
+          bufferPct: total > 0 ? (r.bufferHours / total) * 100 : 0,
+          tip: `${r.title} — ${r.assignee ?? "unassigned"} · ${formatEnUS(start, "MMM d")}–${formatEnUS(end, "MMM d")} · ${r.hours} h${r.bufferHours ? ` + ${r.bufferHours} h risk buffer` : ""}`,
+          leftPct,
+          widthPct,
+        };
+      }),
+    };
+  }, [plan, tasks, sprints, projectNameMap, projectId]);
 
   const { rows, rangeStart, rangeEnd, totalDays, todayLinePct, timelineWidthPx } =
     model;
+  const hasBuffer = rows.some((r) => r.bufferPct > 0);
 
   const weekTicks = React.useMemo(
     () => getGanttWeekTicks(rangeStart, rangeEnd, totalDays),
@@ -138,7 +209,7 @@ export function GanttClient({
   return (
     <TooltipProvider delayDuration={400}>
       <div className="flex flex-col gap-6">
-        {!lockedProjectId && (
+        {!lockedProjectId && !plan && (
         <WorkspacePageHeader
           eyebrow="Planning"
           help={<AppHelp section="page.gantt" />}
@@ -185,7 +256,7 @@ export function GanttClient({
 
         <Card
           className="rounded-2xl border-border/60 bg-card/80 shadow-sm backdrop-blur-sm dark:bg-card/70"
-          {...(lockedProjectId ? {} : tourAnchor("gantt.chart"))}
+          {...(lockedProjectId || plan ? {} : tourAnchor("gantt.chart"))}
         >
           <CardHeader className="space-y-3 border-b border-border/50 pb-4">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -195,7 +266,7 @@ export function GanttClient({
                     className="size-4 shrink-0 text-primary"
                     aria-hidden
                   />
-                  Schedule overview
+                  {plan ? "Planned schedule" : "Schedule overview"}
                 </CardTitle>
                 <CardDescription className="flex flex-wrap items-center gap-x-3 gap-y-1">
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-foreground/90">
@@ -205,10 +276,9 @@ export function GanttClient({
                   </span>
                   <span className="text-xs">
                     <span className="font-medium text-foreground/90">
-                      {scopeLabel}
-                    </span>{" "}
-                    · {rows.length} {rows.length === 1 ? "task" : "tasks"} · Weeks
-                    start Sunday
+                      {plan ? "Who does what, and when" : scopeLabel}
+                    </span>
+                    {` · ${rows.length} ${rows.length === 1 ? "task" : "tasks"} · Weeks start Sunday`}
                   </span>
                 </CardDescription>
               </div>
@@ -230,6 +300,19 @@ export function GanttClient({
                   className="max-w-xs flex-col items-start gap-2 px-3 py-2.5 text-left text-xs leading-snug shadow-md **:text-background"
                 >
                   <p className="w-full font-semibold">What the bars mean</p>
+                  {plan ? (
+                    <div className="flex w-full flex-col gap-2 opacity-95">
+                      <p className="w-full text-pretty">
+                        Each task runs from the day its person starts it to the day
+                        they finish, from the plan picked on the Adjust tab.
+                      </p>
+                      <p className="w-full text-pretty">
+                        <span className="font-semibold opacity-100">Amber stripes:</span>{" "}
+                        the risk buffer, extra hours planned onto Development
+                        tasks, so their bars end later.
+                      </p>
+                    </div>
+                  ) : (
                   <div className="flex w-full flex-col gap-2 opacity-95">
                     <p className="w-full text-pretty">
                       <span className="font-semibold opacity-100">In a sprint:</span>{" "}
@@ -242,25 +325,33 @@ export function GanttClient({
                       no due date).
                     </p>
                   </div>
+                  )}
                 </TooltipContent>
               </Tooltip>
             </div>
             <div
               className="flex flex-wrap gap-x-1.5 gap-y-2 border-t border-border/40 pt-3 md:gap-2"
               role="list"
-              aria-label="Task status colors"
+              aria-label={plan ? "Bar colors" : "Task status colors"}
               {...tourAnchor("gantt.legend")}
             >
-              {STATUS_LEGEND.map(({ status, label }) => (
+              {(plan
+                ? [
+                    { key: "planned", label: "Planned work", cls: PLANNED_BG },
+                    { key: "unassigned", label: "Unassigned", cls: `${PLANNED_BG} opacity-45` },
+                    ...(hasBuffer ? [{ key: "buffer", label: "Risk buffer", cls: BUFFER_BG }] : []),
+                  ]
+                : STATUS_LEGEND.map(({ status, label }) => ({ key: status, label, cls: BAR_BG[status] }))
+              ).map(({ key, label, cls }) => (
                 <span
-                  key={status}
+                  key={key}
                   role="listitem"
                   className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-muted/30 px-1.5 py-0.5 text-[0.62rem] text-muted-foreground sm:gap-1.5 sm:px-2 sm:text-[0.7rem]"
                 >
                   <span
                     className={cn(
                       "size-2 shrink-0 rounded-full ring-1 ring-black/10 dark:ring-white/10",
-                      BAR_BG[status]
+                      cls
                     )}
                     aria-hidden
                   />
@@ -278,12 +369,13 @@ export function GanttClient({
                   No tasks in this view
                 </p>
                 <p className="max-w-sm text-sm text-muted-foreground">
-                  Try another project above, or add tasks in a sprint or backlog —
-                  they will show up here automatically.
+                  {plan
+                    ? "Add line items to see who would do them, and when."
+                    : "Try another project above, or add tasks in a sprint or backlog — they will show up here automatically."}
                 </p>
               </div>
             ) : (
-              <div className="relative flex h-[min(72vh,840px)] min-h-[300px] flex-col overflow-hidden bg-linear-to-b from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10">
+              <div className={cn("relative flex flex-col overflow-hidden bg-linear-to-b", plan ? "max-h-[min(72vh,840px)]" : "h-[min(72vh,840px)] min-h-[300px]", "from-background/40 to-muted/15 dark:from-background/20 dark:to-muted/10")}>
                 <p className="border-b border-border/50 bg-muted/20 px-3 py-2 text-[0.7rem] leading-snug text-muted-foreground md:hidden">
                   <span className="font-medium text-foreground/85">Swipe</span> the
                   timeline right for dates · scroll tasks up and down · headers stay in
@@ -373,32 +465,32 @@ export function GanttClient({
                     >
                       {rows.map((r) => (
                         <div
-                          key={r.task.id}
+                          key={r.key}
                           className="box-border flex gap-1.5 border-b border-border/35 px-2 sm:gap-2 sm:px-3"
                           style={{ height: ROW_PX }}
                         >
                           <div className="flex min-h-0 min-w-0 flex-1 flex-col justify-center py-0.5">
                             <p
                               className="line-clamp-2 text-[0.6875rem] font-medium leading-tight text-foreground sm:text-xs sm:leading-snug lg:line-clamp-none lg:truncate"
-                              title={r.task.title}
+                              title={r.title}
                             >
-                              {r.task.title}
+                              {r.title}
                             </p>
                             <p className="line-clamp-1 text-[0.6rem] leading-tight text-muted-foreground sm:text-[0.65rem] lg:truncate">
-                              {r.projectName}
-                              {r.sprintName ? ` · ${r.sprintName}` : " · Backlog"}
+                              {r.subtitle}
                             </p>
                           </div>
                           <Badge
                             variant="secondary"
-                            title={r.task.status.replace("_", " ")}
+                            title={r.badge}
                             className={cn(
-                              "self-center shrink-0 border border-border/50 px-1 py-0 text-[0.55rem] font-normal capitalize sm:px-1.5 sm:text-[0.65rem]",
+                              "self-center shrink-0 border border-border/50 px-1 py-0 text-[0.55rem] font-normal sm:px-1.5 sm:text-[0.65rem]",
+                              !plan && "capitalize",
                               "max-[480px]:max-w-19 max-[480px]:truncate",
-                              r.task.status === "done" && "opacity-80"
+                              r.faded && "opacity-80"
                             )}
                           >
-                            {r.task.status.replace("_", " ")}
+                            {r.badge}
                           </Badge>
                         </div>
                       ))}
@@ -446,31 +538,44 @@ export function GanttClient({
 
                           {rows.map((r, i) => {
                             const showLabel = r.widthPct >= 7;
+                            const barCls = cn(
+                              "group/bar absolute top-1/2 z-1 flex h-6 max-w-full min-w-[8px] -translate-y-1/2 items-center justify-start overflow-hidden rounded-md px-1.5 shadow-sm ring-1 ring-black/10 transition-[opacity,box-shadow] hover:z-2 hover:opacity-100 hover:ring-primary/30 dark:ring-white/10",
+                              r.barClass,
+                              r.faded && (plan ? "opacity-45" : "opacity-75")
+                            );
+                            const style = { left: `${r.leftPct}%`, width: `${r.widthPct}%` };
+                            const inner = (
+                              <>
+                                {r.bufferPct > 0 ? (
+                                  <span
+                                    className={cn("pointer-events-none absolute inset-y-0 right-0", BUFFER_BG)}
+                                    style={{ width: `${r.bufferPct}%` }}
+                                    data-testid="gantt-buffer"
+                                    aria-hidden
+                                  />
+                                ) : null}
+                                {showLabel ? (
+                                  <span className="relative min-w-0 truncate text-[0.65rem] font-medium leading-none text-white drop-shadow-sm dark:text-white">
+                                    {r.title}
+                                  </span>
+                                ) : null}
+                              </>
+                            );
                             return (
                               <div
-                                key={r.task.id}
+                                key={r.key}
                                 className="absolute left-0 right-0 box-border border-b border-border/30 px-1.5"
                                 style={{ top: i * ROW_PX, height: ROW_PX }}
                               >
-                                <Link
-                                  href={r.href}
-                                  className={cn(
-                                    "group/bar absolute top-1/2 z-1 flex h-6 max-w-full min-w-[8px] -translate-y-1/2 items-center justify-start overflow-hidden rounded-md px-1.5 shadow-sm ring-1 ring-black/10 transition-[opacity,box-shadow] hover:z-2 hover:opacity-100 hover:ring-primary/30 dark:ring-white/10",
-                                    BAR_BG[r.task.status],
-                                    r.task.status === "done" && "opacity-75"
-                                  )}
-                                  style={{
-                                    left: `${r.leftPct}%`,
-                                    width: `${r.widthPct}%`,
-                                  }}
-                                  title={`${r.task.title} — ${formatEnUS(r.start, "MMM d")}–${formatEnUS(r.end, "MMM d")} · Click to open`}
-                                >
-                                  {showLabel ? (
-                                    <span className="min-w-0 truncate text-[0.65rem] font-medium leading-none text-white drop-shadow-sm dark:text-white">
-                                      {r.task.title}
-                                    </span>
-                                  ) : null}
-                                </Link>
+                                {r.href ? (
+                                  <Link href={r.href} className={barCls} style={style} title={r.tip}>
+                                    {inner}
+                                  </Link>
+                                ) : (
+                                  <div className={barCls} style={style} title={r.tip}>
+                                    {inner}
+                                  </div>
+                                )}
                               </div>
                             );
                           })}

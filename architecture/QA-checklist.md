@@ -96,6 +96,7 @@
 - [ ] Guided estimate: **Review** has Client preview · Hours · Timeline; Scope & risk has the questionnaire with no inner tabs.
 - [ ] Questionnaire's last step **View estimate** opens Review → Hours.
 - [ ] 375px: the Review tab's inner tabs fit on one row.
+- [ ] Review → Timeline (Best-fit or Fastest) is the task chart: one row per task with its person, phases without tasks as one bar, and with a risk buffer the Development bars end in **amber stripes**. Hover a bar: "N h + M h risk buffer". Manual still shows the phase chart.
 
 **One launch date**
 - [ ] Guided estimate: the **Who does the work** card, the Scope & risk summary, the Timeline caption and the **Go-Live** milestone all show the same date.

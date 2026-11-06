@@ -67,9 +67,8 @@ test("a Creative catalog line draws a Design bar on the timeline", async ({ page
       await waitForApp(page);
       await page.getByRole("tab", { name: /^review/i }).click();
       await page.getByRole("tab", { name: /^timeline/i }).click();
-      const g = page.getByRole("img", { name: "Gantt chart of project phases" }).or(
-        page.getByLabel("Gantt chart of project phases"),
-      );
+      // The planned chart lists each task with its phase under its title.
+      const g = page.locator("[data-slot=card]").filter({ hasText: "Planned schedule" });
       await expect(g.first()).toBeVisible({ timeout: 15_000 });
       return g.first();
     };

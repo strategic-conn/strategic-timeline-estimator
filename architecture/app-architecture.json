@@ -4518,7 +4518,8 @@
     "Two-factor: once a person has a verified TOTP factor, only an aal2 session may touch any public table (0052 restrictive mfa_aal2 policy); the proxy's /mfa redirect is UX. MFA_REQUIRED=true (proxy-only) forces set-up for everyone. A new RLS table needs the mfa_aal2 policy too.",
     "computeTimeline's client-review wait only follows a phase that exists (reviewAfter): the first phase starts on the project start. Guided estimates always have Discovery, so their dates are unaffected; existing project sprints and frozen quoted_finish values never move.",
     "Demo deleteProject must remove the project's tasks and sprints itself (live mode cascades in Postgres), or they stay as open work and planner booked hours. The demo team lives in lib/dummy/tasks.data.ts and mirrors scripts/seed-dev-team.mjs.",
-    "An estimate's displayed launch date is useQuoteSchedule().launch (people-plan finish, or frozen quoted_finish). Never display timeline.launchDate as the launch: it is the single-stream chart's end plus DNS buffer, used only for the hard-deadline risk flag and PO pre-fill."
+    "An estimate's displayed launch date is useQuoteSchedule().launch (people-plan finish, or frozen quoted_finish). Never display timeline.launchDate as the launch: it is the single-stream chart's end plus DNS buffer, used only for the hard-deadline risk flag and PO pre-fill.",
+    "Review -> Timeline on an estimate draws the people plan task by task with GanttClient's plan prop (same chart as the project page); each task's planned risk-buffer hours are its amber striped bar end. Manual keeps DiscoveryGantt."
   ],
   "permissionsMatrix": {
     "columns": [
