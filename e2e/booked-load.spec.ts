@@ -32,7 +32,7 @@ test("nobody booked: identical to the planner before this change", () => {
 
 test("Fastest sends the work to whoever is actually free", () => {
   const free = plan([dev("ann"), dev("bo")], "quick");
-  expect(free.assigneeId).toBe("ann"); // negative control: a tie goes by name
+  expect(free.assigneeId).toBe("ann"); // negative control: a full tie (load too) goes by id
   const busy = plan([dev("ann", { bookedHours: 40 }), dev("bo")], "quick");
   expect(busy.assigneeId).toBe("bo");
 });
@@ -76,9 +76,11 @@ test("roster carries booked hours through", () => {
 
 test("a busy person never looks more available than a free one", () => {
   const later = new Date("2027-04-05T00:00:00");
-  // Booked work clears before the project starts: a tie, broken by name (ann).
+  // Booked work clears before the project starts: same finish, so the tie
+  // goes to whoever carries less (bo), not by name (ann).
   const t = plan([dev("bo"), dev("ann", { bookedHours: 40 })], "quick", later);
-  expect(t.assigneeId).toBe("ann");
+  expect(t.assigneeId).toBe("bo");
+  expect(t.endDate).toBe(plan([dev("ann", { bookedHours: 40 })], "quick", later).endDate);
   // Booked work overlaps the start: the free person wins.
   const soon = plan([dev("bo"), dev("ann", { bookedHours: 400 })], "quick", later);
   expect(soon.assigneeId).toBe("bo");
@@ -121,5 +123,37 @@ test.describe("booked work is split by due date", () => {
       "quick",
     );
     expect(t.assigneeId).toBe("bo");
+  });
+});
+
+test.describe("last tie-break is least load, not the name", () => {
+  // Same stars, same finish: "ann" sorts first, so the old name rule picked her.
+  // Later-due work (spread thin) leaves both finishing the same day.
+  const due = "2027-06-30";
+  const heavy = dev("ann", { skills: { WordPress: 5 }, bookedLater: [{ hours: 120, due }] });
+  const light = dev("zed", { skills: { WordPress: 5 }, bookedLater: [{ hours: 9, due }] });
+
+  for (const s of ["quick", "efficient"] as const) {
+    test(`${s}: the lighter person wins a full tie`, () => {
+      const a = plan([heavy, light], s);
+      const b = plan([light, heavy], s);
+      expect(a.endDate).toBe(plan([heavy], s).endDate); // the tie is real
+      expect(a.endDate).toBe(plan([light], s).endDate);
+      expect(a.assigneeId).toBe("zed");
+      expect(b.assigneeId).toBe("zed"); // input order changes nothing
+    });
+  }
+
+  test("work given earlier in the same plan counts as load", () => {
+    const tasks: PlanTask[] = [
+      { id: "t1", title: "One", phase: "development", hours: 8 },
+      { id: "t2", title: "Two", phase: "development", hours: 8 },
+    ];
+    const out = planSchedule(tasks, [dev("ann"), dev("bo")], "wordpress", {
+      strategy: "quick",
+      projectStart: TODAY,
+      today: TODAY,
+    }).tasks;
+    expect(new Set(out.map((t) => t.assigneeId))).toEqual(new Set(["ann", "bo"]));
   });
 });

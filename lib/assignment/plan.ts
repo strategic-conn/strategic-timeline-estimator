@@ -416,6 +416,17 @@ export function planSchedule(
     }),
   );
   const planned: PlannedTask[] = [];
+  // Everything each person is carrying — work already booked (due now and
+  // later) plus what this plan has given them so far. The final tie-break:
+  // equal finish and equal stars go to whoever carries less, so work spreads
+  // across the team instead of piling onto one person.
+  const load = new Map(
+    devs.map((d) => [
+      d.id,
+      Math.max(0, d.bookedHours ?? 0) +
+        (d.bookedLater ?? []).reduce((sum, b) => sum + Math.max(0, b.hours), 0),
+    ]),
+  );
 
   // Process phase by phase so dev→qa stay ordered; longest tasks first packs better.
   const byPhase = new Map<PhaseId, PlanTask[]>();
@@ -502,20 +513,26 @@ export function planSchedule(
       });
       scored.sort((a, b) => {
         if (opts.strategy === "quick") {
-          // finish soonest; break ties by higher skill, then name for determinism
+          // finish soonest; break ties by higher skill, then least load
           if (a.end !== b.end) return a.end < b.end ? -1 : 1;
           if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
         } else {
-          // best skill; break ties by earliest finish, then name
+          // best skill; break ties by earliest finish, then least load
           if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
           if (a.end !== b.end) return a.end < b.end ? -1 : 1;
         }
-        return a.dev.name < b.dev.name ? -1 : 1;
+        const la = load.get(a.dev.id) ?? 0;
+        const lb = load.get(b.dev.id) ?? 0;
+        if (la !== lb) return la - lb;
+        // Identical on every count: id, only so the same input always gives
+        // the same plan.
+        return a.dev.id < b.dev.id ? -1 : a.dev.id > b.dev.id ? 1 : 0;
       });
 
       const winner = scored[0];
       const clock = clocks.get(winner.dev.id)!;
       const { start, end } = place(clock, task.hours, notBefore);
+      load.set(winner.dev.id, (load.get(winner.dev.id) ?? 0) + task.hours);
       phaseEnd = maxIso(phaseEnd, end);
       planned.push({
         taskId: task.id,

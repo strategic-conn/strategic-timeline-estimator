@@ -1589,6 +1589,12 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
    platform skill stars only break ties. A task nobody qualifies for is left
    unassigned with *"Nobody holds IT Level 2 — assign manually"* rather than
    handed to a junior.
+ - **The last tie-break is least load, never the name** (decided
+   2026-11-09). Equal finish date and equal stars go to whoever carries less:
+   booked hours (due now + due later) plus what this plan has already given
+   them. It used to be alphabetical, so Patrick (120 h booked) beat Ronel (9 h)
+   on Summit Outfitters' QA. Only a tie on load too falls back to profile id,
+   for determinism. The Schedule plan "?" matrix says so ("Still tied").
  - **A discipline nobody holds a key in keeps the skill-only rule, exactly.**
    That is every workspace before an admin sets keys, and it is asserted
    byte-identical in `e2e/work-keys.spec.ts`. Per discipline on purpose:

@@ -188,6 +188,11 @@ const HELP = {
               <td>Most skill stars</td>
             </tr>
             <tr>
+              <td>Still tied</td>
+              <td>Least work already on their plate</td>
+              <td>Least work already on their plate</td>
+            </tr>
+            <tr>
               <td>Launch</td>
               <td>Can be later (waits for the best person)</td>
               <td>Usually earliest</td>
