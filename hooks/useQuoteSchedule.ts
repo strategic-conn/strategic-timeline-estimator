@@ -11,6 +11,7 @@ import {
 } from "@/store/proposal-estimator-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import { useTeamStore } from "@/store/team-store";
+import { useWorkspaceSettingsStore } from "@/store/workspace-settings-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
 export const formatLaunchDay = (iso: string) => {
@@ -30,6 +31,8 @@ export function useQuoteSchedule(quote: ClientQuote | null | undefined) {
   // The plan reads the roster and everyone's open work; re-forecast when they load.
   const members = useTeamStore((s) => s.members);
   const tasks = useTasksDataStore((s) => s.tasks);
+  // The plan is laid out in sprints of this length.
+  const sprintWeeks = useWorkspaceSettingsStore((s) => s.sprintWeeks);
   const strategy = quote ? strategyOf(quote) : null;
 
   const preview = React.useMemo(
@@ -41,7 +44,7 @@ export function useQuoteSchedule(quote: ClientQuote | null | undefined) {
           })
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps -- what the forecast reads
-    [quote?.id, quote?.line_items, quote?.discovery, quote?.addons, quote?.risk_buffer_pct, quote?.requirements_unclear, strategy, members, tasks, previewConversion],
+    [quote?.id, quote?.line_items, quote?.discovery, quote?.addons, quote?.risk_buffer_pct, quote?.requirements_unclear, quote?.schedule_plan?.review_days, strategy, members, tasks, sprintWeeks, previewConversion],
   );
 
   // The same plan without the risk buffer — only to measure it, so the Gantt

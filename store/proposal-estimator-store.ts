@@ -12,8 +12,10 @@ import {
   quoteTotals,
   DEFAULT_RISK_BUFFER_PCT,
   computeLineHours,
+  effectiveTier,
   lineEffectiveHours,
   roundHours,
+  tierMultiplier,
 } from "@/lib/constants/proposal-estimator";
 import { analyzeDiscovery } from "@/lib/discovery";
 import { PHASE_META } from "@/lib/discovery/constants";
@@ -25,11 +27,17 @@ import {
   resultFromQuote,
 } from "@/lib/discovery/from-line-items";
 import {
+  DEFAULT_CLIENT_REVIEW_DAYS,
+  LAUNCH_SPRINT,
   planSchedule,
+  planSprints,
   splitBookedWork,
+  type ClientCheckpoint,
   type PlanDev,
   type PlannedTask,
+  type PlanSprint,
   type PlanStrategy,
+  type ReservedBlock,
 } from "@/lib/assignment/plan";
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
 import { assignedWork, closedProjectIds } from "@/lib/workload/assigned-work";
@@ -65,6 +73,7 @@ import { useTasksDataStore } from "@/store/tasks-store";
 import { useTeamStore } from "@/store/team-store";
 import { useWeeklyCapacityStore } from "@/store/weekly-capacity-store";
 import { useHourlyRatesStore } from "@/store/hourly-rates-store";
+import { useWorkspaceSettingsStore } from "@/store/workspace-settings-store";
 import {
   currentAddonRates,
   defaultRoleFor,
@@ -127,6 +136,7 @@ function phaseScaffold(
     // unparseable (the card crashed) and string comparisons wrong.
     start_date: isoFromDisplay(ph.startDate),
     end_date: isoFromDisplay(ph.endDate),
+    days: ph.durationDays,
   }));
 }
 
@@ -136,7 +146,104 @@ type ScaffoldPhase = {
   goal: string;
   start_date: string;
   end_date: string;
+  /** Working days the estimate gives this phase (reserved when it has no tasks). */
+  days?: number;
 };
+
+/** Client review time for an estimate's checkpoints, in working days. */
+export function reviewDaysOf(
+  quote: Pick<ClientQuote, "schedule_plan" | "discovery">,
+): number {
+  const own = quote.schedule_plan?.review_days;
+  if (typeof own === "number" && own >= 0) return own;
+  const asked = quote.discovery?.client_review_turnaround;
+  if (typeof asked === "number" && asked >= 0) return asked;
+  return DEFAULT_CLIENT_REVIEW_DAYS;
+}
+
+/** Split `total` in proportion to `weights`, in quarter hours, summing exactly. */
+function splitQuarters(total: number, weights: number[]): number[] {
+  const sum = weights.reduce((a, b) => a + b, 0);
+  const share = weights.map((w) => (sum > 0 ? w / sum : 1 / weights.length));
+  const out = share.map((f) => Math.round(total * f * 4) / 4);
+  const drift = Math.round((total - out.reduce((a, b) => a + b, 0)) * 4) / 4;
+  if (drift && out.length) {
+    const big = share.indexOf(Math.max(...share));
+    out[big] = Math.max(0, out[big] + drift);
+  }
+  return out;
+}
+
+/** Prefix of a test task's id; the rest is the id of the build line it tests. */
+export const TEST_PREFIX = "test:";
+
+/**
+ * Sprint planning tests each piece as soon as it is built, so the estimate's
+ * QA hours become one TEST task per development line — "Test: Product Pages"
+ * — split in proportion to each line's hours. The QA lines themselves are not
+ * tasks any more (their hours are all in the tests). With no development lines,
+ * or no QA lines, nothing changes.
+ *
+ * The test items are derived, never stored on the quote: their id is
+ * `test:<build line id>`, which is also their `source_line_item_id`, so a sync
+ * re-hours them when the QA hours change and drops them with their build line.
+ * Their hours are reproduced exactly by `lineEffectiveHours` (basic tier,
+ * "requirements unclear" honoured), so the sync never sees a phantom change.
+ */
+function expandSeeds(
+  quote: ClientQuote,
+  seeds: ProposalLineItem[],
+  phases: ReadonlySet<PhaseId>,
+): ProposalLineItem[] {
+  const phaseOf = (li: ProposalLineItem) => phaseIdForLineItem(li, phases);
+  const dev = seeds.filter((li) => phaseOf(li) === "development");
+  const qa = seeds.filter((li) => phaseOf(li) === "qa");
+  if (!dev.length || !qa.length) return seeds;
+
+  const unclear = quote.requirements_unclear;
+  const weights = dev.map((li) => Math.max(0, li.hours));
+  const own = splitQuarters(qa.reduce((a, li) => a + li.hours, 0), weights);
+  const eff = splitQuarters(
+    qa.reduce((a, li) => a + lineEffectiveHours(li, unclear), 0),
+    weights,
+  );
+  const mult = tierMultiplier(effectiveTier("basic", unclear));
+  // The most senior QA line decides who may test (Level 2 if any line is).
+  const lead = [...qa].sort((a, b) => (b.level ?? 1) - (a.level ?? 1))[0];
+  const tests = dev.map(
+    (d, i): ProposalLineItem => ({
+      id: `${TEST_PREFIX}${d.id}`,
+      title: `Test: ${d.title}`,
+      module: PHASE_META.qa.label,
+      category_id: null,
+      catalog_id: null,
+      base_hours: eff[i] / mult,
+      tier: "basic",
+      quantity: 1,
+      hours: own[i],
+      depends_on: [d.id],
+      responsible: lead.responsible ?? "QA Tester",
+      level: lead.level ?? 1,
+      rate: lead.rate ?? null,
+    }),
+  );
+  return [...seeds.filter((li) => phaseOf(li) !== "qa"), ...tests];
+}
+
+/** Lines that become tasks, tests included (see `expandSeeds`). */
+function sprintSeeds(quote: ClientQuote, scaffold: ScaffoldPhase[]): ProposalLineItem[] {
+  return expandSeeds(
+    quote,
+    quote.line_items.filter((li) => li.title.trim()),
+    phaseSetOf(scaffold),
+  );
+}
+
+/** A project planned in sprints (Start project since 2026-11-09), not phases. */
+export function isSprintProject(sprintNames: Iterable<string>): boolean {
+  for (const n of sprintNames) if (/^Sprint \d/.test(n)) return true;
+  return false;
+}
 
 /**
  * The phases a schedule has — what a line may be placed into. Every call that
@@ -189,6 +296,11 @@ interface SeedPlan {
   sprintDates: Map<string, { start: string; end: string }>;
   /** line-item id → hours planned, risk buffer included (null = no buffer planned). */
   planHours: Map<string, number> | null;
+  /** Sprint planning: the sprints, which one each line lands in, and the client checkpoints. */
+  sprints?: PlanSprint[];
+  sprintOf?: Map<string, string>;
+  checkpoints?: ClientCheckpoint[];
+  reserved?: ReservedBlock[];
 }
 
 /**
@@ -202,8 +314,12 @@ function planSeeds(
   strategy: PlanStrategy,
   scaffold: ScaffoldPhase[],
   phases: ReadonlySet<PhaseId> = phaseSetOf(scaffold),
-  /** Plan the risk buffer into Development (see `bufferPlanHours`). */
-  { buffer = false }: { buffer?: boolean } = {},
+  /**
+   * `buffer`: plan the risk buffer into Development (see `bufferPlanHours`).
+   * `sprints`: plan in sprints with client checkpoints (`planSprints`) instead
+   * of one phase after another.
+   */
+  { buffer = false, sprints = false }: { buffer?: boolean; sprints?: boolean } = {},
 ): SeedPlan {
   const phaseStart: Partial<Record<PhaseId, string>> = {};
   for (const ph of scaffold) phaseStart[ph.id] = ph.start_date;
@@ -217,18 +333,46 @@ function planSeeds(
     ? bufferPlanHours(placed, quote.risk_buffer_pct ?? 0, quoteTotals(quote).grandHours)
     : null;
 
-  const result = planSchedule(
-    seeds.map((li, i) => ({
-      id: li.id,
-      title: li.title,
-      phase: placed[i].phase,
-      hours: planHours?.get(li.id) ?? li.hours,
-      role: roleOf(li) ?? defaultRoleFor(li, quote.platform),
-    })),
-    currentRoster(),
-    quote.platform,
-    { strategy, phaseStart },
-  );
+  const planTasks = seeds.map((li, i) => ({
+    id: li.id,
+    title: li.title,
+    phase: placed[i].phase,
+    hours: planHours?.get(li.id) ?? li.hours,
+    role: roleOf(li) ?? defaultRoleFor(li, quote.platform),
+    after: li.id.startsWith(TEST_PREFIX) ? li.id.slice(TEST_PREFIX.length) : undefined,
+  }));
+
+  if (sprints) {
+    const first = scaffold.reduce<string | null>(
+      (min, ph) => (!min || ph.start_date < min ? ph.start_date : min),
+      null,
+    );
+    const phaseDays: Partial<Record<PhaseId, number>> = {};
+    for (const ph of scaffold) phaseDays[ph.id] = ph.days ?? 0;
+    const r = planSprints(planTasks, currentRoster(), quote.platform, {
+      strategy,
+      projectStart: first ? new Date(`${first}T00:00:00`) : undefined,
+      reviewDays: reviewDaysOf(quote),
+      // Settings → Workspace → Sprint length (weeks of 5 working days).
+      sprintDays: useWorkspaceSettingsStore.getState().sprintWeeks * 5,
+      phaseDays,
+    });
+    const sprintDates = new Map(r.sprints.map((sp) => [sp.label, { start: sp.start, end: sp.end }]));
+    return {
+      byLineItem: new Map(r.tasks.map((t) => [t.taskId, t])),
+      sprintDates,
+      planHours,
+      sprints: r.sprints,
+      sprintOf: r.sprintOf,
+      checkpoints: r.checkpoints,
+      reserved: r.reserved,
+    };
+  }
+
+  const result = planSchedule(planTasks, currentRoster(), quote.platform, {
+    strategy,
+    phaseStart,
+  });
 
   const byLineItem = new Map(result.tasks.map((t) => [t.taskId, t]));
   const sprintDates = new Map<string, { start: string; end: string }>();
@@ -286,6 +430,10 @@ export interface SchedulePreview {
    * of a quote must not erase the record that somebody did the work.
    */
   kept: { taskId: string; title: string; loggedHours: number }[];
+  /** Points where the client signs off, approves or tests (sprint plans only). */
+  checkpoints: ClientCheckpoint[];
+  /** Phases with no tasks that still take time, e.g. Launch & Handoff (sprint plans only). */
+  reserved: (ReservedBlock & { label: string })[];
   /** Internal — the exact plan to persist on confirm. */
   plan: SeedPlan | null;
 }
@@ -311,21 +459,23 @@ function toPreview(
   kept: { taskId: string; title: string; loggedHours: number }[] = [],
   phases: ReadonlySet<PhaseId> = phaseSetOf(scaffold),
 ): SchedulePreview {
-  const sprints = scaffold.map((ph) => {
-    const d = plan?.sprintDates.get(ph.label);
-    return {
-      label: ph.label,
-      start: d?.start ?? ph.start_date,
-      end: d?.end ?? ph.end_date,
-    };
-  });
+  const sprints = plan?.sprints
+    ? plan.sprints.map((sp) => ({ label: sp.label, start: sp.start, end: sp.end }))
+    : scaffold.map((ph) => {
+        const d = plan?.sprintDates.get(ph.label);
+        return {
+          label: ph.label,
+          start: d?.start ?? ph.start_date,
+          end: d?.end ?? ph.end_date,
+        };
+      });
   const tasks: SchedulePreviewTask[] = seeds.map((li) => {
     const p = plan?.byLineItem.get(li.id);
     return {
       lineId: li.id,
       title: li.title,
       hours: li.hours,
-      phase: phaseLabelForLineItem(li, phases),
+      phase: plan?.sprintOf?.get(li.id) ?? phaseLabelForLineItem(li, phases),
       assigneeName: p?.assigneeName ?? null,
       startDate: p?.startDate ?? null,
       endDate: p?.endDate ?? null,
@@ -355,6 +505,8 @@ function toPreview(
     edits,
     removals,
     kept,
+    checkpoints: plan?.checkpoints ?? [],
+    reserved: (plan?.reserved ?? []).map((b) => ({ ...b, label: PHASE_META[b.phase].label })),
     plan,
   };
 }
@@ -377,12 +529,18 @@ export function previewFinish(p: SchedulePreview): string | null {
 
 /** What Start project would build today with the estimate's own plan. Writes nothing. */
 function forecastOf(quote: ClientQuote): SchedulePreview {
-  const seeds = quote.line_items.filter((li) => li.title.trim());
   const strategy = strategyOf(quote);
-  const planned = strategy !== "none" && seeds.length > 0;
+  const planned =
+    strategy !== "none" && quote.line_items.some((li) => li.title.trim());
   const scaffold = phaseScaffold(quote, { buffered: !planned });
+  const seeds = planned
+    ? sprintSeeds(quote, scaffold)
+    : quote.line_items.filter((li) => li.title.trim());
   const plan = planned
-    ? planSeeds(quote, seeds, strategy as PlanStrategy, scaffold, undefined, { buffer: true })
+    ? planSeeds(quote, seeds, strategy as PlanStrategy, scaffold, undefined, {
+        buffer: true,
+        sprints: true,
+      })
     : null;
   return toPreview(seeds, scaffold, plan);
 }
@@ -429,8 +587,91 @@ function makeSprintDateResolver(
         preview.sprints.map((s) => [s.label, { start: s.start, end: s.end }]),
       )
     : null;
-  return (ph: ScaffoldPhase) =>
+  return (ph: { label: string }) =>
     reviewed?.get(ph.label) ?? plan?.sprintDates.get(ph.label);
+}
+
+/**
+ * The sprints a new project gets: the plan's own (sprint planning), else one
+ * per phase from the estimate's scaffold.
+ */
+function sprintsToCreate(
+  scaffold: ScaffoldPhase[],
+  plan: SeedPlan | null,
+): { label: string; goal: string; start_date: string; end_date: string }[] {
+  return plan?.sprints
+    ? plan.sprints.map((sp) => ({
+        label: sp.label,
+        goal: sp.goal,
+        start_date: sp.start,
+        end_date: sp.end,
+      }))
+    : scaffold;
+}
+
+/** The sprint a seeded line lands in: the plan's choice, else its phase. */
+function sprintLabelOf(
+  li: ProposalLineItem,
+  plan: SeedPlan | null,
+  phases: ReadonlySet<PhaseId>,
+): string {
+  return plan?.sprintOf?.get(li.id) ?? phaseLabelForLineItem(li, phases);
+}
+
+/**
+ * Where a sync puts NEW tasks on a project that runs in sprints: launch work
+ * in Launch & Handoff, discovery / content / design in Sprint 0, and build or
+ * test work in the sprint its planned start falls in (else the sprint running
+ * today, else the last one). Existing tasks are never moved.
+ */
+function resyncPlacement(
+  seeds: ProposalLineItem[],
+  plan: SeedPlan | null,
+  sprints: { name: string; start_date: string; end_date: string }[],
+  phases: ReadonlySet<PhaseId>,
+): Map<string, string> {
+  const day = (iso: string) => iso.slice(0, 10);
+  const builds = sprints
+    .filter((sp) => /^Sprint [1-9]/.test(sp.name))
+    .sort((a, b) => (a.start_date < b.start_date ? -1 : 1));
+  const setup = sprints.find((sp) => /^Sprint 0/.test(sp.name));
+  const launch = sprints.find((sp) => sp.name === LAUNCH_SPRINT);
+  const today = formatDate(new Date(), "yyyy-MM-dd");
+  const containing = (d: string) =>
+    builds.find((sp) => day(sp.start_date) <= d && d <= day(sp.end_date));
+  const out = new Map<string, string>();
+  for (const li of seeds) {
+    const phase = phaseIdForLineItem(li, phases);
+    const start = plan?.byLineItem.get(li.id)?.startDate ?? null;
+    const target =
+      phase === "launch" && launch
+        ? launch
+        : (phase === "discovery" || phase === "content" || phase === "design") && setup
+          ? setup
+          : (start && containing(start)) ?? containing(today) ?? builds[builds.length - 1];
+    if (target) out.set(li.id, target.name);
+  }
+  return out;
+}
+
+/**
+ * The client checkpoints as project tasks: unassigned, no hours, tagged
+ * "Client", due on the day the client's part ends, so the manager can see them
+ * on the board and tick them off. No `source_line_item_id`: they are not
+ * estimate lines, so a sync never renames or removes them.
+ */
+function checkpointTask(cp: ClientCheckpoint) {
+  return {
+    title: cp.title,
+    description: cp.blocks
+      ? `${cp.detail} ${cp.blocks} waits for this.`
+      : cp.detail,
+    priority: (cp.blocks ? "high" : "medium") as "high" | "medium",
+    due_date: cp.end,
+    estimated_hours: 0,
+    tags: ["Client"],
+    sprintLabel: cp.sprint,
+  };
 }
 
 /**
@@ -517,13 +758,19 @@ async function seedAssignments(
  */
 function pendingScheduleWork(projectId: string, quote: ClientQuote) {
   const scaffold = phaseScaffold(quote);
-  const seeds = quote.line_items.filter((li) => li.title.trim());
+  const projectSprints = useSprintsStore
+    .getState()
+    .sprints.filter((s) => s.project_id === projectId);
   const sprintByName = new Map(
-    useSprintsStore
-      .getState()
-      .sprints.filter((s) => s.project_id === projectId)
-      .map((s) => [s.name, s.id] as [string, string]),
+    projectSprints.map((s) => [s.name, s.id] as [string, string]),
   );
+  // A project started in sprints keeps its sprints: no phase sprints are added,
+  // its build lines carry test tasks, and new work is placed by date.
+  const sprintMode = isSprintProject(sprintByName.keys());
+  const lines = quote.line_items.filter((li) => li.title.trim());
+  const seeds = sprintMode
+    ? expandSeeds(quote, lines, phaseSetOf(scaffold, sprintByName.keys()))
+    : lines;
   const projectTasks = useTasksDataStore
     .getState()
     .tasks.filter((t) => t.project_id === projectId);
@@ -536,8 +783,10 @@ function pendingScheduleWork(projectId: string, quote: ClientQuote) {
     scaffold,
     seeds,
     sprintByName,
+    sprintMode,
+    projectSprints,
     phases: phaseSetOf(scaffold, sprintByName.keys()),
-    newPhases: scaffold.filter((ph) => !sprintByName.has(ph.label)),
+    newPhases: sprintMode ? [] : scaffold.filter((ph) => !sprintByName.has(ph.label)),
     newSeeds: diff.create,
     taskUpdates: diff.update,
     taskRemovals: diff.remove,
@@ -1431,15 +1680,18 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
       previewConversion: (proposalId, input) => {
         const quote = get().proposals.find((p) => p.id === proposalId);
         if (!quote) return null;
-        const seeds = input.seedTasks
+        const lines = input.seedTasks
           ? quote.line_items.filter((li) => li.title.trim())
           : [];
-        const planned = Boolean(input.strategy && seeds.length);
+        const planned = Boolean(input.strategy && lines.length);
         const scaffold = phaseScaffold(quote, { buffered: !planned });
+        // Planned = sprints: each build line gets its own test task.
+        const seeds = planned ? sprintSeeds(quote, scaffold) : lines;
         const plan =
           input.strategy && planned
             ? planSeeds(quote, seeds, input.strategy, scaffold, undefined, {
                 buffer: input.buffer !== false,
+                sprints: true,
               })
             : null;
         return toPreview(seeds, scaffold, plan);
@@ -1456,6 +1708,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           taskUpdates,
           taskRemovals,
           taskOrphans,
+          sprintMode,
+          projectSprints,
         } = pendingScheduleWork(projectId, quote);
         const edits = describeTaskUpdates(taskUpdates, projectId);
         const removals = taskRemovals.map((t) => ({
@@ -1477,10 +1731,17 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         ) {
           return toPreview([], [], null); // nothing to do — caller shows "up to date"
         }
-        const plan =
+        const planned =
           strategy && newSeeds.length
             ? planSeeds(quote, newSeeds, strategy, scaffold, phases)
             : null;
+        const plan: SeedPlan | null =
+          sprintMode && newSeeds.length
+            ? {
+                ...(planned ?? { byLineItem: new Map(), sprintDates: new Map(), planHours: null }),
+                sprintOf: resyncPlacement(newSeeds, planned, projectSprints, phases),
+              }
+            : planned;
         return toPreview(newSeeds, newPhases, plan, edits, removals, kept, phases);
       },
 
@@ -1507,7 +1768,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           ? `Client: ${quote.client_name}`
           : undefined;
         // Line items with a real title become tasks (estimate = line hours).
-        const seeds = input.seedTasks
+        const lines = input.seedTasks
           ? quote.line_items.filter((li) => li.title.trim())
           : [];
         // Resource-aware plan (dev/QA assignees + capacity-based dates) when a
@@ -1519,16 +1780,23 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const planned =
           input.preview !== undefined
             ? Boolean(input.preview?.plan)
-            : Boolean(input.strategy && seeds.length);
+            : Boolean(input.strategy && lines.length);
         const scaffold = phaseScaffold(quote, { buffered: !planned });
         const phases = phaseSetOf(scaffold);
+        // Planned = sprints, and each build line comes with its test task.
+        const seeds = planned ? sprintSeeds(quote, scaffold) : lines;
         const plan =
           input.preview !== undefined
             ? (input.preview?.plan ?? null)
             : input.strategy && seeds.length
-              ? planSeeds(quote, seeds, input.strategy, scaffold, phases, { buffer: true })
+              ? planSeeds(quote, seeds, input.strategy, scaffold, phases, {
+                  buffer: true,
+                  sprints: true,
+                })
               : null;
         const sprintDatesFor = makeSprintDateResolver(input.preview, plan);
+        const sprintList = sprintsToCreate(scaffold, plan);
+        const clientTasks = (plan?.checkpoints ?? []).map(checkpointTask);
 
         // ── Demo: synchronous store calls (no FK ordering to worry about). ──
         if (!isSupabaseConfigured) {
@@ -1547,7 +1815,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           // Scaffold the tentative timeline as sprints, then slot tasks in.
           const sprintsStore = useSprintsStore.getState();
           const phaseSprint = new Map<string, string>();
-          for (const ph of scaffold) {
+          for (const ph of sprintList) {
             const d = sprintDatesFor(ph);
             phaseSprint.set(
               ph.label,
@@ -1572,13 +1840,30 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               assignee_ids: p?.assigneeId ? [p.assigneeId] : [],
               reporter_id: CURRENT_USER_ID,
               project_id: projectId,
-              sprint_id: phaseSprint.get(phaseLabelForLineItem(li, phases)) ?? null,
+              sprint_id: phaseSprint.get(sprintLabelOf(li, plan, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
               estimated_hours: seedHours(li, quote.requirements_unclear),
               logged_hours: undefined,
               tags: [phaseLabelForLineItem(li, phases)],
               // The link both directions of the sync are keyed on (0032/0033).
               source_line_item_id: li.id,
+            });
+          }
+          for (const c of clientTasks) {
+            tasksStore.createTask({
+              title: c.title,
+              description: c.description,
+              status: "todo",
+              priority: c.priority,
+              assignee_ids: [],
+              reporter_id: CURRENT_USER_ID,
+              project_id: projectId,
+              sprint_id: phaseSprint.get(c.sprintLabel) ?? null,
+              due_date: c.due_date,
+              estimated_hours: c.estimated_hours,
+              logged_hours: undefined,
+              tags: c.tags,
+              source_line_item_id: null,
             });
           }
           set((s) => ({
@@ -1656,8 +1941,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // Scaffold the tentative timeline as sprints — awaited before tasks so
         // the task→sprint FK is satisfied. They stream in via realtime.
         const phaseSprint = new Map<string, string>();
-        if (scaffold.length) {
-          const sprintRows = scaffold.map((ph, i) => {
+        if (sprintList.length) {
+          const sprintRows = sprintList.map((ph, i) => {
             const d = sprintDatesFor(ph);
             return {
               id: crypto.randomUUID(),
@@ -1692,7 +1977,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const taskRows = seeds.map((li, i) => ({
             id: crypto.randomUUID(),
             project_id: projectId,
-            sprint_id: phaseSprint.get(phaseLabelForLineItem(li, phases)) ?? null,
+            sprint_id: phaseSprint.get(sprintLabelOf(li, plan, phases)) ?? null,
             source_line_item_id: li.id,
             title: li.title,
             description: null,
@@ -1718,6 +2003,38 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             const tasksStore = useTasksDataStore.getState();
             for (const r of tData) tasksStore.applyRealtimeTaskUpsert(r);
             await seedAssignments(supabase, taskRows, seeds, plan, ownerId, projectId);
+          }
+        }
+
+        if (clientTasks.length) {
+          const { data: cData, error: cErr } = await supabase
+            .from("tasks")
+            .insert(
+              clientTasks.map((c, i) => ({
+                id: crypto.randomUUID(),
+                project_id: projectId,
+                sprint_id: phaseSprint.get(c.sprintLabel) ?? null,
+                source_line_item_id: null,
+                title: c.title,
+                description: c.description,
+                status: "todo" as const,
+                priority: c.priority,
+                reporter_id: ownerId,
+                due_date: c.due_date,
+                estimated_hours: c.estimated_hours,
+                logged_hours: null,
+                tags: c.tags,
+                position: seeds.length + i,
+              })),
+            )
+            .select();
+          if (cErr) {
+            toast.error("Project created, but the client checkpoints didn't save", {
+              description: parseSupabaseError(cErr),
+            });
+          } else {
+            const tasksStore = useTasksDataStore.getState();
+            for (const r of cData) tasksStore.applyRealtimeTaskUpsert(r);
           }
         }
 
@@ -1761,6 +2078,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           newSeeds,
           taskUpdates,
           taskRemovals,
+          sprintMode,
+          projectSprints,
         } = pendingScheduleWork(projectId, quote);
         if (!scaffold.length && !seeds.length) {
           toast.error("This estimate has no work to schedule yet.");
@@ -1807,12 +2126,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         });
 
         // A reviewed preview wins over recomputing (see convertToProject).
-        const plan =
+        const planned =
           preview !== undefined
             ? (preview?.plan ?? null)
             : strategy && newSeeds.length
               ? planSeeds(quote, newSeeds, strategy, scaffold, phases)
               : null;
+        const plan: SeedPlan | null =
+          sprintMode && newSeeds.length && !planned?.sprintOf
+            ? {
+                ...(planned ?? { byLineItem: new Map(), sprintDates: new Map(), planHours: null }),
+                sprintOf: resyncPlacement(newSeeds, planned, projectSprints, phases),
+              }
+            : planned;
         const sprintDatesFor = makeSprintDateResolver(preview, plan);
 
         // ── Demo: store methods are already optimistic + synchronous. ──
@@ -1841,7 +2167,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
               assignee_ids: p?.assigneeId ? [p.assigneeId] : [],
               reporter_id: CURRENT_USER_ID,
               project_id: projectId,
-              sprint_id: sprintByName.get(phaseLabelForLineItem(li, phases)) ?? null,
+              sprint_id: sprintByName.get(sprintLabelOf(li, plan, phases)) ?? null,
               due_date: p?.endDate ?? undefined,
               estimated_hours: seedHours(li, quote.requirements_unclear),
               logged_hours: undefined,
@@ -1903,7 +2229,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
           const rows = newSeeds.map((li, i) => ({
             id: crypto.randomUUID(),
             project_id: projectId,
-            sprint_id: sprintByName.get(phaseLabelForLineItem(li, phases)) ?? null,
+            sprint_id: sprintByName.get(sprintLabelOf(li, plan, phases)) ?? null,
             source_line_item_id: li.id,
             title: li.title,
             description: null,

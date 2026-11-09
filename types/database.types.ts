@@ -210,6 +210,35 @@ export type Database = {
           },
         ]
       }
+      workspace_settings: {
+        Row: {
+          id: boolean
+          sprint_weeks: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          id?: boolean
+          sprint_weeks?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          id?: boolean
+          sprint_weeks?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       hourly_rates: {
         Row: {
           level: number

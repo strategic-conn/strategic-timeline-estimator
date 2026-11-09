@@ -252,6 +252,12 @@ export interface ProposalSchedulePlan {
    * so it keeps the price the client saw (see `riskBufferPriced`).
    */
   buffer_priced?: boolean;
+  /**
+   * Client review time in working days for every client checkpoint (scope
+   * sign-off, design approval, acceptance testing…). Null/missing = the
+   * questionnaire's "client review turnaround", else 3 (`reviewDaysOf`).
+   */
+  review_days?: number | null;
 }
 
 export interface ClientQuote {

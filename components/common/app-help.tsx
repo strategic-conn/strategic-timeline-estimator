@@ -372,8 +372,12 @@ const HELP = {
       <>
         <p>
           Drawn from the sprints. When the project came from an estimate, this
-          started as a draft — one sprint per phase — for the manager to
-          adjust.
+          started as a draft for the manager to adjust: Sprint 0 (discovery
+          and design), build sprints (length set in Settings → Workspace) with a
+          test task after each
+          build task, and Launch &amp; Handoff. Tasks tagged{" "}
+          <strong>Client</strong>{" "}are the client&apos;s sign-offs and
+          reviews; tick them off when they happen.
         </p>
         <p>
           To change it, edit a sprint&apos;s dates (the pencil on its card).
@@ -635,6 +639,25 @@ const HELP = {
         <p>
           Holidays that fall on a weekend are observed on the Friday before or
           the Monday after. Only admins can change these.
+        </p>
+      </>
+    ),
+  },
+  "settings.sprints": {
+    label: "sprint length",
+    title: "Sprint length",
+    body: (
+      <>
+        <p>
+          Estimates are planned in sprints: Sprint 0 for discovery and design,
+          then{" "}<strong>build sprints</strong>{" "}of this length, then Launch
+          &amp; Handoff. Every build task is tested the day after it is built,
+          inside the same sprint, and each sprint ends with a client review.
+        </p>
+        <p>
+          Changing it re-plans every estimate that isn&apos;t approved yet; an
+          approved estimate keeps its quoted launch date. Projects already
+          started keep their sprints. Only admins can change it.
         </p>
       </>
     ),

@@ -6,6 +6,7 @@ import * as React from "react";
 
 import { SchedulePreviewPanel } from "@/components/features/proposals/SchedulePreviewPanel";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Card,
   CardAction,
@@ -18,6 +19,7 @@ import { formatLaunchDay, useQuoteSchedule } from "@/hooks/useQuoteSchedule";
 import { quoteIsFrozen } from "@/lib/sync/estimate-project-sync";
 import { cn } from "@/lib/utils";
 import {
+  reviewDaysOf,
   strategyOf,
   useProposalEstimatorStore,
 } from "@/store/proposal-estimator-store";
@@ -67,8 +69,9 @@ export function SchedulePlanCard({
           Who does the work
         </CardTitle>
         <CardDescription>
-          Plans the timeline with real people, before the deal closes. Moves
-          dates only — the price stays the same.
+          Plans the timeline in sprints with real people and the
+          client&apos;s sign-offs, before the deal closes. Moves dates only —
+          the price stays the same.
         </CardDescription>
         {help ? <CardAction>{help}</CardAction> : null}
       </CardHeader>
@@ -94,6 +97,10 @@ export function SchedulePlanCard({
               </Button>
             ))}
           </div>
+        ) : null}
+        {editable ? (
+          // Keyed on the saved value so an outside change resets the draft.
+          <ReviewDaysField key={reviewDaysOf(quote)} quote={quote} disabled={frozen} />
         ) : null}
         <p className="text-xs text-muted-foreground">
           {editable
@@ -157,5 +164,54 @@ export function SchedulePlanCard({
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * How long the client takes at each checkpoint (scope sign-off, design
+ * approval, acceptance testing). Saved on the estimate's plan; until then it
+ * reads the questionnaire's "client review turnaround", else 3 working days.
+ */
+function ReviewDaysField({ quote, disabled }: { quote: ClientQuote; disabled: boolean }) {
+  const updateProposal = useProposalEstimatorStore((s) => s.updateProposal);
+  const current = reviewDaysOf(quote);
+  const [draft, setDraft] = React.useState(String(current));
+  const save = () => {
+    const n = Math.round(Number(draft));
+    if (!Number.isFinite(n) || n < 0 || n > 30) {
+      setDraft(String(current));
+      return;
+    }
+    if (n !== current) {
+      updateProposal(quote.id, {
+        schedule_plan: { ...(quote.schedule_plan ?? { strategy: strategyOf(quote) }), review_days: n },
+      });
+    }
+  };
+  return (
+    <label className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+      <span>Client review time</span>
+      <Input
+        type="number"
+        inputMode="numeric"
+        min={0}
+        max={30}
+        value={draft}
+        disabled={disabled}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        className="h-8 w-16"
+        aria-describedby="review-days-hint"
+        data-testid="review-days"
+      />
+      <span className="text-muted-foreground">working days</span>
+      <span id="review-days-hint" className="w-full text-xs text-muted-foreground">
+        How long the client takes to sign off scope, approve design and test the
+        finished site. Each of those waits this long on the timeline.
+      </span>
+    </label>
   );
 }

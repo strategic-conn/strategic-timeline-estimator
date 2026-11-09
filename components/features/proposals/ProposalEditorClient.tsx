@@ -502,6 +502,17 @@ export function ProposalEditorClient({
       if (!start || !end) continue;
       rows.push({ id: t.lineId, title: t.title, phase: t.phase, assignee: t.assigneeName, start, end, hours: t.hours, bufferHours: t.bufferHours, order: order.get(t.phase) });
     }
+    // Sprint plans: the client checkpoints and any phase that only reserves
+    // time (Launch & Handoff with no tasks) are rows of their own.
+    if (schedulePreview.plan.sprints) {
+      for (const b of schedulePreview.reserved) {
+        rows.push({ id: `phase-${b.label}`, title: b.label, phase: b.sprint, assignee: null, start: b.start, end: b.end, hours: 0, bufferHours: 0, isPhase: true, order: order.get(b.sprint) });
+      }
+      for (const c of schedulePreview.checkpoints) {
+        rows.push({ id: c.id, title: c.title, phase: c.sprint, assignee: null, start: c.start, end: c.end, hours: 0, bufferHours: 0, client: { detail: c.detail, blocks: c.blocks }, order: order.get(c.sprint) });
+      }
+      return rows;
+    }
     for (const sp of schedulePreview.sprints) {
       if (schedulePreview.tasks.some((t) => t.phase === sp.label)) continue;
       rows.push({ id: `phase-${sp.label}`, title: sp.label, phase: "No tasks of its own", assignee: null, start: sp.start, end: sp.end, hours: 0, bufferHours: 0, isPhase: true, order: order.get(sp.label) });

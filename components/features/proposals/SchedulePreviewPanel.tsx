@@ -3,6 +3,7 @@
 import {
   CalendarRange,
   Clock,
+  Handshake,
   PencilLine,
   Trash2,
   TriangleAlert,
@@ -39,6 +40,9 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
     removals,
     kept,
   } = preview;
+  // Older previews (and sync previews) carry none.
+  const checkpoints = preview.checkpoints ?? [];
+  const reserved = preview.reserved ?? [];
 
   // Group tasks under their phase/sprint so the shape matches what gets created.
   const byPhase = React.useMemo(() => {
@@ -93,6 +97,13 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
           <span className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
             <UserX className="size-3.5 shrink-0" aria-hidden />
             <span className="font-medium">{unassignedCount}</span> unassigned
+          </span>
+        ) : null}
+        {checkpoints.length ? (
+          <span className="flex items-center gap-1.5">
+            <Handshake className="size-3.5 shrink-0 text-teal-600 dark:text-teal-400" aria-hidden />
+            <span className="font-medium">{checkpoints.length}</span> client checkpoint
+            {checkpoints.length === 1 ? "" : "s"}
           </span>
         ) : null}
         {finishDate ? (
@@ -187,6 +198,8 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
           ...existingPhases.map((label) => ({ label, start: null, end: null })),
         ].map((s) => {
           const phaseTasks = byPhase.get(s.label) ?? [];
+          const clientHere = checkpoints.filter((c) => c.sprint === s.label);
+          const reservedHere = reserved.filter((b) => b.sprint === s.label);
           return (
             <li
               key={s.label}
@@ -198,6 +211,51 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
                   {s.start ? `${fmt(s.start)} – ${fmt(s.end)}` : "Existing sprint"}
                 </span>
               </div>
+              {reservedHere.length || clientHere.length ? (
+                <ul className="divide-y divide-border/40 border-b border-border/40">
+                  {reservedHere.map((b) => (
+                    <li
+                      key={`r-${b.phase}`}
+                      className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 px-3 py-2 text-xs"
+                    >
+                      <span className="min-w-0 flex-1 font-medium">
+                        {b.label}
+                        <span className="ml-1.5 font-normal text-muted-foreground">
+                          time reserved, no tasks of its own
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {fmt(b.start)}–{fmt(b.end)}
+                      </span>
+                    </li>
+                  ))}
+                  {clientHere.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 bg-teal-500/5 px-3 py-2 text-xs"
+                      title={c.detail}
+                    >
+                      <span className="min-w-0 flex-1 font-medium">
+                        {c.title}
+                        <span className="ml-1.5 font-normal text-muted-foreground">
+                          {c.blocks ? `${c.blocks} waits for this` : "holds nothing up"}
+                        </span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <span className="tabular-nums text-muted-foreground">
+                          {c.start === c.end ? fmt(c.start) : `${fmt(c.start)}–${fmt(c.end)}`}
+                        </span>
+                        <Badge
+                          variant="outline"
+                          className="border-teal-500/40 text-[0.65rem] font-normal text-teal-700 dark:text-teal-300"
+                        >
+                          Client
+                        </Badge>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {phaseTasks.length ? (
                 <ul className="divide-y divide-border/40">
                   {phaseTasks.map((t) => (
@@ -232,7 +290,7 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
                     </li>
                   ))}
                 </ul>
-              ) : (
+              ) : reservedHere.length || clientHere.length ? null : (
                 <p className="px-3 py-2 text-xs text-muted-foreground">
                   No itemised tasks — time is reserved for this phase.
                 </p>

@@ -102,8 +102,8 @@ const HELP = {
         </p>
         <p>
           It firms up when the estimate becomes a project:{" "}<strong>Start
-          project</strong>{" "}turns each phase into a sprint the manager can then
-          adjust.
+          project</strong>{" "}lays it out as sprints, with the client&apos;s
+          sign-offs in between, for the manager to adjust.
         </p>
       </>
     ),
@@ -239,6 +239,33 @@ const HELP = {
             due date.
           </li>
           <li>Approved time off, weekends and US holidays.</li>
+        </ul>
+        <p>
+          <strong>How the timeline is laid out (sprints).</strong>
+        </p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>
+            <strong>Sprint 0</strong>{" "}is discovery, content and design. It
+            ends with the client signing off the scope, delivering content and
+            approving the design. Nothing is built before that.
+          </li>
+          <li>
+            <strong>Sprints 1, 2…</strong>{" "}are the building, each as long as
+            Settings → Workspace → Sprint length (2 weeks unless changed). Every
+            build task gets its own{" "}<strong>test task</strong>, starting the
+            day after it is built (the estimate&apos;s QA hours, split by size).
+            Each sprint ends with a client review that holds nothing up.
+          </li>
+          <li>
+            <strong>Launch &amp; Handoff</strong>{" "}starts with the client
+            testing the finished site (acceptance testing) and approving
+            go-live. Then the launch work.
+          </li>
+          <li>
+            Each client step takes the{" "}<strong>client review time</strong>{" "}
+            above. It is the client&apos;s time: no hours, no price, nobody on
+            the team.
+          </li>
         </ul>
         <p>
           Approving the estimate locks the choice and remembers the launch

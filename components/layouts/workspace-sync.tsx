@@ -16,6 +16,7 @@ import { useTasksDataStore } from "@/store/tasks-store";
 import { useTeamStore } from "@/store/team-store";
 import { useTourStore } from "@/store/tour-store";
 import { useHolidaySettingsStore } from "@/store/holiday-settings-store";
+import { useWorkspaceSettingsStore } from "@/store/workspace-settings-store";
 import { useWeeklyCapacityStore } from "@/store/weekly-capacity-store";
 import { useHourlyRatesStore } from "@/store/hourly-rates-store";
 import type { Database } from "@/types/database.types";
@@ -125,6 +126,7 @@ export function WorkspaceSync() {
   const hydrateSkills = useMemberSkillsStore((s) => s.hydrateFromSupabase);
   const hydrateTours = useTourStore((s) => s.hydrateFromSupabase);
   const hydrateHolidays = useHolidaySettingsStore((s) => s.hydrateFromSupabase);
+  const hydrateWorkspaceSettings = useWorkspaceSettingsStore((s) => s.hydrateFromSupabase);
 
   React.useEffect(() => {
     if (!isSupabaseConfigured || !authId) return;
@@ -141,6 +143,7 @@ export function WorkspaceSync() {
     void hydrateSkills();
     void hydrateTours(authId);
     void hydrateHolidays();
+    void hydrateWorkspaceSettings();
   }, [
     authId,
     hydrateProjects,
@@ -156,6 +159,7 @@ export function WorkspaceSync() {
     hydrateSkills,
     hydrateTours,
     hydrateHolidays,
+    hydrateWorkspaceSettings,
   ]);
 
   // Live notifications: stream this user's rows (RLS already scopes to them).

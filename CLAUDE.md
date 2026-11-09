@@ -201,6 +201,7 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0050 proposals.schedule_plan (Best-fit/Fastest/Manual + quoted launch) ·
                         #   0051 notification emails (notifications.emailed_at + profiles.email_notifications) ·
                         #   0052 two-factor: restrictive `mfa_aal2` policy on every public table
+                        #   0053 workspace_settings (one row: sprint length in weeks; admin-set)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -309,6 +310,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `pbs_connection` (PBS token cache)    | service-role only (RLS: **no policies**) | `lib/pbs/tokens.ts` via `/api/pbs/*` | Wired |
 | `member_skills` (skill + 1–5 stars)   | select / upsert / delete   | `member-skills-store` (Team → star button) | Wired |
 | `holiday_settings` (federal holiday → worked?) | select (everyone) / upsert (admin) | `holiday-settings-store` → `setWorkingHolidays` (Settings → Workspace → Holidays) | Wired — no realtime, on purpose |
+| `workspace_settings` (one row: `sprint_weeks`) | select (everyone) / upsert (admin) | `workspace-settings-store` (Settings → Workspace → Sprint length) | Wired — no realtime, read on load |
 | `tour_progress` (tour seen: version + completed/dismissed) | select / upsert / delete (self only) | `tour-store` (? menu, welcome, checklist dismissal) | Wired — no realtime, on purpose |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
@@ -1572,6 +1574,54 @@ timeline) and a **Velocity** column in Reports' projects table. One definition,
    overlap), so on those projects velocity is per phase, and a forecast can look
    extreme early on. It is a pace check, not a commitment — the help copy says so.
 
+## Sprint planning + client checkpoints (decided 2026-11-09)
+
+The team runs **sprints, not waterfall**. An estimate's people plan (Best-fit /
+Fastest) — and the project Start project builds from it — is laid out by
+**`planSprints`** (`lib/assignment/plan.ts`), not one phase after another:
+
+ - **Sprint 0 · Discovery (& Content / Design)**, each part ending in a
+   **client gate**: scope & plan sign-off → design → design approval; content
+   runs beside discovery and ends in "content delivered & approved".
+   Development waits for every gate.
+ - **Sprint 1, 2…** — **Settings → Workspace → Sprint length** weeks × 5
+   working days each (1–4 weeks, default 2), from the first build day. Stored
+   in **`workspace_settings`** (`0053`, one row: everyone reads, admin writes,
+   `updated_by` trigger-stamped, probe P28; no row = 2 weeks), loaded by
+   `workspace-settings-store` and read by `planSeeds`; `useQuoteSchedule`
+   re-plans when it changes. Approved quotes keep their quoted launch.
+   **Each build line gets its own test task** ("Test: X", id
+   `test:<build line id>`), starting the working day after that build task
+   ends. The QA lines' hours are split over the build lines by size
+   (`expandSeeds`, quarter hours, summing exactly); the QA lines themselves are
+   not tasks then. Each sprint ends in a **client review that blocks nothing**.
+   The last sprint ends when its work does (launch at end of work, not padded).
+ - **Launch & Handoff** — client **user acceptance testing** (blocks launch),
+   **go-live approval**, then the launch tasks or the phase's reserved days.
+ - **Client checkpoints** are the client's time: no hours, price or person.
+   Length = **client review time** (`reviewDaysOf`: `schedule_plan.review_days`
+   from the Adjust tab's plan card → the questionnaire's
+   `client_review_turnaround` → 3), in working days (weekends + holidays
+   skipped). They replace the timeline's hidden review gaps for planned
+   estimates. Teal bars on Review → Timeline; **Start project creates them as
+   tasks** tagged `Client`, unassigned, 0 h, NULL `source_line_item_id` (so a
+   sync never touches them).
+ - **Who** is decided by the same `assign` step as `planSchedule`
+   (`createPlanner` — keys, stars, booked work, leave, least-load tie-break).
+   `planSchedule` (phases) still runs Sync schedule on older phase projects and
+   is byte-identical to before.
+ - **Test tasks are derived, never stored on the quote.** Their hours are
+   reproduced exactly by `lineEffectiveHours` (basic tier, base = share ÷ the
+   tier multiplier, "requirements unclear" honoured), so a sync re-hours them
+   when QA hours change and never sees a phantom edit. A task edit on one has
+   no line to mirror back to (no-op), and the next sync puts it back.
+ - **Sync on a sprint project** (`isSprintProject`: any sprint named
+   `Sprint <n>`) adds no phase sprints; new tasks go by date into the build
+   sprint they start in (`resyncPlacement`), launch work to Launch & Handoff,
+   discovery/design to Sprint 0. Existing tasks never move.
+ - Existing projects and approved quotes (frozen `quoted_finish`) keep their
+   dates. Pure tests: `e2e/sprint-plan.spec.ts`.
+
 ## Work keys — who can be given a task (pricing plan Phase 4)
 
 A **work key** is the workbook's lookup key on a person — `"IT|Level 2"` —
@@ -2229,6 +2279,7 @@ a one-time token) and walks the way out end to end, including both refusals.
 | Change hourly rates | Yes | No | No | No |
 | Set work keys (who can be given a task) | Yes | No | No | No |
 | Mark holidays as working days | Yes | No (reads) | No | No |
+| Set the sprint length | Yes | No (reads) | No | No |
 | Own two-factor sign-in (set up / turn off) | Yes | Yes | Yes | Yes |
 | Reset someone's two-factor (lost phone) | Yes | No | No | No |
 | Own onboarding tour progress | Yes | Yes | Yes | Yes |

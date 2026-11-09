@@ -82,6 +82,11 @@ export type PlannedGanttRow = {
   bufferHours: number;
   /** A phase with no tasks of its own (e.g. Launch & Handoff), drawn as one bar. */
   isPhase?: boolean;
+  /**
+   * A client checkpoint — sign-off, approval, acceptance testing. The client's
+   * time, not the team's: no hours, no person. `blocks` = what waits for it.
+   */
+  client?: { detail: string; blocks: string | null };
   /** Delivery order of its phase (Discovery first, Launch last) — rows sort by it. */
   order?: number;
 };
@@ -113,6 +118,8 @@ function dateLines(start: Date, end: Date): [string, string][] {
 const BUFFER_BG =
   "bg-[repeating-linear-gradient(135deg,var(--color-amber-500)_0_4px,var(--color-amber-300)_4px_8px)]";
 const PLANNED_BG = BAR_BG.todo;
+/** Teal: the client's time (sign-off, approval, testing) — not the team's. */
+const CLIENT_BG = "bg-teal-600/90 dark:bg-teal-500/85";
 
 function formatEnUS(d: Date, pattern: string) {
   return isValid(d) ? format(d, pattern, { locale: enUS }) : "—";
@@ -196,16 +203,27 @@ export function GanttClient({
           // Dates beside the phase, so they can be read without hovering —
           // and on a phone, where there is no hover.
           subtitle: `${r.phase} · ${formatEnUS(start, "MMM d")} – ${formatEnUS(end, "MMM d")}`,
-          badge: r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
+          badge: r.client ? "Client" : r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
           href: null as string | null,
-          barClass: PLANNED_BG,
-          faded: !r.assignee && !r.isPhase,
+          barClass: r.client ? CLIENT_BG : PLANNED_BG,
+          faded: !r.assignee && !r.isPhase && !r.client,
           bufferPct: total > 0 ? (r.bufferHours / total) * 100 : 0,
-          tip: {
+          tip: r.client
+            ? ({
+                heading: r.title,
+                lines: [
+                  ["Who", "The client"],
+                  ["What", r.client.detail],
+                  ["Holds up", r.client.blocks ?? "Nothing — feedback goes into the next sprint"],
+                  ["Sprint", r.phase],
+                  ...dateLines(start, end),
+                ],
+              } as BarTip)
+            : {
             heading: r.title,
             lines: [
               ["Who", r.isPhase ? "The team (no tasks of its own)" : r.assignee ?? "Unassigned — pick someone manually"],
-              ["Phase", r.isPhase ? r.title : r.phase],
+              [r.isPhase ? "Phase" : "Sprint", r.isPhase ? r.title : r.phase],
               ...dateLines(start, end),
               ...(r.isPhase
                 ? []
@@ -345,7 +363,7 @@ export function GanttClient({
                     <span className="font-medium text-foreground/90">
                       {plan ? "Who does what, and when" : scopeLabel}
                     </span>
-                    {` · ${rows.length} ${rows.length === 1 ? "task" : "tasks"} · Weeks start Sunday`}
+                    {` · ${rows.length} ${rows.length === 1 ? (plan ? "row" : "task") : plan ? "rows" : "tasks"} · Weeks start Sunday`}
                   </span>
                 </CardDescription>
               </div>
@@ -372,6 +390,12 @@ export function GanttClient({
                       <p className="w-full text-pretty">
                         Each task runs from the day its person starts it to the day
                         they finish, from the plan picked on the Adjust tab.
+                      </p>
+                      <p className="w-full text-pretty">
+                        <span className="font-semibold opacity-100">Teal:</span>{" "}
+                        the client&apos;s turn: sign-offs, approvals and testing.
+                        Work they hold up waits for them; a sprint review holds
+                        nothing up.
                       </p>
                       <p className="w-full text-pretty">
                         <span className="font-semibold opacity-100">Amber stripes:</span>{" "}
@@ -406,6 +430,9 @@ export function GanttClient({
                 ? [
                     { key: "planned", label: "Planned work", cls: PLANNED_BG },
                     { key: "unassigned", label: "Unassigned", cls: `${PLANNED_BG} opacity-45` },
+                    ...(rows.some((r) => r.barClass === CLIENT_BG)
+                      ? [{ key: "client", label: "Client checkpoint", cls: CLIENT_BG }]
+                      : []),
                     ...(hasBuffer ? [{ key: "buffer", label: "Risk buffer", cls: BUFFER_BG }] : []),
                   ]
                 : STATUS_LEGEND.map(({ status, label }) => ({ key: status, label, cls: BAR_BG[status] }))

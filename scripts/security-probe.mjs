@@ -457,6 +457,24 @@ try {
     `memberRead=${hRead.status} memberWrite=${hMember ? "STORED" : "refused"} admin=${hAdmin.status} by=${hRow?.updated_by === adminId ? "ADMIN" : hRow?.updated_by}`,
   );
 
+  // ── P28: workspace settings — sprint length (0053) ────────────────────────────
+  // Everyone reads; only an admin writes. The admin's write puts back the value
+  // it found, so the real setting is never changed.
+  const wsRead = await call("/rest/v1/workspace_settings?select=sprint_weeks", { headers: mH });
+  const wsBefore = (await call("/rest/v1/workspace_settings?select=sprint_weeks")).json?.[0]?.sprint_weeks ?? 2;
+  const wsProbe = wsBefore === 4 ? 3 : 4;
+  await call("/rest/v1/workspace_settings?id=eq.true", { method: "PATCH", headers: mMin, body: { sprint_weeks: wsProbe } });
+  const wsAfterMember = (await call("/rest/v1/workspace_settings?select=sprint_weeks")).json?.[0]?.sprint_weeks;
+  const wsAdmin = await call("/rest/v1/workspace_settings?id=eq.true", {
+    method: "PATCH", headers: aH, body: { sprint_weeks: wsBefore, updated_by: other },
+  });
+  const wsRow = (await call("/rest/v1/workspace_settings?select=sprint_weeks,updated_by")).json?.[0];
+  record(
+    "P28 sprint length: member reads but can't write; admin writes, stamp unforgeable",
+    wsRead.ok && (wsRead.json ?? []).length === 1 && wsAfterMember === wsBefore && wsAdmin.ok && wsRow?.updated_by === adminId,
+    `memberRead=${wsRead.status} memberWrite=${wsAfterMember === wsBefore ? "refused" : "STORED"} admin=${wsAdmin.status} by=${wsRow?.updated_by === adminId ? "ADMIN" : wsRow?.updated_by}`,
+  );
+
   // ── P17: onboarding tour progress (0045) ─────────────────────────────────────
   // Self only. Reading someone's progress is harmless-looking but it is still
   // another person's row; writing it could suppress their welcome or checklist.

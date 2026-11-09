@@ -61,6 +61,11 @@ export interface PlanTask {
   hours: number;
   /** Who the estimate says does this (its line's role). null = no role. */
   role?: WorkKey | null;
+  /**
+   * Sprint planning only: the task this one TESTS. It starts the working day
+   * after that task is built, in whichever sprint that lands in.
+   */
+  after?: string;
 }
 
 export interface PlanDev {
@@ -376,23 +381,16 @@ function maxIso(a: string | null, b: string | null): string | null {
 }
 
 /**
- * Assign + schedule. Deterministic: same input → same output.
+ * The shared step: who does ONE task and when, given the earliest day it may
+ * start. Holds everyone's calendar (booked work, leave, holidays) and load, so
+ * the phase planner and the sprint planner place work by exactly the same rules.
  */
-export function planSchedule(
-  tasks: PlanTask[],
+function createPlanner(
   devs: PlanDev[],
   platform: ProposalPlatform,
   opts: PlanOptions,
-): PlanResult {
-  const projectStart = opts.projectStart
-    ? new Date(opts.projectStart.getTime())
-    : new Date();
-  const phaseStart = opts.phaseStart ?? {};
-  const floorFor = (phase: PhaseId): Date => {
-    const s = phaseStart[phase];
-    return s ? parseDay(s, projectStart) : new Date(projectStart.getTime());
-  };
-
+  projectStart: Date,
+) {
   const today = opts.today ? new Date(opts.today.getTime()) : new Date();
   // Existing load is worked off from TODAY, not from the project start: a
   // project starting next month finds its people partly free by then. The
@@ -415,7 +413,6 @@ export function planSchedule(
       return [d.id, clock] as const;
     }),
   );
-  const planned: PlannedTask[] = [];
   // Everything each person is carrying — work already booked (due now and
   // later) plus what this plan has given them so far. The final tie-break:
   // equal finish and equal stars go to whoever carries less, so work spreads
@@ -427,6 +424,132 @@ export function planSchedule(
         (d.bookedLater ?? []).reduce((sum, b) => sum + Math.max(0, b.hours), 0),
     ]),
   );
+
+
+  return function assign(task: PlanTask, notBefore: Date): PlannedTask {
+    const tiers = skillTiers(task, platform);
+    // Key first (plan decision 2): where keys govern the task's discipline,
+    // only holders of a qualifying key are eligible and skill stars merely
+    // break ties — so a Creative key holder gets design work no skill maps
+    // to, and Level 2 work never falls to a Level 1. Where they don't (every
+    // workspace before keys are set), the skill-only rule runs as it always has.
+    const role = task.role ?? null;
+    const governed = keysGovern(devs, role);
+    const keyed = governed && role ? devs.filter((d) => holdsKeyFor(d.keys, role)) : [];
+    let eligible: { dev: PlanDev; fit: { level: number; skill: string | null } }[] = [];
+    if (governed) {
+      const tier =
+        tiers.find((t) => keyed.some((d) => fitLevel(d, t).level > 0)) ?? [];
+      eligible = keyed.map((d) => ({ dev: d, fit: fitLevel(d, tier) }));
+    } else {
+      for (const tier of tiers) {
+        eligible = devs
+          .map((d) => ({ dev: d, fit: fitLevel(d, tier) }))
+          .filter((c) => c.fit.level > 0);
+        if (eligible.length) break;
+      }
+    }
+
+    if (!eligible.length) {
+      // No dev skill maps here → reserve time at a default rate, leave unassigned.
+      const days = Math.max(1, Math.ceil(task.hours / DEFAULT_HOURS_PER_DAY));
+      let cur = notBefore;
+      let placed = 0;
+      let start: string | null = null;
+      while (placed < days) {
+        if (!isWeekend(cur) && !isUsHoliday(isoDay(cur))) {
+          if (!start) start = isoDay(cur);
+          placed += 1;
+        }
+        if (placed < days) cur = addDays(cur, 1);
+      }
+      const end = isoDay(cur);
+      return {
+        taskId: task.id,
+        assigneeId: null,
+        assigneeName: null,
+        startDate: start,
+        endDate: end,
+        matchedSkill: null,
+        confidence: 0,
+        reason:
+          governed && role
+            ? `Nobody holds ${role.responsible} Level ${role.level} — assign manually`
+            : tiers.length
+              ? "No available dev has this skill — assign manually"
+              : "Not auto-assigned (design/planning) — assign manually",
+      };
+    }
+
+    // Score candidates by a trial placement.
+    const scored = eligible.map((c) => {
+      const clock = clocks.get(c.dev.id)!;
+      return { ...c, end: trialEnd(clock, task.hours, notBefore) };
+    });
+    scored.sort((a, b) => {
+      if (opts.strategy === "quick") {
+        // finish soonest; break ties by higher skill, then least load
+        if (a.end !== b.end) return a.end < b.end ? -1 : 1;
+        if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
+      } else {
+        // best skill; break ties by earliest finish, then least load
+        if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
+        if (a.end !== b.end) return a.end < b.end ? -1 : 1;
+      }
+      const la = load.get(a.dev.id) ?? 0;
+      const lb = load.get(b.dev.id) ?? 0;
+      if (la !== lb) return la - lb;
+      // Identical on every count: id, only so the same input always gives
+      // the same plan.
+      return a.dev.id < b.dev.id ? -1 : a.dev.id > b.dev.id ? 1 : 0;
+    });
+
+    const winner = scored[0];
+    const clock = clocks.get(winner.dev.id)!;
+    const { start, end } = place(clock, task.hours, notBefore);
+    load.set(winner.dev.id, (load.get(winner.dev.id) ?? 0) + task.hours);
+    return {
+      taskId: task.id,
+      assigneeId: winner.dev.id,
+      assigneeName: winner.dev.name,
+      startDate: start,
+      endDate: end,
+      matchedSkill: winner.fit.skill,
+      confidence: winner.fit.level,
+      reason: [
+        winner.dev.name,
+        governed && role ? `${role.responsible} L${role.level}` : null,
+        winner.fit.skill ? `${winner.fit.skill} ★${winner.fit.level}` : null,
+        `${winner.dev.hoursPerDay}h/day`,
+        (winner.dev.bookedHours ?? 0) > 0
+          ? `after ${Math.round(winner.dev.bookedHours!)}h of work due now`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    };
+  };
+}
+
+/**
+ * Assign + schedule. Deterministic: same input → same output.
+ */
+export function planSchedule(
+  tasks: PlanTask[],
+  devs: PlanDev[],
+  platform: ProposalPlatform,
+  opts: PlanOptions,
+): PlanResult {
+  const projectStart = opts.projectStart
+    ? new Date(opts.projectStart.getTime())
+    : new Date();
+  const phaseStart = opts.phaseStart ?? {};
+  const floorFor = (phase: PhaseId): Date => {
+    const s = phaseStart[phase];
+    return s ? parseDay(s, projectStart) : new Date(projectStart.getTime());
+  };
+  const assign = createPlanner(devs, platform, opts, projectStart);
+  const planned: PlannedTask[] = [];
 
   // Process phase by phase so dev→qa stay ordered; longest tasks first packs better.
   const byPhase = new Map<PhaseId, PlanTask[]>();
@@ -450,110 +573,9 @@ export function planSchedule(
     let phaseEnd: string | null = null;
 
     for (const task of phaseTasks) {
-      const tiers = skillTiers(task, platform);
-      // Key first (plan decision 2): where keys govern the task's discipline,
-      // only holders of a qualifying key are eligible and skill stars merely
-      // break ties — so a Creative key holder gets design work no skill maps
-      // to, and Level 2 work never falls to a Level 1. Where they don't (every
-      // workspace before keys are set), the skill-only rule runs as it always has.
-      const role = task.role ?? null;
-      const governed = keysGovern(devs, role);
-      const keyed = governed && role ? devs.filter((d) => holdsKeyFor(d.keys, role)) : [];
-      let eligible: { dev: PlanDev; fit: { level: number; skill: string | null } }[] = [];
-      if (governed) {
-        const tier =
-          tiers.find((t) => keyed.some((d) => fitLevel(d, t).level > 0)) ?? [];
-        eligible = keyed.map((d) => ({ dev: d, fit: fitLevel(d, tier) }));
-      } else {
-        for (const tier of tiers) {
-          eligible = devs
-            .map((d) => ({ dev: d, fit: fitLevel(d, tier) }))
-            .filter((c) => c.fit.level > 0);
-          if (eligible.length) break;
-        }
-      }
-
-      if (!eligible.length) {
-        // No dev skill maps here → reserve time at a default rate, leave unassigned.
-        const days = Math.max(1, Math.ceil(task.hours / DEFAULT_HOURS_PER_DAY));
-        let cur = notBefore;
-        let placed = 0;
-        let start: string | null = null;
-        while (placed < days) {
-          if (!isWeekend(cur) && !isUsHoliday(isoDay(cur))) {
-            if (!start) start = isoDay(cur);
-            placed += 1;
-          }
-          if (placed < days) cur = addDays(cur, 1);
-        }
-        const end = isoDay(cur);
-        phaseEnd = maxIso(phaseEnd, end);
-        planned.push({
-          taskId: task.id,
-          assigneeId: null,
-          assigneeName: null,
-          startDate: start,
-          endDate: end,
-          matchedSkill: null,
-          confidence: 0,
-          reason:
-            governed && role
-              ? `Nobody holds ${role.responsible} Level ${role.level} — assign manually`
-              : tiers.length
-                ? "No available dev has this skill — assign manually"
-                : "Not auto-assigned (design/planning) — assign manually",
-        });
-        continue;
-      }
-
-      // Score candidates by a trial placement.
-      const scored = eligible.map((c) => {
-        const clock = clocks.get(c.dev.id)!;
-        return { ...c, end: trialEnd(clock, task.hours, notBefore) };
-      });
-      scored.sort((a, b) => {
-        if (opts.strategy === "quick") {
-          // finish soonest; break ties by higher skill, then least load
-          if (a.end !== b.end) return a.end < b.end ? -1 : 1;
-          if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
-        } else {
-          // best skill; break ties by earliest finish, then least load
-          if (a.fit.level !== b.fit.level) return b.fit.level - a.fit.level;
-          if (a.end !== b.end) return a.end < b.end ? -1 : 1;
-        }
-        const la = load.get(a.dev.id) ?? 0;
-        const lb = load.get(b.dev.id) ?? 0;
-        if (la !== lb) return la - lb;
-        // Identical on every count: id, only so the same input always gives
-        // the same plan.
-        return a.dev.id < b.dev.id ? -1 : a.dev.id > b.dev.id ? 1 : 0;
-      });
-
-      const winner = scored[0];
-      const clock = clocks.get(winner.dev.id)!;
-      const { start, end } = place(clock, task.hours, notBefore);
-      load.set(winner.dev.id, (load.get(winner.dev.id) ?? 0) + task.hours);
-      phaseEnd = maxIso(phaseEnd, end);
-      planned.push({
-        taskId: task.id,
-        assigneeId: winner.dev.id,
-        assigneeName: winner.dev.name,
-        startDate: start,
-        endDate: end,
-        matchedSkill: winner.fit.skill,
-        confidence: winner.fit.level,
-        reason: [
-          winner.dev.name,
-          governed && role ? `${role.responsible} L${role.level}` : null,
-          winner.fit.skill ? `${winner.fit.skill} ★${winner.fit.level}` : null,
-          `${winner.dev.hoursPerDay}h/day`,
-          (winner.dev.bookedHours ?? 0) > 0
-            ? `after ${Math.round(winner.dev.bookedHours!)}h of work due now`
-            : null,
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      });
+      const p = assign(task, notBefore);
+      phaseEnd = maxIso(phaseEnd, p.endDate);
+      planned.push(p);
     }
 
     runningFloor = maxIso(runningFloor, phaseEnd);
@@ -567,5 +589,380 @@ export function planSchedule(
     tasks: planned,
     unassigned: planned.filter((t) => !t.assigneeId),
     finishDate,
+  };
+}
+
+/* ────────────────────────────────────────────────────────────────────────── */
+/*  Sprint planning (decided 2026-11-09)                                      */
+/* ────────────────────────────────────────────────────────────────────────── */
+
+/** Default working days in one build sprint (two weeks; Settings → Workspace → Sprint length overrides). */
+export const SPRINT_WORKING_DAYS = 10;
+/** Client review time when the estimate does not say (working days). */
+export const DEFAULT_CLIENT_REVIEW_DAYS = 3;
+/** The last sprint's name — also the Launch & Handoff phase label. */
+export const LAUNCH_SPRINT = "Launch & Handoff";
+
+export type CheckpointKind = "signoff" | "content" | "design" | "review" | "uat" | "golive";
+
+/**
+ * A point where the CLIENT acts — signs off, approves, tests. No hours, no
+ * price and nobody on the team: it is the client's time. `blocks` names what
+ * cannot start until it is done (null for a sprint review, whose feedback goes
+ * into the next sprint without holding it up).
+ */
+export interface ClientCheckpoint {
+  id: string;
+  kind: CheckpointKind;
+  title: string;
+  /** What the client does, in plain words. */
+  detail: string;
+  blocks: string | null;
+  start: string;
+  end: string;
+  /** The sprint it sits in. */
+  sprint: string;
+}
+
+export interface PlanSprint {
+  label: string;
+  kind: "setup" | "build" | "launch";
+  start: string;
+  end: string;
+  goal: string;
+}
+
+/** A phase with no tasks of its own that still takes time (e.g. Launch & Handoff). */
+export interface ReservedBlock {
+  phase: PhaseId;
+  start: string;
+  end: string;
+  sprint: string;
+}
+
+export interface SprintPlanOptions extends PlanOptions {
+  /** Client review time in working days (0 = same-day sign-off). */
+  reviewDays: number;
+  sprintDays?: number;
+  /**
+   * Working days a phase takes when it has no tasks but the estimate still
+   * has it (Launch & Handoff usually; a guided estimate's design phase).
+   */
+  phaseDays?: Partial<Record<PhaseId, number>>;
+}
+
+export interface SprintPlanResult extends PlanResult {
+  sprints: PlanSprint[];
+  /** task id → sprint label. */
+  sprintOf: Map<string, string>;
+  checkpoints: ClientCheckpoint[];
+  reserved: ReservedBlock[];
+}
+
+const SETUP_PHASES: PhaseId[] = ["discovery", "content", "design"];
+const SETUP_NAME: Partial<Record<PhaseId, string>> = {
+  discovery: "Discovery",
+  content: "Content",
+  design: "Design",
+};
+
+function isOpenDay(d: Date): boolean {
+  return !isWeekend(d) && !isUsHoliday(isoDay(d));
+}
+/** The first working day strictly after `iso`. */
+function nextWorkday(iso: string): string {
+  let d = addDays(parseDay(iso), 1);
+  while (!isOpenDay(d)) d = addDays(d, 1);
+  return isoDay(d);
+}
+/** `iso` if it is a working day, else the next one. */
+function onOrAfterWorkday(iso: string): string {
+  let d = parseDay(iso);
+  while (!isOpenDay(d)) d = addDays(d, 1);
+  return isoDay(d);
+}
+/** The last day of `n` working days starting on `startIso` (a working day). */
+function workdaysFrom(startIso: string, n: number): string {
+  let d = parseDay(startIso);
+  for (let left = Math.max(1, n) - 1; left > 0; ) {
+    d = addDays(d, 1);
+    if (isOpenDay(d)) left -= 1;
+  }
+  return isoDay(d);
+}
+/** Working days from `a` up to (not including) `b`. */
+function workdaysBetween(a: string, b: string): number {
+  let n = 0;
+  for (let d = parseDay(a); isoDay(d) < b; d = addDays(d, 1)) if (isOpenDay(d)) n += 1;
+  return n;
+}
+
+/**
+ * Plan an estimate as SPRINTS rather than waterfall phases:
+ *
+ *  1. **Sprint 0** — discovery, content and design, each ending in a client
+ *     checkpoint: scope & plan sign-off, content delivered, design approval.
+ *     Development cannot start until every one of them is done.
+ *  2. **Build sprints** of `sprintDays` working days. Each build task is
+ *     followed by its own test task (`after`), starting the next working day —
+ *     testing happens inside the sprint, not in a phase at the end. Each sprint
+ *     ends in a client review that holds nothing up. The last sprint ends when
+ *     its work does: the launch is quoted at the end of the work, not padded
+ *     to a sprint boundary.
+ *  3. **Launch & Handoff** — user acceptance testing by the client (blocks the
+ *     launch), go-live approval, then the launch work.
+ *
+ * Who does each task is decided by the same `assign` step as `planSchedule`
+ * (keys, stars, booked work, leave, holidays, least-load tie-break).
+ */
+export function planSprints(
+  tasks: PlanTask[],
+  devs: PlanDev[],
+  platform: ProposalPlatform,
+  opts: SprintPlanOptions,
+): SprintPlanResult {
+  const start = onOrAfterWorkday(isoDay(opts.projectStart ?? new Date()));
+  const assign = createPlanner(devs, platform, opts, parseDay(start));
+  const reviewDays = Math.max(0, Math.round(opts.reviewDays));
+  const sprintDays = Math.max(1, opts.sprintDays ?? SPRINT_WORKING_DAYS);
+  const phaseDays = opts.phaseDays ?? {};
+
+  const byId = new Map<string, PlannedTask>();
+  const checkpoints: ClientCheckpoint[] = [];
+  const reserved: ReservedBlock[] = [];
+  const sprintOf = new Map<string, string>();
+  const byPhase = new Map<PhaseId, PlanTask[]>();
+  for (const t of tasks) {
+    const arr = byPhase.get(t.phase) ?? [];
+    arr.push(t);
+    byPhase.set(t.phase, arr);
+  }
+
+  const place1 = (t: PlanTask, floor: string): PlannedTask => {
+    const p = assign(t, parseDay(floor));
+    byId.set(t.id, p);
+    return p;
+  };
+  /** Longest first (packs better), all from the same floor. */
+  const run = (list: PlanTask[], floor: string): string | null => {
+    let end: string | null = null;
+    for (const t of [...list].sort((a, b) => b.hours - a.hours)) {
+      end = maxIso(end, place1(t, floor).endDate);
+    }
+    return end;
+  };
+  /** A phase's work: its tasks, or the time the estimate reserves for it. */
+  const phaseWork = (phase: PhaseId, floor: string, sprint: string): string | null => {
+    const list = byPhase.get(phase) ?? [];
+    if (list.length) return run(list, floor);
+    const days = Math.round(phaseDays[phase] ?? 0);
+    if (days <= 0) return null;
+    const s0 = onOrAfterWorkday(floor);
+    const e0 = workdaysFrom(s0, days);
+    reserved.push({ phase, start: s0, end: e0, sprint });
+    return e0;
+  };
+  /** A client gate after `afterIso`; returns its last day and the day work resumes. */
+  const gate = (
+    afterIso: string,
+    cp: Omit<ClientCheckpoint, "start" | "end" | "sprint">,
+    sprint: string,
+  ): { start: string; end: string; resume: string } => {
+    const s0 = reviewDays > 0 ? nextWorkday(afterIso) : afterIso;
+    const e0 = reviewDays > 0 ? workdaysFrom(s0, reviewDays) : afterIso;
+    checkpoints.push({ ...cp, start: s0, end: e0, sprint });
+    return { start: s0, end: e0, resume: nextWorkday(e0) };
+  };
+
+  const sprints: PlanSprint[] = [];
+
+  // ── Sprint 0: discovery, content, design — each ends in a client gate ──
+  const setupPhases = SETUP_PHASES.filter(
+    (ph) => (byPhase.get(ph)?.length ?? 0) > 0 || (phaseDays[ph] ?? 0) > 0,
+  );
+  let devFloor = start;
+  if (setupPhases.length) {
+    const label = `Sprint 0 · ${setupPhases.map((ph) => SETUP_NAME[ph]).join(" & ")}`;
+    const hasDesign = setupPhases.includes("design");
+    let s0End = start;
+    let designFloor = start;
+    const discoveryEnd = phaseWork("discovery", start, label);
+    if (discoveryEnd) {
+      const g = gate(discoveryEnd, {
+        id: "cp-signoff",
+        kind: "signoff",
+        title: "Client: scope & plan sign-off",
+        detail: "The client agrees the scope, plan and timeline from discovery.",
+        blocks: hasDesign ? "Design" : "Development",
+      }, label);
+      designFloor = g.resume;
+      devFloor = g.resume;
+      s0End = maxIso(s0End, g.end)!;
+    }
+    // Content runs alongside discovery; the client then delivers / approves it.
+    const contentEnd = phaseWork("content", start, label);
+    if (contentEnd) {
+      const g = gate(contentEnd, {
+        id: "cp-content",
+        kind: "content",
+        title: "Client: content delivered & approved",
+        detail: "The client supplies or signs off the copy and assets the build needs.",
+        blocks: "Development",
+      }, label);
+      devFloor = maxIso(devFloor, g.resume)!;
+      s0End = maxIso(s0End, g.end)!;
+    }
+    const designEnd = hasDesign ? phaseWork("design", designFloor, label) : null;
+    if (designEnd) {
+      const g = gate(designEnd, {
+        id: "cp-design",
+        kind: "design",
+        title: "Client: design approval",
+        detail: "The client approves the designs. Nothing is built before this.",
+        blocks: "Development",
+      }, label);
+      devFloor = maxIso(devFloor, g.resume)!;
+      s0End = maxIso(s0End, g.end)!;
+    }
+    for (const ph of setupPhases)
+      for (const t of byPhase.get(ph) ?? []) {
+        sprintOf.set(t.id, label);
+        s0End = maxIso(s0End, byId.get(t.id)?.endDate ?? null)!;
+      }
+    for (const b of reserved) s0End = maxIso(s0End, b.end)!;
+    sprints.push({
+      label,
+      kind: "setup",
+      start,
+      end: s0End,
+      goal: "Discovery and client approvals — development starts once the client signs off",
+    });
+  }
+
+  // ── Build sprints: development (+ SEO), each piece tested right after ──
+  const devTasks = [...(byPhase.get("development") ?? []), ...(byPhase.get("seo") ?? [])];
+  const devEnd = run(devTasks, devFloor);
+  const qa = byPhase.get("qa") ?? [];
+  const builtBy = (t: PlanTask) => (t.after ? byId.get(t.after)?.endDate ?? null : null);
+  const tests = qa
+    .filter((t) => builtBy(t))
+    .sort((a, b) => {
+      const ea = builtBy(a)!;
+      const eb = builtBy(b)!;
+      return ea < eb ? -1 : ea > eb ? 1 : b.hours - a.hours;
+    });
+  let buildEnd = devEnd;
+  for (const t of tests) {
+    buildEnd = maxIso(buildEnd, place1(t, nextWorkday(builtBy(t)!)).endDate);
+  }
+  // QA with nothing to follow (no build work, or one pass over everything).
+  const loose = qa.filter((t) => !byId.has(t.id));
+  if (loose.length) {
+    buildEnd = maxIso(buildEnd, run(loose, devEnd ? nextWorkday(devEnd) : devFloor));
+  }
+
+  if (buildEnd) {
+    const first = onOrAfterWorkday(devFloor);
+    const builds: PlanSprint[] = [];
+    for (let i = 0, s0 = first; s0 <= buildEnd; i += 1) {
+      const full = workdaysFrom(s0, sprintDays);
+      const e0 = full < buildEnd ? full : buildEnd;
+      const label = `Sprint ${i + 1}`;
+      builds.push({
+        label,
+        kind: "build",
+        start: s0,
+        end: e0,
+        goal: "Build and test — each piece is tested as soon as it is built",
+      });
+      checkpoints.push({
+        id: `cp-review-${i + 1}`,
+        kind: "review",
+        title: `Client: sprint ${i + 1} review`,
+        detail: "The client sees what was built this sprint. Feedback goes into the next sprint; nothing waits for it.",
+        blocks: null,
+        start: e0,
+        end: e0,
+        sprint: label,
+      });
+      s0 = nextWorkday(full);
+    }
+    sprints.push(...builds);
+    for (const t of [...devTasks, ...qa]) {
+      const d = byId.get(t.id)?.startDate ?? first;
+      const idx = Math.min(
+        builds.length - 1,
+        Math.max(0, Math.floor(workdaysBetween(first, d) / sprintDays)),
+      );
+      sprintOf.set(t.id, builds[idx].label);
+    }
+  }
+
+  // ── Launch & Handoff: client acceptance, go-live, then the launch work ──
+  let launchFloor = devFloor;
+  let launchStart: string | null = null;
+  let lastGate: string | null = null;
+  if (buildEnd) {
+    const g = gate(buildEnd, {
+      id: "cp-uat",
+      kind: "uat",
+      title: "Client: user acceptance testing",
+      detail: "The client tests the finished site on staging and signs it off.",
+      blocks: "Launch",
+    }, LAUNCH_SPRINT);
+    checkpoints.push({
+      id: "cp-golive",
+      kind: "golive",
+      title: "Client: go-live approval",
+      detail: "The client gives the go-ahead to launch.",
+      blocks: "Launch",
+      start: g.end,
+      end: g.end,
+      sprint: LAUNCH_SPRINT,
+    });
+    launchStart = g.start;
+    lastGate = g.end;
+    launchFloor = g.resume;
+  }
+  const launchTasks = byPhase.get("launch") ?? [];
+  const launchEnd = phaseWork("launch", launchFloor, LAUNCH_SPRINT);
+  for (const t of launchTasks) sprintOf.set(t.id, LAUNCH_SPRINT);
+  if (launchEnd || launchStart) {
+    let s0 = launchStart ?? onOrAfterWorkday(launchFloor);
+    let e0 = maxIso(launchEnd, lastGate)!;
+    for (const t of launchTasks) {
+      const p = byId.get(t.id);
+      if (p?.startDate && p.startDate < s0) s0 = p.startDate;
+      e0 = maxIso(e0, p?.endDate ?? null)!;
+    }
+    sprints.push({
+      label: LAUNCH_SPRINT,
+      kind: "launch",
+      start: s0,
+      end: e0,
+      goal: "Client acceptance, go-live and handoff",
+    });
+  }
+
+  // Anything the steps above didn't place.
+  for (const t of tasks) {
+    if (byId.has(t.id)) continue;
+    place1(t, devFloor);
+    sprintOf.set(t.id, sprints.find((sp) => sp.kind === "build")?.label ?? sprints[0]?.label ?? LAUNCH_SPRINT);
+  }
+
+  let finishDate: string | null = null;
+  for (const p of byId.values()) finishDate = maxIso(finishDate, p.endDate);
+  for (const sp of sprints) finishDate = maxIso(finishDate, sp.end);
+  // Tasks in input order, so callers can zip them with their lines.
+  const ordered = tasks.map((t) => byId.get(t.id)!);
+  return {
+    tasks: ordered,
+    unassigned: ordered.filter((t) => !t.assigneeId),
+    finishDate,
+    sprints,
+    sprintOf,
+    checkpoints,
+    reserved,
   };
 }
