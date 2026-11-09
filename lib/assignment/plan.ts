@@ -75,12 +75,49 @@ export interface PlanDev {
   /** Admin-set work keys (0043). Matched before skills. */
   keys?: WorkKey[];
   /**
-   * Open hours already on this person's plate across ALL projects (accepted +
-   * pending — `assignedWork().allocatedHours`, the Workload page's figure).
-   * New work queues behind it, so someone buried elsewhere is not planned as
-   * if their calendar were empty. 0/undefined = free from today.
+   * Open hours already on this person's plate that are DUE NOW — overdue, due
+   * within `BOOKED_DUE_SOON_DAYS` working days, or with no due date (see
+   * `splitBookedWork`). Worked off first, from today; new work queues behind
+   * it. 0/undefined = free from today.
    */
   bookedHours?: number;
+  /**
+   * Open work due LATER: each task's hours are spread evenly over the working
+   * days from today to its due date, and only that slice comes off each day.
+   * Work due in February costs a little every day instead of blocking the
+   * calendar until it is done.
+   */
+  bookedLater?: { hours: number; due: string }[];
+}
+
+/** Booked work due within this many working days is done first, in full. */
+export const BOOKED_DUE_SOON_DAYS = 5;
+
+/**
+ * Split someone's open tasks into what must be done first and what can be
+ * spread until its due date. Pure. Overdue and undated work is "now": nothing
+ * says it can wait.
+ */
+export function splitBookedWork(
+  tasks: readonly { estimated_hours?: number | null; due_date?: string | null }[],
+  today: Date,
+): { now: number; later: { hours: number; due: string }[] } {
+  let soon = new Date(today.getTime());
+  for (let n = 0; n < BOOKED_DUE_SOON_DAYS; ) {
+    soon = addDays(soon, 1);
+    if (!isWeekend(soon) && !isUsHoliday(isoDay(soon))) n += 1;
+  }
+  const cutoff = isoDay(soon);
+  let now = 0;
+  const later: { hours: number; due: string }[] = [];
+  for (const t of tasks) {
+    const hours = Math.max(0, t.estimated_hours ?? 0);
+    if (!hours) continue;
+    const due = t.due_date?.slice(0, 10);
+    if (due && due > cutoff) later.push({ hours, due });
+    else now += hours;
+  }
+  return { now: Math.round(now * 10) / 10, later };
 }
 
 export interface PlanOptions {
@@ -214,6 +251,17 @@ interface Clock {
   hoursPerDay: number;
   day: Date;
   hoursLeftToday: number;
+  /** Later-due booked work: hours/day taken off every working day up to `until`. */
+  spread: { perDay: number; from: string; until: string }[];
+}
+
+/** Hours free on `d` once later-due booked work has taken its daily slice. */
+function capacityOn(clock: Clock, d: Date): number {
+  const day = isoDay(d);
+  let taken = 0;
+  for (const s of clock.spread) if (day >= s.from && day <= s.until) taken += s.perDay;
+  // A day the spread fills completely is skipped by `place`, like a day off.
+  return Math.max(0, clock.hoursPerDay - taken);
 }
 
 function makeClock(dev: PlanDev, start: Date): Clock {
@@ -223,12 +271,27 @@ function makeClock(dev: PlanDev, start: Date): Clock {
     hoursPerDay: Math.max(1, dev.hoursPerDay),
     day: new Date(start.getTime()),
     hoursLeftToday: 0,
+    spread: [],
   };
   // The first day is a full day when it is a working one. It used to start at
   // 0 h, which made `place` step to the NEXT workday: every free person began a
   // day late, and booked work was worked off from tomorrow instead of today
   // (found by e2e/timeline-stress.spec.ts, 2026-10-27).
   if (isWorkday(clock, clock.day)) clock.hoursLeftToday = clock.hoursPerDay;
+  return clock;
+}
+
+/** Spread each later-due task over the working days from `today` to its due date. */
+function withSpread(clock: Clock, today: Date): Clock {
+  const from = isoDay(today);
+  for (const b of clock.dev.bookedLater ?? []) {
+    let days = 0;
+    for (let d = new Date(today.getTime()); isoDay(d) <= b.due && days < 1000; d = addDays(d, 1)) {
+      if (isWorkday(clock, d)) days += 1;
+    }
+    if (days > 0 && b.hours > 0) clock.spread.push({ perDay: b.hours / days, from, until: b.due });
+  }
+  if (isWorkday(clock, clock.day)) clock.hoursLeftToday = capacityOn(clock, clock.day);
   return clock;
 }
 function isWorkday(clock: Clock, d: Date): boolean {
@@ -243,7 +306,7 @@ function stepToNextWorkday(clock: Clock): void {
   do {
     clock.day = addDays(clock.day, 1);
   } while (!isWorkday(clock, clock.day));
-  clock.hoursLeftToday = clock.hoursPerDay;
+  clock.hoursLeftToday = capacityOn(clock, clock.day);
 }
 
 /**
@@ -258,13 +321,13 @@ function place(
   // Jump forward to the phase floor (fresh day) if it's later than where we are.
   if (parseDay(isoDay(clock.day)).getTime() < parseDay(isoDay(notBefore)).getTime()) {
     clock.day = new Date(notBefore.getTime());
-    clock.hoursLeftToday = clock.hoursPerDay;
+    clock.hoursLeftToday = capacityOn(clock, clock.day);
   }
   // Make sure we're on a workday with capacity left.
   while (!isWorkday(clock, clock.day) || clock.hoursLeftToday <= 0) {
     if (!isWorkday(clock, clock.day)) {
       clock.day = addDays(clock.day, 1);
-      if (isWorkday(clock, clock.day)) clock.hoursLeftToday = clock.hoursPerDay;
+      if (isWorkday(clock, clock.day)) clock.hoursLeftToday = capacityOn(clock, clock.day);
       continue;
     }
     stepToNextWorkday(clock);
@@ -291,6 +354,7 @@ function trialEnd(clock: Clock, hours: number, notBefore: Date): string {
     ...clock,
     day: new Date(clock.day.getTime()),
     pto: clock.pto,
+    spread: clock.spread,
   };
   return place(copy, hours, notBefore).end;
 }
@@ -333,20 +397,20 @@ export function planSchedule(
   // Existing load is worked off from TODAY, not from the project start: a
   // project starting next month finds its people partly free by then. The
   // phase floors below still stop new work starting before its phase.
-  // ponytail: booked hours queue FIFO ahead of new work — no priorities or
-  // due dates among them; model per-task dates if plans need that precision.
+  // Work due NOW (`bookedHours`) queues FIFO ahead of new work; work due
+  // LATER (`bookedLater`) only takes its daily slice until its due date.
   const clocks = new Map(
     devs.map((d) => {
       const booked = Math.max(0, d.bookedHours ?? 0);
-      if (booked <= 0) return [d.id, makeClock(d, projectStart)] as const;
-      const clock = makeClock(d, today);
+      if (booked <= 0) return [d.id, withSpread(makeClock(d, projectStart), today)] as const;
+      const clock = withSpread(makeClock(d, today), today);
       place(clock, booked, today);
       // Booked work that clears before the project starts must not make this
       // person look MORE available than a free one: a fresh clock and a
       // worked-off one land on different first days, and Fastest would then
       // pick the busy person. Cleared in time = exactly as if free.
       if (isoDay(clock.day) < isoDay(projectStart)) {
-        return [d.id, makeClock(d, projectStart)] as const;
+        return [d.id, withSpread(makeClock(d, projectStart), today)] as const;
       }
       return [d.id, clock] as const;
     }),
@@ -467,7 +531,7 @@ export function planSchedule(
           winner.fit.skill ? `${winner.fit.skill} ★${winner.fit.level}` : null,
           `${winner.dev.hoursPerDay}h/day`,
           (winner.dev.bookedHours ?? 0) > 0
-            ? `after ${Math.round(winner.dev.bookedHours!)}h already booked`
+            ? `after ${Math.round(winner.dev.bookedHours!)}h of work due now`
             : null,
         ]
           .filter(Boolean)

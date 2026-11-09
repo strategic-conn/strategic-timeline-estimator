@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { planSchedule, type PlanDev, type PlanTask } from "../lib/assignment/plan";
+import { planSchedule, splitBookedWork, type PlanDev, type PlanTask } from "../lib/assignment/plan";
 import { buildRoster } from "../lib/assignment/roster";
 
 /**
@@ -50,7 +50,7 @@ test("Best-fit keeps the strongest person, with honest dates", () => {
   expect(booked.startDate! > unbooked.startDate!).toBe(true);
   expect(unbooked.startDate).toBe("2027-03-01");
   expect(booked.startDate).toBe("2027-03-08");
-  expect(booked.reason).toContain("after 40h already booked");
+  expect(booked.reason).toContain("after 40h of work due now");
   expect(unbooked.reason).not.toContain("booked");
 });
 
@@ -82,4 +82,44 @@ test("a busy person never looks more available than a free one", () => {
   // Booked work overlaps the start: the free person wins.
   const soon = plan([dev("bo"), dev("ann", { bookedHours: 400 })], "quick", later);
   expect(soon.assigneeId).toBe("bo");
+});
+
+test.describe("booked work is split by due date", () => {
+  test("overdue, due within 5 working days, or undated = now; the rest = later", () => {
+    // Mon Mar 1 → the 5th working day after is Mon Mar 8.
+    const split = splitBookedWork(
+      [
+        { estimated_hours: 4, due_date: "2027-02-20" }, // overdue
+        { estimated_hours: 2, due_date: null }, // undated
+        { estimated_hours: 3, due_date: "2027-03-08" }, // within 5 working days
+        { estimated_hours: 10, due_date: "2027-03-09" }, // later
+        { estimated_hours: 0, due_date: "2027-01-01" }, // no hours: ignored
+      ],
+      TODAY,
+    );
+    expect(split).toEqual({ now: 9, later: [{ hours: 10, due: "2027-03-09" }] });
+  });
+
+  test("work due later takes only its daily slice, not the whole calendar", () => {
+    // 40 h due Fri Mar 12 = 10 working days → 4 h/day off an 8 h day.
+    const spread = plan([dev("ann", { bookedLater: [{ hours: 40, due: "2027-03-12" }] })], "quick");
+    expect([spread.startDate, spread.endDate]).toEqual(["2027-03-01", "2027-03-02"]);
+    // The same 40 h due now blocks the first five days.
+    const blocking = plan([dev("ann", { bookedHours: 40 })], "quick");
+    expect(blocking.startDate).toBe("2027-03-08");
+  });
+
+  test("a day the spread fills completely is skipped, and capacity returns after the due date", () => {
+    // 16 h due Tue Mar 2 = 2 working days at 8 h: both days full.
+    const t = plan([dev("ann", { bookedLater: [{ hours: 16, due: "2027-03-02" }] })], "quick");
+    expect([t.startDate, t.endDate]).toEqual(["2027-03-03", "2027-03-03"]);
+  });
+
+  test("Fastest picks the person whose work can wait", () => {
+    const t = plan(
+      [dev("ann", { bookedHours: 40 }), dev("bo", { bookedLater: [{ hours: 40, due: "2027-04-30" }] })],
+      "quick",
+    );
+    expect(t.assigneeId).toBe("bo");
+  });
 });

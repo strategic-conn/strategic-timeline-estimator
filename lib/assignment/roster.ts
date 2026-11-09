@@ -25,8 +25,10 @@ export interface RosterInput {
   defaultWeeklyHours: number;
   /** profile_id → ISO days off. */
   ptoByProfile: Record<string, string[]>;
-  /** profile_id → open hours already assigned (accepted + pending). */
+  /** profile_id → open hours already assigned that are due now (accepted + pending). */
   bookedHours?: Record<string, number>;
+  /** profile_id → open work due later, spread until its due date (`splitBookedWork`). */
+  bookedLater?: Record<string, { hours: number; due: string }[]>;
 }
 
 /** "IT|Level 2" strings → structured keys; malformed entries are dropped. */
@@ -59,6 +61,7 @@ export function buildRoster(input: RosterInput): PlanDev[] {
         ptoDays: input.ptoByProfile[m.id] ?? [],
         keys: parseWorkKeys(m.workKeys),
         bookedHours: input.bookedHours?.[m.id] ?? 0,
+        bookedLater: input.bookedLater?.[m.id] ?? [],
       } satisfies PlanDev;
     })
     .filter((d) => Object.keys(d.skills).length > 0 || d.keys.length > 0);

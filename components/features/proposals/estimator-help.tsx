@@ -229,7 +229,9 @@ const HELP = {
           <li>Their hours per day (Workload → weekly hours ÷ 5).</li>
           <li>
             Work already on their plate on other projects (Workload&apos;s
-            allocated hours), done first.
+            allocated tasks). What is overdue or due within a week is done
+            first; what is due later takes a small share of each day until its
+            due date.
           </li>
           <li>Approved time off, weekends and US holidays.</li>
         </ul>

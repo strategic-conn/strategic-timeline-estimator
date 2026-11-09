@@ -26,6 +26,7 @@ import {
 } from "@/lib/discovery/from-line-items";
 import {
   planSchedule,
+  splitBookedWork,
   type PlanDev,
   type PlannedTask,
   type PlanStrategy,
@@ -161,23 +162,23 @@ function currentRoster(): PlanDev[] {
     .getState()
     .members.filter((m) => !m.deactivated_at && m.confirmed_at)
     .map((m) => ({ id: m.id, name: m.name, workKeys: m.work_keys }));
+  const now = new Date();
+  const closed = closedProjectIds(useProjectsStore.getState().projects);
+  const tasks = useTasksDataStore.getState().tasks;
+  const booked = members.map(
+    (m) => [m.id, splitBookedWork(assignedWork(tasks, m.id, { now, closed }).allocated, now)] as const,
+  );
   return buildRoster({
     members,
     skillsByProfile: useMemberSkillsStore.getState().skills,
     weeklyHours: useWeeklyCapacityStore.getState().overrides,
     defaultWeeklyHours: DEFAULT_WEEKLY_CAPACITY_HOURS,
     ptoByProfile: ptoDaysByProfile(useAvailabilityStore.getState().entries),
-    // The same "allocated" figure the Workload page shows (rule 8), so the plan
-    // and the page agree about how busy someone already is.
-    bookedHours: Object.fromEntries(
-      members.map((m) => [
-        m.id,
-        assignedWork(useTasksDataStore.getState().tasks, m.id, {
-          now: new Date(),
-          closed: closedProjectIds(useProjectsStore.getState().projects),
-        }).allocatedHours,
-      ]),
-    ),
+    // The same "allocated" tasks the Workload page counts (rule 8), split by
+    // due date: what is due now is done first, what is due later is spread
+    // until its due date (`splitBookedWork`).
+    bookedHours: Object.fromEntries(booked.map(([id, b]) => [id, b.now])),
+    bookedLater: Object.fromEntries(booked.map(([id, b]) => [id, b.later])),
   });
 }
 

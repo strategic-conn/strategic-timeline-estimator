@@ -1598,13 +1598,19 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
    design tasks, which were always left for a human before.
  - `buildRoster` keeps someone with keys but no skills (it used to drop anyone
    without skills).
- - **Existing load counts** (`PlanDev.bookedHours`). Each person's calendar is
-   pre-filled with the open work they already hold across ALL projects —
+ - **Existing load counts, by due date** (`splitBookedWork`, 2026-11-09). The
+   open work a person already holds across ALL projects — the tasks behind
    `assignedWork().allocatedHours`, the Workload page's accepted + pending
-   figure (rule 8) — worked off from **today**, and new tasks queue behind it.
-   Fastest therefore routes work to whoever is actually free; Best-fit keeps the
-   strongest person but gives honest dates, and the reason says "after 131h
-   already booked". FIFO on purpose (no priorities among booked tasks). Booked
+   figure (rule 8) — is split. **Due now** (overdue, due within
+   `BOOKED_DUE_SOON_DAYS` = 5 working days, or undated) is `PlanDev.bookedHours`:
+   worked off first from **today**, FIFO, and new tasks queue behind it.
+   **Due later** is `PlanDev.bookedLater`: each task's hours are spread evenly
+   over the working days from today to its due date, and only that slice comes
+   off each day (`capacityOn`). Before this, everything was FIFO — a task due
+   in February blocked someone's calendar until it was done (Summit Outfitters:
+   Francis's 73 h held the configurator to Nov 23; 51 h of it was due Dec–Feb).
+   The reason says "after 22h of work due now". The Workload page still shows
+   the full figure — this changes only where the planner puts new work. Booked
    work that clears **before the project starts** resets to a fresh clock:
    otherwise a busy person could look a day MORE available than a free one and
    win under Fastest (`e2e/booked-load.spec.ts` pins both). Nobody booked →
@@ -1627,8 +1633,8 @@ its estimate line (`roleOf(li) ?? defaultRoleFor(li, platform)`).
 > sprints and PO dates built from it). `booked-load.spec.ts` had pinned the
 > first bug (03-09 → 03-08). Known, by design: partial-day leave is a full
 > working day to the planner (it plans in whole days) but half a day to the
-> timeline and Workload; booked work is modelled FIFO from today, not on its
-> real task dates; adjacent phases share their boundary day (a phase's end
+> timeline and Workload; booked work due now is modelled FIFO from today, and
+> work due later as an even daily slice until its due date; adjacent phases share their boundary day (a phase's end
 > date is the next one's start).
 
 > **No role columns on `tasks`, deliberately** (the plan proposed
