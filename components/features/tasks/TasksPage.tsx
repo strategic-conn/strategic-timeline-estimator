@@ -1,5 +1,6 @@
 "use client";
 
+import { parseISO } from "date-fns";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -190,11 +191,11 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
       return "Unscheduled work — move items into a sprint when you commit to them";
     }
     if (currentSprintMeta) {
-      const a = new Date(currentSprintMeta.start_date).toLocaleDateString(
+      const a = parseISO(currentSprintMeta.start_date).toLocaleDateString(
         undefined,
         { month: "short", day: "numeric" },
       );
-      const b = new Date(currentSprintMeta.end_date).toLocaleDateString(
+      const b = parseISO(currentSprintMeta.end_date).toLocaleDateString(
         undefined,
         { month: "short", day: "numeric", year: "numeric" },
       );

@@ -2,6 +2,7 @@
  * Risk scoring — flag points + ½ unanswered required fields, mapped to the SC
  * Discovery Checklist thresholds (spec §3.3 / §8).
  */
+import { parseISO } from "date-fns";
 import { RISK_LEVEL_META } from "@/lib/discovery/constants";
 import {
   countUnanswered,
@@ -51,7 +52,7 @@ export function computeRisk(
     flags.push({ label: "Extra revision rounds (above 2)", points: 1 });
 
   if (p.hard_launch_date) {
-    const hard = new Date(p.hard_launch_date).getTime();
+    const hard = parseISO(p.hard_launch_date).getTime();
     const launch = new Date(timeline.launchDate).getTime();
     if (!Number.isNaN(hard) && !Number.isNaN(launch) && launch > hard)
       flags.push({ label: "Estimated launch exceeds hard deadline", points: 3 });

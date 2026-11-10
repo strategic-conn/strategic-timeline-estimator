@@ -167,7 +167,7 @@ function formatDateTime(iso: string) {
 
 function formatDateOnly(iso: string) {
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
+    return parseISO(iso).toLocaleDateString(undefined, {
       dateStyle: "medium",
     })
   } catch {

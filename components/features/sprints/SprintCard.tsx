@@ -1,5 +1,7 @@
 "use client";
 
+import { parseISO } from "date-fns";
+import { daysUntil } from "@/lib/utils/relative-dates";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -50,14 +52,13 @@ const STATUS_BADGE: Record<SprintStatus, React.ComponentProps<typeof Badge>["var
 
 function formatDateRange(start: string, end: string): string {
   const fmt = (d: string) =>
-    new Date(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+    parseISO(d).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   return `${fmt(start)} – ${fmt(end)}`;
 }
 
 function daysLeft(end: string): string {
-  const diff = Math.ceil(
-    (new Date(end).getTime() - Date.now()) / (1000 * 60 * 60 * 24)
-  );
+  // Whole calendar days, local — a DATE string through `new Date()` is UTC midnight.
+  const diff = daysUntil(end, Date.now());
   if (diff < 0) return `${Math.abs(diff)}d overdue`;
   if (diff === 0) return "Ends today";
   return `${diff}d left`;

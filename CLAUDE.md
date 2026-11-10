@@ -2481,7 +2481,10 @@ if (!tasks.length) {
    `parseISO`, never `new Date()`, and written as `format(d, "yyyy-MM-dd")`,
    never `toISOString()` — the task due-date pickers stored the day BEFORE the
    one clicked east of Greenwich, and the board showed it a day early west of
-   it (fixed 2026-10-09 in the task card, list, table, drawer and both modals). Reports, Workload and the Dashboard each
+   it (fixed 2026-10-09 in the task card, list, table, drawer and both modals;
+   2026-11-11 in the drawer's due-date label, both sprint modals — which SAVED
+   the day before east of Greenwich — the sprint card, the board header, the
+   dashboard milestone and the hard-deadline risk flag). Reports, Workload and the Dashboard each
    hand-rolled the same date maths and disagreed on screen: `new Date(due_date) < now`
    treats a DATE column as midnight **UTC**, so a task due *today* counted as overdue
    from 08:00 local (and from the previous evening in a negative-offset zone) — Reports

@@ -73,6 +73,7 @@ import { useTasksDataStore } from "@/store/tasks-store";
 import { useActivityStore } from "@/store/activity-store";
 import { sprintTasksHref, backlogHref } from "@/lib/constants/sprints";
 import { cn } from "@/lib/utils";
+import { parseISO } from "date-fns";
 import { daysUntil, relativeDay } from "@/lib/utils/relative-dates";
 import {
   TASK_PRIORITIES,
@@ -261,7 +262,7 @@ export default function DashboardPage() {
           new Date(a.end_date).getTime() - new Date(b.end_date).getTime(),
       );
     if (!upcoming.length) return "—";
-    const d = new Date(upcoming[0].end_date);
+    const d = parseISO(upcoming[0].end_date);
     const diff = daysUntil(upcoming[0].end_date, now);
     // A missed milestone must not read as "Today". A sprint still open with an
     // end date in the past is late, and saying so is the whole point of the

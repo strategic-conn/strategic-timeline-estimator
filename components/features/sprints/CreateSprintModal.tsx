@@ -1,5 +1,6 @@
 "use client";
 
+import { format, parseISO } from "date-fns";
 import * as React from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -56,7 +57,7 @@ const schema = z
     (d) =>
       !d.start_date ||
       !d.end_date ||
-      new Date(d.end_date) >= new Date(d.start_date),
+      parseISO(d.end_date) >= parseISO(d.start_date),
     { message: "End date cannot be before start date", path: ["end_date"] },
   );
 
@@ -201,16 +202,16 @@ export function CreateSprintModal({
                   >
                     <CalendarDays className="size-4" />
                     {startDate
-                      ? new Date(startDate).toLocaleDateString()
+                      ? parseISO(startDate).toLocaleDateString()
                       : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={startDate ? new Date(startDate) : undefined}
+                    selected={startDate ? parseISO(startDate) : undefined}
                     onSelect={(d) => {
-                      form.setValue("start_date", d?.toISOString() ?? "", {
+                      form.setValue("start_date", d ? format(d, "yyyy-MM-dd") : "", {
                         shouldValidate: true,
                       });
                       setStartCalOpen(false);
@@ -241,16 +242,16 @@ export function CreateSprintModal({
                   >
                     <CalendarDays className="size-4" />
                     {endDate
-                      ? new Date(endDate).toLocaleDateString()
+                      ? parseISO(endDate).toLocaleDateString()
                       : "Pick a date"}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
                   <Calendar
                     mode="single"
-                    selected={endDate ? new Date(endDate) : undefined}
+                    selected={endDate ? parseISO(endDate) : undefined}
                     onSelect={(d) => {
-                      form.setValue("end_date", d?.toISOString() ?? "", {
+                      form.setValue("end_date", d ? format(d, "yyyy-MM-dd") : "", {
                         shouldValidate: true,
                       });
                       setEndCalOpen(false);
