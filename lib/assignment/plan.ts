@@ -258,7 +258,16 @@ interface Clock {
   hoursLeftToday: number;
   /** Later-due booked work: hours/day taken off every working day up to `until`. */
   spread: { perDay: number; from: string; until: string }[];
+  /**
+   * Days no NEW project work may be placed: the client is reviewing a sprint
+   * and the next one waits for it. Shared by every clock of one plan and
+   * filled in by `planSprints` after the clocks exist, so booked work (placed
+   * when the clock is built) is never held up by it.
+   */
+  blocked: Set<string>;
 }
+
+const NO_DAYS: Set<string> = new Set();
 
 /** Hours free on `d` once later-due booked work has taken its daily slice. */
 function capacityOn(clock: Clock, d: Date): number {
@@ -277,6 +286,7 @@ function makeClock(dev: PlanDev, start: Date): Clock {
     day: new Date(start.getTime()),
     hoursLeftToday: 0,
     spread: [],
+    blocked: NO_DAYS,
   };
   // The first day is a full day when it is a working one. It used to start at
   // 0 h, which made `place` step to the NEXT workday: every free person began a
@@ -304,7 +314,7 @@ function isWorkday(clock: Clock, d: Date): boolean {
   // would step over Christmas while the assigned plan booked work on it, and
   // the two schedules a manager compares would disagree by a day.
   const day = isoDay(d);
-  return !isWeekend(d) && !isUsHoliday(day) && !clock.pto.has(day);
+  return !isWeekend(d) && !isUsHoliday(day) && !clock.pto.has(day) && !clock.blocked.has(day);
 }
 /** Advance to the next workday and refill the day's hours. */
 function stepToNextWorkday(clock: Clock): void {
@@ -390,6 +400,7 @@ function createPlanner(
   platform: ProposalPlatform,
   opts: PlanOptions,
   projectStart: Date,
+  blocked: Set<string> = NO_DAYS,
 ) {
   const today = opts.today ? new Date(opts.today.getTime()) : new Date();
   // Existing load is worked off from TODAY, not from the project start: a
@@ -417,6 +428,7 @@ function createPlanner(
   // later) plus what this plan has given them so far. The final tie-break:
   // equal finish and equal stars go to whoever carries less, so work spreads
   // across the team instead of piling onto one person.
+  for (const c of clocks.values()) c.blocked = blocked;
   const load = new Map(
     devs.map((d) => [
       d.id,
@@ -608,8 +620,9 @@ export type CheckpointKind = "signoff" | "content" | "design" | "review" | "uat"
 /**
  * A point where the CLIENT acts — signs off, approves, tests. No hours, no
  * price and nobody on the team: it is the client's time. `blocks` names what
- * cannot start until it is done (null for a sprint review, whose feedback goes
- * into the next sprint without holding it up).
+ * cannot start until it is done (a sprint review blocks the next sprint, or
+ * acceptance testing after the last one; null only for a checkpoint that
+ * holds nothing up).
  */
 export interface ClientCheckpoint {
   id: string;
@@ -690,13 +703,6 @@ function workdaysFrom(startIso: string, n: number): string {
   }
   return isoDay(d);
 }
-/** Working days from `a` up to (not including) `b`. */
-function workdaysBetween(a: string, b: string): number {
-  let n = 0;
-  for (let d = parseDay(a); isoDay(d) < b; d = addDays(d, 1)) if (isOpenDay(d)) n += 1;
-  return n;
-}
-
 /**
  * Plan an estimate as SPRINTS rather than waterfall phases:
  *
@@ -706,9 +712,9 @@ function workdaysBetween(a: string, b: string): number {
  *  2. **Build sprints** of `sprintDays` working days. Each build task is
  *     followed by its own test task (`after`), starting the next working day —
  *     testing happens inside the sprint, not in a phase at the end. Each sprint
- *     ends in a client review that holds nothing up. The last sprint ends when
- *     its work does: the launch is quoted at the end of the work, not padded
- *     to a sprint boundary.
+ *     ends in a client review of `reviewDays` that the next sprint waits
+ *     for. The last sprint ends when its work does (not padded to a sprint
+ *     boundary), and its review holds up acceptance testing.
  *  3. **Launch & Handoff** — user acceptance testing by the client (blocks the
  *     launch), go-live approval, then the launch work.
  *
@@ -722,9 +728,11 @@ export function planSprints(
   opts: SprintPlanOptions,
 ): SprintPlanResult {
   const start = onOrAfterWorkday(isoDay(opts.projectStart ?? new Date()));
-  const assign = createPlanner(devs, platform, opts, parseDay(start));
   const reviewDays = Math.max(0, Math.round(opts.reviewDays));
   const sprintDays = Math.max(1, opts.sprintDays ?? SPRINT_WORKING_DAYS);
+  // Client sprint-review days: no build work lands on them (see below).
+  const blocked = new Set<string>();
+  const assign = createPlanner(devs, platform, opts, parseDay(start), blocked);
   const phaseDays = opts.phaseDays ?? {};
 
   const byId = new Map<string, PlannedTask>();
@@ -840,6 +848,28 @@ export function planSprints(
   }
 
   // ── Build sprints: development (+ SEO), each piece tested right after ──
+  // Every sprint ends in a client review that takes the full review time and
+  // HOLDS UP what follows (decided 2026-11-10): the next sprint starts the
+  // working day after the review, and after the last sprint, acceptance
+  // testing does. The windows are laid out before the work is placed, so the
+  // review days can be closed to new work — a task that runs past a sprint's
+  // end pauses for the review and carries on in the next sprint.
+  const firstBuild = onOrAfterWorkday(devFloor);
+  const windows: { start: string; end: string; reviewStart: string; reviewEnd: string }[] = [];
+  const reviewAfter = (endIso: string) => {
+    const rs = reviewDays > 0 ? nextWorkday(endIso) : endIso;
+    return { reviewStart: rs, reviewEnd: reviewDays > 0 ? workdaysFrom(rs, reviewDays) : endIso };
+  };
+  for (let i = 0, s0 = firstBuild; i < 120; i += 1) {
+    const end = workdaysFrom(s0, sprintDays);
+    const r = reviewAfter(end);
+    windows.push({ start: s0, end, ...r });
+    if (reviewDays > 0) {
+      for (let d = r.reviewStart; d <= r.reviewEnd; d = nextWorkday(d)) blocked.add(d);
+    }
+    s0 = nextWorkday(r.reviewEnd);
+  }
+
   const devTasks = [...(byPhase.get("development") ?? []), ...(byPhase.get("seo") ?? [])];
   const devEnd = run(devTasks, devFloor);
   const qa = byPhase.get("qa") ?? [];
@@ -860,41 +890,45 @@ export function planSprints(
   if (loose.length) {
     buildEnd = maxIso(buildEnd, run(loose, devEnd ? nextWorkday(devEnd) : devFloor));
   }
+  // Review days are only closed during the build; launch work may use them.
+  blocked.clear();
 
+  let afterBuild = buildEnd;
   if (buildEnd) {
-    const first = onOrAfterWorkday(devFloor);
-    const builds: PlanSprint[] = [];
-    for (let i = 0, s0 = first; s0 <= buildEnd; i += 1) {
-      const full = workdaysFrom(s0, sprintDays);
-      const e0 = full < buildEnd ? full : buildEnd;
+    const used = windows.filter((w) => w.start <= buildEnd);
+    const builds: PlanSprint[] = used.map((w, i) => {
+      // The last sprint ends when its work does, and its review follows then.
+      const last = i === used.length - 1;
+      const end = last && buildEnd < w.end ? buildEnd : w.end;
+      const r = last ? reviewAfter(end) : w;
       const label = `Sprint ${i + 1}`;
-      builds.push({
-        label,
-        kind: "build",
-        start: s0,
-        end: e0,
-        goal: "Build and test — each piece is tested as soon as it is built",
-      });
       checkpoints.push({
         id: `cp-review-${i + 1}`,
         kind: "review",
         title: `Client: sprint ${i + 1} review`,
-        detail: "The client sees what was built this sprint. Feedback goes into the next sprint; nothing waits for it.",
-        blocks: null,
-        start: e0,
-        end: e0,
+        detail: last
+          ? "The client reviews what was built in the last sprint."
+          : "The client reviews what was built this sprint; their feedback goes into the next one.",
+        blocks: last ? "Acceptance testing" : `Sprint ${i + 2}`,
+        start: r.reviewStart,
+        end: r.reviewEnd,
         sprint: label,
       });
-      s0 = nextWorkday(full);
-    }
+      if (last) afterBuild = r.reviewEnd;
+      return {
+        label,
+        kind: "build" as const,
+        start: w.start,
+        end,
+        goal: "Build and test — each piece is tested as soon as it is built",
+      };
+    });
     sprints.push(...builds);
     for (const t of [...devTasks, ...qa]) {
-      const d = byId.get(t.id)?.startDate ?? first;
-      const idx = Math.min(
-        builds.length - 1,
-        Math.max(0, Math.floor(workdaysBetween(first, d) / sprintDays)),
-      );
-      sprintOf.set(t.id, builds[idx].label);
+      const d = byId.get(t.id)?.startDate ?? firstBuild;
+      // The sprint whose window (or review just before it) holds the start.
+      const idx = used.findIndex((w) => d <= w.end);
+      sprintOf.set(t.id, builds[idx < 0 ? builds.length - 1 : idx].label);
     }
   }
 
@@ -902,8 +936,8 @@ export function planSprints(
   let launchFloor = devFloor;
   let launchStart: string | null = null;
   let lastGate: string | null = null;
-  if (buildEnd) {
-    const g = gate(buildEnd, {
+  if (afterBuild) {
+    const g = gate(afterBuild, {
       id: "cp-uat",
       kind: "uat",
       title: "Client: user acceptance testing",

@@ -254,7 +254,9 @@ const HELP = {
             Settings → Workspace → Sprint length (2 weeks unless changed). Every
             build task gets its own{" "}<strong>test task</strong>, starting the
             day after it is built (the estimate&apos;s QA hours, split by size).
-            Each sprint ends with a client review that holds nothing up.
+            Each sprint ends with a client review: the next sprint starts
+            when it is done, and after the last sprint, acceptance testing
+            does.
           </li>
           <li>
             <strong>Launch &amp; Handoff</strong>{" "}starts with the client

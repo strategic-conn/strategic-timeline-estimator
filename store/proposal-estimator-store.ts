@@ -637,8 +637,8 @@ function resyncPlacement(
   const setup = sprints.find((sp) => /^Sprint 0/.test(sp.name));
   const launch = sprints.find((sp) => sp.name === LAUNCH_SPRINT);
   const today = formatDate(new Date(), "yyyy-MM-dd");
-  const containing = (d: string) =>
-    builds.find((sp) => day(sp.start_date) <= d && d <= day(sp.end_date));
+  // A day in the client review between two sprints belongs to the next one.
+  const containing = (d: string) => builds.find((sp) => d <= day(sp.end_date));
   const out = new Map<string, string>();
   for (const li of seeds) {
     const phase = phaseIdForLineItem(li, phases);

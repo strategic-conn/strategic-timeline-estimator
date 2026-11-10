@@ -214,7 +214,7 @@ export function GanttClient({
                 lines: [
                   ["Who", "The client"],
                   ["What", r.client.detail],
-                  ["Holds up", r.client.blocks ?? "Nothing — feedback goes into the next sprint"],
+                  ["Holds up", r.client.blocks ?? "Nothing"],
                   ["Sprint", r.phase],
                   ...dateLines(start, end),
                 ],
@@ -394,8 +394,8 @@ export function GanttClient({
                       <p className="w-full text-pretty">
                         <span className="font-semibold opacity-100">Teal:</span>{" "}
                         the client&apos;s turn: sign-offs, approvals and testing.
-                        Work they hold up waits for them; a sprint review holds
-                        nothing up.
+                        The work after each one waits for it, sprint reviews
+                        included.
                       </p>
                       <p className="w-full text-pretty">
                         <span className="font-semibold opacity-100">Amber stripes:</span>{" "}

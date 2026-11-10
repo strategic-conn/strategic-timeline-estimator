@@ -57,18 +57,23 @@ test("the whole chain: sign-off → design → approval → build + test → UAT
   expect(task(r, "test:build")).toMatchObject({ assigneeId: "tess", startDate: "2027-03-19", endDate: "2027-03-19" });
   expect(r.sprintOf.get("build")).toBe("Sprint 1");
   expect(r.sprintOf.get("test:build")).toBe("Sprint 1");
-  // The last sprint ends with its work, and its review holds nothing up.
+  // The last sprint ends with its work; the client then reviews it for the
+  // full review time, and acceptance testing waits for that review.
   expect(r.sprints.map((s) => [s.label, s.start, s.end])).toEqual([
     ["Sprint 0 · Discovery & Design", "2027-03-01", "2027-03-11"],
     ["Sprint 1", "2027-03-12", "2027-03-19"],
-    ["Launch & Handoff", "2027-03-22", "2027-03-26"],
+    ["Launch & Handoff", "2027-03-25", "2027-03-31"],
   ]);
-  expect(cp(r, "cp-review-1")).toMatchObject({ start: "2027-03-19", blocks: null });
+  expect(cp(r, "cp-review-1")).toMatchObject({
+    start: "2027-03-22",
+    end: "2027-03-24",
+    blocks: "Acceptance testing",
+  });
   // Acceptance testing, go-live approval, then the launch's reserved days.
-  expect(cp(r, "cp-uat")).toMatchObject({ start: "2027-03-22", end: "2027-03-24", blocks: "Launch" });
-  expect(cp(r, "cp-golive")).toMatchObject({ start: "2027-03-24", end: "2027-03-24" });
-  expect(r.reserved.find((b) => b.phase === "launch")).toMatchObject({ start: "2027-03-25", end: "2027-03-26" });
-  expect(r.finishDate).toBe("2027-03-26");
+  expect(cp(r, "cp-uat")).toMatchObject({ start: "2027-03-25", end: "2027-03-29", blocks: "Launch" });
+  expect(cp(r, "cp-golive")).toMatchObject({ start: "2027-03-29", end: "2027-03-29" });
+  expect(r.reserved.find((b) => b.phase === "launch")).toMatchObject({ start: "2027-03-30", end: "2027-03-31" });
+  expect(r.finishDate).toBe("2027-03-31");
 });
 
 test("a test starts the day after ITS build task, not after all development", () => {
@@ -95,12 +100,18 @@ test("a test starts the day after ITS build task, not after all development", ()
 test("work spanning more than two weeks runs over several sprints", () => {
   // Two 80 h build tasks on one developer: four weeks of work.
   const r = plan([t("a", "development", 80), t("b", "development", 80)], { phaseDays: {} });
+  // Sprint 2 starts after the client's 3-day review of Sprint 1 (Mar 15–17).
   expect(r.sprints.filter((s) => s.kind === "build").map((s) => [s.label, s.start, s.end])).toEqual([
     ["Sprint 1", "2027-03-01", "2027-03-12"],
-    ["Sprint 2", "2027-03-15", "2027-03-26"],
+    ["Sprint 2", "2027-03-18", "2027-03-31"],
   ]);
   expect(new Set([r.sprintOf.get("a"), r.sprintOf.get("b")])).toEqual(new Set(["Sprint 1", "Sprint 2"]));
-  expect(r.checkpoints.filter((c) => c.kind === "review")).toHaveLength(2);
+  expect(r.checkpoints.filter((c) => c.kind === "review").map((c) => [c.start, c.end, c.blocks])).toEqual([
+    ["2027-03-15", "2027-03-17", "Sprint 2"],
+    ["2027-04-01", "2027-04-05", "Acceptance testing"],
+  ]);
+  // No build work lands on a review day.
+  for (const x of r.tasks) expect(x.startDate! > "2027-03-17" || x.endDate! < "2027-03-15").toBe(true);
 });
 
 test("no discovery or design: building starts on day one, with no sign-off", () => {
@@ -152,10 +163,21 @@ test("deterministic", () => {
 
 test("sprint length follows the workspace setting (1 week = 5 working days)", () => {
   const r = plan([t("a", "development", 80)], { phaseDays: {}, sprintDays: 5 });
+  // A task longer than a sprint pauses for the review (Mar 8–10) and resumes.
   expect(r.sprints.filter((s) => s.kind === "build").map((s) => [s.label, s.start, s.end])).toEqual([
     ["Sprint 1", "2027-03-01", "2027-03-05"],
-    ["Sprint 2", "2027-03-08", "2027-03-12"],
+    ["Sprint 2", "2027-03-11", "2027-03-17"],
   ]);
-  // Same work, same launch — only the sprint boundaries move.
-  expect(r.finishDate).toBe(plan([t("a", "development", 80)], { phaseDays: {} }).finishDate);
+  expect(task(r, "a")).toMatchObject({ startDate: "2027-03-01", endDate: "2027-03-17" });
+  // Shorter sprints = one more client review = a later launch than 2-week sprints.
+  const twoWeeks = plan([t("a", "development", 80)], { phaseDays: {} });
+  expect(r.finishDate! > twoWeeks.finishDate!).toBe(true);
+});
+
+test("review time 0: sprints run back to back", () => {
+  const r = plan([t("a", "development", 160)], { phaseDays: {}, reviewDays: 0 });
+  expect(r.sprints.filter((s) => s.kind === "build").map((s) => [s.start, s.end])).toEqual([
+    ["2027-03-01", "2027-03-12"],
+    ["2027-03-15", "2027-03-26"],
+  ]);
 });

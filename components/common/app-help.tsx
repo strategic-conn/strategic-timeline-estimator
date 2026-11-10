@@ -652,7 +652,8 @@ const HELP = {
           Estimates are planned in sprints: Sprint 0 for discovery and design,
           then{" "}<strong>build sprints</strong>{" "}of this length, then Launch
           &amp; Handoff. Every build task is tested the day after it is built,
-          inside the same sprint, and each sprint ends with a client review.
+          inside the same sprint, and each sprint ends with a client review that
+          the next sprint waits for.
         </p>
         <p>
           Changing it re-plans every estimate that isn&apos;t approved yet; an

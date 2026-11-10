@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { NextConfig } from "next";
 
 // Supabase origin (for CSP connect-src / img-src). Empty in demo/no-backend mode.
@@ -55,6 +57,15 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Pin the workspace root to this project. Without it Next infers the root
+  // from the nearest lockfile ABOVE the project too: a stray, empty
+  // package-lock.json in the user's home folder made it pick the whole home
+  // folder, and the dev server watched and cached all of it until it ran out
+  // of memory (8 GB) — twice, the second time with the app idle.
+  // process.cwd(), not __dirname: Next compiles this file elsewhere, and
+  // __dirname there pointed at the home folder again ("Can't resolve
+  // 'tailwindcss' in C:\Users\…"). `next dev` / `next build` run from here.
+  turbopack: { root: path.resolve(process.cwd()) },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

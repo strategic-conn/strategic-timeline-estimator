@@ -1594,8 +1594,13 @@ Fastest) — and the project Start project builds from it — is laid out by
    `test:<build line id>`), starting the working day after that build task
    ends. The QA lines' hours are split over the build lines by size
    (`expandSeeds`, quarter hours, summing exactly); the QA lines themselves are
-   not tasks then. Each sprint ends in a **client review that blocks nothing**.
-   The last sprint ends when its work does (launch at end of work, not padded).
+   not tasks then. Each sprint ends in a **client review of the full review
+   time that the next sprint waits for** (decided 2026-11-10; it was a 1-day,
+   non-blocking demo). The review days are closed to new build work, so a
+   task running past a sprint's end pauses and resumes after the review.
+   The last sprint ends when its work does (not padded); its review then
+   holds up acceptance testing — so the client gets review time on the last
+   work AND on the finished site.
  - **Launch & Handoff** — client **user acceptance testing** (blocks launch),
    **go-live approval**, then the launch tasks or the phase's reserved days.
  - **Client checkpoints** are the client's time: no hours, price or person.
