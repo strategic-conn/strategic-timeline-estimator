@@ -30,7 +30,7 @@ type DiscoveryWizardProps = {
   project: DiscoveryProject;
   onChange: (id: DiscoveryFieldId, value: FieldValue) => void;
   onViewEstimate: () => void;
-  /** Switch a section (3–8) in or out of this estimate. */
+  /** Switch a section (3–6, 8) in or out of this estimate. */
   onToggleSection?: (section: number, included: boolean) => void;
 };
 
@@ -46,9 +46,15 @@ export function DiscoveryWizard({
     () => unansweredBySection(project),
     [project],
   );
-  const current = DISCOVERY_SECTIONS.find((s) => s.n === section)!;
+  // Steps are numbered by POSITION, not by section id: section 7 was merged
+  // into 1 (2026-11-12), so the ids run 1–6, 8 while the steps read 1–7. Ids
+  // stay put because `skipped_sections` stores them.
+  const idx = Math.max(0, DISCOVERY_SECTIONS.findIndex((s) => s.n === section));
+  const current = DISCOVERY_SECTIONS[idx];
   const questions = getSectionQuestions(section, project);
-  const isLast = section === DISCOVERY_SECTIONS.length;
+  const isLast = idx === DISCOVERY_SECTIONS.length - 1;
+  const go = (to: number) =>
+    setSection(DISCOVERY_SECTIONS[Math.min(DISCOVERY_SECTIONS.length - 1, Math.max(0, to))].n);
   const skipped = isSectionSkipped(project, section);
 
   return (
@@ -56,7 +62,7 @@ export function DiscoveryWizard({
       {/* Section rail — a compact numbered stepper on mobile (circles fit without
           scrolling), the detailed sidebar with titles/status on desktop. */}
       <nav className="flex items-center justify-between gap-1 overflow-x-auto pb-1 lg:flex-col lg:items-stretch lg:justify-normal lg:gap-2 lg:overflow-visible lg:pb-0">
-        {DISCOVERY_SECTIONS.map((s) => {
+        {DISCOVERY_SECTIONS.map((s, i) => {
           const active = s.n === section;
           const open = unanswered[s.n] ?? 0;
           const off = isSectionSkipped(project, s.n);
@@ -66,7 +72,7 @@ export function DiscoveryWizard({
               type="button"
               onClick={() => setSection(s.n)}
               aria-current={active ? "step" : undefined}
-              aria-label={`Section ${s.n}: ${s.title}${
+              aria-label={`Section ${i + 1}: ${s.title}${
                 off
                   ? " (left out)"
                   : open === 0
@@ -98,7 +104,7 @@ export function DiscoveryWizard({
                 ) : open === 0 ? (
                   <Check className="size-3.5" />
                 ) : (
-                  s.n
+                  i + 1
                 )}
                 {/* Phones show no section titles, so the count rides on the circle. */}
                 {open > 0 ? (
@@ -144,7 +150,7 @@ export function DiscoveryWizard({
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <span className="text-muted-foreground tabular-nums">
-              {section}/{DISCOVERY_SECTIONS.length}
+              {idx + 1}/{DISCOVERY_SECTIONS.length}
             </span>
             {current.title}
           </CardTitle>
@@ -192,8 +198,8 @@ export function DiscoveryWizard({
               variant="outline"
               size="sm"
               className="gap-1.5"
-              onClick={() => setSection((s) => Math.max(1, s - 1))}
-              disabled={section === 1}
+              onClick={() => go(idx - 1)}
+              disabled={idx === 0}
             >
               <ArrowLeft className="size-4" aria-hidden />
               Back
@@ -213,9 +219,7 @@ export function DiscoveryWizard({
                 type="button"
                 size="sm"
                 className="gap-1.5"
-                onClick={() =>
-                  setSection((s) => Math.min(DISCOVERY_SECTIONS.length, s + 1))
-                }
+                onClick={() => go(idx + 1)}
               >
                 Next
                 <ArrowRight className="size-4" aria-hidden />

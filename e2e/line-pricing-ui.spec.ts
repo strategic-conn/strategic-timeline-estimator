@@ -43,6 +43,9 @@ test("a new catalog line is priced at its role's rate", async ({ page }) => {
       title: `${E2E_PREFIX} pricing ${run}`,
       platform: "wordpress",
       line_items: [],
+      // No risk buffer: since 2026-11-05 it is a priced line, and this test
+      // is about the line's own price.
+      risk_buffer_pct: 0,
       addons: {
         pm_enabled: false,
         pm_basis: "simple",
@@ -76,10 +79,9 @@ test("a new catalog line is priced at its role's rate", async ({ page }) => {
     await expect(main.getByText(/· IT L2 · \$/).first()).toBeVisible({ timeout: 15_000 });
     await expect(main.getByText(money(expected)).first()).toBeVisible();
 
-    // The header agrees, and says the single rate in use.
+    // The header agrees. (Its "at $X/h" average was removed 2026-11-05.)
     const header = main.locator("header").first();
     await expect(header.getByText(money(expected))).toBeVisible();
-    await expect(header.getByText(new RegExp(`at \\$${rate}/h`))).toBeVisible();
 
     // Adjust tab: priced at today's rates, so nothing to update.
     await page.getByRole("tab", { name: /^adjust/i }).click();

@@ -376,14 +376,20 @@ function AssumptionList({ items }: { items: string[] }) {
  * back). Edited as one line per assumption — the simplest thing that can't
  * lose a line to a fiddly per-row control on a phone.
  */
-function ScopeAssumptionsCard({
+export function ScopeAssumptionsCard({
   assumptions,
   edited,
   onChange,
+  description,
+  canReset = true,
 }: {
   assumptions: string[];
   edited: boolean;
   onChange: (assumptions: string[] | null) => void;
+  /** Overrides the guided wording (a line-items quote has no answers to generate from). */
+  description?: string;
+  /** False when there is no generated list to go back to. */
+  canReset?: boolean;
 }) {
   const [draft, setDraft] = React.useState<string | null>(null);
 
@@ -402,13 +408,14 @@ function ScopeAssumptionsCard({
       <CardHeader className="pb-3">
         <CardTitle className="text-base">Scope assumptions</CardTitle>
         <CardDescription>
-          {edited
-            ? "Edited. Printed on the quote as shown; changing answers no longer updates this list."
-            : "Generated from the answers. Printed on the quote."}
+          {description ??
+            (edited
+              ? "Edited. Printed on the quote as shown; changing answers no longer updates this list."
+              : "Generated from the answers. Printed on the quote.")}
         </CardDescription>
         {draft === null ? (
           <CardAction className="flex gap-1.5">
-            {edited ? (
+            {edited && canReset ? (
               <Button
                 type="button"
                 variant="ghost"

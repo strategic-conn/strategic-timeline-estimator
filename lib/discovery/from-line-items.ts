@@ -14,6 +14,8 @@ import {
   createEmptyDiscoveryProject,
 } from "@/lib/discovery/constants";
 import { computeTimeline, resolveProjectStart } from "@/lib/discovery/timeline";
+import { scheduleInputsOf } from "@/lib/discovery/schedule-inputs";
+import { withQuoteAnswers } from "@/lib/discovery/context-inputs";
 import { addWorkingDays, type TeamCalendar } from "@/lib/discovery/team-calendar";
 import { formatYmdLocal } from "@/lib/utils/availability-dates";
 import {
@@ -198,7 +200,8 @@ export function resultFromQuote(
 
   // The quote carries its own buffer — no extra parameter to thread.
   const timeline = computeTimeline(
-    tentativeProject(),
+    // The estimate's own start date, review time and blackouts (Adjust tab).
+    withQuoteAnswers(tentativeProject(), quote),
     estimate,
     cal,
     quote.risk_buffer_pct ?? 0,
@@ -231,12 +234,12 @@ export function estimateDateRange(
   cal?: TeamCalendar | null,
 ): { start: string; end: string } | null {
   const result = quote.discovery
-    ? analyzeDiscovery(quote.discovery, cal, quote.risk_buffer_pct ?? 0)
+    ? analyzeDiscovery(withQuoteAnswers(quote.discovery, quote), cal, quote.risk_buffer_pct ?? 0)
     : quoteHasWork(quote)
       ? resultFromQuote(quote, cal)
       : null;
   if (!result) return null;
-  const start = resolveProjectStart(quote.discovery?.project_start_date);
+  const start = resolveProjectStart(scheduleInputsOf(quote).startDate);
   // `totalBusinessDays` is the span the timeline drew, so the end date lands on
   // the same day as the last phase bar — and it must be converted to a date the
   // SAME way, calendar included, or the PO would be billed against a range the

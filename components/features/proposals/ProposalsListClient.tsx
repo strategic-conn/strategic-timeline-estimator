@@ -6,19 +6,25 @@ import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import {
   Briefcase,
+  ClipboardList,
   Columns3,
   FileText,
   FolderPlus,
   Layers,
   Link2,
   List,
+  ListPlus,
   Plus,
   Receipt,
   RefreshCw,
   Search,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
+import { createEmptyDiscoveryProject } from "@/lib/discovery/constants";
+import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
+import type { DiscoveryProject } from "@/types/discovery.types";
 
 import { ProposalAccessDenied } from "@/components/features/proposals/ProposalAccessDenied";
 import { ProposalStageBoard } from "@/components/features/proposals/ProposalStageBoard";
@@ -96,6 +102,30 @@ import type {
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
 
+
+/** The New-estimate dialog's "How do you want to scope it?" choice. */
+const SCOPE_MODES: {
+  value: "guided" | "lines";
+  label: string;
+  hint: string;
+  icon: React.ComponentType<{ className?: string }>;
+  recommended?: boolean;
+}[] = [
+  {
+    value: "guided",
+    icon: ClipboardList,
+    label: "Guided questionnaire",
+    hint: "For a new client, an unclear scope, or anything over a few pages. Gives a risk score, an hours range and scope assumptions on the quote.",
+    recommended: true,
+  },
+  {
+    value: "lines",
+    icon: ListPlus,
+    label: "Straight to line items",
+    hint: "For repeat work or a scope you already know. Pick tasks from the catalog or type your own.",
+  },
+];
+
 export function ProposalsListClient() {
   const { canExportProposals } = usePermissions();
   const router = useRouter();
@@ -107,6 +137,7 @@ export function ProposalsListClient() {
   );
   const proposalsLoaded = useProposalEstimatorStore((s) => s.loaded);
   const createProposal = useProposalEstimatorStore((s) => s.createProposal);
+  const [newMode, setNewMode] = React.useState<"guided" | "lines">("guided");
   const deleteProposal = useProposalEstimatorStore((s) => s.deleteProposal);
   // Sales can move a deal in Zoho without telling us — re-check the linked ones
   // whenever the list is opened, in a single batched read.
@@ -189,11 +220,28 @@ export function ProposalsListClient() {
     const title = newTitle.trim();
     if (!title) return;
     if (isSupabaseConfigured && !newZoho?.account_id) return;
-    // No scope-method choice here: guided and catalog produce the same document,
-    // both tabs exist on every estimate, and "Start guided scoping" (editor,
-    // Scope & risk) attaches the questionnaire whenever it's wanted. Asking up
-    // front only picked a landing tab, at the moment the user knew least.
+    // How to scope it is asked up front (decided 2026-11-12): it makes the
+    // coordinator think about how well the scope is known, and the line-items
+    // path carries a disclaimer about non-catalog hours. Not a lock — both tabs
+    // stay on every estimate, and "Start guided scoping" still works later.
+    // Guided = the questionnaire is attached now, so the estimate opens on it.
+    const now = new Date().toISOString();
+    const discovery =
+      newMode === "guided"
+        ? syncDiscoveryToQuote(
+            {
+              ...createEmptyDiscoveryProject(),
+              id: "new",
+              name: title,
+              client_name: newClient.trim(),
+              created_at: now,
+              updated_at: now,
+            } as DiscoveryProject,
+            { title, client_name: newClient.trim(), platform: newPlatform },
+          )
+        : undefined;
     const id = createProposal({
+      discovery,
       title,
       client_name: newClient.trim() || undefined,
       // No project picker: an estimate gets its project from Start project
@@ -210,6 +258,7 @@ export function ProposalsListClient() {
     setNewClient("");
     setNewPlatform(DEFAULT_PLATFORM);
     setNewZoho(null);
+    setNewMode("guided");
     router.push(`/proposals/${id}`);
   };
 
@@ -443,6 +492,7 @@ export function ProposalsListClient() {
             quotes={sorted}
             projectName={projectName}
             onChanged={handleStageChanged}
+            onDelete={setDeleteTarget}
           />
         </div>
       ) : (
@@ -597,7 +647,7 @@ export function ProposalsListClient() {
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>New estimate</DialogTitle>
           </DialogHeader>
@@ -678,6 +728,78 @@ export function ProposalsListClient() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid gap-2">
+              <span id="quote-mode-label" className="text-sm font-medium">
+                How do you want to scope it?
+              </span>
+              {/* Two columns from sm (stacked on a phone, where two would
+                  squeeze the text): a big icon, the name, then when to use it. */}
+              <div className="grid gap-2 sm:grid-cols-2" role="radiogroup" aria-labelledby="quote-mode-label">
+                {SCOPE_MODES.map((m) => {
+                  const on = newMode === m.value;
+                  const Icon = m.icon;
+                  return (
+                    <button
+                      key={m.value}
+                      type="button"
+                      role="radio"
+                      aria-checked={on}
+                      onClick={() => setNewMode(m.value)}
+                      className={cn(
+                        "relative flex flex-col items-start gap-2 rounded-xl border p-3 text-left transition-colors",
+                        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                        on ? "border-primary bg-primary/10 ring-1 ring-primary" : "border-border hover:bg-muted/50",
+                      )}
+                    >
+                      {/* The selected mark, top right, out of the text's way. */}
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "absolute right-3 top-3 flex size-4 items-center justify-center rounded-full border",
+                          on ? "border-primary" : "border-muted-foreground/50",
+                        )}
+                      >
+                        {on ? <span className="size-2 rounded-full bg-primary" /> : null}
+                      </span>
+                      <span
+                        aria-hidden
+                        className={cn(
+                          "flex size-11 items-center justify-center rounded-lg",
+                          on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                        )}
+                      >
+                        <Icon className="size-6" />
+                      </span>
+                      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-5 text-sm font-medium">
+                        {m.label}
+                        {m.recommended ? (
+                          <span className="rounded-full bg-primary/15 px-1.5 text-[0.7rem] font-medium text-primary">
+                            Recommended
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="text-xs text-muted-foreground">{m.hint}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              {newMode === "lines" ? (
+                <p
+                  role="note"
+                  className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+                  data-testid="lines-disclaimer"
+                >
+                  <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                  <span>
+                    {"Tasks that aren't in the catalog need hours from a developer. Add them as custom lines — each stays marked “to confirm” until a developer confirms it. You can still add the questionnaire later."}
+                  </span>
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  You can switch later: both ways stay open on every estimate.
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button
@@ -712,7 +834,10 @@ export function ProposalsListClient() {
               <span className="font-medium text-foreground">
                 {deleteTarget?.title ?? "this quote"}
               </span>{" "}
-              from your browser storage. This cannot be undone.
+              {isSupabaseConfigured ? " for everyone." : " from this browser."} This cannot be undone.
+              {deleteTarget?.zoho?.deal_id
+                ? " Its Zoho deal and any attached PDF stay in Zoho."
+                : ""}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

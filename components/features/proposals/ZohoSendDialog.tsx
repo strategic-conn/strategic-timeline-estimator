@@ -2,6 +2,7 @@
 
 import { addDays, format } from "date-fns";
 import { Briefcase, Check, Loader2, TriangleAlert, Upload } from "lucide-react";
+import { needsDevConfirm } from "@/lib/estimator/send-checks";
 import * as React from "react";
 import { toast } from "sonner";
 
@@ -63,6 +64,7 @@ export function ZohoSendDialog({
   onDone: () => void | Promise<void>;
 }) {
   const dealId = quote.zoho?.deal_id ?? null;
+  const unconfirmedLines = quote.line_items.filter(needsDevConfirm);
   const isUpdate = Boolean(dealId);
 
   const [name, setName] = React.useState(quote.title);
@@ -559,6 +561,23 @@ export function ZohoSendDialog({
                 Sent to Zoho on {new Date(alreadySent).toLocaleDateString()}.
                 Sending again re-prices the deal from this estimate; the stage
                 only moves forward and the same PDF isn&apos;t attached twice.
+              </span>
+            </p>
+          ) : null}
+          {/* A warning, not a block: the coordinator may have the dev's numbers
+              in an email. It must not go out without anyone noticing, though. */}
+          {unconfirmedLines.length ? (
+            <p
+              role="status"
+              className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:text-amber-200"
+              data-testid="send-dev-warning"
+            >
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              <span>
+                {`${unconfirmedLines.length} custom line${unconfirmedLines.length === 1 ? " hasn't" : "s haven't"} been confirmed by a developer: ${unconfirmedLines
+                  .slice(0, 3)
+                  .map((li) => li.title.trim())
+                  .join(", ")}${unconfirmedLines.length > 3 ? "…" : ""}. Their hours are a guess until then.`}
               </span>
             </p>
           ) : null}

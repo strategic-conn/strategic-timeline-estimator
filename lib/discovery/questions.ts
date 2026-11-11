@@ -54,6 +54,13 @@ export interface DiscoveryQuestion {
   warnText?: string;
 }
 
+/**
+ * Not a wizard step: questions asked on the estimate's Setup tab (goal,
+ * redesign, regulated industry), so a line-items-only estimate asks them too.
+ * Stored in `proposals.context`; the engine sees them via `withQuoteAnswers`.
+ */
+export const SETUP_SECTION = 0;
+
 export const DISCOVERY_SECTIONS: {
   n: number;
   title: string;
@@ -61,9 +68,9 @@ export const DISCOVERY_SECTIONS: {
 }[] = [
   {
     n: 1,
-    title: "Goals & Context",
+    title: "Client & Context",
     subtitle:
-      "Determines strategy/research complexity and whether this is a website or a web app.",
+      "Who the client is and how they decide. Goal, redesign and regulated industry are on the Setup tab.",
   },
   {
     n: 2,
@@ -92,12 +99,6 @@ export const DISCOVERY_SECTIONS: {
     n: 6,
     title: "SEO & Digital Marketing",
     subtitle: "On-page SEO is on by default and scales with page count.",
-  },
-  {
-    n: 7,
-    title: "Timeline & Decision-Making",
-    subtitle:
-      "Exposes schedule risks; review turnaround buffers every approval gate.",
   },
   {
     n: 8,
@@ -135,7 +136,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   // and client (Setup tab), mirrored on every edit by syncDiscoveryToQuote.
   {
     id: "primary_goal",
-    section: 1,
+    section: SETUP_SECTION,
     label: "Primary Business Goal",
     type: "dropdown",
     options: PRIMARY_GOAL_OPTIONS,
@@ -145,17 +146,17 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
     // Implied by e-commerce platforms (Shopify ⇒ E-Commerce) — set, not asked.
     visibleWhen: (p) => !isImplied("primary_goal", p.platform),
   },
-  otherField("primary_goal_other", "primary_goal", 1, "Other goal — please specify"),
+  otherField("primary_goal_other", "primary_goal", SETUP_SECTION, "Other goal — please specify"),
   {
     id: "is_redesign",
-    section: 1,
+    section: SETUP_SECTION,
     label: "Is this a redesign / rebuild?",
     type: "toggle",
     impact: "+3–5 hrs Discovery (site audit); enables redirect mapping",
   },
   {
     id: "current_url",
-    section: 1,
+    section: SETUP_SECTION,
     label: "Current Website URL",
     type: "url",
     placeholder: "https://…",
@@ -165,21 +166,21 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   },
   {
     id: "regulated_industry",
-    section: 1,
+    section: SETUP_SECTION,
     label: "Regulated Industry?",
     type: "toggle",
     impact: "+4–8 hrs Discovery (compliance review)",
   },
   {
     id: "regulated_type",
-    section: 1,
+    section: SETUP_SECTION,
     label: "Industry Type",
     type: "dropdown",
     options: REGULATED_TYPE_OPTIONS,
     visibleWhen: (p) => p.regulated_industry,
     requiredWhen: (p) => p.regulated_industry,
   },
-  otherField("regulated_type_other", "regulated_type", 1, "Other industry — please specify"),
+  otherField("regulated_type_other", "regulated_type", SETUP_SECTION, "Other industry — please specify"),
 
   // ── Section 2 ──────────────────────────────────────────────────────────
   {
@@ -399,30 +400,10 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
   { id: "needs_schema_markup", section: 6, label: "Schema Markup Required?", type: "toggle", impact: "+6–10 hrs SEO" },
   { id: "needs_google_my_business", section: 6, label: "Google My Business Setup?", type: "toggle", impact: "+2–4 hrs SEO" },
 
-  // ── Section 7 ──────────────────────────────────────────────────────────
-  { id: "project_start_date", section: 7, label: "Project Start Date", type: "date", required: true, impact: "Anchors all timeline dates" },
-  { id: "hard_launch_date", section: 7, label: "Hard Launch Deadline", type: "date", impact: "If estimate exceeds it: warning + 3 risk" },
-  {
-    id: "client_review_turnaround",
-    section: 7,
-    label: "Client Review Turnaround (business days)",
-    type: "number",
-    min: 1,
-    max: 20,
-    required: true,
-    impact: "Buffer after each approval gate",
-  },
-  { id: "stakeholder_count", section: 7, label: "Number of Stakeholders", type: "number", min: 1, impact: "> 3 adds +2–4 hrs Discovery · +2 risk" },
-  { id: "first_time_client", section: 7, label: "First-Time Web Agency Client?", type: "toggle", impact: "+2–4 hrs Discovery · +2 risk" },
-  { id: "has_blackout_periods", section: 7, label: "Known Blackout Periods?", type: "toggle", impact: "+10 buffer days to timeline" },
-  {
-    id: "blackout_notes",
-    section: 7,
-    label: "Blackout Period Notes",
-    type: "textarea",
-    visibleWhen: (p) => p.has_blackout_periods,
-    requiredWhen: (p) => p.has_blackout_periods,
-  },
+  // Section 7 was merged into 1 ("Client & Context", 2026-11-12); its
+  // schedule questions moved to the Adjust tab, its context ones to Setup.
+  { id: "stakeholder_count", section: 1, label: "Number of Stakeholders", type: "number", min: 1, impact: "> 3 adds +2–4 hrs Discovery · +2 risk" },
+  { id: "first_time_client", section: 1, label: "First-Time Web Agency Client?", type: "toggle", impact: "+2–4 hrs Discovery · +2 risk" },
 
   // ── Section 8 ──────────────────────────────────────────────────────────
   { id: "needs_cms_training", section: 8, label: "CMS Training Session Required?", type: "toggle", impact: "+2–4 hrs Launch & Handoff" },
@@ -446,7 +427,7 @@ export const DISCOVERY_QUESTIONS: DiscoveryQuestion[] = [
  * SEO on a build-only quote, say. 1–2 (goals, pages, templates, features)
  * drive every estimate, so they always stay on.
  */
-export const SKIPPABLE_SECTIONS: ReadonlySet<number> = new Set([3, 4, 5, 6, 7, 8]);
+export const SKIPPABLE_SECTIONS: ReadonlySet<number> = new Set([3, 4, 5, 6, 8]);
 
 export function isSectionSkipped(p: DiscoveryProject, n: number): boolean {
   return SKIPPABLE_SECTIONS.has(n) && !!p.skipped_sections?.includes(n);

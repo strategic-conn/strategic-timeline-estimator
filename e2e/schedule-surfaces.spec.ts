@@ -41,7 +41,7 @@ test("a guided estimate's summary, card and planned timeline name one launch dat
     await waitForApp(page);
     await page.getByRole("tab", { name: /^adjust/i }).click();
     const card = await page.getByTestId("plan-finish").first().innerText();
-    const launch = card.match(/Launches ([A-Z][a-z]{2} \d{1,2}, \d{4})/)?.[1];
+    const launch = card.match(/Launches\s+([A-Z][a-z]{2} \d{1,2}, \d{4})/)?.[1];
     expect(launch, card).toBeTruthy();
 
     await page.getByRole("tab", { name: /^scope/i }).click();
@@ -52,11 +52,12 @@ test("a guided estimate's summary, card and planned timeline name one launch dat
     // ends on the launch day, and the 10% default buffer is striped on
     // Development work.
     await expect(page.getByText("Planned schedule")).toBeVisible();
-    const day = launch!.replace(/, \d{4}$/, "");
-    const ends = await page.locator('[title*=" · "][title*="–"]').evaluateAll((els) =>
-      els.map((e) => e.getAttribute("title") ?? ""),
+    // Bars carry their hover card as an aria-label ("… Ends Mon, Dec 7, 2026 …")
+    // since the hover-card change replaced the old `title` tooltips.
+    const ends = await page.locator('[aria-label*="Ends "]').evaluateAll((els) =>
+      els.map((e) => e.getAttribute("aria-label") ?? ""),
     );
-    expect(ends.some((t) => t.includes(`–${day} `)), ends.join(" | ")).toBe(true);
+    expect(ends.some((t) => t.includes(`Ends `) && t.includes(`, ${launch}`)), ends.join(" | ")).toBe(true);
     expect(await page.getByTestId("gantt-buffer").count()).toBeGreaterThan(0);
   } finally {
     await drop("proposals", q.id);

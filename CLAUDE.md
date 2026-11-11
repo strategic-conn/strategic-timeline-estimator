@@ -202,6 +202,7 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0051 notification emails (notifications.emailed_at + profiles.email_notifications) ·
                         #   0052 two-factor: restrictive `mfa_aal2` policy on every public table
                         #   0053 workspace_settings (one row: sprint length in weeks; admin-set)
+                        #   0054 proposals.context (Setup's goal / redesign / regulated industry)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -302,7 +303,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `availability_entries` (+ `status` approval) | select / insert / update / delete | `availability-store` (calendar, Settings time-off, **and Workload capacity** — a day off removes `weeklyHours / 5` from that week via `awayWorkdaysInWeek` + `capacityAfterTimeOff`; Mon–Fri only, `partial` counts half) | Wired |
 | `weekly_capacity`                     | select / upsert            | `weekly-capacity-store` (workload) | Wired |
 | `hourly_rates` (responsible + level -> rate) | select / upsert + Realtime | `hourly-rates-store` (Settings -> Workspace -> Hourly rates) | Wired - new estimate lines snapshot these rates |
-| `proposals` (`line_items` + `addons` + `discovery` + `schedule_plan` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
+| `proposals` (`line_items` + `addons` + `discovery` + `schedule_plan` + `context` jsonb) | select / insert / update / delete | `proposal-estimator-store` (Estimator) | Wired |
 | Storage `avatars` bucket              | upload / getPublicUrl      | `ProfileForm` → `profiles.avatar_url` | Wired |
 | `zoho_connection` (OAuth tokens)      | service-role only (RLS: **no policies**) | `lib/zoho/tokens.ts` via `/api/zoho/*` | Wired |
 | `proposals.zoho` (CRM link jsonb)     | select / insert / update   | `proposal-estimator-store` (deal/account/contact link) | Wired |
@@ -422,9 +423,10 @@ interface ClientQuote {
   entirely — no Gantt row, no milestone, no sprint on Start project, and with
   no design phase there's no design review gate before Development (only
   Discovery's own review remains). 5 and 8
-  only remove their extras (integrations, CMS training, retainer); 7 drops the
-  start date (→ today) and review turnaround. The PDF's assumptions say "Not in
-  this project: …". **1–2 can never be skipped** (`SKIPPABLE_SECTIONS`). Saved
+  only remove their extras (integrations, CMS training, retainer); 7 now only
+  holds stakeholders + first-time client (its schedule questions moved to the
+  Adjust tab — see "Schedule answers" below). The PDF's assumptions say "Not in
+  this project: …". **1–2 can never be skipped** (`SKIPPABLE_SECTIONS` = 3–6, 8). Saved
   answers are kept, so switching back restores the estimate exactly.
   `e2e/skip-sections.spec.ts`.
   **Scope assumptions are editable and printed on the quote** (2026-11-05).
@@ -435,6 +437,26 @@ interface ClientQuote {
   is the one read, used by the Hours tab, the PDF, Excel and the client
   preview. Guided quotes only — a catalog quote has no questionnaire.
   `e2e/scope-assumptions.spec.ts`.
+  **The questionnaire asks only what changes its estimate** (2026-11-12).
+  What every estimate needs moved out of it, because an estimate that goes
+  straight to Line items never opens it: **goal, redesign (+ URL), regulated
+  industry (+ type) → Setup → Project context** (`ProjectContextCard`, the
+  questionnaire's own `DiscoveryField` on `SETUP_SECTION` = 0, stored in
+  **`proposals.context`**, migration **0054**), and the schedule answers →
+  Adjust → Schedule (see "Schedule answers" below). Both are read ONLY through
+  **`withQuoteAnswers`** (`lib/discovery/context-inputs.ts` → `contextOf` +
+  `scheduleInputsOf`), which falls back to the old questionnaire answers, so
+  existing estimates are unchanged; the platform's implied goal (Shopify ⇒
+  e-commerce) still wins. On a line-items-only estimate a redesign or
+  regulated industry can't add questionnaire hours, so Line items offers the
+  line instead (`ContextSuggestions`: "Site audit (redesign)" 4 h, "Compliance
+  review" 6 h, Project Manager → Discovery phase; hidden once a line with that
+  title exists). Section 7's leftovers (stakeholders, first-time client) merged
+  into section 1, now **"Client & Context"**: the questionnaire is **7 steps**,
+  numbered by POSITION (`DiscoveryWizard`) while section ids stay 1–6, 8
+  because `skipped_sections` stores them. `proposals.context` is in all three
+  whitelists (`rowToQuote`, `quoteUpdatePayload`, the `Pick`); inserts don't
+  send it. `e2e/project-context.spec.ts`.
 - **Catalog / manual** — import **catalog rows** (`ProposalCatalogBrowser`, per platform, grouped by module) or add freehand lines.
 
 **Section help ("?" in each section's top-right corner).** Every page header
@@ -469,7 +491,27 @@ send**, like the tour copy.
 > source looked fine. `e2e/estimator-help.spec.ts` checks the source and the
 > rendered text of every popover (with a negative control).
 
-**Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (inner tabs **Client preview** · **Hours** (guided only) · **Timeline** — moved from Scope & risk 2026-11-07 so a line-items-only estimate still finds its timeline; PDF/Excel/Send to Zoho sit above them). **Every estimate has both tabs** — the New-estimate dialog does *not* ask which one you want, because the choice was never binding: it only picked a landing tab. The **client is required and comes only from Find in Zoho** (live mode — demo has no Zoho, so it stays a typed field): the New-estimate dialog's client is a picker and **Create and open** waits for it, and Setup's client field opens the same lookup. A typed name had no Zoho account behind it, so Send to Zoho could never open a deal for it; older estimates with a typed name show an amber "not linked to Zoho" hint, and the Review tab explains a disabled Send to Zoho with a **Go to Setup** button (a disabled button can't show its tooltip). A new estimate starts on **WordPress** (`DEFAULT_PLATFORM`, `lib/proposal-catalog/index.ts` — the New-estimate dialog and the store's fallback both read it) and opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
+**Editor tabs (`ProposalEditorClient`):** Setup · **Scope & risk** (guided questionnaire + "Generate line items") · **Line items** (catalog/freehand) · **Adjust** (add-ons + totals) · **Review** (inner tabs **Client preview** · **Hours** (guided only) · **Timeline** — moved from Scope & risk 2026-11-07 so a line-items-only estimate still finds its timeline; PDF/Excel/Send to Zoho sit above them). **Every estimate has both tabs, but the New-estimate dialog asks how to scope it** (decided 2026-11-12, reversing the earlier no-question rule): **Guided questionnaire** (Recommended — new client, unclear scope, bigger jobs; attaches the questionnaire so the estimate opens on Scope & risk) or **Straight to line items** (repeat / known scope), which shows an amber disclaimer that non-catalog tasks need a developer's hours. Not a lock: a line-items estimate has **no Scope & risk tab** (it shows Setup · Line items · Adjust · Review), and **"Use the questionnaire"** on the Line items tab attaches it later, bringing the tab back. See "Before you send" below. The **client is required and comes only from Find in Zoho** (live mode — demo has no Zoho, so it stays a typed field): the New-estimate dialog's client is a picker and **Create and open** waits for it, and Setup's client field opens the same lookup. A typed name had no Zoho account behind it, so Send to Zoho could never open a deal for it; older estimates with a typed name show an amber "not linked to Zoho" hint, and the Review tab explains a disabled Send to Zoho with a **Go to Setup** button (a disabled button can't show its tooltip). A new estimate starts on **WordPress** (`DEFAULT_PLATFORM`, `lib/proposal-catalog/index.ts` — the New-estimate dialog and the store's fallback both read it) and opens on Line items with a starter row; **"Start guided scoping"** (Scope & risk empty state) attaches the questionnaire whenever it's wanted, mirroring the platform via `syncDiscoveryToQuote`. An estimate that arrives *with* answers (Esther brief) still opens on Scope & risk.
+
+**Before you send** (2026-11-12, `lib/estimator/send-checks.ts`, pure, `e2e/send-checks.spec.ts`).
+ - **Custom lines need a developer.** A line not from the catalog
+   (`catalog_id`) and not from the questionnaire (`module` = a phase label) is
+   `isCustomLine`; titled with hours and not `hours_confirmed` it is
+   `needsDevConfirm` → amber "Hours to confirm with a developer" tag on the row,
+   a "Hours confirmed by a developer" box in its details (`line_items[].hours_confirmed`,
+   inside the jsonb). Lines from Setup's suggestions start confirmed.
+ - **Review → "Before you send"** (`BeforeYouSendCard`) lists `sendChecks`:
+   unconfirmed custom lines (every estimate), and for a line-items-only
+   estimate what the questionnaire would have covered — no PM time (no add-on
+   and no Project Manager line), no QA time, no scope assumptions, no
+   content/SEO work (info only). Each has a one-click fix (tab). Green "nothing
+   flagged" when clear; gone once approved/billed (`quoteIsFrozen`).
+ - **Send to Zoho warns, never blocks**, when custom lines are unconfirmed.
+ - **Line-items-only quotes can print assumptions**: Review → Client preview
+   shows the guided `ScopeAssumptionsCard` (exported from
+   `DiscoveryHoursBreakdown`), stored as `proposals.context.assumptions`
+   (0054). PDF / Excel / preview read **`quoteAssumptions`** (guided →
+   generated / edited; otherwise `context.assumptions`).
 
 **Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header shows hours and price only (no "avg $X/h" — removed 2026-11-05 as confusing); the Adjust tab's Hourly rates card breaks the price down by role + level, rate, hours and amount (`rateBreakdown`, `lib/pricing/line-pricing.ts`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
 
@@ -536,6 +578,36 @@ The card's forecast **is** `previewConversion` with that
 strategy — the same plan Start project builds — so it shows the real launch
 date, how many tasks have someone, and "See who does what".
 
+ - **Schedule answers moved out of the questionnaire** (2026-11-12). Start
+   date, the client's hard deadline, client review time and blackout periods
+   (+ notes) were questionnaire section 7, so an estimate built from line items
+   alone always started "today", never checked a deadline and ignored
+   blackouts. They are now the card's **Schedule** fields (titled **Timeline**),
+   for every estimate, stored on `schedule_plan` (`start_date`,
+   `hard_deadline`, `review_days`, `blackout`, `blackout_notes` — inside the
+   jsonb, no migration) and read ONLY through **`scheduleInputsOf`** /
+   **`withScheduleInputs`** (`lib/discovery/schedule-inputs.ts`), which fall
+   back to the questionnaire's old answers, so existing estimates kept their
+   dates. Every analysis of a quote goes through `withScheduleInputs`
+   (`phaseScaffold`, `estimateDateRange`, `resultFromQuote`, the editor's
+   `scopeResult` and phase charts); `reviewDaysOf` delegates to it. The launch
+   panel says whether the launch meets the deadline (`deadline-status`).
+   Section 7 keeps stakeholders + first-time client — they only change
+   Discovery hours and risk, which exist only with the questionnaire — and is
+   now "Stakeholders & Decision-Making". The start date and review turnaround
+   were required questions, so guided estimates count two fewer required gaps.
+   `e2e/schedule-inputs.spec.ts`.
+ - **Two cards on the Adjust tab, read top to bottom as inputs → choice →
+   result** (split 2026-11-12, `SchedulePlanCard.tsx`): **Schedule**
+   (`ScheduleCard`: start date, hard deadline, client review time, blackouts —
+   one row of four on a wide screen, the long explanations in (i) `InfoTip`s,
+   own "?" `scheduleInputs`) and **Timeline** (`SchedulePlanCard`: **Who gets
+   each task** first — Best-fit / Fastest as option cards carrying their rule —
+   then the launch panel it produces: the date (the quoted one with "Locked at
+   approval" once approved), one status line per check (late vs quoted, the
+   hard deadline), "Staffed N of M tasks", "See who does what"). Read-only
+   (Review → Timeline) swaps the options for one line: "Planned with X (set
+   on the Adjust tab). Starts … · client deadline … · client reviews …".
  - **Dates only.** A line's price is its hours x its own snapshotted rate, so
    who does the work never moves money. The card says so.
  - **Frozen with the price.** Becoming approved — by hand

@@ -155,15 +155,77 @@ const HELP = {
       </>
     ),
   },
-  schedulePlan: {
-    label: "who does the work",
-    title: "Who does the work",
+  projectContext: {
+    label: "project context",
+    title: "Project context",
     body: (
       <>
         <p>
-          This decides{" "}<strong>who</strong>{" "}does each task and{" "}
-          <strong>when</strong>{" "}the project launches. Hours and price never
+          Asked here, on Setup, so every estimate answers it, including one
+          that goes straight to Line items.
+        </p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>
+            <strong>Primary business goal</strong>: printed on the quote (PDF,
+            Excel, client preview). It changes no hours.
+          </li>
+          <li>
+            <strong>Redesign</strong>: a site audit of the current site. With
+            the questionnaire it adds 3–5 h to Discovery; without it, Line
+            items offers a site-audit line to add.
+          </li>
+          <li>
+            <strong>Regulated industry</strong>: a compliance review. 4–8 h of
+            Discovery with the questionnaire; a suggested line without it.
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  scheduleInputs: {
+    label: "the schedule",
+    title: "Schedule",
+    body: (
+      <>
+        <p>
+          The client&apos;s calendar, for every estimate, with or without the
+          questionnaire. It moves{" "}<strong>dates</strong>{" "}only, never the
+          price.
+        </p>
+        <ul className="list-disc space-y-0.5 pl-4">
+          <li>
+            <strong>Start date</strong>: when work can begin. Empty means today.
+          </li>
+          <li>
+            <strong>Hard deadline</strong>: optional. The Timeline card warns
+            when the launch lands after it.
+          </li>
+          <li>
+            <strong>Client review time</strong>: working days the client takes
+            at each sign-off (scope, design approval, testing the finished site).
+          </li>
+          <li>
+            <strong>Blackout periods</strong>: adds 10 working days before
+            launch. Note when and why.
+          </li>
+        </ul>
+        <p>Locked with the price once the estimate is approved.</p>
+      </>
+    ),
+  },
+  schedulePlan: {
+    label: "the timeline",
+    title: "Timeline",
+    body: (
+      <>
+        <p>
+          This decides{" "}<strong>when</strong>{" "}the project starts and launches,
+          and{" "}<strong>who</strong>{" "}does each task. Hours and price never
           change.
+        </p>
+        <p>
+          The start date, deadline, review time and blackouts it plans around
+          are on the{" "}<strong>Schedule</strong>{" "}card above.
         </p>
         <p>
           <strong>At a glance</strong>

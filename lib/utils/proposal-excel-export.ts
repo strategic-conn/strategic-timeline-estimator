@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 
+import { contextOf, quoteAssumptions } from "@/lib/discovery/context-inputs";
 import {
   effectiveTier,
   lineAmount,
@@ -8,7 +9,6 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
-import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -39,10 +39,7 @@ export async function downloadProposalExcel(
     ["Platform", platformLabel(quote.platform)],
     [
       "Primary goal",
-      primaryGoalLabel(
-        quote.discovery?.primary_goal ?? "",
-        quote.discovery?.primary_goal_other,
-      ),
+      primaryGoalLabel(contextOf(quote).primary_goal, contextOf(quote).primary_goal_other),
     ],
     ["Last updated", format(new Date(quote.updated_at), "yyyy-MM-dd")],
     [],
@@ -150,7 +147,7 @@ export async function downloadProposalExcel(
     pricing.grandAmount,
   ]);
 
-  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
+  const assumptions = quoteAssumptions(quote);
   if (assumptions.length) {
     rows.push([]);
     rows.push(["Assumptions"]);

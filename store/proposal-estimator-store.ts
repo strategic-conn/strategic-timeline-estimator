@@ -26,8 +26,9 @@ import {
   quoteHasWork,
   resultFromQuote,
 } from "@/lib/discovery/from-line-items";
+import { scheduleInputsOf } from "@/lib/discovery/schedule-inputs";
+import { withQuoteAnswers } from "@/lib/discovery/context-inputs";
 import {
-  DEFAULT_CLIENT_REVIEW_DAYS,
   LAUNCH_SPRINT,
   planSchedule,
   planSprints,
@@ -91,6 +92,7 @@ import type {
   ProposalStatus,
   ProposalTier,
   ProposalPbsLink,
+  ProposalContext,
   ProposalSchedulePlan,
   ProposalZohoLink,
   ScheduleStrategy,
@@ -122,7 +124,7 @@ function phaseScaffold(
   // ...and the risk buffer stretches it, so the sprints this scaffolds carry the
   // schedule the coordinator actually signed off, not the un-buffered one.
   const result = quote.discovery
-    ? analyzeDiscovery(quote.discovery, cal, quote.risk_buffer_pct ?? 0)
+    ? analyzeDiscovery(withQuoteAnswers(quote.discovery, quote), cal, quote.risk_buffer_pct ?? 0)
     : quoteHasWork(quote)
       ? resultFromQuote(quote, cal)
       : null;
@@ -154,11 +156,7 @@ type ScaffoldPhase = {
 export function reviewDaysOf(
   quote: Pick<ClientQuote, "schedule_plan" | "discovery">,
 ): number {
-  const own = quote.schedule_plan?.review_days;
-  if (typeof own === "number" && own >= 0) return own;
-  const asked = quote.discovery?.client_review_turnaround;
-  if (typeof asked === "number" && asked >= 0) return asked;
-  return DEFAULT_CLIENT_REVIEW_DAYS;
+  return scheduleInputsOf(quote).reviewDays;
 }
 
 /** Split `total` in proportion to `weights`, in quarter hours, summing exactly. */
@@ -855,6 +853,9 @@ function rowToQuote(r: ProposalRow): ClientQuote {
     pbs: (r.pbs as unknown as ProposalPbsLink | null) ?? null,
     schedule_plan:
       (r.schedule_plan as unknown as ProposalSchedulePlan | null) ?? null,
+    // 0054. Undefined until the migration runs — `contextOf` then reads the
+    // questionnaire's answers, so nothing changes for existing estimates.
+    context: (r.context as unknown as ProposalContext | null) ?? null,
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -879,6 +880,7 @@ function quoteUpdatePayload(
     zoho: (q.zoho ?? null) as unknown as Json,
     pbs: (q.pbs ?? null) as unknown as Json,
     schedule_plan: (q.schedule_plan ?? null) as unknown as Json,
+    context: (q.context ?? null) as unknown as Json,
     updated_at: q.updated_at,
   };
 }
@@ -1052,6 +1054,7 @@ export type LineItemPatch = Partial<
     | "tier"
     | "quantity"
     | "depends_on"
+    | "hours_confirmed"
   >
 >;
 
@@ -1077,6 +1080,7 @@ interface ProposalEstimatorState {
         | "requirements_unclear"
         | "risk_buffer_pct"
         | "schedule_plan"
+        | "context"
         | "zoho"
         | "pbs"
       >
@@ -1188,7 +1192,8 @@ interface ProposalEstimatorState {
     preview?: SchedulePreview | null,
   ) => Promise<void>;
   deleteProposal: (id: string) => void;
-  addLineItem: (proposalId: string) => void;
+  /** A blank row, or one pre-filled (`init`) — e.g. a Setup-context suggestion. */
+  addLineItem: (proposalId: string, init?: Partial<ProposalLineItem>) => void;
   addLineItemsFromCatalog: (proposalId: string, items: CatalogItem[]) => void;
   updateLineItem: (
     proposalId: string,
@@ -1504,8 +1509,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const quote = get().proposals.find((p) => p.id === id);
         if (!quote?.discovery || !phases.length) return;
         const labels = new Set(phases.map((ph) => PHASE_META[ph].label));
-        const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
-        const draft = proposalDraftFromDiscovery(quote.discovery, result);
+        const answers = withQuoteAnswers(quote.discovery, quote);
+        const result = analyzeDiscovery(answers, currentTeamCalendar());
+        const draft = proposalDraftFromDiscovery(answers, result);
         const added = scopeLineItems(
           draft.line_items.filter((li) => li.module && labels.has(li.module)),
           quote.platform,
@@ -1531,8 +1537,9 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // No buffer here on purpose: this turns the estimate into LINE ITEMS,
         // and the risk buffer is a schedule lever. Passing it would inflate the
         // hours — and the price — which is exactly what it must never do.
-        const result = analyzeDiscovery(quote.discovery, currentTeamCalendar());
-        const draft = proposalDraftFromDiscovery(quote.discovery, result);
+        const answers = withQuoteAnswers(quote.discovery, quote);
+        const result = analyzeDiscovery(answers, currentTeamCalendar());
+        const draft = proposalDraftFromDiscovery(answers, result);
         const line_items = scopeLineItems(draft.line_items, quote.platform);
         set((s) => ({
           proposals: s.proposals.map((p) =>
@@ -2281,7 +2288,12 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         }
       },
 
-      addLineItem: (proposalId) => {
+      addLineItem: (proposalId, init) => {
+        const base = { ...emptyLineItem(), ...init };
+        const line = {
+          ...base,
+          hours: computeLineHours(base.base_hours, base.tier, base.quantity),
+        };
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === proposalId
@@ -2289,7 +2301,7 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
                   ...p,
                   line_items: [
                     ...p.line_items,
-                    withPricing(emptyLineItem(), p.platform, liveRates()),
+                    withPricing(line, p.platform, liveRates()),
                   ],
                   updated_at: new Date().toISOString(),
                 }

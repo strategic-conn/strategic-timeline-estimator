@@ -41,7 +41,8 @@ test("the (i) opens on hover with a mouse and on tap on a phone", async ({ page 
   try {
     await page.goto(`/proposals/${id}`);
     await waitForApp(page);
-    await page.getByRole("tab", { name: /^scope/i }).click();
+    // The redesign question lives on Setup since 2026-11-12 (same field component).
+    await page.getByRole("tab", { name: /^setup/i }).click();
     const info_ = page.getByRole("button", { name: "About Is this a redesign / rebuild?" });
     await expect(info_).toBeVisible();
     const panel = page.getByText(/already has a website we're replacing/);

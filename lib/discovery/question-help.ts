@@ -104,18 +104,12 @@ export const QUESTION_HELP: Partial<Record<DiscoveryFieldId, string>> = {
     "Yes to add structured data that helps Google show rich results, such as star ratings, events, FAQs or business details.",
   needs_google_my_business: "Yes to set up or clean up the client's Google Business Profile (the listing shown in Google Maps).",
 
-  // ── 7 · Timeline & Decision-Making ─────────────────────────────────────
-  project_start_date: "The day work can actually begin, usually once the contract is signed and the deposit is in. Every date on the timeline counts from here.",
-  hard_launch_date:
-    "Only fill this in if the site must be live by a fixed date, such as a product launch or event. If the estimate runs past it, you'll get a warning.",
-  client_review_turnaround:
-    "How many business days the client usually takes to give feedback at each approval step. Be realistic: slow reviewers stretch the whole timeline.",
+  // ── 7 · Stakeholders & Decision-Making ─────────────────────────────────────
+  // Start date, hard deadline, review time and blackouts moved to the Adjust
+  // tab (SchedulePlanCard), whose field hints carry this wording now.
   stakeholder_count:
     "How many people on the client's side must approve the work. More than three usually means more meetings and slower decisions.",
   first_time_client: "Yes if the client has never worked with a web agency before. They often need more guidance and explanation along the way.",
-  has_blackout_periods:
-    "Yes if there are times the client can't review or launch, such as holidays, busy seasons or an event. Buffer days are added to the timeline.",
-  blackout_notes: "List the dates and the reason, for example \"Dec 15 – Jan 5, holiday shutdown\".",
 
   // ── 8 · Post-Launch & Ongoing Support ──────────────────────────────────
   needs_cms_training: "Yes if we'll run a session teaching the client's team to update the site themselves.",

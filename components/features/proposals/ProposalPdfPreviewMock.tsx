@@ -1,5 +1,6 @@
 "use client";
 
+import { contextOf, quoteAssumptions } from "@/lib/discovery/context-inputs";
 import { format } from "date-fns";
 
 import {
@@ -10,7 +11,6 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
-import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import { cn } from "@/lib/utils";
 import type { ClientQuote } from "@/types/proposal.types";
@@ -28,12 +28,10 @@ export function ProposalPdfPreviewMock({
 }: ProposalPdfPreviewMockProps) {
   const pricing = quotePricing(quote);
   const totals = pricing.totals;
-  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
+  const assumptions = quoteAssumptions(quote);
   const dateStr = format(new Date(quote.updated_at), "MMMM d, yyyy");
-  const goal = primaryGoalLabel(
-    quote.discovery?.primary_goal ?? "",
-    quote.discovery?.primary_goal_other,
-  );
+  const ctx = contextOf(quote);
+  const goal = primaryGoalLabel(ctx.primary_goal, ctx.primary_goal_other);
   const idIndex = new Map(quote.line_items.map((li, i) => [li.id, i + 1]));
 
   return (

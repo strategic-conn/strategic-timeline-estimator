@@ -52,11 +52,14 @@ test.describe("pure", () => {
   });
 
   test("required questions in a skipped section stop counting", () => {
-    const p = { ...base(), project_start_date: "" }; // section 7's required date
-    expect(unansweredBySection(p)[7]).toBe(1);
-    const off = { ...p, skipped_sections: [7] };
-    expect(unansweredBySection(off)[7]).toBeUndefined();
-    expect(countUnanswered(off)).toBe(countUnanswered(p) - 1);
+    // Section 5's required hosting question (section 7's start date moved to
+    // the Adjust tab on 2026-11-12, leaving 7 with no required question).
+    const p = { ...base(), hosting_environment: "" } as ReturnType<typeof base>;
+    const gaps = unansweredBySection(p)[5] ?? 0;
+    expect(gaps).toBeGreaterThan(0);
+    const off = { ...p, skipped_sections: [5] };
+    expect(unansweredBySection(off)[5]).toBeUndefined();
+    expect(countUnanswered(off)).toBe(countUnanswered(p) - gaps);
   });
 
   test("nothing skipped, or switched back on, is exactly the original", () => {

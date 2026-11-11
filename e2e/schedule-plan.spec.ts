@@ -68,7 +68,7 @@ test("the plan is picked on Adjust, shown on the timeline, and frozen with its l
 
     await page.getByRole("tab", { name: /^adjust/i }).click();
     await expect(group.getByRole("button", { name: "Best-fit" })).toBeDisabled();
-    await expect(page.getByText(/Quoted launch: /).first()).toBeVisible();
+    await expect(page.getByText(/^Quoted launch/).first()).toBeVisible();
 
     // Back to draft clears the snapshot; the choice stays.
     await page.locator('[data-tour="estimate.status"]').click();

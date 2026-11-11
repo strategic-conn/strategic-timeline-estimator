@@ -56,6 +56,13 @@ export interface ProposalLineItem {
   /** Ids of other line items on the same quote that this depends on. */
   depends_on: string[];
   /**
+   * A custom line (not from the catalog or the questionnaire) has hours somebody
+   * typed — they need a developer's say-so before the quote goes out. True once
+   * someone ticks "Hours confirmed by a developer"; missing = not yet. Inside
+   * the `line_items` jsonb, so no migration. See `needsDevConfirm`.
+   */
+  hours_confirmed?: boolean;
+  /**
    * Who does this work and at what seniority — the workbook's Responsible +
    * Level, i.e. the lookup key into `hourly_rates` ("IT|Level 2"). Set when the
    * line is created (catalog row → guided phase → IT Level 1 for freehand) and
@@ -258,6 +265,37 @@ export interface ProposalSchedulePlan {
    * questionnaire's "client review turnaround", else 3 (`reviewDaysOf`).
    */
   review_days?: number | null;
+  /**
+   * The schedule answers, set on the Adjust tab for EVERY estimate (moved out
+   * of the questionnaire's section 7, 2026-11-12). Missing = the questionnaire's
+   * old answer, if there is one (`scheduleInputsOf`). Inside this jsonb, so no
+   * migration and no new whitelist entry.
+   */
+  start_date?: string | null; // YYYY-MM-DD; empty = today
+  hard_deadline?: string | null; // YYYY-MM-DD; empty = none
+  blackout?: boolean | null;
+  blackout_notes?: string | null;
+}
+
+/**
+ * Project context set on the Setup tab (`proposals.context`, migration 0054).
+ * Missing keys read the questionnaire's old answers — see `contextOf`.
+ */
+export interface ProposalContext {
+  primary_goal?: string;
+  primary_goal_other?: string;
+  is_redesign?: boolean;
+  current_url?: string;
+  regulated_industry?: boolean;
+  regulated_type?: string;
+  regulated_type_other?: string;
+  /**
+   * Scope assumptions printed on a LINE-ITEMS-ONLY quote (one per line). A
+   * guided quote keeps its own (`discovery.assumptions`, generated from the
+   * answers); this is the list a coordinator types when there is no
+   * questionnaire. Missing / empty = the quote prints none.
+   */
+  assumptions?: string[] | null;
 }
 
 export interface ClientQuote {
@@ -302,6 +340,8 @@ export interface ClientQuote {
    * date quoted when the estimate was approved. Null = Best-fit. Dates only.
    */
   schedule_plan?: ProposalSchedulePlan | null;
+  /** Setup tab's project context (goal, redesign, regulated industry). */
+  context?: ProposalContext | null;
   /** Set when the quote was imported from a Zoho CRM Deal. */
   zoho?: ProposalZohoLink | null;
   /** Which PBS client this bills to, and the PO once it exists. */

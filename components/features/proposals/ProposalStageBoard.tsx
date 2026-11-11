@@ -13,7 +13,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { CircleDashed, GripVertical, Link2Off, Receipt } from "lucide-react";
+import { CircleDashed, GripVertical, Link2Off, Receipt, Trash2 } from "lucide-react";
 import Link from "next/link";
 import * as React from "react";
 import { toast } from "sonner";
@@ -92,10 +92,13 @@ export function ProposalStageBoard({
   quotes,
   projectName,
   onChanged,
+  onDelete,
 }: {
   quotes: ClientQuote[];
   projectName: (projectId: string | null | undefined) => string | null;
   onChanged: (proposalId: string, stage: string) => void | Promise<void>;
+  /** Asks the page to delete it (the page owns the confirm dialog). */
+  onDelete?: (quote: ClientQuote) => void;
 }) {
   const { stages, loading, error } = useZohoStages(true);
 
@@ -319,6 +322,7 @@ export function ProposalStageBoard({
             pending={pending}
             projectName={projectName}
             onChanged={onChanged}
+            onDelete={onDelete}
             now={now}
           />
         ))}
@@ -348,12 +352,15 @@ function StageColumn({
   pending,
   projectName,
   onChanged,
+  onDelete,
   now,
 }: {
   col: Column;
   pending: Record<string, string>;
   projectName: (projectId: string | null | undefined) => string | null;
   onChanged: (proposalId: string, stage: string) => void | Promise<void>;
+  /** Asks the page to delete it (the page owns the confirm dialog). */
+  onDelete?: (quote: ClientQuote) => void;
   now: number;
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -413,6 +420,7 @@ function StageColumn({
               projectLabel={projectName(q.project_id)}
               moving={Boolean(pending[q.id])}
               onChanged={onChanged}
+              onDelete={onDelete}
               now={now}
             />
           ))
@@ -427,12 +435,15 @@ function StageCard({
   projectLabel,
   moving,
   onChanged,
+  onDelete,
   now,
 }: {
   quote: ClientQuote;
   projectLabel: string | null;
   moving: boolean;
   onChanged: (proposalId: string, stage: string) => void | Promise<void>;
+  /** Asks the page to delete it (the page owns the confirm dialog). */
+  onDelete?: (quote: ClientQuote) => void;
   now: number;
 }) {
   const dealId = quote.zoho?.deal_id ?? null;
@@ -551,7 +562,7 @@ function StageCard({
         </div>
 
         {dealId && quote.zoho?.stage ? (
-          <div className="relative z-10">
+          <div className="relative z-10 ml-auto">
           <ZohoStageSelect
             compact
             dealId={dealId}
@@ -563,13 +574,25 @@ function StageCard({
           </div>
         ) : (
           <span
-            className="shrink-0 text-muted-foreground"
+            className="ml-auto shrink-0 text-muted-foreground"
             title="Link a Zoho deal to move this through the pipeline"
           >
             <CircleDashed className="size-3" aria-hidden />
             <span className="sr-only">Not linked to a Zoho deal</span>
           </span>
         )}
+        {onDelete ? (
+          // Above the stretched card link (z-10), like the stage menu.
+          <button
+            type="button"
+            onClick={() => onDelete(quote)}
+            aria-label={`Delete ${quote.title}`}
+            title="Delete this estimate"
+            className="relative z-10 -my-1 -mr-1 flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground/70 hover:bg-destructive/10 hover:text-destructive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Trash2 className="size-3.5" aria-hidden />
+          </button>
+        ) : null}
       </div>
     </article>
   );

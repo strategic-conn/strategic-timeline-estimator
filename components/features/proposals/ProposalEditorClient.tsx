@@ -31,6 +31,7 @@ import {
 import { toast } from "sonner";
 
 import { DiscoveryGantt } from "@/components/features/discovery/DiscoveryGantt";
+import { ScopeAssumptionsCard } from "@/components/features/discovery/DiscoveryHoursBreakdown";
 import { GanttClient, type PlannedGanttRow } from "@/components/features/gantt/GanttClient";
 import {
   poScheduleDrift,
@@ -51,6 +52,10 @@ import { ZohoDealImport } from "@/components/features/proposals/ZohoDealImport";
 import { ProposalAddonsCard } from "@/components/features/proposals/ProposalAddonsCard";
 import { ProposalCatalogBrowser } from "@/components/features/proposals/ProposalCatalogBrowser";
 import { ProposalDependencyAlert } from "@/components/features/proposals/ProposalDependencyAlert";
+import {
+  ContextSuggestions,
+  ProjectContextCard,
+} from "@/components/features/proposals/ProjectContextCard";
 import { ProposalPdfPreviewMock } from "@/components/features/proposals/ProposalPdfPreviewMock";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -131,6 +136,9 @@ import {
   resultFromQuote,
   tentativeProject,
 } from "@/lib/discovery/from-line-items";
+import { withQuoteAnswers } from "@/lib/discovery/context-inputs";
+import { isCustomLine, needsDevConfirm } from "@/lib/estimator/send-checks";
+import { BeforeYouSendCard } from "@/components/features/proposals/BeforeYouSendCard";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import {
   discoveryCoverage,
@@ -172,6 +180,7 @@ import {
 } from "@/store/proposal-estimator-store";
 import {
   STRATEGY_OPTIONS,
+  ScheduleCard,
   SchedulePlanCard,
 } from "@/components/features/proposals/SchedulePlanCard";
 import type { DiscoveryProject, PhaseId } from "@/types/discovery.types";
@@ -436,17 +445,25 @@ export function ProposalEditorClient({
     [quote],
   );
 
+  // The questionnaire's answers with the estimate's schedule answers (Adjust
+  // tab: start date, deadline, review time, blackouts) written in — the only
+  // form in which they reach the engine and the phase chart.
+  const scheduledDiscovery = React.useMemo(
+    () => (quote?.discovery ? withQuoteAnswers(quote.discovery, quote) : null),
+    [quote],
+  );
+
   // Guided scope: derive the estimate/timeline/risk from the saved answers.
   const scopeResult = React.useMemo(
     () =>
-      quote?.discovery
+      scheduledDiscovery
         ? analyzeDiscovery(
-            quote.discovery,
+            scheduledDiscovery,
             teamCalendar,
-            quote.risk_buffer_pct ?? 0,
+            quote?.risk_buffer_pct ?? 0,
           )
         : null,
-    [quote, teamCalendar],
+    [scheduledDiscovery, quote?.risk_buffer_pct, teamCalendar],
   );
 
   // The quote's actual line hours per questionnaire phase, for the Hours tab's
@@ -475,7 +492,10 @@ export function ProposalEditorClient({
         : null,
     [quote, teamCalendar],
   );
-  const tentProject = React.useMemo(() => tentativeProject(), []);
+  const tentProject = React.useMemo(
+    () => (quote ? withQuoteAnswers(tentativeProject(), quote) : tentativeProject()),
+    [quote],
+  );
   /** Whichever timeline this quote actually has — guided answers or line items. */
   const activeResult = scopeResult ?? catalogResult;
   const {
@@ -929,7 +949,11 @@ export function ProposalEditorClient({
           </AlertDialogContent>
         </AlertDialog>
 
-        <Tabs value={tab} onValueChange={setTab} className="gap-5">
+        <Tabs
+          value={!quote.discovery && tab === "guided" ? "scope" : tab}
+          onValueChange={setTab}
+          className="gap-5"
+        >
           {/* ONE row at every width. Five full labels need ~433px and a 375px
               phone gives ~343px, which used to wrap into two rows (and before
               that, scroll "Review" — where Send to Zoho lives — off screen).
@@ -940,13 +964,18 @@ export function ProposalEditorClient({
             <TabsTrigger value="setup" className="px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
               Setup
             </TabsTrigger>
-            <TabsTrigger value="guided" className="gap-1.5 px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
-              <Compass className="hidden size-3.5 sm:block" aria-hidden />
-              <span className="sm:hidden" aria-hidden>
-                Scope
-              </span>
-              <span className="max-sm:sr-only">Scope &amp; risk</span>
-            </TabsTrigger>
+            {/* Only when the estimate uses the questionnaire: someone who chose
+                "Straight to line items" shouldn't be offered it as a step. They
+                can still switch from the Line items tab. */}
+            {quote.discovery ? (
+              <TabsTrigger value="guided" className="gap-1.5 px-1.5 text-[0.8125rem] sm:px-2 sm:text-sm">
+                <Compass className="hidden size-3.5 sm:block" aria-hidden />
+                <span className="sm:hidden" aria-hidden>
+                  Scope
+                </span>
+                <span className="max-sm:sr-only">Scope &amp; risk</span>
+              </TabsTrigger>
+            ) : null}
             <TabsTrigger value="scope" className="gap-1 px-1.5 text-[0.8125rem] sm:gap-1.5 sm:px-2 sm:text-sm">
               <span className="sm:hidden" aria-hidden>
                 Lines
@@ -1281,9 +1310,16 @@ export function ProposalEditorClient({
               </CardContent>
             </Card>
 
+            {/* Goal, redesign, regulated industry — asked for EVERY estimate,
+                not only the ones that open the questionnaire. */}
+            <ProjectContextCard
+              quote={quote}
+              help={<EstimatorHelp section="projectContext" />}
+            />
+
             <div className="flex justify-end">
-              <Button type="button" onClick={() => setTab("guided")}>
-                Next: Scope &amp; risk
+              <Button type="button" onClick={() => setTab(quote.discovery ? "guided" : "scope")}>
+                {quote.discovery ? "Next: Scope & risk" : "Next: Line items"}
               </Button>
             </div>
           </TabsContent>
@@ -1440,7 +1476,7 @@ export function ProposalEditorClient({
             ) : (
               <Card className="relative">
                 <EstimatorHelp section="scopeEmpty" corner />
-                <CardHeader className="items-center gap-2 text-center">
+                <CardHeader className="justify-items-center gap-2 text-center">
                   <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
                     <Compass
                       className="size-6 text-muted-foreground"
@@ -1448,7 +1484,7 @@ export function ProposalEditorClient({
                     />
                   </div>
                   <CardTitle>Guided scoping is optional</CardTitle>
-                  <CardDescription className="max-w-md text-balance">
+                  <CardDescription className="mx-auto max-w-md text-balance">
                     Answer the questionnaire for Min/Mid/Max hours, a phased
                     timeline and a risk score, then generate the line items
                     from it. Quoting from line items alone works too: their
@@ -1456,7 +1492,7 @@ export function ProposalEditorClient({
                   </CardDescription>
                   <Button
                     type="button"
-                    className="mt-2 gap-1.5"
+                    className="mt-2 w-fit gap-1.5"
                     onClick={startGuided}
                     {...tourAnchor("estimate.guided-start")}
                   >
@@ -1478,8 +1514,9 @@ export function ProposalEditorClient({
               <div className="pr-10 sm:pr-0">
                 <h2 className="text-base font-semibold">Line items</h2>
                 <p className="text-sm text-muted-foreground">
-                  Generate them from Scope &amp; risk, pull from the{" "}
-                  {platformLabel(quote.platform)} catalog, or add freehand rows.
+                  {quote.discovery
+                    ? `Generate them from Scope & risk, pull from the ${platformLabel(quote.platform)} catalog, or add freehand rows.`
+                    : `Pull tasks from the ${platformLabel(quote.platform)} catalog, or add your own rows (a developer confirms their hours).`}
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -1509,6 +1546,23 @@ export function ProposalEditorClient({
                   <Plus className="size-3.5" aria-hidden />
                   Add row
                 </Button>
+                {!quote.discovery ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5 text-muted-foreground"
+                    onClick={() => {
+                      startGuided();
+                      setTab("guided");
+                    }}
+                    title="Adds the Scope & risk tab: Min/Mid/Max hours, a risk score and scope assumptions"
+                    {...tourAnchor("estimate.guided-start")}
+                  >
+                    <Compass className="size-3.5" aria-hidden />
+                    Use the questionnaire
+                  </Button>
+                ) : null}
                 <EstimatorHelp section="lineItems" className="absolute right-0 top-0 sm:static" />
               </div>
             </div>
@@ -1539,6 +1593,8 @@ export function ProposalEditorClient({
                 </Button>
               </div>
             ) : null}
+
+            <ContextSuggestions quote={quote} />
 
             {platformHasCatalog ? (
               <ProposalDependencyAlert
@@ -1584,6 +1640,7 @@ export function ProposalEditorClient({
                           updateLineItem(quote.id, line.id, partial)
                         }
                         onRemove={() => removeLineItem(quote.id, line.id)}
+                        devCheck={!quoteIsFrozen(quote)}
                       />
                     ))}
                   </div>
@@ -1706,6 +1763,9 @@ export function ProposalEditorClient({
               </CardContent>
             </Card>
 
+            {/* Inputs → choice → result: the client's calendar, then who
+                does the work and the launch it gives. */}
+            <ScheduleCard quote={quote} help={<EstimatorHelp section="scheduleInputs" />} />
             <SchedulePlanCard
               quote={quote}
               editable
@@ -1875,6 +1935,13 @@ export function ProposalEditorClient({
                 </Button>
               </div>
             ) : null}
+            <BeforeYouSendCard
+              quote={quote}
+              onFix={(where) => {
+                if (where === "review") setReviewTab("preview");
+                else setTab(where === "lines" ? "scope" : "adjust");
+              }}
+            />
             <Tabs value={reviewTab} onValueChange={setReviewTab} className="gap-4">
               <TabsList className="w-full sm:w-fit">
                 <TabsTrigger value="preview">Client preview</TabsTrigger>
@@ -1883,7 +1950,22 @@ export function ProposalEditorClient({
                 ) : null}
                 <TabsTrigger value="timeline">Timeline</TabsTrigger>
               </TabsList>
-              <TabsContent value="preview">
+              <TabsContent value="preview" className="flex flex-col gap-4">
+                {/* A guided quote's assumptions are generated (Hours tab); a
+                    line-items-only quote has none unless they're typed here. */}
+                {!quote.discovery ? (
+                  <ScopeAssumptionsCard
+                    assumptions={quote.context?.assumptions ?? []}
+                    edited={(quote.context?.assumptions?.length ?? 0) > 0}
+                    canReset={false}
+                    description="Printed on the quote. Say what's included, what the client supplies, and what's not in this project."
+                    onChange={(assumptions) =>
+                      updateProposal(quote.id, {
+                        context: { ...(quote.context ?? {}), assumptions },
+                      })
+                    }
+                  />
+                ) : null}
                 <ProposalPdfPreviewMock quote={quote} projectName={projectName} />
               </TabsContent>
               {quote.discovery && scopeResult ? (
@@ -1921,7 +2003,7 @@ export function ProposalEditorClient({
                         ) : (
                           <DiscoveryGantt
                             result={scopeResult}
-                            project={quote.discovery}
+                            project={scheduledDiscovery ?? quote.discovery}
                             teamCalendar={teamCalendar}
                             plannedLaunch={plannedLaunch}
                             plannedPhases={plannedPhases}
@@ -2507,10 +2589,13 @@ type LineItemRowProps = {
         | "responsible"
         | "level"
         | "rate"
+        | "hours_confirmed"
       >
     >,
   ) => void;
   onRemove: () => void;
+  /** Show the "confirm with a developer" tag (off once the quote is agreed). */
+  devCheck: boolean;
 };
 
 function LineItemRow({
@@ -2520,7 +2605,10 @@ function LineItemRow({
   requirementsUnclear,
   onChange,
   onRemove,
+  devCheck,
 }: LineItemRowProps) {
+  const custom = devCheck && isCustomLine(line);
+  const unconfirmed = devCheck && needsDevConfirm(line);
   const otherLines = allLines.filter((li) => li.id !== line.id);
   const depCount = line.depends_on.length;
   const missingDep = line.depends_on.some(
@@ -2571,6 +2659,19 @@ function LineItemRow({
             {` · ${formatRate(lineRate(line))}/h`}
             {depCount ? ` · needs ${depPositions.join(", ")}` : ""}
           </p>
+          {unconfirmed ? (
+            // Not in the catalog: the hours are a guess until a developer
+            // confirms them. Opens the details, where the confirm box is.
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="mt-1 inline-flex min-h-6 items-center gap-1 rounded-md border border-amber-500/40 bg-amber-500/10 px-1.5 text-[0.7rem] font-medium text-amber-800 hover:bg-amber-500/20 dark:text-amber-300"
+              data-testid="dev-confirm-tag"
+            >
+              <TriangleAlert className="size-3" aria-hidden />
+              Hours to confirm with a developer
+            </button>
+          ) : null}
         </div>
         <div className="shrink-0 text-right leading-none">
           <span className="tabular-nums text-base font-semibold">
@@ -2791,6 +2892,19 @@ function LineItemRow({
               Remove
             </Button>
           </div>
+          {custom ? (
+            <label className="flex w-full cursor-pointer items-center gap-2 text-sm">
+              <Checkbox
+                checked={line.hours_confirmed === true}
+                onCheckedChange={(v) => onChange({ hours_confirmed: v === true })}
+                data-testid="dev-confirm-box"
+              />
+              Hours confirmed by a developer
+              <span className="text-xs text-muted-foreground">
+                (custom line, not in the catalog)
+              </span>
+            </label>
+          ) : null}
         </div>
       ) : null}
     </div>

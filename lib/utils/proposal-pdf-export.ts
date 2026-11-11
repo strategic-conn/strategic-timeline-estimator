@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 
+import { contextOf, quoteAssumptions } from "@/lib/discovery/context-inputs";
 import {
   effectiveTier,
   formatAmount,
@@ -9,7 +10,6 @@ import {
   tierLabel,
 } from "@/lib/constants/proposal-estimator";
 import { primaryGoalLabel } from "@/lib/discovery/constants";
-import { scopeAssumptions } from "@/lib/discovery/engine";
 import { categoryName, platformLabel } from "@/lib/proposal-catalog";
 import type { ClientQuote } from "@/types/proposal.types";
 
@@ -72,10 +72,9 @@ async function buildProposalPdfDoc(
     meta.push(`Project: ${projectName}`);
   }
   meta.push(`Platform: ${platformLabel(quote.platform)}`);
-  const goal = primaryGoalLabel(
-    quote.discovery?.primary_goal ?? "",
-    quote.discovery?.primary_goal_other,
-  );
+  // Setup's goal (every estimate), else the questionnaire's.
+  const ctx = contextOf(quote);
+  const goal = primaryGoalLabel(ctx.primary_goal, ctx.primary_goal_other);
   if (goal) meta.push(`Primary goal: ${goal}`);
   meta.push(`Date: ${format(new Date(quote.updated_at), "MMMM d, yyyy")}`);
 
@@ -186,7 +185,7 @@ async function buildProposalPdfDoc(
   y += 8;
 
   // Scope assumptions — guided quotes only (the coordinator can edit them).
-  const assumptions = quote.discovery ? scopeAssumptions(quote.discovery) : [];
+  const assumptions = quoteAssumptions(quote);
   if (assumptions.length) {
     if (y > doc.internal.pageSize.getHeight() - 40) {
       doc.addPage();
