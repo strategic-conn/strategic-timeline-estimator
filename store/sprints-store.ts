@@ -4,7 +4,11 @@ import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { toast } from "sonner";
 
-import { pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import { format, isValid, parseISO } from "date-fns";
+
+import { notifyUsers, pushWorkspaceActivity } from "@/lib/activity/workspace-push";
+import { useAuthStore } from "@/store/auth-store";
+import { useTasksDataStore } from "@/store/tasks-store";
 import { withProjectScope } from "@/lib/activity/project-label";
 import { backlogHref, sprintTasksHref } from "@/lib/constants/sprints";
 import { DUMMY_SPRINTS } from "@/lib/dummy/sprints.data";
@@ -65,6 +69,36 @@ interface SprintsState {
   updateSprint: (id: string, partial: Partial<Sprint>) => void;
   deleteSprint: (id: string) => void;
   setSprintStatus: (id: string, status: SprintStatus) => void;
+}
+
+const sprintDay = (d: string) => {
+  const p = parseISO(d); // a DATE column: a local day (rule 8)
+  return isValid(p) ? format(p, "MMM d") : d;
+};
+
+/**
+ * A sprint's dates moved: everyone with OPEN work in it is planning against
+ * the old dates, so they get the bell and an email (a time-off reschedule or a
+ * hand edit; batched with the rest of a bulk change). Done work isn't affected.
+ */
+function notifySprintDatesMoved(before: Sprint, after: Sprint): void {
+  const people = new Set<string>();
+  for (const t of useTasksDataStore.getState().tasks) {
+    if (t.sprint_id !== after.id || t.status === "done") continue;
+    for (const id of t.assignee_ids) people.add(id);
+  }
+  if (!people.size) return;
+  const actor = useAuthStore.getState().user.name?.trim() || "Someone";
+  notifyUsers(
+    [...people],
+    withProjectScope(
+      `${actor} moved "${after.name}" to ${sprintDay(after.start_date)} – ${sprintDay(after.end_date)} (was ${sprintDay(before.start_date)} – ${sprintDay(before.end_date)})`,
+      after.project_id,
+    ),
+    sprintTasksHref(after.project_id, after.id),
+    after.project_id,
+    { email: true },
+  );
 }
 
 export const useSprintsStore = create<SprintsState>()(
@@ -208,6 +242,7 @@ export const useSprintsStore = create<SprintsState>()(
           (partial.end_date !== undefined && partial.end_date !== snapshot.end_date)
         ) {
           notifyProjectScheduleChanged(prev.project_id);
+          notifySprintDatesMoved(snapshot, { ...snapshot, ...partial });
         }
 
         if (!isSupabaseConfigured) {

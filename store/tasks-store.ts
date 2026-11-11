@@ -11,7 +11,13 @@ import {
   notifyCommentRemoved,
   notifyReplyAdded,
 } from "@/lib/collaboration/notify-task-activity";
-import { pushWorkspaceActivity, notifyUsers } from "@/lib/activity/workspace-push";
+import {
+  currentNoticeBatch,
+  notifyUsers,
+  pushWorkspaceActivity,
+  type NoticeBatch,
+} from "@/lib/activity/workspace-push";
+import { describeTaskChange } from "@/lib/activity/task-change";
 import { withProjectScope } from "@/lib/activity/project-label";
 import { commentRecipients, taskRecipients } from "@/lib/activity/recipients";
 import { projectOverviewHref, sprintTasksHref } from "@/lib/constants/sprints";
@@ -75,21 +81,41 @@ function bodyPreview(body: string, max = 60): string {
 
 /**
  * Send a targeted notification about a task (actor auto-excluded by the store).
- * `email` = also email it: assignments, declines and mentions only — a move or
- * a comment on every task would bury the ones that matter.
+ * `email` = also email it: being assigned / taken off a task, a change to its
+ * due date, hours or sprint, a deleted task you were on, declines and mentions
+ * — a status move or a comment on every task would bury the ones that matter.
+ * `batch` = the bulk change this belongs to, captured before an `await`.
  */
 function notifyAboutTask(
   recipientIds: string[],
   text: string,
   task: Task,
   email = false,
+  batch?: NoticeBatch | null,
 ): void {
   notifyUsers(
     recipientIds,
     withProjectScope(text, task.project_id),
     taskBoardRelativePath(task),
     task.project_id,
-    { email },
+    { email, batch },
+  );
+}
+
+/**
+ * A deleted task: the people working on it get an email (their workload just
+ * changed); anyone else following it gets the bell, as before.
+ */
+function notifyTaskDeleted(task: Task, actor: string, batch: NoticeBatch | null): void {
+  const text = `${actor} deleted "${titleOf(task)}"`;
+  const assignees = task.assignee_ids;
+  notifyAboutTask(assignees, `${text}, a task you were on`, task, true, batch);
+  notifyAboutTask(
+    taskRecipients(task).filter((x) => !assignees.includes(x)),
+    text,
+    task,
+    false,
+    batch,
   );
 }
 
@@ -871,6 +897,36 @@ export const useTasksDataStore = create<TasksState>()(
           }
         }
 
+        // Taken off a task: it leaves their workload, so they should hear it
+        // from the app rather than notice it missing.
+        const updated = get().tasks.find((x) => x.id === id);
+        const removedIds =
+          normalized.assignee_ids !== undefined
+            ? snapshot.assignee_ids.filter((x) => !normalized.assignee_ids!.includes(x))
+            : [];
+        if (updated && removedIds.length) {
+          notifyAboutTask(
+            removedIds,
+            `${actorName()} took you off "${titleOf(updated)}"`,
+            updated,
+            true,
+          );
+        }
+
+        // Its due date, estimate or sprint moved: the people still on it plan
+        // around those (a Sync schedule re-hour or a time-off reschedule lands
+        // here too, batched into one notice per person).
+        const change =
+          updated && updated.status !== "done" ? describeTaskChange(snapshot, updated) : null;
+        if (updated && change) {
+          notifyAboutTask(
+            updated.assignee_ids.filter((x) => !addedIds.includes(x)),
+            `${actorName()} changed "${titleOf(updated)}": ${change}`,
+            updated,
+            true,
+          );
+        }
+
         if (!isSupabaseConfigured) {
           offerUndoToast("Task updated", () => {
             useTasksDataStore.setState((s) => ({
@@ -955,6 +1011,7 @@ export const useTasksDataStore = create<TasksState>()(
 
       deleteTask: (id) => {
         const task = get().tasks.find((t) => t.id === id);
+        const batch = currentNoticeBatch();
         const beforeTasks = structuredClone(get().tasks);
         set((s) => ({ tasks: s.tasks.filter((t) => t.id !== id) }));
         // Dropping seeded work drops it from the estimate too, otherwise the
@@ -972,11 +1029,7 @@ export const useTasksDataStore = create<TasksState>()(
               taskBoardRelativePath(task),
               task.project_id,
             );
-            notifyAboutTask(
-              taskRecipients(task),
-              `${actorName()} deleted "${titleOf(task)}"`,
-              task,
-            );
+            notifyTaskDeleted(task, actorName(), batch);
           }
           return;
         }
@@ -999,11 +1052,7 @@ export const useTasksDataStore = create<TasksState>()(
               taskBoardRelativePath(task),
               task.project_id,
             );
-            notifyAboutTask(
-              taskRecipients(task),
-              `${actorName()} deleted "${titleOf(task)}"`,
-              task,
-            );
+            notifyTaskDeleted(task, actorName(), batch);
           }
         })();
       },

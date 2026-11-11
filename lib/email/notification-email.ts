@@ -58,7 +58,7 @@ export function renderNotificationEmail(input: {
 </td></tr></table>
 </td></tr></table></td></tr>
 <tr><td style="padding:24px 8px 0 8px;font-family:${FONT};font-size:12px;line-height:1.6;color:#a1a1aa;text-align:center;">
-You get these emails for task assignments, mentions, time off and won deals.<br>
+You get these emails for task assignments, changes to your tasks and schedule, mentions, time off and won deals.<br>
 <a href="${settings}" target="_blank" style="color:#71717a;">Turn them off in Settings &rarr; Profile</a><br><br>
 <span style="color:#71717a;">Strategic Connection &middot; Strategic Estimator</span>
 </td></tr>

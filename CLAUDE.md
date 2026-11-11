@@ -2127,8 +2127,25 @@ The important bell notifications are also **emailed**: task assigned / passed
 to you, an assignee **declining** your task, an **@mention** in a reply, a
 time-off **request** (to approvers) and **decision** (to the requester), Start
 project's seeded assignments (one email per person), and a **won deal** (admins
-+ managers). Everything else (moves, comments, reactions, deletes) stays
-bell-only — the point is that these few get read.
++ managers). **Since 2026-11-12 also every change to someone's work**:
+being **taken off** a task; a task you're on changing its **due date, hours or
+sprint** (`describeTaskChange`, `lib/activity/task-change.ts` — "due Dec 1 →
+Dec 5 · 8 h → 12 h"); a **deleted** task you were on (followers who aren't
+assignees still get the bell only); and a **sprint's dates moving** under your
+open work (`notifySprintDatesMoved`, `sprints-store`). Status moves, comments
+and reactions stay bell-only — the point is that these get read.
+
+ - **Bulk changes send ONE notice per person** (`batchNotifications`,
+   `lib/activity/workspace-push.ts`): Sync schedule ("synced "Project" with its
+   estimate: N changes to your tasks") and Approve + reschedule on time off.
+   Inside a batch `notifyUsers` collects instead of sending; after ~4 s each
+   person gets their single notice in its own words, or the batch summary if
+   they had several (`groupBatch`, pure). `deleteTask` captures the batch
+   before its `await` (`currentNoticeBatch`). Start project / Sync's new tasks
+   already went out as one per person (`seedAssignments`).
+ - Sync renames / re-hours / removals reach people through `updateTask` /
+   `deleteTask`, so they notify like a hand edit — nothing extra to wire.
+ - `e2e/notification-changes.spec.ts` (pure).
 
  - **Opt-in per call:** `notifyUsers(…, { email: true })` / `notifyAboutTask(…, true)`.
    After the bell rows insert, `notifications-store` POSTs their ids to

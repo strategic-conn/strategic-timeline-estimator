@@ -28,6 +28,7 @@ import {
 } from "@/lib/discovery/from-line-items";
 import { scheduleInputsOf } from "@/lib/discovery/schedule-inputs";
 import { withQuoteAnswers } from "@/lib/discovery/context-inputs";
+import { batchNotifications } from "@/lib/activity/workspace-push";
 import {
   LAUNCH_SPRINT,
   planSchedule,
@@ -2108,7 +2109,19 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         // and the ones whose line item is gone. `updateTask`/`deleteTask` are
         // optimistic write-through, so this covers demo and live alike.
         // Suppressed so the project→estimate mirror doesn't echo the estimate's
-        // own values straight back at it.
+        // own values straight back at it. Batched so each person gets ONE
+        // notice (and email) for everything this sync changed under them.
+        const syncedProject =
+          useProjectsStore.getState().projects.find((p) => p.id === projectId)?.name ?? "the project";
+        const syncActor = useAuthStore.getState().user.name?.trim() || "Someone";
+        batchNotifications(
+          {
+            summary: (n) =>
+              `${syncActor} synced "${syncedProject}" with its estimate: ${n} changes to your tasks`,
+            href: `/projects/${projectId}`,
+            projectId,
+          },
+          () =>
         withMirrorSuppressed(() => {
           // A reviewed preview wins over recomputing, same rule as the sprints.
           const edits = preview
@@ -2130,7 +2143,8 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             ? preview.removals.map((r) => r.taskId)
             : taskRemovals.map((t) => t.id);
           for (const taskId of gone) tasksState.deleteTask(taskId);
-        });
+        }),
+        );
 
         // A reviewed preview wins over recomputing (see convertToProject).
         const planned =

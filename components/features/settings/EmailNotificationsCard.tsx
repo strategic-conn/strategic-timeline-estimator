@@ -63,9 +63,12 @@ export function EmailNotificationsCard() {
       <CardHeader>
         <CardTitle className="text-base">Email notifications</CardTitle>
         <CardDescription>
-          Besides the bell, we email you when you&apos;re assigned or passed a
-          task, mentioned in a reply, when someone declines a task you gave
-          them, about time off, and (admins and managers) when a deal is won.
+          Besides the bell, we email you when you&apos;re assigned, passed or
+          taken off a task; when a task you&apos;re on changes its due date,
+          hours or sprint, is deleted, or its sprint&apos;s dates move; when
+          you&apos;re mentioned in a reply or someone declines a task you gave
+          them; about time off; and (admins and managers) when a deal is won.
+          A bulk change, like syncing a schedule, sends one email.
         </CardDescription>
       </CardHeader>
       <CardContent>

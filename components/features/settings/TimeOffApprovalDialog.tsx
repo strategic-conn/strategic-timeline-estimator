@@ -25,6 +25,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { WorkKey } from "@/lib/assignment/plan";
 import { ptoImpact, reschedulePatches } from "@/lib/availability/pto-impact";
+import { batchNotifications } from "@/lib/activity/workspace-push";
+import { useAuthStore } from "@/store/auth-store";
 import { roleOf } from "@/lib/pricing/line-pricing";
 import { cn } from "@/lib/utils";
 import { useAvailabilityStore } from "@/store/availability-store";
@@ -124,8 +126,18 @@ export function TimeOffApprovalDialog({
   const decide = (decision: "approved" | "rejected", reschedule = false) => {
     if (reschedule) {
       const patches = reschedulePatches(impact);
-      for (const t of patches.tasks) updateTask(t.id, { due_date: t.due_date });
-      for (const s of patches.sprints) updateSprint(s.id, { end_date: s.end_date });
+      // Everyone whose work moved hears it ONCE, however many tasks moved.
+      const actor = useAuthStore.getState().user.name?.trim() || "Someone";
+      batchNotifications(
+        {
+          summary: (n) => `${actor} rescheduled ${n} of your tasks and sprints around approved time off`,
+          href: "/workload",
+        },
+        () => {
+          for (const t of patches.tasks) updateTask(t.id, { due_date: t.due_date });
+          for (const s of patches.sprints) updateSprint(s.id, { end_date: s.end_date });
+        },
+      );
     }
     reviewEntry(entry.id, decision, note);
     toast.success(
