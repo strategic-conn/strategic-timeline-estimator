@@ -163,7 +163,7 @@ export function TaskCard({
         {...tourAnchor("board.card")}
       >
         <div className="pointer-events-none absolute inset-x-0 top-1.5 z-10 flex items-start justify-between px-1.5">
-          <div className="pointer-events-auto opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
+          <div className="pointer-events-auto opacity-100 transition-opacity pointer-fine:md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -180,9 +180,10 @@ export function TaskCard({
               <TooltipContent side="top">Drag to reorder</TooltipContent>
             </Tooltip>
           </div>
-          <div className="pointer-events-auto flex items-center gap-0.5 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100">
-            <div
-              className="flex items-center"
+          <div className="pointer-events-auto flex items-center gap-0.5 opacity-100 transition-opacity pointer-fine:md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+            {/* A label, so the whole 28px square toggles it, not just the 16px box. */}
+            <label
+              className="flex size-7 cursor-pointer items-center justify-center"
               onClick={(e) => e.stopPropagation()}
               onPointerDown={(e) => e.stopPropagation()}
             >
@@ -191,7 +192,7 @@ export function TaskCard({
                 onCheckedChange={() => onToggleSelect(task.id)}
                 aria-label={`Select task ${task.title}`}
               />
-            </div>
+            </label>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -433,8 +434,9 @@ export function TaskCard({
 
             <button
               type="button"
-              className="flex items-center gap-1 rounded-md text-xs text-muted-foreground outline-none ring-offset-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex min-h-6 items-center gap-1 rounded-md px-1 text-xs text-muted-foreground outline-none ring-offset-background hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => onClick(task.id)}
+              aria-label={`${commentCount(task)} comment${commentCount(task) === 1 ? "" : "s"} — open task`}
             >
               <MessageSquare className="size-3.5" />
               <span>{commentCount(task)}</span>

@@ -2465,7 +2465,32 @@ if (!tasks.length) {
    moves into the drawer, and "Add task" is a `+` icon. "New project" and the
    + menu's *Create project* are hidden at every width while blank projects
    are off (`BLANK_PROJECTS_ENABLED`). At 375px the
-   row used to carry six controls and cut the page name to "DA…".
+   row used to carry six controls and cut the page name to "DA…". All four are
+   **44px** on a phone (Apple HIG); the bell was 32 and ? / + were 36.
+
+   **Device + browser audit (2026-11-12)** — every page and estimate tab at
+   375 / 768 / 1280 in Chrome, Edge and WebKit (Safari's engine), plus the
+   dialogs and drawers. Rules it left behind:
+    - **Touch targets ≥ 24px everywhere (WCAG 2.2 AA 2.5.8), 44px for the
+      phone chrome.** Small controls grow their hit area, not their look
+      (`min-h-6`, a wrapping `<label>`, a stretched `::after` link).
+    - **Hover-to-reveal only where there IS hover**: `pointer-fine:md:opacity-0
+      md:group-hover:opacity-100 md:group-focus-within:opacity-100`. A plain
+      `md:opacity-0` hid the task card's select + ⋯ menu and the project/sprint
+      card menus on every iPad (no hover, so they never appeared).
+    - **A sheet's width override needs the `data-[side=…]:` prefix**
+      (`data-[side=right]:w-full data-[side=right]:sm:max-w-md`). `sheet.tsx`
+      sets `data-[side=right]:w-3/4` / `sm:max-w-sm`, which beat a plain
+      `w-full` and tailwind-merge can't see the clash — the task drawer was
+      75% wide on a phone with its ⋯ (Edit / Delete) pushed off-screen, and
+      384px on desktop instead of 512.
+    - **`WorkspacePageHeader` has no bottom margin**: every page puts it in a
+      `flex-col gap-6`, and its old `mb-6` doubled that to 48px.
+    - **Nested pages need a way back up on a phone** (the header shows only
+      the page name there): the sprint board / backlog have "← Project", like
+      the editor's "← All estimates".
+    - Safari logs that the report-only CSP has no `report-to` — expected while
+      it is staged, not an app error.
 
    **The Estimator's five tabs are ONE row at every width.** Under `sm`,
    "Scope & risk" and "Line items" show *Scope* / *Lines*; the full label stays

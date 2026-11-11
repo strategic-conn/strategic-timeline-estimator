@@ -279,7 +279,7 @@ export function WorkloadClient() {
 
       {/* 3-across only once there's room — on the tablet rail it'd be ~200px/card. */}
       <section
-        className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
+        className="grid grid-cols-2 gap-3 lg:grid-cols-3"
         {...tourAnchor("workload.team")}
       >
         <Card size="sm">
@@ -298,7 +298,8 @@ export function WorkloadClient() {
             </CardTitle>
           </CardHeader>
         </Card>
-        <Card size="sm">
+        {/* Two-up on a phone (stacked, three cards took a whole screen); the odd one spans. */}
+        <Card size="sm" className="max-lg:col-span-2">
           <CardHeader className="gap-1">
             <CardDescription>Over weekly capacity</CardDescription>
             <CardTitle
@@ -460,7 +461,7 @@ export function WorkloadClient() {
                       <li key={t.id}>
                         <Link
                           href={taskHref(t)}
-                          className="text-xs text-primary underline-offset-2 hover:underline"
+                          className="inline-flex min-h-6 items-center text-xs text-primary underline-offset-2 hover:underline"
                         >
                           {t.title}
                         </Link>

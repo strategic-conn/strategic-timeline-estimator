@@ -180,7 +180,7 @@ export function ProfileForm() {
         <CardTitle>Your profile</CardTitle>
         <CardDescription>
           {isSupabaseConfigured
-            ? "Name and photo sync to your Supabase profile. Email is managed by your sign-in account."
+            ? "Your name and photo are what your team sees. Email is managed by your sign-in account."
             : "Name, email, and photo are stored in this browser for the demo."}
         </CardDescription>
         <CardAction>

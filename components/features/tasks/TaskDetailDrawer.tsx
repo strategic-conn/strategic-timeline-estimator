@@ -355,14 +355,22 @@ export function TaskDetailDrawer({
         <SheetContent
           side="right"
           showCloseButton
-          className="flex h-full max-h-dvh w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-md md:max-w-lg"
+          // `data-[side=right]:` on purpose: the sheet's own width classes carry
+          // that attribute selector and beat a plain `w-full` / `sm:max-w-md`,
+          // which left this drawer at 75% on a phone and 384px on desktop.
+          className="flex h-full max-h-dvh flex-col gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md data-[side=right]:md:max-w-lg"
         >
           {task ? (
             <>
               <SheetHeader className="shrink-0 space-y-3 border-b border-border px-4 pt-4 pb-3">
                 <div className="flex items-start justify-between gap-2 pr-10">
-                  <Badge variant="outline" className="font-mono text-xs">
-                    {task.id}
+                  {/* Truncates: a full uuid pushed the actions menu off a phone. */}
+                  <Badge
+                    variant="outline"
+                    className="min-w-0 shrink justify-start font-mono text-xs"
+                    title={task.id}
+                  >
+                    <span className="truncate">{task.id}</span>
                   </Badge>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>

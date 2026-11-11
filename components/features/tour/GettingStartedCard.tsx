@@ -43,8 +43,11 @@ import {
 function useLoggedAny(userId: string, acceptedLogged: boolean): boolean | null {
   const tasks = useTasksDataStore((s) => s.tasks);
   const [live, setLive] = React.useState<boolean | null>(null);
+  // Until the session resolves, the auth store still holds the demo user ("6"),
+  // and a uuid column answers that query with a 400 on every dashboard load.
+  const signedIn = useAuthStore((s) => Boolean(s.user.authId));
   React.useEffect(() => {
-    if (!isSupabaseConfigured) return;
+    if (!isSupabaseConfigured || !signedIn) return;
     let on = true;
     void (async () => {
       const { count, error } = await createClient()
@@ -57,7 +60,7 @@ function useLoggedAny(userId: string, acceptedLogged: boolean): boolean | null {
       on = false;
     };
     // `tasks` re-runs it after a log: logging writes the task's cached total.
-  }, [userId, tasks]);
+  }, [userId, tasks, signedIn]);
   // Demo has no time_entries table; a task's own logged hours stand in.
   return isSupabaseConfigured ? live : acceptedLogged;
 }

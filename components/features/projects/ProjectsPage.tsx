@@ -207,7 +207,7 @@ export function ProjectsPage() {
           title="Projects"
           description={
             isSupabaseConfigured
-              ? "Create and manage workspaces. Changes sync to Supabase."
+              ? "Every project starts from a won estimate. Open one to see its sprints and timeline."
               : "Create and manage workspaces. Data stays in this browser until the API is connected."
           }
           meta={

@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProposalEditorClient } from "@/components/features/proposals/ProposalEditorClient";
 
 export const metadata: Metadata = {
-  title: "Quote",
+  title: "Estimate",
   description: "Edit proposal line items and preview.",
 };
 

@@ -117,8 +117,8 @@ function ProjectBacklogCard({
           </Badge>
         </div>
       </CardHeader>
-      <CardContent className="mt-auto flex flex-col gap-2 pt-0 sm:flex-row">
-        <Button asChild className="w-full flex-1 gap-1.5">
+      <CardContent className="mt-auto flex gap-2 pt-0">
+        <Button asChild className="min-w-0 flex-1 gap-1.5">
           <Link href={backlogHref(projectId)}>
             Open board
             <ArrowRight className="size-4" aria-hidden />
@@ -127,7 +127,8 @@ function ProjectBacklogCard({
         <Button
           type="button"
           variant="outline"
-          className="w-full shrink-0 gap-1.5 sm:w-auto"
+          className="shrink-0 gap-1.5 max-sm:w-11 max-sm:px-0"
+          aria-label="Copy link"
           onClick={async () => {
             const ok = await copyTextToClipboard(backlogShareUrl(projectId));
             if (ok) {
@@ -140,7 +141,7 @@ function ProjectBacklogCard({
           }}
         >
           <Link2 className="size-4" aria-hidden />
-          Copy link
+          <span className="max-sm:sr-only">Copy link</span>
         </Button>
       </CardContent>
     </Card>

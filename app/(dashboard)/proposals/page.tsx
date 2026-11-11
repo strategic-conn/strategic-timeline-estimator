@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { ProposalsListClient } from "@/components/features/proposals/ProposalsListClient";
 
 export const metadata: Metadata = {
-  title: "Proposals",
+  title: "Estimator",
   description: "Client quotes and hour estimates.",
 };
 

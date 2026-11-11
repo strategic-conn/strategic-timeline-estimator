@@ -52,26 +52,28 @@ export function SettingsClient({ requestedTab }: { requestedTab?: string }) {
       />
 
       <Tabs defaultValue={defaultTab} className="w-full gap-6">
+        {/* Two rows on a phone: as a scrolling strip with a hidden scrollbar,
+            Workspace was cut in half and Security was off-screen entirely. */}
         <TabsList
           {...tourAnchor("settings.tabs")}
-          className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:justify-center dark:bg-muted/30 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          className="grid h-auto w-full grid-cols-3 gap-1 rounded-2xl border border-border/60 bg-muted/50 p-1 shadow-sm backdrop-blur-sm sm:flex sm:justify-center dark:bg-muted/30">
           <TabsTrigger
             value="profile"
-            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-1.5 px-1.5 py-2.5 text-xs sm:min-h-10 sm:gap-2 sm:px-3 sm:text-sm"
           >
             <User className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Profile</span>
           </TabsTrigger>
           <TabsTrigger
             value="skills"
-            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-1.5 px-1.5 py-2.5 text-xs sm:min-h-10 sm:gap-2 sm:px-3 sm:text-sm"
           >
             <Star className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Skills</span>
           </TabsTrigger>
           <TabsTrigger
             value="timeoff"
-            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-1.5 px-1.5 py-2.5 text-xs sm:min-h-10 sm:gap-2 sm:px-3 sm:text-sm"
           >
             <CalendarOff className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Time off</span>
@@ -82,7 +84,7 @@ export function SettingsClient({ requestedTab }: { requestedTab?: string }) {
           {canViewHourlyRates ? (
             <TabsTrigger
               value="workspace"
-              className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+              className="h-auto min-h-11 shrink-0 justify-center gap-1.5 px-1.5 py-2.5 text-xs sm:min-h-10 sm:gap-2 sm:px-3 sm:text-sm"
             >
               <Building2 className="size-4 shrink-0" aria-hidden />
               <span className="truncate">Workspace</span>
@@ -90,7 +92,7 @@ export function SettingsClient({ requestedTab }: { requestedTab?: string }) {
           ) : null}
           <TabsTrigger
             value="security"
-            className="h-auto min-h-11 shrink-0 justify-center gap-2 px-3 py-2.5 text-xs sm:min-h-10 sm:text-sm"
+            className="h-auto min-h-11 shrink-0 justify-center gap-1.5 px-1.5 py-2.5 text-xs sm:min-h-10 sm:gap-2 sm:px-3 sm:text-sm"
           >
             <Lock className="size-4 shrink-0" aria-hidden />
             <span className="truncate">Security</span>

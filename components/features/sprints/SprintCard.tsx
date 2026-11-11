@@ -115,7 +115,7 @@ export function SprintCard({
                     type="button"
                     variant="ghost"
                     size="icon-sm"
-                    className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
+                    className="shrink-0 text-muted-foreground opacity-100 transition-opacity pointer-fine:lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
                     aria-label="Sprint actions"
                   >
                     <MoreHorizontal className="size-4" />
@@ -234,8 +234,9 @@ export function SprintCard({
                 )}
               </div>
             )}
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button asChild className="w-full flex-1 gap-1.5">
+            {/* One row on a phone too: Copy link becomes an icon beside Open board. */}
+            <div className="flex gap-2">
+              <Button asChild className="min-w-0 flex-1 gap-1.5">
                 <Link href={sprintTasksHref(projectId, sprint.id)}>
                   Open board
                   <ArrowRight className="size-4" aria-hidden />
@@ -244,7 +245,8 @@ export function SprintCard({
               <Button
                 type="button"
                 variant="outline"
-                className="w-full shrink-0 gap-1.5 sm:w-auto"
+                className="shrink-0 gap-1.5 max-sm:w-11 max-sm:px-0"
+                aria-label="Copy link"
                 onClick={async () => {
                   const ok = await copyTextToClipboard(
                     sprintShareUrl(projectId, sprint.id)
@@ -259,7 +261,7 @@ export function SprintCard({
                 }}
               >
                 <Link2 className="size-4" aria-hidden />
-                Copy link
+                <span className="max-sm:sr-only">Copy link</span>
               </Button>
             </div>
           </div>

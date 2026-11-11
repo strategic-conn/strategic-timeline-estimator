@@ -457,7 +457,7 @@ function StageCard({
     <article
       ref={setNodeRef}
       className={cn(
-        "group rounded-md border bg-card px-2.5 py-2 shadow-sm transition-opacity",
+        "group relative rounded-md border bg-card px-2.5 py-2 shadow-sm transition-opacity",
         isDragging && "opacity-40",
         moving && "animate-pulse",
       )}
@@ -468,7 +468,7 @@ function StageCard({
           // menu, and a drag surface wrapped around those swallows their taps.
           <button
             type="button"
-            className="-ml-1 mt-px shrink-0 cursor-grab touch-none rounded p-0.5 text-muted-foreground/50 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
+            className="relative z-10 -ml-1.5 -mt-0.5 shrink-0 cursor-grab touch-none rounded p-1 text-muted-foreground/50 hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none active:cursor-grabbing"
             aria-label={`Drag ${quote.title} to another stage`}
             {...attributes}
             {...listeners}
@@ -482,9 +482,12 @@ function StageCard({
           />
         )}
         <div className="min-w-0 flex-1 space-y-px">
+          {/* Stretched over the whole card (::after), so a tap anywhere opens
+              it — the title alone was a 16px target. The grip and the stage
+              menu sit above it (z-10). */}
           <Link
             href={`/proposals/${quote.id}`}
-            className="block truncate text-xs font-medium underline-offset-2 hover:underline"
+            className="block truncate text-xs font-medium underline-offset-2 after:absolute after:inset-0 after:rounded-md hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring"
           >
             {quote.zoho?.deal_name ?? quote.title}
           </Link>
@@ -548,6 +551,7 @@ function StageCard({
         </div>
 
         {dealId && quote.zoho?.stage ? (
+          <div className="relative z-10">
           <ZohoStageSelect
             compact
             dealId={dealId}
@@ -556,6 +560,7 @@ function StageCard({
             syncedAt={quote.zoho.stage_synced_at ?? quote.zoho.imported_at}
             onChanged={(next) => onChanged(quote.id, next)}
           />
+          </div>
         ) : (
           <span
             className="shrink-0 text-muted-foreground"

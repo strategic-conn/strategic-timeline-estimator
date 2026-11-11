@@ -30,7 +30,7 @@ export function WorkspacePageHeader({
   return (
     <header
       className={cn(
-        "relative mb-6 overflow-hidden rounded-2xl border border-border/60 bg-card/35 px-4 py-4 shadow-sm backdrop-blur-md sm:px-5 sm:py-5 dark:bg-card/25",
+        "relative overflow-hidden rounded-2xl border border-border/60 bg-card/35 px-4 py-4 shadow-sm backdrop-blur-md sm:px-5 sm:py-5 dark:bg-card/25",
         className
       )}
     >

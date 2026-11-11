@@ -116,7 +116,7 @@ export default function ForgotPasswordPage() {
 
             <Link
               href="/login"
-              className="block text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
+              className="block py-1.5 text-center text-xs text-muted-foreground underline-offset-4 hover:underline"
             >
               Back to sign in
             </Link>

@@ -307,7 +307,7 @@ export function ProposalCatalogBrowser({
                         <button
                           type="button"
                           onClick={() => setMany(ids, !allOn)}
-                          className="shrink-0 text-[0.7rem] font-medium text-primary hover:underline"
+                          className="inline-flex min-h-6 shrink-0 items-center px-1 text-[0.7rem] font-medium text-primary hover:underline"
                         >
                           {allOn ? "Clear" : "Select all"}
                         </button>
@@ -460,7 +460,7 @@ function FilterChip({
       onClick={onClick}
       title={title}
       className={cn(
-        "rounded-full border px-2.5 py-0.5 text-xs transition-colors",
+        "inline-flex min-h-7 items-center rounded-full border px-2.5 text-xs transition-colors",
         active
           ? "border-primary bg-primary/10 font-medium text-primary"
           : "border-border text-muted-foreground hover:bg-muted/60 hover:text-foreground",

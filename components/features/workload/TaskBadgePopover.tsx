@@ -65,7 +65,7 @@ export function TaskBadgePopover({
         <button
           type="button"
           className={cn(
-            "rounded px-1.5 py-0.5 text-[0.6rem] font-medium normal-case transition-colors",
+            "inline-flex min-h-6 items-center rounded px-1.5 text-[0.6875rem] font-medium normal-case transition-colors",
             "focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
             tone === "amber"
               ? "bg-amber-100 text-amber-700 hover:bg-amber-200 dark:bg-amber-900/50 dark:text-amber-300 dark:hover:bg-amber-900/80"

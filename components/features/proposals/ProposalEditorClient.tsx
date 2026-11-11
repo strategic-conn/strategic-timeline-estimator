@@ -1063,7 +1063,7 @@ export function ProposalEditorClient({
                             title="Refresh the deal stage from Zoho"
                             disabled={zohoStages.refreshing}
                             onClick={() => void zohoStages.refresh()}
-                            className="rounded p-0.5 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
+                            className="rounded p-1 text-muted-foreground transition-colors hover:text-foreground disabled:opacity-50"
                           >
                             <RefreshCw
                               className={cn(
@@ -1591,8 +1591,9 @@ export function ProposalEditorClient({
               ))}
             </div>
 
-            <div className="sticky bottom-3 z-10 flex flex-col gap-2 rounded-2xl border border-border bg-card px-4 py-3 shadow-md sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+            {/* One row at every width: stacked on a phone it covered ~120px of a ~650px screen. */}
+            <div className="sticky bottom-3 z-10 flex items-center justify-between gap-3 rounded-2xl border border-border bg-card px-4 py-3 shadow-md">
+              <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
                 {/* Every phase's lines, not just development — hence not
                     "Dev hours". */}
                 <span className="text-muted-foreground">Line items</span>
@@ -1608,7 +1609,9 @@ export function ProposalEditorClient({
                     risk buffer are on; say so here, or the two read as a bug. */}
                 {pricing && pricing.pricedHours !== devHours ? (
                   <span className="tabular-nums text-muted-foreground">
-                    {`· quoted ${pricing.pricedHours} h incl. ${[
+                    {/* No leading dot on a phone: there it wraps onto its own line. */}
+                    <span aria-hidden className="max-sm:hidden">· </span>
+                    {`quoted ${pricing.pricedHours} h incl. ${[
                       pricing.totals.grandHours !== devHours ? "add-ons" : null,
                       pricing.bufferPct > 0 ? `${pricing.bufferPct}% risk buffer` : null,
                     ]
@@ -1630,11 +1633,13 @@ export function ProposalEditorClient({
                 type="button"
                 variant="outline"
                 size="sm"
-                className="w-full gap-1.5 sm:w-auto"
+                className="shrink-0 gap-1.5"
                 onClick={() => setTab("adjust")}
+                aria-label="Adjust add-ons"
               >
                 <SlidersHorizontal className="size-3.5" aria-hidden />
-                Adjust add-ons
+                <span className="sm:hidden">Add-ons</span>
+                <span className="max-sm:hidden">Adjust add-ons</span>
               </Button>
             </div>
           </TabsContent>

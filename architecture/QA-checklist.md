@@ -669,6 +669,14 @@ Apply `0047` first (`npm run db:push`).
 - [ ] **Workload**: team rows are stacked cards, no horizontal scroll.
 - [ ] **Kanban**: columns snap one at a time; each card shows grip + ⋯ menu **without hovering**; drag by the grip works by touch.
 - [ ] Team, Settings tabs, Activity filters, Calendar, bottom-nav **More** drawer.
+- [ ] **Settings tabs** at 375px: all five (Profile, Skills, Time off, Workspace, Security) visible on two rows, none cut off.
+- [ ] **Task drawer** at 375px: full screen width; the ⋯ menu (Edit / Delete) and ✕ both on screen; a long task ID ends in "…".
+- [ ] **Sprint board / backlog** at 375px: "← Project name" above the toolbar returns to the project.
+- [ ] **Header** at 375px: ☰, ?, 🔔 and + are all the same 44px size; tab-bar labels readable (11px).
+- [ ] **iPad (touch, 768 + 1024)**: task cards show their grip / select / ⋯ without hovering; project and sprint cards show their ⋯ menu.
+- [ ] **Estimator → Stages**: tapping anywhere on a card opens the estimate; the grip still drags and the stage icon still opens its menu.
+- [ ] **Line items** at 375px: the sticky summary is one row ("Add-ons" button on the right), not three.
+- [ ] Repeat the 375px pass in **Safari** (iPhone) — the 2026-11-12 audit used WebKit on Windows, which is close to Safari but not the same.
 
 ## ♿ Accessibility
 

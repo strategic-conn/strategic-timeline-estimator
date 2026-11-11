@@ -46,7 +46,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   team: "Team & access",
   settings: "Settings",
   reports: "Reports",
-  proposals: "Proposals",
+  proposals: "Estimator",
   "scope-demo": "Draft from scope (demo)",
   activity: "Activity",
   workload: "Workload",
@@ -225,7 +225,7 @@ export function DashboardHeader() {
                             {crumb.label}
                           </BreadcrumbPage>
                         ) : (
-                          <BreadcrumbLink asChild className="line-clamp-1">
+                          <BreadcrumbLink asChild className="line-clamp-1 py-0.5">
                             <Link href={crumb.href}>{crumb.label}</Link>
                           </BreadcrumbLink>
                         )}
@@ -261,7 +261,7 @@ export function DashboardHeader() {
               // On a phone the + menu already ends in "Create project", so this
               // only shows there when that menu doesn't (sprint board, backlog).
               className={cn(
-                "size-9 shrink-0 px-0 sm:size-auto sm:min-h-9 sm:px-3",
+                "size-11 shrink-0 px-0 sm:size-auto sm:min-h-9 sm:px-3",
                 !hideAddTask && "max-sm:hidden",
               )}
               asChild
@@ -280,7 +280,7 @@ export function DashboardHeader() {
                 <Button
                   type="button"
                   size="sm"
-                  className="size-9 shrink-0 gap-1 px-0 sm:size-auto sm:min-h-9 sm:px-3"
+                  className="size-11 shrink-0 gap-1 px-0 sm:size-auto sm:min-h-9 sm:px-3"
                   aria-label="Add task to a project"
                   {...tourAnchor("add-task")}
                 >

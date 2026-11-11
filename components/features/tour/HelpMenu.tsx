@@ -80,7 +80,7 @@ export function HelpMenu() {
           type="button"
           variant="ghost"
           size="icon"
-          className="relative min-h-9 min-w-9 shrink-0"
+          className="relative min-h-9 min-w-9 shrink-0 max-sm:size-11"
           aria-label={unseen ? "Help and tours — this page has a tour" : "Help and tours"}
           disabled={Boolean(active)}
           {...tourAnchor("help")}

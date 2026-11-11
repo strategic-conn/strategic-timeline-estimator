@@ -92,7 +92,7 @@ export default function LoginPage() {
         </CardTitle>
         <CardDescription>
           {isConfigured
-            ? "Sign in with your Supabase account."
+            ? "Sign in with your work email."
             : "Use your work email. We’ll connect this to Supabase Auth next."}
         </CardDescription>
       </CardHeader>
@@ -126,7 +126,7 @@ export default function LoginPage() {
               <Label htmlFor="password">Password</Label>
               <Link
                 href="/forgot-password"
-                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
+                className="inline-flex min-h-6 items-center text-xs text-muted-foreground underline-offset-4 hover:underline"
               >
                 Forgot password?
               </Link>

@@ -45,7 +45,8 @@ export function NotificationBell() {
         type="button"
         variant="ghost"
         size="icon-sm"
-        className="relative"
+        // 44px on a phone (Apple HIG minimum touch target), like the menu button.
+        className="relative max-sm:size-11"
         aria-label={
           unreadCount > 0
             ? `Notifications (${unreadCount} unread)`
@@ -66,7 +67,7 @@ export function NotificationBell() {
       </Button>
       <SheetContent
         side="right"
-        className="flex h-full w-full max-w-full flex-col gap-0 border-l p-0 sm:max-w-md"
+        className="flex h-full flex-col gap-0 border-l p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-md"
       >
         <SheetHeader className="shrink-0 space-y-0 border-b p-0 pr-12 text-left">
           <SheetDescription className="sr-only">
@@ -167,7 +168,7 @@ export function NotificationBell() {
             <Link
               href="/activity"
               onClick={close}
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+              className="inline-flex min-h-9 items-center text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
             >
               View all activity
             </Link>

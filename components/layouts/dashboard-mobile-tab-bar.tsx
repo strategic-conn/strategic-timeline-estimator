@@ -13,7 +13,7 @@ import { useNavDrawerStore } from "@/store/nav-drawer-store";
 import { cn } from "@/lib/utils";
 
 const TAB_CLASS =
-  "flex min-h-11 w-full min-w-0 max-w-full flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.6rem] font-medium leading-none transition-colors sm:px-2";
+  "flex min-h-11 w-full min-w-0 max-w-full flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[0.6875rem] font-medium leading-none transition-colors sm:px-2";
 const ICON_CLASS = "size-[1.15rem] shrink-0 sm:size-5";
 
 export function DashboardMobileTabBar() {

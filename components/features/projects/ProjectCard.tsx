@@ -87,7 +87,7 @@ export function ProjectCard({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                className="shrink-0 text-muted-foreground opacity-100 transition-opacity lg:opacity-0 lg:group-hover:opacity-100"
+                className="shrink-0 text-muted-foreground opacity-100 transition-opacity pointer-fine:lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100"
                 aria-label="Project actions"
               >
                 <MoreHorizontal className="size-4" />

@@ -1,6 +1,8 @@
 "use client";
 
 import { parseISO } from "date-fns";
+import { ArrowLeft } from "lucide-react";
+import Link from "next/link";
 import * as React from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -26,6 +28,7 @@ import { useTasks, useTasksStore } from "@/hooks/useTasks";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { TASK_FOCUS_QUERY_PARAM } from "@/lib/constants/task-focus";
 import { useTeamMembers } from "@/store/team-store";
+import { useProjectsStore } from "@/store/projects-store";
 import { useSprintsStore } from "@/store/sprints-store";
 import type { Task, TaskStatus } from "@/types/task.types";
 import type { BacklogSprintMoveTarget } from "@/components/features/tasks/TaskBoardToolbar";
@@ -51,6 +54,9 @@ export interface TasksPageProps {
 
 export function TasksPage({ projectId, sprintId }: TasksPageProps) {
   const projectMissing = useProjectMissing(projectId);
+  const projectName = useProjectsStore(
+    (s) => s.projects.find((p) => p.id === projectId)?.name,
+  );
   const searchParams = useSearchParams();
   const focusParam = searchParams.get(TASK_FOCUS_QUERY_PARAM);
 
@@ -476,6 +482,14 @@ export function TasksPage({ projectId, sprintId }: TasksPageProps) {
   return (
     <>
       <div className="flex w-full flex-col gap-6">
+        {/* The way back up on a phone, where the header shows only this page's
+            name (no breadcrumb) — the estimate editor's "All estimates" pattern. */}
+        <Button variant="ghost" size="sm" className="-mb-3 w-fit gap-2 px-0" asChild>
+          <Link href={`/projects/${projectId}`}>
+            <ArrowLeft className="size-4" aria-hidden />
+            {projectName ?? "Project"}
+          </Link>
+        </Button>
         <TaskBoardToolbar
           boardTitle={boardTitle}
           boardSubtitle={boardSubtitle}
