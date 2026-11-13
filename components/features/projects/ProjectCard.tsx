@@ -75,7 +75,12 @@ export function ProjectCard({
         <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="min-w-0 flex-1">
             <CardTitle className="truncate text-base">
-              {project.name}
+              <Link
+                href={`/projects/${project.id}`}
+                className="rounded-sm outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {project.name}
+              </Link>
             </CardTitle>
             <CardDescription className="mt-1 line-clamp-2">
               {project.description ?? "No description."}
