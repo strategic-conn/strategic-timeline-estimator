@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { Bell, Check, Trash2 } from "lucide-react";
 
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { ActivityRow } from "@/components/features/activity/ActivityRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 export function NotificationBell() {
   const [open, setOpen] = React.useState(false);
   const items = useNotificationsStore((s) => s.items);
+  const loaded = useNotificationsStore((s) => s.loaded);
   const markAllRead = useNotificationsStore((s) => s.markAllRead);
   const markRead = useNotificationsStore((s) => s.markRead);
   const clear = useNotificationsStore((s) => s.clear);
@@ -103,7 +105,9 @@ export function NotificationBell() {
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain">
-          {items.length === 0 ? (
+          {!loaded ? (
+            <ListSkeleton rows={4} className="p-4" />
+          ) : items.length === 0 ? (
             <p className="py-12 text-center text-sm text-muted-foreground">
               No notifications yet.
             </p>

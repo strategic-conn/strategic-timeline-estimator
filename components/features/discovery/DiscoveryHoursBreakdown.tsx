@@ -142,9 +142,12 @@ export function DiscoveryHoursBreakdown({
           ) : null}
         </CardHeader>
         <CardContent className="pb-4">
+          {/* Phones scroll the table sideways rather than squeeze phase names
+              to "Disc…" beside five number columns. */}
+          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:overflow-visible sm:px-0">
           <div
             className={cn(
-              "grid items-center gap-x-3 gap-y-1 text-sm sm:gap-x-4",
+              "grid min-w-[25rem] items-center gap-x-3 gap-y-1 text-sm sm:min-w-0 sm:gap-x-4",
               lineHours
                 ? "grid-cols-[1fr_auto_auto_auto_auto] sm:grid-cols-[1fr_8rem_auto_auto_auto_auto]"
                 : "grid-cols-[1fr_auto_auto_auto] sm:grid-cols-[1fr_8rem_auto_auto_auto]",
@@ -329,6 +332,7 @@ export function DiscoveryHoursBreakdown({
                 </span>
               </div>
             ) : null}
+          </div>
           </div>
         </CardContent>
       </Card>

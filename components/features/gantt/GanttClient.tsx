@@ -37,6 +37,7 @@ import { useSprintsStore } from "@/store/sprints-store";
 import { useTasksDataStore } from "@/store/tasks-store";
 import type { TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { AppHelp } from "@/components/common/app-help";
 
 const ROW_PX = 52;
@@ -141,6 +142,10 @@ export function GanttClient({
   const tasks = useTasksDataStore((s) => s.tasks);
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
+  const tasksLoaded = useTasksDataStore((s) => s.loaded);
+  const sprintsLoaded = useSprintsStore((s) => s.loaded);
+  const thirdLoaded = useProjectsStore((s) => s.loaded);
+  const dataLoaded = tasksLoaded && sprintsLoaded && thirdLoaded;
 
   const [projectId, setProjectId] = React.useState<ProjectFilter>(
     lockedProjectId ?? "all"
@@ -456,7 +461,9 @@ export function GanttClient({
           </CardHeader>
 
           <CardContent className="px-0 pb-0 pt-0">
-            {rows.length === 0 ? (
+            {!plan && !dataLoaded ? (
+              <ListSkeleton rows={6} className="p-4" />
+            ) : rows.length === 0 ? (
               <div className="flex flex-col items-center justify-center gap-2 px-6 py-16 text-center">
                 <CalendarRange className="size-10 text-muted-foreground/50" />
                 <p className="text-sm font-medium text-foreground">

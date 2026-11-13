@@ -8,6 +8,7 @@ import {
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
+import { useUserResolved } from "@/store/auth-store";
 
 /**
  * Redirects a user away from a section their per-user page access doesn't
@@ -18,8 +19,11 @@ export function PageAccessGuard() {
   const pathname = usePathname();
   const router = useRouter();
   const accessible = useAccessibleHrefs();
+  // Until the profile loads the role is a placeholder: don't act on it.
+  const resolved = useUserResolved();
 
   React.useEffect(() => {
+    if (!resolved) return;
     // Match the current path to a gate-able destination (e.g. /projects/123 → /projects).
     const item = gateableNavItems().find((i) =>
       isDashboardNavActive(pathname, i.href),
@@ -27,7 +31,7 @@ export function PageAccessGuard() {
     if (item && !accessible.has(item.href)) {
       router.replace("/dashboard");
     }
-  }, [pathname, accessible, router]);
+  }, [pathname, accessible, router, resolved]);
 
   return null;
 }

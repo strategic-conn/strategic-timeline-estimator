@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { AdminInvitesSection } from "@/components/features/settings/AdminInvitesSection";
 import { MemberSkillsEditor } from "@/components/features/skills/MemberSkillsEditor";
 import { MemberAccessDialog } from "@/components/features/team/MemberAccessDialog";
@@ -116,6 +117,7 @@ export function TeamClientPage() {
   >({});
   const [accessMember, setAccessMember] = React.useState<TeamMember | null>(null);
   const hydrateTeam = useTeamStore((s) => s.hydrateFromSupabase);
+  const teamLoaded = useTeamStore((s) => s.loaded);
   const [deactivateTarget, setDeactivateTarget] =
     React.useState<TeamMember | null>(null);
   const [deleteTarget, setDeleteTarget] = React.useState<TeamMember | null>(null);
@@ -260,7 +262,9 @@ export function TeamClientPage() {
           </CardAction>
         </CardHeader>
         <CardContent className="pt-0">
-          {active.length === 0 ? (
+          {!teamLoaded ? (
+            <ListSkeleton rows={5} className="space-y-3" />
+          ) : active.length === 0 ? (
             <p className="text-sm text-muted-foreground">No members yet.</p>
           ) : (
             <ul className="divide-y divide-border rounded-lg border">

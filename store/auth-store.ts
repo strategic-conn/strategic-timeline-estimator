@@ -1,8 +1,10 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { deriveInitials } from "@/lib/utils/initials";
 
 export type UserRole = "admin" | "manager" | "member" | "viewer";
@@ -56,10 +58,32 @@ const DEMO_USER: AuthUser = {
   avatar_url: "https://i.pravatar.cc/40?u=6",
 };
 
+/**
+ * Live mode before the profile has loaded: nobody, with the least rights.
+ * It used to be DEMO_USER, so a fresh sign-in read "Welcome back, Felix" with
+ * manager rights until the real profile arrived. Screens show a skeleton while
+ * `useUserResolved()` is false.
+ */
+const NO_USER: AuthUser = { id: 0, name: "", email: "", role: "viewer", initials: "" };
+const START_USER = isSupabaseConfigured ? NO_USER : DEMO_USER;
+
+const noSubscribe = () => () => {};
+
+/**
+ * False in live mode until the signed-in person's profile has loaded. Also
+ * false on the server render and the hydrating client render: the stored user
+ * exists only in the browser, so deciding before mount would mismatch.
+ */
+export function useUserResolved(): boolean {
+  const mounted = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const known = useAuthStore((s) => Boolean(s.user.authId));
+  return !isSupabaseConfigured || (mounted && known);
+}
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      user: DEMO_USER,
+      user: START_USER,
       setUser: (user) => set({ user }),
       setRole: (role) => set((s) => ({ user: { ...s.user, role } })),
       updateProfile: (partial) =>
@@ -88,11 +112,16 @@ export const useAuthStore = create<AuthState>()(
             page_access: profile.page_access ?? null,
           },
         })),
-      resetToDemo: () => set({ user: DEMO_USER }),
+      resetToDemo: () => set({ user: START_USER }),
     }),
     {
       name: "timeline-auth",
-      version: 1,
+      // v2: drop a stored live-mode Felix (no authId) — the old starting user.
+      version: 2,
+      migrate: (stored) => {
+        const s = stored as { user?: AuthUser } | undefined;
+        return { user: s?.user?.authId || !isSupabaseConfigured ? (s?.user ?? START_USER) : START_USER } as AuthState;
+      },
     }
   )
 );

@@ -3,9 +3,10 @@
 import * as React from "react";
 import Link from "next/link";
 
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { ActivityRow } from "@/components/features/activity/ActivityRow";
 import { groupActivityByDay } from "@/lib/utils/activity-feed";
-import type { ActivityItem } from "@/store/activity-store";
+import { useActivityStore, type ActivityItem } from "@/store/activity-store";
 import { useProjectsStore } from "@/store/projects-store";
 import { useTeamMembers } from "@/store/team-store";
 
@@ -23,7 +24,9 @@ export function ActivityFeedList({ items, emptyMessage }: ActivityFeedListProps)
   );
 
   const groups = groupActivityByDay(items);
+  const loaded = useActivityStore((s) => s.loaded);
 
+  if (!loaded) return <ListSkeleton rows={5} className="py-4" />;
   if (groups.length === 0) {
     return (
       <p className="py-12 text-center text-sm text-muted-foreground">

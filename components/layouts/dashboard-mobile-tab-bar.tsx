@@ -9,6 +9,8 @@ import {
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useUserResolved } from "@/store/auth-store";
 import { useNavDrawerStore } from "@/store/nav-drawer-store";
 import { cn } from "@/lib/utils";
 
@@ -20,6 +22,7 @@ export function DashboardMobileTabBar() {
   const pathname = usePathname();
   const accessible = useAccessibleHrefs();
   const tabItems = getDashboardMobileTabItems(accessible);
+  const resolved = useUserResolved();
   const openDrawer = useNavDrawerStore((s) => s.setOpen);
 
   // "More" carries the current page's highlight when you're on a page that
@@ -39,7 +42,16 @@ export function DashboardMobileTabBar() {
           cols >= 5 ? "grid-cols-5" : "grid-cols-4"
         )}
       >
-        {tabItems.map((item) => {
+        {!resolved
+          ? Array.from({ length: 4 }, (_, i) => (
+              <li key={i} className="flex min-w-0 justify-center" aria-hidden>
+                <div className={TAB_CLASS}>
+                  <Skeleton className="size-5 rounded-md" />
+                  <Skeleton className="h-2.5 w-10" />
+                </div>
+              </li>
+            ))
+          : tabItems.map((item) => {
           const active = isDashboardNavActive(pathname, item.href);
           return (
             <li key={item.href} className="flex min-w-0 justify-center">

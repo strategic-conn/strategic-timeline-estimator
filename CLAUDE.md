@@ -1553,6 +1553,21 @@ workload bar.
    reads a real-looking `0` first — for a moment the page asserted "0 overdue"
    as fact. Found because the cross-page test compared a number to a loading
    state.
+ - **Nobody is "Felix" while signing in** (2026-11-13). In live mode the auth
+   store starts EMPTY (no name, viewer rights), not the demo user, and
+   **`useUserResolved()`** (`store/auth-store.ts`) is false until the profile
+   loads — and on the server/hydrating render, since the stored user exists
+   only in the browser. **`UserGate`** (`components/layouts/user-gate.tsx`, in
+   the dashboard layout) shows the page skeleton until then, so no page renders
+   against a placeholder (wrong welcome name, the Estimator's "no access" for a
+   manager, Settings/Workload tabs picked for the wrong role); the sidebar nav,
+   tab bar, user card and drawer show skeleton rows; `PageAccessGuard` waits.
+   Sign-in clears the stored user first, so the previous person on that
+   browser never flashes either. e2e's `waitForApp` waits for the gate.
+ - **Lists say "No … yet" only once their store has loaded**: Team, the
+   activity feeds, the bell, time off (yours + admin), skills, Workload → Mine,
+   the Gantt and the calendar's day panel show `ListSkeleton`
+   (`components/common/list-skeleton.tsx`) until their store's `loaded`.
  - Rows sort **busiest first**: the people a manager has to act on belong at the
    top, not whoever is alphabetically first.
  - **Chart axis labels are first names, disambiguated only when they collide.**
@@ -2580,6 +2595,15 @@ if (!tasks.length) {
       the editor's "← All estimates".
     - Safari logs that the report-only CSP has no `report-to` — expected while
       it is staged, not an app error.
+    - **iOS date inputs** ignore the height class and keep a native min width
+      (overflowing a phone card, hint text drawn over them). `globals.css`
+      drops their native appearance on iOS only
+      (`@supports (-webkit-touch-callout: none)`); the picker still opens.
+    - **The questionnaire's step circles are a grid** of one equal column
+      per section on a phone, padded for the active ring and the count badge —
+      an `overflow-x-auto` row clipped both and pushed the last circle off.
+    - **Hours breakdown scrolls sideways under `sm`** (`min-w-[25rem]` inside
+      an `overflow-x-auto`) instead of squeezing phase names to "Disc…".
 
    **The Estimator's five tabs are ONE row at every width.** Under `sm`,
    "Scope & risk" and "Line items" show *Scope* / *Lines*; the full label stays

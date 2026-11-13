@@ -11,7 +11,9 @@ import {
   groupDashboardNavItems,
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
+import { useUserResolved } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 
 export function DashboardSidebarNav() {
@@ -19,6 +21,19 @@ export function DashboardSidebarNav() {
   const accessible = useAccessibleHrefs();
   const navItems = filterNavByAccess(DASHBOARD_NAV_ITEMS, accessible);
   const groups = groupDashboardNavItems(navItems);
+
+  // The pages someone may open depend on their role: until it loads, rows
+  // rather than a viewer's short menu that then grows.
+  const resolved = useUserResolved();
+  if (!resolved) {
+    return (
+      <div className="flex flex-col gap-1" aria-busy="true" aria-label="Loading menu">
+        {Array.from({ length: 8 }, (_, i) => (
+          <Skeleton key={i} className="mx-auto h-9 w-9 rounded-xl lg:w-full" />
+        ))}
+      </div>
+    );
+  }
 
   return (
     <nav className="flex flex-col gap-4" aria-label="Main">

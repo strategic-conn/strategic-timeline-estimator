@@ -128,6 +128,23 @@
   html {
     @apply font-sans;
   }
+  /* iOS Safari draws date/time inputs natively: they ignore the height class
+     (taller than the field, so the hint below overlaps) and keep a min width
+     that overflows a phone card. Dropping the native appearance makes them
+     honour the field's own size; the picker still opens on tap. */
+  @supports (-webkit-touch-callout: none) {
+    input[type="date"],
+    input[type="time"],
+    input[type="datetime-local"],
+    input[type="month"] {
+      -webkit-appearance: none;
+      appearance: none;
+      min-width: 0;
+    }
+    input::-webkit-date-and-time-value {
+      text-align: left;
+    }
+  }
 }
 
 /* Pulses when user lands from dashboard / workload / calendar with ?task= */

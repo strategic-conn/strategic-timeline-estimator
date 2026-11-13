@@ -26,7 +26,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
-import { useAuthStore, type UserRole } from "@/store/auth-store";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore, useUserResolved, type UserRole } from "@/store/auth-store";
 import { cn } from "@/lib/utils";
 
 const ROLES: { value: UserRole; label: string }[] = [
@@ -42,6 +43,7 @@ export function SidebarUserCard() {
   const setRole = useAuthStore((s) => s.setRole);
   const { isConfigured, signOut } = useAuth();
   const onSettings = pathname === "/settings" || pathname.startsWith("/settings/");
+  const resolved = useUserResolved();
 
   return (
     <div
@@ -63,13 +65,17 @@ export function SidebarUserCard() {
         )}
         aria-label={`Profile and settings — ${user.name}`}
       >
-        <Avatar size="sm" className="shrink-0">
-          {user.avatar_url ? <AvatarImage src={user.avatar_url} alt="" /> : null}
-          <AvatarFallback>{user.initials}</AvatarFallback>
-        </Avatar>
+        {resolved ? (
+          <Avatar size="sm" className="shrink-0">
+            {user.avatar_url ? <AvatarImage src={user.avatar_url} alt="" /> : null}
+            <AvatarFallback>{user.initials}</AvatarFallback>
+          </Avatar>
+        ) : (
+          <Skeleton className="size-6 shrink-0 rounded-full" />
+        )}
         <div className="hidden min-w-0 text-left lg:block">
           <div className="truncate text-sm font-medium leading-tight">
-            {user.name}
+            {resolved ? user.name : <Skeleton className="my-0.5 h-3.5 w-24" />}
           </div>
           <div className="truncate text-[0.65rem] text-muted-foreground leading-tight">
             Account & settings
@@ -83,7 +89,7 @@ export function SidebarUserCard() {
             variant="secondary"
             className="hidden h-7 px-2 text-xs capitalize lg:inline-flex"
           >
-            {user.role}
+            {resolved ? user.role : <Skeleton className="h-3 w-10" />}
           </Badge>
           <AlertDialog>
             <AlertDialogTrigger asChild>

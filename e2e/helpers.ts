@@ -53,6 +53,8 @@ export async function hasHorizontalScroll(page: Page): Promise<boolean> {
 /** Waits for the app shell to be interactive (not just for the network to idle). */
 export async function waitForApp(page: Page): Promise<void> {
   await page.getByRole("main").waitFor({ state: "visible", timeout: 30_000 });
+  // UserGate shows the page skeleton until the signed-in profile has loaded.
+  await page.locator('[aria-label="Loading page"]').waitFor({ state: "detached", timeout: 30_000 });
 }
 
 /** `.env.local` merged under `process.env`, for the few checks that need the DB. */

@@ -9,6 +9,7 @@ import {
   TaskBadgePopover,
   taskHref,
 } from "@/components/features/workload/TaskBadgePopover";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { WorkloadBar } from "@/components/features/workload/WorkloadBar";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { Badge } from "@/components/ui/badge";
@@ -51,6 +52,7 @@ export function WorkloadMine({
 }) {
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const tasks = useTasksDataStore((s) => s.tasks);
+  const tasksLoaded = useTasksDataStore((s) => s.loaded);
   const closed = useClosedProjectIds();
   const projects = useProjectsStore((s) => s.projects);
   const capacityOverrides = useWeeklyCapacityStore((s) => s.overrides);
@@ -137,15 +139,29 @@ export function WorkloadMine({
     return [...map.entries()];
   }, [work.allocated]);
 
+  const header = (
+    <WorkspacePageHeader
+      eyebrow="Capacity"
+      title="My workload"
+      help={<AppHelp section="page.workload-mine" />}
+      description={`Work allocated to you vs your weekly capacity (${DEFAULT_WEEKLY_CAPACITY_HOURS}h default, less any time off). A task leaves this page when it is moved to Done.`}
+      actions={toggle}
+    />
+  );
+
+  // Rule 2: "0h of 40h · Nothing open" is a claim, not a loading state.
+  if (!tasksLoaded) {
+    return (
+      <div className="flex flex-col gap-6">
+        {header}
+        <ListSkeleton rows={5} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
-      <WorkspacePageHeader
-        eyebrow="Capacity"
-        title="My workload"
-        help={<AppHelp section="page.workload-mine" />}
-        description={`Work allocated to you vs your weekly capacity (${DEFAULT_WEEKLY_CAPACITY_HOURS}h default, less any time off). A task leaves this page when it is moved to Done.`}
-        actions={toggle}
-      />
+      {header}
 
       {pendingCount > 0 ? (
         <div

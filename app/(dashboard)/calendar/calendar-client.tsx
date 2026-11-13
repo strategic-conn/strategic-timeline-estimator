@@ -39,6 +39,7 @@ import Link from "next/link";
 import { TASK_STATUS_DOT } from "@/lib/constants/task-status";
 import type { TaskStatus } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { AppHelp } from "@/components/common/app-help";
 
 /** Shared, so a status cannot be purple here and blue on the next page. */
@@ -78,6 +79,10 @@ export function CalendarClient() {
   const sprints = useSprintsStore((s) => s.sprints);
   const projects = useProjectsStore((s) => s.projects);
   const allAvailability = useAvailabilityStore((s) => s.entries);
+  const tasksLoaded = useTasksDataStore((s) => s.loaded);
+  const sprintsLoaded = useSprintsStore((s) => s.loaded);
+  const thirdLoaded = useAvailabilityStore((s) => s.loaded);
+  const dataLoaded = tasksLoaded && sprintsLoaded && thirdLoaded;
   const members = useTeamMembers();
   const me = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const { canApproveTimeOff } = usePermissions();
@@ -404,7 +409,9 @@ export function CalendarClient() {
                   : "Select a day"}
               </CardTitle>
               <CardDescription className="text-xs">
-                {selectedTotal > 0
+                {!dataLoaded
+                  ? "Loading…"
+                  : selectedTotal > 0
                   ? `${selectedTotal} item${selectedTotal > 1 ? "s" : ""}`
                   : selectedDate
                     ? "Nothing scheduled"
@@ -415,6 +422,7 @@ export function CalendarClient() {
               </CardAction>
             </CardHeader>
             <CardContent className="max-h-[60vh] space-y-2 overflow-y-auto pt-0">
+              {!dataLoaded ? <ListSkeleton rows={3} /> : null}
               {selectedHoliday ? (
                 <div className="flex items-start gap-2 rounded-lg border border-border/60 bg-muted/40 p-2.5">
                   <CalendarDays

@@ -12,6 +12,7 @@ import { TourHost } from "@/components/features/tour/TourHost";
 import { TwoFactorReminder } from "@/components/features/tour/TwoFactorReminder";
 import { WorkspaceSync } from "@/components/layouts/workspace-sync";
 import { HolidayRefresh } from "@/components/layouts/holiday-refresh";
+import { UserGate } from "@/components/layouts/user-gate";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -93,7 +94,9 @@ export default function DashboardLayout({
           className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-3 py-5 pb-[calc(4.25rem+env(safe-area-inset-bottom))] outline-none print:overflow-visible print:pb-6 sm:px-4 sm:py-6 md:px-5 md:py-6 md:pb-6 lg:px-6"
         >
           <div className="mx-auto w-full max-w-[1600px]">
-            <HolidayRefresh>{children}</HolidayRefresh>
+            <UserGate>
+              <HolidayRefresh>{children}</HolidayRefresh>
+            </UserGate>
           </div>
         </main>
 

@@ -48,6 +48,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ymdCompare } from "@/lib/utils/availability-dates";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
 import { useAuthStore } from "@/store/auth-store";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { useAvailabilityStore } from "@/store/availability-store";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
@@ -95,6 +96,7 @@ type FormValues = z.infer<typeof schema>;
 export function TimeOffSettingsSection() {
   const userId = useAuthStore((s) => s.user.authId ?? String(s.user.id));
   const entries = useAvailabilityStore((s) => s.entries);
+  const loaded = useAvailabilityStore((s) => s.loaded);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
   // An approver's own entry needs no approval, so the copy must not promise one.
@@ -183,7 +185,9 @@ export function TimeOffSettingsSection() {
         </Button>
       </div>
 
-      {mine.length === 0 ? (
+      {!loaded ? (
+        <ListSkeleton rows={3} />
+      ) : mine.length === 0 ? (
         <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
           No entries yet. Add a date range when you&apos;re on PTO or unavailable.
         </p>

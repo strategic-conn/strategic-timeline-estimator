@@ -49,6 +49,7 @@ import { TimeOffApprovalDialog } from "@/components/features/settings/TimeOffApp
 import { usePermissions } from "@/hooks/usePermissions";
 import { ymdCompare } from "@/lib/utils/availability-dates";
 import { useActiveTeamMembers, useTeamMembers } from "@/store/team-store";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { useAvailabilityStore } from "@/store/availability-store";
 import type {
   AvailabilityEntry,
@@ -88,6 +89,7 @@ export function AdminTeamTimeOffSection() {
    */
   const members = useActiveTeamMembers();
   const entries = useAvailabilityStore((s) => s.entries);
+  const loaded = useAvailabilityStore((s) => s.loaded);
   const addEntry = useAvailabilityStore((s) => s.addEntry);
   const deleteEntry = useAvailabilityStore((s) => s.deleteEntry);
 
@@ -198,7 +200,9 @@ export function AdminTeamTimeOffSection() {
             </div>
           </div>
 
-          {pending.length === 0 ? (
+          {!loaded ? (
+            <ListSkeleton rows={2} />
+          ) : pending.length === 0 ? (
             <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
               Nothing waiting. Requests appear here as soon as someone submits one.
             </p>
@@ -293,7 +297,9 @@ export function AdminTeamTimeOffSection() {
         </Button>
       </div>
 
-      {forPerson.length === 0 ? (
+      {!loaded ? (
+        <ListSkeleton rows={3} />
+      ) : forPerson.length === 0 ? (
         <p className="rounded-lg border border-dashed py-10 text-center text-sm text-muted-foreground">
           No time off for {selectedMember?.name ?? "this person"} yet.
         </p>

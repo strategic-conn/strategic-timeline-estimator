@@ -5,6 +5,7 @@ import { Plus, Sparkles, Trash2 } from "lucide-react";
 
 import { StarRating } from "@/components/features/skills/StarRating";
 import { Button } from "@/components/ui/button";
+import { ListSkeleton } from "@/components/common/list-skeleton";
 import { Input } from "@/components/ui/input";
 import { COMMON_SKILLS } from "@/lib/constants/skills";
 import {
@@ -34,6 +35,7 @@ export function MemberSkillsEditor({
   const teamSkillNames = useAllSkillNames();
   const setSkill = useMemberSkillsStore((s) => s.setSkill);
   const removeSkill = useMemberSkillsStore((s) => s.removeSkill);
+  const loaded = useMemberSkillsStore((s) => s.loaded);
 
   const [draft, setDraft] = React.useState("");
 
@@ -116,7 +118,9 @@ export function MemberSkillsEditor({
         </div>
       ) : null}
 
-      {skills.length === 0 ? (
+      {!loaded ? (
+        <ListSkeleton rows={2} />
+      ) : skills.length === 0 ? (
         <div className="flex items-center gap-2 rounded-lg border border-dashed px-3 py-6 text-sm text-muted-foreground">
           <Sparkles className="size-4 shrink-0" aria-hidden />
           {editable

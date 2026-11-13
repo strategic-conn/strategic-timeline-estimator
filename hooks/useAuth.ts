@@ -23,6 +23,9 @@ export function useAuth() {
 
   const signIn = React.useCallback(
     async (email: string, password: string): Promise<AuthResult> => {
+      // Forget whoever was stored on this browser (a session that expired
+      // without a sign-out), so their name never flashes for the next person.
+      resetToDemo();
       const supabase = createClient();
       const { error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
@@ -36,7 +39,7 @@ export function useAuth() {
       router.refresh();
       return { error: null };
     },
-    [router],
+    [router, resetToDemo],
   );
 
   const signUp = React.useCallback(

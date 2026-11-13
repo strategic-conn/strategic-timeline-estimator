@@ -23,7 +23,8 @@ import {
   isDashboardNavActive,
 } from "@/components/layouts/dashboard-nav-config";
 import { useAccessibleHrefs } from "@/hooks/useNavAccess";
-import { useAuthStore } from "@/store/auth-store";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useAuthStore, useUserResolved } from "@/store/auth-store";
 import { useNavDrawerStore } from "@/store/nav-drawer-store";
 import { ModeToggle } from "@/components/mode-toggle";
 import { isSupabaseConfigured } from "@/lib/supabase/config";
@@ -34,6 +35,7 @@ export function DashboardMobileMenu() {
   const open = useNavDrawerStore((s) => s.open);
   const setOpen = useNavDrawerStore((s) => s.setOpen);
   const user = useAuthStore((s) => s.user);
+  const resolved = useUserResolved();
   const accessible = useAccessibleHrefs();
   const navItems = filterNavByAccess(DASHBOARD_NAV_ITEMS, accessible);
   const groups = groupDashboardNavItems(navItems);
@@ -141,20 +143,32 @@ export function DashboardMobileMenu() {
             aria-label={`Profile and settings — ${user.name}`}
             onClick={() => setOpen(false)}
           >
-            <Avatar size="sm">
-              {user.avatar_url ? (
-                <AvatarImage src={user.avatar_url} alt="" />
-              ) : null}
-              <AvatarFallback>{user.initials}</AvatarFallback>
-            </Avatar>
-            <div className="min-w-0 text-left">
-              <div className="truncate text-xs font-medium leading-5">
-                {user.name}
-              </div>
-              <div className="truncate text-xs capitalize text-muted-foreground">
-                {user.role}
-              </div>
-            </div>
+            {resolved ? (
+              <>
+                <Avatar size="sm">
+                  {user.avatar_url ? (
+                    <AvatarImage src={user.avatar_url} alt="" />
+                  ) : null}
+                  <AvatarFallback>{user.initials}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0 text-left">
+                  <div className="truncate text-xs font-medium leading-5">
+                    {user.name}
+                  </div>
+                  <div className="truncate text-xs capitalize text-muted-foreground">
+                    {user.role}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <Skeleton className="size-6 shrink-0 rounded-full" />
+                <div className="space-y-1.5">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-3 w-14" />
+                </div>
+              </>
+            )}
           </Link>
         </div>
       </SheetContent>

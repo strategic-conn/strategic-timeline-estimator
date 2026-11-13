@@ -61,7 +61,12 @@ export function DiscoveryWizard({
     <div className="grid gap-5 lg:grid-cols-[14rem_1fr]">
       {/* Section rail — a compact numbered stepper on mobile (circles fit without
           scrolling), the detailed sidebar with titles/status on desktop. */}
-      <nav className="flex items-center justify-between gap-1 overflow-x-auto pb-1 lg:flex-col lg:items-stretch lg:justify-normal lg:gap-2 lg:overflow-visible lg:pb-0">
+      {/* Phones: one equal column per step, padded so the active ring and the
+          count badge are never clipped (an overflow scroller cut both). */}
+      <nav
+        className="grid justify-items-center gap-1 px-1 py-1.5 lg:flex lg:flex-col lg:items-stretch lg:gap-2 lg:p-0"
+        style={{ gridTemplateColumns: `repeat(${DISCOVERY_SECTIONS.length}, minmax(0, 1fr))` }}
+      >
         {DISCOVERY_SECTIONS.map((s, i) => {
           const active = s.n === section;
           const open = unanswered[s.n] ?? 0;
