@@ -97,70 +97,44 @@ function liveChannels(
 }
 
 /**
+ * Re-reads every workspace store from Supabase. Used on sign-in and by
+ * pull-to-refresh. Stores keep `loaded`, so the page stays on screen while it
+ * refetches. No-op in demo mode (each hydrate returns early).
+ */
+export function refreshWorkspace(authId: string): Promise<unknown> {
+  return Promise.all([
+    useProjectsStore.getState().hydrateFromSupabase(),
+    useSprintsStore.getState().hydrateFromSupabase(),
+    useTasksDataStore.getState().hydrateFromSupabase(),
+    useTeamStore.getState().hydrateFromSupabase(),
+    useNotificationsStore.getState().hydrateFromSupabase(),
+    useActivityStore.getState().hydrateFromSupabase(),
+    useAvailabilityStore.getState().hydrateFromSupabase(),
+    useWeeklyCapacityStore.getState().hydrateFromSupabase(),
+    useHourlyRatesStore.getState().hydrateFromSupabase(),
+    useProposalEstimatorStore.getState().hydrateFromSupabase(),
+    useMemberSkillsStore.getState().hydrateFromSupabase(),
+    useTourStore.getState().hydrateFromSupabase(authId),
+    useHolidaySettingsStore.getState().hydrateFromSupabase(),
+    useWorkspaceSettingsStore.getState().hydrateFromSupabase(),
+  ]);
+}
+
+/**
  * Hydrates the Supabase-backed workspace stores once the user is authenticated,
  * and opens the realtime channel for notifications. Renders nothing. No-ops in
  * demo mode — a single place that loads/streams live data.
  */
 export function WorkspaceSync() {
   const authId = useAuthStore((s) => s.user.authId);
-  const hydrateProjects = useProjectsStore((s) => s.hydrateFromSupabase);
-  const hydrateSprints = useSprintsStore((s) => s.hydrateFromSupabase);
-  const hydrateTasks = useTasksDataStore((s) => s.hydrateFromSupabase);
-  const hydrateTeam = useTeamStore((s) => s.hydrateFromSupabase);
-  const hydrateNotifications = useNotificationsStore(
-    (s) => s.hydrateFromSupabase,
-  );
   const applyInsert = useNotificationsStore((s) => s.applyRealtimeInsert);
   const applyUpdate = useNotificationsStore((s) => s.applyRealtimeUpdate);
   const applyDelete = useNotificationsStore((s) => s.applyRealtimeDelete);
-  const hydrateActivity = useActivityStore((s) => s.hydrateFromSupabase);
   const applyActivityInsert = useActivityStore((s) => s.applyRealtimeInsert);
-  const hydrateAvailability = useAvailabilityStore(
-    (s) => s.hydrateFromSupabase,
-  );
-  const hydrateCapacity = useWeeklyCapacityStore((s) => s.hydrateFromSupabase);
-  const hydrateRates = useHourlyRatesStore((s) => s.hydrateFromSupabase);
-  const hydrateProposals = useProposalEstimatorStore(
-    (s) => s.hydrateFromSupabase,
-  );
-  const hydrateSkills = useMemberSkillsStore((s) => s.hydrateFromSupabase);
-  const hydrateTours = useTourStore((s) => s.hydrateFromSupabase);
-  const hydrateHolidays = useHolidaySettingsStore((s) => s.hydrateFromSupabase);
-  const hydrateWorkspaceSettings = useWorkspaceSettingsStore((s) => s.hydrateFromSupabase);
 
   React.useEffect(() => {
-    if (!isSupabaseConfigured || !authId) return;
-    void hydrateProjects();
-    void hydrateSprints();
-    void hydrateTasks();
-    void hydrateTeam();
-    void hydrateNotifications();
-    void hydrateActivity();
-    void hydrateAvailability();
-    void hydrateCapacity();
-    void hydrateRates();
-    void hydrateProposals();
-    void hydrateSkills();
-    void hydrateTours(authId);
-    void hydrateHolidays();
-    void hydrateWorkspaceSettings();
-  }, [
-    authId,
-    hydrateProjects,
-    hydrateSprints,
-    hydrateTasks,
-    hydrateTeam,
-    hydrateNotifications,
-    hydrateActivity,
-    hydrateAvailability,
-    hydrateCapacity,
-    hydrateRates,
-    hydrateProposals,
-    hydrateSkills,
-    hydrateTours,
-    hydrateHolidays,
-    hydrateWorkspaceSettings,
-  ]);
+    if (authId) void refreshWorkspace(authId);
+  }, [authId]);
 
   // Live notifications: stream this user's rows (RLS already scopes to them).
   React.useEffect(() => {

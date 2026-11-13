@@ -2602,6 +2602,13 @@ if (!tasks.length) {
     - **The questionnaire's step circles are a grid** of one equal column
       per section on a phone, padded for the active ring and the count badge —
       an `overflow-x-auto` row clipped both and pushed the last circle off.
+    - **Pull to refresh** (`PullToRefresh`, `components/layouts/pull-to-refresh.tsx`,
+      every dashboard page): the browser's own can't fire, because the page
+      scrolls inside `main`, not the document. Pulling down at the top re-runs
+      `refreshWorkspace()` (`workspace-sync.tsx`, the same reads as sign-in);
+      stores keep `loaded`, so the page stays on screen. Ignored when the touch
+      starts in a scrolled inner list, a draggable card or a field, or moves
+      sideways. Demo mode just spins (nothing to fetch).
     - **Hours breakdown scrolls sideways under `sm`** (`min-w-[25rem]` inside
       an `overflow-x-auto`) instead of squeezing phase names to "Disc…".
 

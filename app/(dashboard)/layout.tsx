@@ -6,6 +6,7 @@ import { AppAtmosphere } from "@/components/layouts/app-atmosphere";
 import { DashboardHeader } from "@/components/layouts/dashboard-header";
 import { DashboardMobileTabBar } from "@/components/layouts/dashboard-mobile-tab-bar";
 import { DashboardSidebarNav } from "@/components/layouts/dashboard-sidebar-nav";
+import { PullToRefresh } from "@/components/layouts/pull-to-refresh";
 import { PageAccessGuard } from "@/components/layouts/page-access-guard";
 import { SidebarUserCard } from "@/components/layouts/sidebar-user-card";
 import { TourHost } from "@/components/features/tour/TourHost";
@@ -87,6 +88,7 @@ export default function DashboardLayout({
 
       <div className="relative z-10 flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         <DashboardHeader />
+        <PullToRefresh targetId="main-content" />
 
         <main
           id="main-content"
