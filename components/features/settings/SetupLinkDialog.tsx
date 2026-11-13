@@ -122,19 +122,11 @@ export function SetupLinkDialog({
 }
 
 /**
- * The key button on a member / pending-invite row: asks the server for a
- * setup link and shows it. The server refuses anyone who already chose a
- * password, and that refusal is shown as-is.
+ * Asks the server for a setup link and shows it. The server refuses anyone who
+ * already chose a password, and that refusal is shown as-is. `dialog` must be
+ * rendered by the caller (a menu item can't host it — the menu unmounts).
  */
-export function SetupLinkButton({
-  email,
-  name,
-  size = "icon-sm",
-}: {
-  email: string;
-  name: string;
-  size?: "icon" | "icon-sm";
-}) {
+export function useSetupLink(email: string) {
   const [state, setState] = React.useState<SetupLinkState>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -159,6 +151,20 @@ export function SetupLinkButton({
     }
   };
 
+  return { request, busy, dialog: <SetupLinkDialog state={state} onClose={() => setState(null)} /> };
+}
+
+/** The key button on a pending-invite row. */
+export function SetupLinkButton({
+  email,
+  name,
+  size = "icon-sm",
+}: {
+  email: string;
+  name: string;
+  size?: "icon" | "icon-sm";
+}) {
+  const { request, busy, dialog } = useSetupLink(email);
   return (
     <>
       <Button
@@ -173,7 +179,7 @@ export function SetupLinkButton({
       >
         {busy ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
       </Button>
-      <SetupLinkDialog state={state} onClose={() => setState(null)} />
+      {dialog}
     </>
   );
 }

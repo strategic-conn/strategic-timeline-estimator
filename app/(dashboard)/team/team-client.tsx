@@ -2,6 +2,9 @@
 
 import * as React from "react";
 import {
+  KeyRound,
+  Loader2,
+  MoreHorizontal,
   ShieldAlert,
   ShieldOff,
   SlidersHorizontal,
@@ -75,7 +78,14 @@ import { useJoinedTeamMembers, useTeamStore } from "@/store/team-store";
 import type { TeamMember } from "@/types/task.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
-import { SetupLinkButton } from "@/components/features/settings/SetupLinkDialog";
+import { useSetupLink } from "@/components/features/settings/SetupLinkDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: "admin", label: "Admin" },
@@ -274,9 +284,9 @@ export function TeamClientPage() {
                 return (
                   <li
                     key={m.id}
-                    className="flex flex-col gap-2 px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between"
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 px-3 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto] sm:py-2.5"
                   >
-                    <div className="flex min-w-0 items-center gap-2">
+                    <div className="col-start-1 row-start-1 flex min-w-0 items-center gap-2">
                       <Avatar size="sm" className="shrink-0">
                         {m.avatar_url ? (
                           <AvatarImage src={m.avatar_url} alt="" />
@@ -303,7 +313,8 @@ export function TeamClientPage() {
                         ) : null}
                       </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-1.5 pl-10 sm:shrink-0 sm:justify-end sm:pl-0">
+                    {/* Phone: role on its own line under the name. sm+: inline. */}
+                    <div className="col-span-2 row-start-2 flex flex-wrap items-center gap-2 pl-10 sm:col-span-1 sm:col-start-2 sm:row-start-1 sm:pl-0">
                       {canEditRoles && !isSelf ? (
                         <Select
                           value={current}
@@ -336,6 +347,8 @@ export function TeamClientPage() {
                           Custom access
                         </span>
                       ) : null}
+                    </div>
+                    <div className="col-start-2 row-start-1 flex items-center gap-0.5 sm:col-start-3">
                       <Button
                         type="button"
                         variant="ghost"
@@ -348,49 +361,14 @@ export function TeamClientPage() {
                       >
                         <Star className="size-4" />
                       </Button>
-                      {canEditRoles && !isSelf && current !== "admin" ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          title="Manage page access"
-                          aria-label={`Manage page access for ${m.name}`}
-                          onClick={() => openAccess(m, current)}
-                        >
-                          <SlidersHorizontal className="size-4" />
-                        </Button>
-                      ) : null}
-                      {/* Someone who joined but couldn't set a password
-                          (their invite link was used up by an email scanner).
-                          The server refuses anyone who already has one. */}
-                      {canEditRoles && !isSelf && isSupabaseConfigured ? (
-                        <SetupLinkButton email={m.email} name={m.name} />
-                      ) : null}
-                      {canEditRoles && !isSelf && isSupabaseConfigured ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-foreground"
-                          title="Reset two-factor sign-in"
-                          aria-label={`Reset two-factor for ${m.name}`}
-                          onClick={() => setMfaResetTarget(m)}
-                        >
-                          <ShieldOff className="size-4" />
-                        </Button>
-                      ) : null}
                       {canEditRoles && !isSelf ? (
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          className="text-muted-foreground hover:text-destructive"
-                          title="Deactivate member"
-                          aria-label={`Deactivate ${m.name}`}
-                          onClick={() => setDeactivateTarget(m)}
-                        >
-                          <UserX className="size-4" />
-                        </Button>
+                        <MemberActionsMenu
+                          member={m}
+                          showAccess={current !== "admin"}
+                          onAccess={() => openAccess(m, current)}
+                          onResetMfa={() => setMfaResetTarget(m)}
+                          onDeactivate={() => setDeactivateTarget(m)}
+                        />
                       ) : null}
                     </div>
                   </li>
@@ -662,5 +640,71 @@ export function TeamClientPage() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+/**
+ * A member's admin actions behind one ⋯ button — five icon buttons in a row
+ * wrapped onto two lines on a phone and said nothing without their tooltips.
+ */
+function MemberActionsMenu({
+  member,
+  showAccess,
+  onAccess,
+  onResetMfa,
+  onDeactivate,
+}: {
+  member: TeamMember;
+  showAccess: boolean;
+  onAccess: () => void;
+  onResetMfa: () => void;
+  onDeactivate: () => void;
+}) {
+  const setup = useSetupLink(member.email);
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            aria-label={`Actions for ${member.name}`}
+          >
+            {setup.busy ? <Loader2 className="size-4 animate-spin" /> : <MoreHorizontal className="size-4" />}
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {showAccess ? (
+            <DropdownMenuItem onClick={onAccess}>
+              <SlidersHorizontal className="size-4" aria-hidden />
+              Page access
+            </DropdownMenuItem>
+          ) : null}
+          {/* Someone who joined but couldn't set a password (their invite link
+              was used up by an email scanner). The server refuses anyone who
+              already has one. */}
+          {isSupabaseConfigured ? (
+            <>
+              <DropdownMenuItem disabled={setup.busy} onClick={() => void setup.request()}>
+                <KeyRound className="size-4" aria-hidden />
+                Password setup link
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onResetMfa}>
+                <ShieldOff className="size-4" aria-hidden />
+                Reset two-factor
+              </DropdownMenuItem>
+            </>
+          ) : null}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem variant="destructive" onClick={onDeactivate}>
+            <UserX className="size-4" aria-hidden />
+            Deactivate
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {setup.dialog}
+    </>
   );
 }

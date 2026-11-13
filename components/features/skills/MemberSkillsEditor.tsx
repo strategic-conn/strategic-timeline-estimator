@@ -85,6 +85,7 @@ export function MemberSkillsEditor({
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
+            className="min-w-0"
             placeholder="Add a skill or technology (e.g. Next.js, Figma, Postgres)"
             aria-label="Add a skill"
             maxLength={40}

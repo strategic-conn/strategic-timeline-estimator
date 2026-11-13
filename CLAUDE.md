@@ -2216,7 +2216,7 @@ is not a second factor.
    factor-less aal1 token, as it does today). ⚠️ It also locks out the e2e bot
    (`e2e:seed-user` has no factor) — the suite would need the bot enrolled
    (secret in `.env.local`, codes computed as `e2e/mfa.spec.ts` does) first.
- - **Lost phone:** Team → the member's **shield** button → confirm →
+ - **Lost phone:** Team → the member's **⋯ → Reset two-factor** → confirm →
    `DELETE /api/users/[id]/mfa` (admin-only, not for yourself) removes their
    factors; they sign in with the password and set up a new app.
  - `e2e/mfa.spec.ts`: the rule table; enrol over the API; old and fresh aal1
@@ -2294,7 +2294,7 @@ calls `inviteUserByEmail` → the email link → **`/auth/confirm`** (a page wit
  - **Where admins get one:** every successful invite returns a backup link
    (shown in `SetupLinkDialog`); re-inviting a scanner-confirmed account returns
    one instead of an error (and sends no email, deletes nothing); and the
-   **key button** on a member row (Team) and a pending-invite row calls
+   **⋯ → Password setup link** on a member row (Team) and the key button on a pending-invite row call
    `POST /api/invites/link`.
  - **Never for someone who already has a password** — a setup link signs its
    holder in as that person. `app_metadata.password_set` (service-key only, so
@@ -2602,6 +2602,16 @@ if (!tasks.length) {
     - **The questionnaire's step circles are a grid** of one equal column
       per section on a phone, padded for the active ring and the count badge —
       an `overflow-x-auto` row clipped both and pushed the last circle off.
+    - **Dialogs never outgrow the screen** (`components/ui/dialog.tsx`):
+      `max-h-[calc(100dvh-2rem)] overflow-y-auto` + a `minmax(0,1fr)` column.
+      Without them the Work keys & skills dialog ran off a phone with its ✕
+      out of reach (no way to close it), and an input's long placeholder
+      widened it past the screen. Dialogs with their own `flex … max-h` layout
+      override both via tailwind-merge.
+    - **Team → Members rows**: name + email + keys, the ★ (work keys &
+      skills) and one **⋯ Actions** menu (Page access, Password setup link,
+      Reset two-factor, Deactivate); on a phone the role sits on its own line
+      under the name. Five icon buttons used to wrap onto two lines.
     - **Pull to refresh** (`PullToRefresh`, `components/layouts/pull-to-refresh.tsx`,
       every dashboard page): the browser's own can't fire, because the page
       scrolls inside `main`, not the document. Pulling down at the top re-runs

@@ -187,7 +187,8 @@ test("enrol, the database refuses a password-only session, sign-in asks for the 
   await ap.waitForURL(/\/dashboard/, { timeout: 30_000 });
   await ap.goto("/team");
   await waitForApp(ap);
-  await ap.getByRole("button", { name: `Reset two-factor for ${user.name}` }).click();
+  await ap.getByRole("button", { name: `Actions for ${user.name}` }).click();
+  await ap.getByRole("menuitem", { name: "Reset two-factor" }).click();
   await ap.getByRole("alertdialog").getByRole("button", { name: "Reset two-factor" }).click();
   await expect(ap.getByText(`Two-factor reset for ${user.name}`)).toBeVisible();
   expect(await factorCount(user.id)).toBe(0);
