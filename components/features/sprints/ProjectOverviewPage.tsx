@@ -105,7 +105,9 @@ function ProjectBacklogCard({
                 className="size-4 shrink-0 text-muted-foreground"
                 aria-hidden
               />
-              Backlog
+              <Link href={backlogHref(projectId)} className="rounded-sm outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                Backlog
+              </Link>
             </CardTitle>
             <CardDescription className="line-clamp-2 text-xs">
               Tasks not in a sprint yet. Open the board to triage or move them

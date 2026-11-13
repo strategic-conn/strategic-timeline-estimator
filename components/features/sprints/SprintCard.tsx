@@ -100,7 +100,11 @@ export function SprintCard({
               589px inside a 349px header, taking the status badge off-screen. */}
           <div className="flex min-w-0 items-start justify-between gap-2">
             <div className="min-w-0 flex-1">
-              <CardTitle className="truncate text-base">{sprint.name}</CardTitle>
+              <CardTitle className="truncate text-base">
+                <Link href={sprintTasksHref(projectId, sprint.id)} className="rounded-sm outline-none hover:text-primary hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+                  {sprint.name}
+                </Link>
+              </CardTitle>
               {sprint.goal ? (
                 <CardDescription className="mt-1 line-clamp-2">
                   <Target className="mr-1 inline size-3.5 -translate-y-px" aria-hidden />
