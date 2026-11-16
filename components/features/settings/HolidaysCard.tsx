@@ -77,8 +77,8 @@ export function HolidaysCard() {
                 const isWorking = working.includes(name);
                 const date = nextDate.get(name);
                 return (
-                  <li key={name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                    <div className="min-w-0">
+                  <li key={name} className="flex items-center gap-2 px-3 py-2">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium">{name}</p>
                       {date ? (
                         <p className="text-xs text-muted-foreground">
@@ -90,7 +90,7 @@ export function HolidaysCard() {
                       <div
                         role="group"
                         aria-label={`${name}: day off or working day`}
-                        className="inline-flex rounded-lg border border-border/70 bg-muted/40 p-0.5"
+                        className="inline-flex shrink-0 rounded-lg border border-border/70 bg-muted/40 p-0.5"
                       >
                         {[
                           { label: "Day off", value: false },
@@ -106,7 +106,7 @@ export function HolidaysCard() {
                                 if (!active) void setWorking(name, opt.value);
                               }}
                               className={cn(
-                                "rounded-md px-3 py-1 text-xs font-medium transition-colors",
+                                "rounded-md px-2.5 py-1 text-xs font-medium whitespace-nowrap transition-colors sm:px-3",
                                 active
                                   ? "bg-background text-foreground shadow-sm"
                                   : "text-muted-foreground hover:text-foreground",
@@ -118,7 +118,7 @@ export function HolidaysCard() {
                         })}
                       </div>
                     ) : (
-                      <span className={cn("text-xs font-medium", isWorking ? "text-foreground" : "text-muted-foreground")}>
+                      <span className={cn("shrink-0 text-xs font-medium", isWorking ? "text-foreground" : "text-muted-foreground")}>
                         {isWorking ? "Working day" : "Day off"}
                       </span>
                     )}

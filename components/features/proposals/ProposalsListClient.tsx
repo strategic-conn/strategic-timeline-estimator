@@ -561,7 +561,7 @@ export function ProposalsListClient() {
                         </span>
                       </CardDescription>
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    <div className="flex shrink-0 flex-wrap items-center gap-1">
                       {/* Approved and billable — the next step, offered without
                           making anyone open the estimate first. The PO is raised
                           inside Start project (every project is billed). */}
@@ -593,7 +593,7 @@ export function ProposalsListClient() {
                            is looking for, and it lived only in PBS before. */
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-medium tabular-nums",
+                            "inline-flex items-center gap-1.5 whitespace-nowrap rounded-md border px-2 py-1 text-xs font-medium tabular-nums",
                             q.pbs.missing
                               ? "border-destructive/40 bg-destructive/10 text-destructive"
                               : "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",

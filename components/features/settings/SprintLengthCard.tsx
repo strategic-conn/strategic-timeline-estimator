@@ -1,5 +1,8 @@
 "use client";
 
+import * as React from "react";
+import { toast } from "sonner";
+
 import { AppHelp } from "@/components/common/app-help";
 import {
   Card,
@@ -9,6 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { usePermissions } from "@/hooks/usePermissions";
 import { cn } from "@/lib/utils";
@@ -30,6 +34,22 @@ export function SprintLengthCard() {
   const loaded = useWorkspaceSettingsStore((s) => s.loaded);
   const error = useWorkspaceSettingsStore((s) => s.error);
   const setSprintWeeks = useWorkspaceSettingsStore((s) => s.setSprintWeeks);
+  // A pick is a draft until Save: it re-plans every unapproved estimate.
+  const [draft, setDraft] = React.useState<number | null>(null);
+  const [saving, setSaving] = React.useState(false);
+  const shown = draft ?? sprintWeeks;
+  const dirty = draft !== null && draft !== sprintWeeks;
+
+  const save = async () => {
+    if (!dirty) return;
+    setSaving(true);
+    await setSprintWeeks(draft);
+    setSaving(false);
+    setDraft(null);
+    if (useWorkspaceSettingsStore.getState().sprintWeeks === draft) {
+      toast.success(`Sprint length set to ${weeks(draft)}`);
+    }
+  };
 
   return (
     <Card>
@@ -61,13 +81,14 @@ export function SprintLengthCard() {
                 className="inline-flex w-fit flex-wrap rounded-lg border border-border/70 bg-muted/40 p-0.5"
               >
                 {SPRINT_WEEK_OPTIONS.map((n) => {
-                  const active = sprintWeeks === n;
+                  const active = shown === n;
                   return (
                     <button
                       key={n}
                       type="button"
                       aria-pressed={active}
-                      onClick={() => void setSprintWeeks(n)}
+                      disabled={saving}
+                      onClick={() => setDraft(n)}
                       className={cn(
                         "rounded-md px-3 py-1 text-xs font-medium transition-colors",
                         active
@@ -80,14 +101,28 @@ export function SprintLengthCard() {
                   );
                 })}
               </div>
-            ) : (
+            ) : null}
+            {isAdmin && dirty ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button type="button" size="sm" disabled={saving} onClick={() => void save()}>
+                  {saving ? "Saving…" : "Save"}
+                </Button>
+                <Button type="button" size="sm" variant="ghost" disabled={saving} onClick={() => setDraft(null)}>
+                  Cancel
+                </Button>
+                <span className="text-xs text-muted-foreground">
+                  {`Currently ${weeks(sprintWeeks)}. Unapproved estimates re-plan when you save.`}
+                </span>
+              </div>
+            ) : null}
+            {!isAdmin ? (
               <p className="text-sm">
                 <span className="font-medium">{weeks(sprintWeeks)}</span>
                 <span className="text-muted-foreground"> · only admins can change it</span>
               </p>
-            )}
+            ) : null}
             <p className="text-xs text-muted-foreground">
-              {`${weeks(sprintWeeks)} = ${sprintWeeks * 5} working days. Weekends, holidays and leave are skipped, so a sprint over Thanksgiving ends a day later.`}
+              {`${weeks(shown)} = ${shown * 5} working days. Weekends, holidays and leave are skipped, so a sprint over Thanksgiving ends a day later.`}
             </p>
           </>
         )}

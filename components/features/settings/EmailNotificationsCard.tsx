@@ -63,15 +63,11 @@ export function EmailNotificationsCard() {
       <CardHeader>
         <CardTitle className="text-base">Email notifications</CardTitle>
         <CardDescription>
-          Besides the bell, we email you when you&apos;re assigned, passed or
-          taken off a task; when a task you&apos;re on changes its due date,
-          hours or sprint, is deleted, or its sprint&apos;s dates move; when
-          you&apos;re mentioned in a reply or someone declines a task you gave
-          them; about time off; and (admins and managers) when a deal is won.
-          A bulk change, like syncing a schedule, sends one email.
+          We email you when something changes your work. The bell still shows
+          everything.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="flex flex-col gap-3">
         {error ? (
           <p className="text-sm text-destructive">{error}</p>
         ) : on === null ? (
@@ -88,6 +84,19 @@ export function EmailNotificationsCard() {
             </Label>
           </div>
         )}
+        <details className="text-muted-foreground">
+          <summary className="w-fit cursor-pointer select-none py-1 text-xs font-medium text-foreground hover:underline">
+            What gets emailed
+          </summary>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+            <li>You&apos;re assigned, passed or taken off a task</li>
+            <li>A task you&apos;re on changes due date, hours or sprint, is deleted, or its sprint&apos;s dates move</li>
+            <li>You&apos;re mentioned in a reply, or someone declines a task you gave them</li>
+            <li>Time off requests and decisions</li>
+            <li>A deal is won (admins and managers)</li>
+          </ul>
+          <p className="mt-2 text-xs">A bulk change, like syncing a schedule, sends one email.</p>
+        </details>
       </CardContent>
     </Card>
   );

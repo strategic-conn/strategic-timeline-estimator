@@ -1677,6 +1677,8 @@ Fastest) — and the project Start project builds from it — is laid out by
    `updated_by` trigger-stamped, probe P28; no row = 2 weeks), loaded by
    `workspace-settings-store` and read by `planSeeds`; `useQuoteSchedule`
    re-plans when it changes. Approved quotes keep their quoted launch.
+   The card's picker is a draft: nothing saves until **Save** (with Cancel),
+   because saving re-plans every unapproved estimate.
    **Each build line gets its own test task** ("Test: X", id
    `test:<build line id>`), starting the working day after that build task
    ends. The QA lines' hours are split over the build lines by size
@@ -2621,6 +2623,13 @@ if (!tasks.length) {
       sideways. Demo mode just spins (nothing to fetch).
     - **Hours breakdown scrolls sideways under `sm`** (`min-w-[25rem]` inside
       an `overflow-x-auto`) instead of squeezing phase names to "Disc…".
+    - **Settings on a phone**: a holiday row keeps its Day off / Working
+      toggle on the same line (`shrink-0`; the name wraps instead), and Email
+      notifications says one line, with the full list under a native
+      `<details>` "What gets emailed".
+    - **Estimator list card actions wrap** (`flex-wrap`, the PO badge
+      `whitespace-nowrap`): beside Start project the PO badge split over two
+      lines on a phone.
 
    **The Estimator's five tabs are ONE row at every width.** Under `sm`,
    "Scope & risk" and "Line items" show *Scope* / *Lines*; the full label stays
