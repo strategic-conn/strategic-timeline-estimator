@@ -321,6 +321,8 @@ the email-scanner bug and the way out. By hand, on the deployed app:
 
 ## 🔐 Security probe (automated, live)
 
+Manual version (desktop + phone, step by step with expected results): [docs/manual-security-test.md](../docs/manual-security-test.md).
+
 `node scripts/security-probe.mjs` — creates a throwaway `[E2E]` member, attacks
 PostgREST with that member's real JWT, reads every result back with the service
 key, and cleans up. **Every line must read PASS**, and the last line must say
@@ -681,6 +683,7 @@ Apply `0047` first (`npm run db:push`).
 - [ ] **Card titles are links**: a project's name opens its sprints (same as View sprints); on the project page each sprint's name and the Backlog title open that board (same as Open board); hover underlines it, Tab focuses it.
 - [ ] **Team → Members on a phone** (admin): each row is name/email/keys with ★ and ⋯ on the right, role select underneath; ⋯ holds Page access, Password setup link, Reset two-factor, Deactivate. ★ opens Work keys & skills: it fits the screen, scrolls inside, the ✕ closes it, nothing is cut off on the right.
 - [ ] **Settings on a phone**: Email notifications shows one short line with "What gets emailed" that expands the list; each holiday (incl. Martin Luther King Jr. Day) keeps Day off / Working on the same line as its name; picking a sprint length shows Save / Cancel and changes nothing until Save (toast confirms), Cancel restores it.
+- [ ] **⋯ menus** (Team member, project card, sprint card) on desktop and a phone: every item on one line, comfortable to tap, never wider than the screen.
 - [ ] **Estimator list on a phone**: an approved card with Start project and a PO shows the PO badge on one line (it wraps to the next row, never splits).
 - [ ] **Pull to refresh (phone/tablet)**: at the top of the Dashboard (or any page) pull down → a spinner drops under the header and the data reloads without a blank page; a short pull does nothing; pulling while scrolled down, inside the Gantt/stage board sideways, or on a Kanban card does not refresh.
 - [ ] **New estimate → "How do you want to scope it?"**: Guided (Recommended) opens on Scope & risk with no starter row; Straight to line items shows the amber developer disclaimer and opens on Line items.

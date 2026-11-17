@@ -239,7 +239,7 @@ scoped by RLS.
 **Auth flow (Supabase Auth / cookie-based):**
 
 1. User signs in with `supabase.auth.signInWithPassword(...)` (or OAuth / magic link).
-2. `@supabase/ssr` stores the JWT in **httpOnly cookies** — no token in local/session storage.
+2. `@supabase/ssr` stores the JWT in **cookies**, not local/session storage. The browser client reads them in JS, so they are **not** httpOnly (library default: `SameSite=Lax`, no `httpOnly`); HSTS keeps them on HTTPS, and XSS prevention (DOMPurify) is what protects the token. Manual check: `docs/manual-security-test.md`.
 3. Root `proxy.ts` refreshes the session cookie on every request. **Any response it returns must carry the cookies Supabase set** — `lib/supabase/middleware.ts` copies them onto every redirect and onto the API 401. A bare `NextResponse.redirect()` drops them, which silently logs people out: a rotated refresh token never reaches the browser (so the next refresh fails against a token Supabase already consumed), and a dead session never gets cleared. Verify with:
    `curl -sD- -o/dev/null -H "Cookie: sb-<ref>-auth-token=bad" localhost:3000/dashboard | grep -i set-cookie` — it must print a `Max-Age=0` clear.
 4. RLS uses `auth.uid()` to scope every query automatically; on missing session, gate in middleware/UI.
@@ -271,9 +271,10 @@ rollback — one store is the single read seam for components in **both** live a
 Query is installed but **not** wired: the bridge already covers caching/dedupe, so it's only revisited
 if a feature needs true server-state caching. Redux would add boilerplate this doesn't need.
 
-**Why httpOnly cookies (not localStorage)?**
-localStorage is readable by any JS — vulnerable to XSS. Supabase Auth via `@supabase/ssr` keeps
-the session in httpOnly cookies, inaccessible to JavaScript, so the token can't be stolen via XSS.
+**Why cookies (not localStorage)?**
+Supabase Auth via `@supabase/ssr` keeps the session in cookies so the server (proxy, route guards)
+can read it. They are NOT httpOnly — the browser client reads them in JS — so an injected script
+could still read the token; DOMPurify on user content and the staged CSP are the defence.
 
 **Why Zod for validation?**
 Zod schemas serve dual purpose: TypeScript type inference AND runtime validation. One schema
@@ -2627,6 +2628,11 @@ if (!tasks.length) {
       toggle on the same line (`shrink-0`; the name wraps instead), and Email
       notifications says one line, with the full list under a native
       `<details>` "What gets emailed".
+    - **Dropdown menus size to their content** (`components/ui/dropdown-menu.tsx`):
+      `w-max`, at least the trigger's width (and 8rem), at most the screen.
+      They used to take the TRIGGER's width, so every ⋯ icon menu was 8rem and
+      wrapped "Password setup link" onto two lines. Rows are taller on touch
+      (`pointer-coarse:py-2.5`). A caller's own `w-*` still wins.
     - **Estimator list card actions wrap** (`flex-wrap`, the PO badge
       `whitespace-nowrap`): beside Start project the PO badge split over two
       lines on a phone.
