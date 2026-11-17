@@ -662,6 +662,21 @@ export interface SprintPlanOptions extends PlanOptions {
    * has it (Launch & Handoff usually; a guided estimate's design phase).
    */
   phaseDays?: Partial<Record<PhaseId, number>>;
+  /**
+   * Schedule risk buffer, % of the plan's length in working days. Reserved as
+   * one block between the last sprint review and acceptance testing, so the
+   * launch moves by that share of the calendar (not of the build hours).
+   */
+  bufferPct?: number;
+}
+
+/** The risk buffer as time on the plan: `days` working days, `start`–`end`. */
+export interface PlanBuffer {
+  start: string;
+  end: string;
+  days: number;
+  pct: number;
+  sprint: string;
 }
 
 export interface SprintPlanResult extends PlanResult {
@@ -670,6 +685,8 @@ export interface SprintPlanResult extends PlanResult {
   sprintOf: Map<string, string>;
   checkpoints: ClientCheckpoint[];
   reserved: ReservedBlock[];
+  /** The risk buffer block, or null when there is none. */
+  buffer: PlanBuffer | null;
 }
 
 const SETUP_PHASES: PhaseId[] = ["discovery", "content", "design"];
@@ -703,6 +720,13 @@ function workdaysFrom(startIso: string, n: number): string {
   }
   return isoDay(d);
 }
+/** Working days from `a` to `b`, both included (0 when `b` is before `a`). */
+function workdaysBetween(a: string, b: string): number {
+  let n = 0;
+  for (let d = parseDay(a); isoDay(d) <= b; d = addDays(d, 1)) if (isOpenDay(d)) n += 1;
+  return n;
+}
+
 /**
  * Plan an estimate as SPRINTS rather than waterfall phases:
  *
@@ -715,8 +739,9 @@ function workdaysFrom(startIso: string, n: number): string {
  *     ends in a client review of `reviewDays` that the next sprint waits
  *     for. The last sprint ends when its work does (not padded to a sprint
  *     boundary), and its review holds up acceptance testing.
- *  3. **Launch & Handoff** — user acceptance testing by the client (blocks the
- *     launch), go-live approval, then the launch work.
+ *  3. **Launch & Handoff** — the risk buffer (`bufferPct` of the unbuffered
+ *     plan's working days, decided 2026-11-17), then user acceptance testing
+ *     by the client (blocks the launch), go-live approval, then the launch work.
  *
  * Who does each task is decided by the same `assign` step as `planSchedule`
  * (keys, stars, booked work, leave, holidays, least-load tie-break).
@@ -726,6 +751,24 @@ export function planSprints(
   devs: PlanDev[],
   platform: ProposalPlatform,
   opts: SprintPlanOptions,
+): SprintPlanResult {
+  const pct = Math.max(0, Math.min(100, Math.round(opts.bufferPct ?? 0)));
+  if (pct <= 0) return planSprintsWith(tasks, devs, platform, opts, 0, 0);
+  // Measure the plan without the buffer, then reserve that share of it.
+  const base = planSprintsWith(tasks, devs, platform, opts, 0, 0);
+  const first = onOrAfterWorkday(isoDay(opts.projectStart ?? new Date()));
+  const length = base.finishDate ? workdaysBetween(first, base.finishDate) : 0;
+  const days = length > 0 ? Math.max(1, Math.round((length * pct) / 100)) : 0;
+  return planSprintsWith(tasks, devs, platform, opts, days, pct);
+}
+
+function planSprintsWith(
+  tasks: PlanTask[],
+  devs: PlanDev[],
+  platform: ProposalPlatform,
+  opts: SprintPlanOptions,
+  bufferDays: number,
+  bufferPct: number,
 ): SprintPlanResult {
   const start = onOrAfterWorkday(isoDay(opts.projectStart ?? new Date()));
   const reviewDays = Math.max(0, Math.round(opts.reviewDays));
@@ -936,6 +979,18 @@ export function planSprints(
   let launchFloor = devFloor;
   let launchStart: string | null = null;
   let lastGate: string | null = null;
+  // Risk buffer: slack held back before the client starts acceptance testing,
+  // so an overrun in the build eats it rather than the launch date.
+  let buffer: PlanBuffer | null = null;
+  if (bufferDays > 0) {
+    const anchor = afterBuild ?? null;
+    const b0 = anchor ? nextWorkday(anchor) : onOrAfterWorkday(launchFloor);
+    const b1 = workdaysFrom(b0, bufferDays);
+    buffer = { start: b0, end: b1, days: bufferDays, pct: bufferPct, sprint: LAUNCH_SPRINT };
+    launchStart = b0;
+    if (anchor) afterBuild = b1;
+    else launchFloor = nextWorkday(b1);
+  }
   if (afterBuild) {
     const g = gate(afterBuild, {
       id: "cp-uat",
@@ -954,7 +1009,7 @@ export function planSprints(
       end: g.end,
       sprint: LAUNCH_SPRINT,
     });
-    launchStart = g.start;
+    launchStart = launchStart ?? g.start;
     lastGate = g.end;
     launchFloor = g.resume;
   }
@@ -963,7 +1018,7 @@ export function planSprints(
   for (const t of launchTasks) sprintOf.set(t.id, LAUNCH_SPRINT);
   if (launchEnd || launchStart) {
     let s0 = launchStart ?? onOrAfterWorkday(launchFloor);
-    let e0 = maxIso(launchEnd, lastGate)!;
+    let e0 = maxIso(maxIso(launchEnd, lastGate), buffer?.end ?? null)!;
     for (const t of launchTasks) {
       const p = byId.get(t.id);
       if (p?.startDate && p.startDate < s0) s0 = p.startDate;
@@ -998,5 +1053,6 @@ export function planSprints(
     sprintOf,
     checkpoints,
     reserved,
+    buffer,
   };
 }

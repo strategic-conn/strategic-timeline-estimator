@@ -47,6 +47,12 @@ export function RiskBufferCard({
   /** e.g. "45 business days" → "54 business days". Rendered when supplied. */
   baseDays,
   bufferedDays,
+  /**
+   * The people plan's launch without and with the buffer, and the working days
+   * it adds. Preferred over the day counts when supplied: it is the launch
+   * date every other surface shows.
+   */
+  launch,
   /** Extra line under the presets — used by the project page for its finish date. */
   footer,
   title = "Schedule risk buffer",
@@ -60,6 +66,7 @@ export function RiskBufferCard({
   disabled?: boolean;
   baseDays?: number;
   bufferedDays?: number;
+  launch?: { base: string; buffered: string; days: number } | null;
   footer?: React.ReactNode;
   title?: string;
   description?: string;
@@ -142,7 +149,23 @@ export function RiskBufferCard({
           </div>
         </div>
 
-        {baseDays !== undefined && bufferedDays !== undefined ? (
+        {launch ? (
+          <p className="text-sm tabular-nums">
+            <span className="text-muted-foreground">Launch </span>
+            {pct > 0 ? (
+              <>
+                <span className="font-medium">{launch.base}</span>
+                <span className="text-muted-foreground"> → </span>
+                <span className="font-medium text-primary">{launch.buffered}</span>
+                <span className="text-muted-foreground">
+                  {` (+${launch.days} working day${launch.days === 1 ? "" : "s"}, held back before acceptance testing)`}
+                </span>
+              </>
+            ) : (
+              <span className="font-medium">{launch.buffered}</span>
+            )}
+          </p>
+        ) : baseDays !== undefined && bufferedDays !== undefined ? (
           <p className="text-sm tabular-nums">
             <span className="text-muted-foreground">Timeline </span>
             <span className="font-medium">{baseDays}</span>

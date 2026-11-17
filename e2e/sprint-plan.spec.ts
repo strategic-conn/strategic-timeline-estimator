@@ -181,3 +181,26 @@ test("review time 0: sprints run back to back", () => {
     ["2027-03-15", "2027-03-26"],
   ]);
 });
+
+test("risk buffer: pct of the plan's working days, held back before acceptance testing", () => {
+  const tasks = [t("a", "development", 40), t("test:a", "qa", 4, "a"), t("go-live", "launch", 4)];
+  const base = plan(tasks);
+  const r = plan(tasks, { bufferPct: 20 });
+  expect(base.buffer).toBeNull();
+  const days = (from: string, to: string) => {
+    let n = 0;
+    for (let d = new Date(`${from}T00:00:00`); d <= new Date(`${to}T00:00:00`); d.setDate(d.getDate() + 1))
+      if (d.getDay() !== 0 && d.getDay() !== 6) n += 1;
+    return n;
+  };
+  const length = days("2027-03-01", base.finishDate!);
+  expect(r.buffer!.days).toBe(Math.max(1, Math.round(length * 0.2)));
+  // Right after the last sprint review, and acceptance testing waits for it.
+  expect(r.buffer!.start > cp(r, "cp-review-1").end).toBe(true);
+  expect(cp(r, "cp-uat").start > r.buffer!.end).toBe(true);
+  expect(r.buffer!.sprint).toBe("Launch & Handoff");
+  // The launch moves by the buffer's working days; the build does not move.
+  expect(days(base.finishDate!, r.finishDate!) - 1).toBe(r.buffer!.days);
+  expect(task(r, "a")).toEqual(task(base, "a"));
+  expect(plan(tasks, { bufferPct: 0 }).finishDate).toBe(base.finishDate);
+});

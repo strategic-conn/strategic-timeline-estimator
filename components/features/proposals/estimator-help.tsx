@@ -355,6 +355,13 @@ const HELP = {
           shows on the PDF, the Excel file and the price sent to Zoho.
         </p>
         <p>
+          On the schedule it is{" "}<strong>time held back</strong>: that
+          percentage of the plan&apos;s working days, placed after the last
+          sprint review and before the client&apos;s acceptance testing. 20% on
+          a 40-day plan moves the launch about 8 working days. It shows as a
+          striped{" "}<strong>Risk buffer</strong>{" "}bar on the Timeline.
+        </p>
+        <p>
           It is locked once the estimate is approved or billed. An estimate
           approved before the buffer was priced keeps the price the client
           agreed to.

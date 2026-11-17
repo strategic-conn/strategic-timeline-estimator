@@ -101,7 +101,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { usePermissions } from "@/hooks/usePermissions";
-import { useQuoteSchedule } from "@/hooks/useQuoteSchedule";
+import { formatLaunchDay, useQuoteSchedule } from "@/hooks/useQuoteSchedule";
 import { useTeamCalendar } from "@/hooks/useTeamCalendar";
 import {
   TIER_OPTIONS,
@@ -506,6 +506,19 @@ export function ProposalEditorClient({
   // The plan's phase dates, for the Gantt — only when a people plan exists
   // (Manual has none, and its phases are the timeline's own anyway).
   const plannedPhases = schedulePreview?.plan ? schedulePreview.sprints : null;
+  // The risk buffer card's figures, read off the people plan (sprint plans
+  // reserve the buffer as working days before acceptance testing).
+  const bufferLaunch = React.useMemo(() => {
+    if (!schedulePreview?.plan) return null;
+    const buffered = previewFinish(schedulePreview);
+    if (!buffered) return null;
+    const base = unbufferedPreview ? previewFinish(unbufferedPreview) : buffered;
+    return {
+      base: formatLaunchDay(base ?? buffered),
+      buffered: formatLaunchDay(buffered),
+      days: schedulePreview.buffer?.days ?? 0,
+    };
+  }, [schedulePreview, unbufferedPreview]);
   const unbufferedPhases = unbufferedPreview?.plan ? unbufferedPreview.sprints : null;
   // The people plan, task by task, for Review → Timeline: the same chart the
   // project page draws. Manual (no plan) keeps the phase chart.
@@ -527,6 +540,10 @@ export function ProposalEditorClient({
     if (schedulePreview.plan.sprints) {
       for (const b of schedulePreview.reserved) {
         rows.push({ id: `phase-${b.label}`, title: b.label, phase: b.sprint, assignee: null, start: b.start, end: b.end, hours: 0, bufferHours: 0, isPhase: true, order: order.get(b.sprint) });
+      }
+      const bf = schedulePreview.buffer;
+      if (bf) {
+        rows.push({ id: "risk-buffer", title: `Risk buffer (${bf.pct}%)`, phase: bf.sprint, assignee: null, start: bf.start, end: bf.end, hours: 0, bufferHours: 0, isPhase: true, buffer: { pct: bf.pct, days: bf.days }, order: order.get(bf.sprint) });
       }
       for (const c of schedulePreview.checkpoints) {
         rows.push({ id: c.id, title: c.title, phase: c.sprint, assignee: null, start: c.start, end: c.end, hours: 0, bufferHours: 0, client: { detail: c.detail, blocks: c.blocks }, order: order.get(c.sprint) });
@@ -1779,6 +1796,7 @@ export function ProposalEditorClient({
               }
               baseDays={activeResult?.timeline.baseBusinessDays}
               bufferedDays={activeResult?.timeline.totalBusinessDays}
+              launch={bufferLaunch}
               // An approved/billed quote is the agreed price — changing its
               // buffer would reprice it, same freeze as the schedule plan.
               disabled={quoteIsFrozen(quote)}

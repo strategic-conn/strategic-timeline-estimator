@@ -200,6 +200,7 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
           const phaseTasks = byPhase.get(s.label) ?? [];
           const clientHere = checkpoints.filter((c) => c.sprint === s.label);
           const reservedHere = reserved.filter((b) => b.sprint === s.label);
+          const bufferHere = preview.buffer?.sprint === s.label ? preview.buffer : null;
           return (
             <li
               key={s.label}
@@ -211,8 +212,21 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
                   {s.start ? `${fmt(s.start)} – ${fmt(s.end)}` : "Existing sprint"}
                 </span>
               </div>
-              {reservedHere.length || clientHere.length ? (
+              {reservedHere.length || clientHere.length || bufferHere ? (
                 <ul className="divide-y divide-border/40 border-b border-border/40">
+                  {bufferHere ? (
+                    <li className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 bg-amber-500/5 px-3 py-2 text-xs">
+                      <span className="min-w-0 flex-1 font-medium">
+                        {`Risk buffer (${bufferHere.pct}%)`}
+                        <span className="ml-1.5 font-normal text-muted-foreground">
+                          {`${bufferHere.days} working day${bufferHere.days === 1 ? "" : "s"} held back before acceptance testing`}
+                        </span>
+                      </span>
+                      <span className="shrink-0 tabular-nums text-muted-foreground">
+                        {fmt(bufferHere.start)}–{fmt(bufferHere.end)}
+                      </span>
+                    </li>
+                  ) : null}
                   {reservedHere.map((b) => (
                     <li
                       key={`r-${b.phase}`}
@@ -290,7 +304,7 @@ export function SchedulePreviewPanel({ preview }: { preview: SchedulePreview }) 
                     </li>
                   ))}
                 </ul>
-              ) : reservedHere.length || clientHere.length ? null : (
+              ) : reservedHere.length || clientHere.length || bufferHere ? null : (
                 <p className="px-3 py-2 text-xs text-muted-foreground">
                   No itemised tasks — time is reserved for this phase.
                 </p>

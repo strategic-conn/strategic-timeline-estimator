@@ -39,6 +39,7 @@ import {
   type PlannedTask,
   type PlanSprint,
   type PlanStrategy,
+  type PlanBuffer,
   type ReservedBlock,
 } from "@/lib/assignment/plan";
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
@@ -300,6 +301,8 @@ interface SeedPlan {
   sprintOf?: Map<string, string>;
   checkpoints?: ClientCheckpoint[];
   reserved?: ReservedBlock[];
+  /** Sprint plans: the risk buffer reserved as working days before UAT. */
+  buffer?: PlanBuffer | null;
 }
 
 /**
@@ -328,9 +331,13 @@ function planSeeds(
     phase: phaseIdForLineItem(li, phases),
     hours: li.hours,
   }));
-  const planHours = buffer
-    ? bufferPlanHours(placed, quote.risk_buffer_pct ?? 0, quoteTotals(quote).grandHours)
-    : null;
+  // Sprint plans reserve the buffer as working days before acceptance testing
+  // (`planSprints`); spreading it over Development hours moved the launch by
+  // a fraction of the percentage, since the build runs in parallel.
+  const planHours =
+    buffer && !sprints
+      ? bufferPlanHours(placed, quote.risk_buffer_pct ?? 0, quoteTotals(quote).grandHours)
+      : null;
 
   const planTasks = seeds.map((li, i) => ({
     id: li.id,
@@ -355,6 +362,7 @@ function planSeeds(
       // Settings → Workspace → Sprint length (weeks of 5 working days).
       sprintDays: useWorkspaceSettingsStore.getState().sprintWeeks * 5,
       phaseDays,
+      bufferPct: buffer ? (quote.risk_buffer_pct ?? 0) : 0,
     });
     const sprintDates = new Map(r.sprints.map((sp) => [sp.label, { start: sp.start, end: sp.end }]));
     return {
@@ -365,6 +373,7 @@ function planSeeds(
       sprintOf: r.sprintOf,
       checkpoints: r.checkpoints,
       reserved: r.reserved,
+      buffer: r.buffer,
     };
   }
 
@@ -433,6 +442,8 @@ export interface SchedulePreview {
   checkpoints: ClientCheckpoint[];
   /** Phases with no tasks that still take time, e.g. Launch & Handoff (sprint plans only). */
   reserved: (ReservedBlock & { label: string })[];
+  /** The risk buffer block (sprint plans only). */
+  buffer: PlanBuffer | null;
   /** Internal — the exact plan to persist on confirm. */
   plan: SeedPlan | null;
 }
@@ -506,6 +517,7 @@ function toPreview(
     kept,
     checkpoints: plan?.checkpoints ?? [],
     reserved: (plan?.reserved ?? []).map((b) => ({ ...b, label: PHASE_META[b.phase].label })),
+    buffer: plan?.buffer ?? null,
     plan,
   };
 }

@@ -661,6 +661,16 @@ date, how many tasks have someone, and "See who does what".
    `convertToProject` (which follows the preview it persists). Manual (no plan)
    keeps the buffer stretched over every phase; Sync schedule on an existing
    project is unchanged (a project's buffer already lives in its dates).
+   **Sprint plans (every planned estimate today) reserve it as TIME instead**
+   (2026-11-17): `planSprints({ bufferPct })` plans once without it, then
+   reserves `round(pct × the plan's working days)` (min 1) as one block after
+   the last sprint review and before UAT (`SprintPlanResult.buffer`, in
+   Launch & Handoff). Spread over parallel Development tasks, 20% of the hours
+   moved Willow School's launch 2 days while the card claimed 41 → 49. The
+   card now shows the plan's launch without → with the buffer
+   (`RiskBufferCard`'s `launch` prop); the Timeline draws a striped
+   "Risk buffer" row; `bufferPlanHours` is only used by phase plans now.
+   Approved quotes keep `quoted_finish`. `e2e/sprint-plan.spec.ts`.
  - `schedule_plan` is in all three whitelists (`rowToQuote`,
    `quoteUpdatePayload`, the `Pick` on `updateProposal`). Old approved quotes
    have no `quoted_finish`, so they show the lock without a quoted date.

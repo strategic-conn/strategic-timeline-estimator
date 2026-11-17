@@ -88,6 +88,8 @@ export type PlannedGanttRow = {
    * time, not the team's: no hours, no person. `blocks` = what waits for it.
    */
   client?: { detail: string; blocks: string | null };
+  /** The schedule risk buffer: slack reserved before acceptance testing, drawn fully striped. */
+  buffer?: { pct: number; days: number };
   /** Delivery order of its phase (Discovery first, Launch last) — rows sort by it. */
   order?: number;
 };
@@ -208,12 +210,22 @@ export function GanttClient({
           // Dates beside the phase, so they can be read without hovering —
           // and on a phone, where there is no hover.
           subtitle: `${r.phase} · ${formatEnUS(start, "MMM d")} – ${formatEnUS(end, "MMM d")}`,
-          badge: r.client ? "Client" : r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
+          badge: r.client ? "Client" : r.buffer ? "Buffer" : r.isPhase ? "Phase" : r.assignee ?? "Unassigned",
           href: null as string | null,
           barClass: r.client ? CLIENT_BG : PLANNED_BG,
           faded: !r.assignee && !r.isPhase && !r.client,
-          bufferPct: total > 0 ? (r.bufferHours / total) * 100 : 0,
-          tip: r.client
+          bufferPct: r.buffer ? 100 : total > 0 ? (r.bufferHours / total) * 100 : 0,
+          tip: r.buffer
+            ? ({
+                heading: r.title,
+                lines: [
+                  ["What", `Slack for overruns: ${r.buffer.pct}% of the plan's length, held back before the client's acceptance testing`],
+                  ["Length", `${r.buffer.days} working day${r.buffer.days === 1 ? "" : "s"}`],
+                  ["Sprint", r.phase],
+                  ...dateLines(start, end),
+                ],
+              } as BarTip)
+            : r.client
             ? ({
                 heading: r.title,
                 lines: [
