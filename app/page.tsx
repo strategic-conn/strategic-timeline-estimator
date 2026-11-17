@@ -97,9 +97,6 @@ export default function Home() {
             <Badge variant="secondary" className="font-normal text-muted-foreground">
               Project workspace
             </Badge>
-            <Badge variant="outline" className="font-mono text-[0.65rem] uppercase">
-              Demo
-            </Badge>
           </div>
 
           <h1 className="text-balance text-4xl font-semibold tracking-tight sm:text-5xl">
