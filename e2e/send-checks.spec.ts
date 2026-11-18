@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { isCustomLine, needsDevConfirm, sendChecks } from "../lib/estimator/send-checks";
+import { isCustomLine, missingRoleLine, needsDevConfirm, sendChecks } from "../lib/estimator/send-checks";
 import { NEW_ESTIMATE_ADDONS } from "../lib/constants/proposal-estimator";
 import type { ClientQuote, ProposalLineItem } from "../types/proposal.types";
 
@@ -69,6 +69,30 @@ test("a bare line-items estimate gets every check; each fix clears its own", () 
   });
   expect(ids(byLines)).not.toContain("no-pm");
   expect(ids(byLines)).not.toContain("no-qa");
+});
+
+test("PM / QA fixes add a LINE sized like the add-on, and adding it clears the check", () => {
+  // 40 h of build (a 16 h Advanced line counts 24) + an existing 6 h PM line,
+  // which is not part of the build basis.
+  const lines = [
+    LINE({ base_hours: 16, tier: "advanced", hours_confirmed: true }),
+    LINE({ base_hours: 16, hours_confirmed: true }),
+  ];
+  const pm = missingRoleLine(lines, "Project Manager");
+  expect(pm).toMatchObject({ title: "Project management", base_hours: 4, responsible: "Project Manager", level: 1, hours_confirmed: true });
+  const qa = missingRoleLine([...lines, LINE({ base_hours: 6, responsible: "Project Manager" })], "QA Tester");
+  expect(qa).toMatchObject({ title: "QA & testing", base_hours: 8, responsible: "QA Tester" });
+  expect(missingRoleLine([LINE({ base_hours: 2 })], "Project Manager").base_hours).toBe(1); // min 1 h
+
+  const q = QUOTE({ line_items: lines });
+  const checks = sendChecks(q);
+  for (const id of ["no-pm", "no-qa"] as const) {
+    const c = checks.find((x) => x.id === id)!;
+    expect(c.fix).toBe("add-line");
+    q.line_items.push(LINE({ ...c.line, id: id }));
+  }
+  expect(ids(q)).not.toContain("no-pm");
+  expect(ids(q)).not.toContain("no-qa");
 });
 
 test("a guided estimate is only checked for custom hours; an approved one for nothing", () => {

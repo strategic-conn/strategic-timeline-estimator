@@ -507,6 +507,15 @@ send**, like the tour copy.
    and no Project Manager line), no QA time, no scope assumptions, no
    content/SEO work (info only). Each has a one-click fix (tab). Green "nothing
    flagged" when clear; gone once approved/billed (`quoteIsFrozen`).
+ - **No PM / no QA are fixed with a LINE, not the add-on** (decided
+   2026-11-19): **Add PM line** / **Add QA line** add "Project management"
+   (Project Manager L1) / "QA & testing" (QA Tester L1), sized like the add-on
+   they replace — 10 % / 20 % of the build's own-tier hours, Project Manager
+   lines excluded, half-hours, min 1 (`missingRoleLine`). A line has a role, so
+   the planner assigns it like any task (PM → Discovery, QA → split into the
+   per-build test tasks); turning on an add-on priced the work but put no task
+   on anyone, which confused people. Marked `hours_confirmed` (sized by the
+   workbook's percentage, not a guess).
  - **Send to Zoho warns, never blocks**, when custom lines are unconfirmed.
  - **Line-items-only quotes can print assumptions**: Review → Client preview
    shows the guided `ScopeAssumptionsCard` (exported from

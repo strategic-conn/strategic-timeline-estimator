@@ -1,11 +1,13 @@
 "use client";
 
-import { CheckCircle2, Info, TriangleAlert } from "lucide-react";
+import { CheckCircle2, Info, Plus, TriangleAlert } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { quoteIsFrozen } from "@/lib/constants/proposal-estimator";
 import { sendChecks, type SendCheck } from "@/lib/estimator/send-checks";
 import { cn } from "@/lib/utils";
+import { useProposalEstimatorStore } from "@/store/proposal-estimator-store";
 import type { ClientQuote } from "@/types/proposal.types";
 
 /**
@@ -20,8 +22,9 @@ export function BeforeYouSendCard({
   onFix,
 }: {
   quote: ClientQuote;
-  onFix: (where: SendCheck["fix"]) => void;
+  onFix: (where: Exclude<SendCheck["fix"], "add-line">) => void;
 }) {
+  const addLineItem = useProposalEstimatorStore((s) => s.addLineItem);
   if (quoteIsFrozen(quote) || !quote.line_items.some((li) => li.title.trim())) return null;
   const checks = sendChecks(quote);
 
@@ -65,8 +68,16 @@ export function BeforeYouSendCard({
               size="sm"
               variant="outline"
               className="h-7 shrink-0 bg-background max-sm:ml-7"
-              onClick={() => onFix(c.fix)}
+              onClick={() => {
+                if (c.fix !== "add-line") return onFix(c.fix);
+                if (!c.line) return;
+                addLineItem(quote.id, c.line);
+                toast.success(`Added "${c.line.title}" (${c.line.base_hours} h)`, {
+                  description: "It's on the Line items tab, where you can change its hours.",
+                });
+              }}
             >
+              {c.fix === "add-line" ? <Plus className="size-3.5" aria-hidden /> : null}
               {c.fixLabel}
             </Button>
           </li>

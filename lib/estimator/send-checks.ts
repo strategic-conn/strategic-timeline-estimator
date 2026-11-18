@@ -1,4 +1,8 @@
-import { quoteIsFrozen } from "@/lib/constants/proposal-estimator";
+import {
+  DEFAULT_ADDONS,
+  lineEffectiveHours,
+  quoteIsFrozen,
+} from "@/lib/constants/proposal-estimator";
 import { PHASE_META } from "@/lib/discovery/constants";
 import type { ClientQuote, ProposalLineItem } from "@/types/proposal.types";
 
@@ -36,10 +40,37 @@ export type SendCheck = {
   tone: "warn" | "info";
   title: string;
   detail: string;
-  /** Where the fix is: an editor tab. */
-  fix: "lines" | "adjust" | "review";
+  /** Where the fix is: an editor tab, or "add-line" = add `line` in one click. */
+  fix: "lines" | "adjust" | "review" | "add-line";
   fixLabel: string;
+  /** For "add-line": the line item the fix adds. */
+  line?: Partial<ProposalLineItem>;
 };
+
+/**
+ * The PM / QA line a line-items-only estimate is missing, sized like the
+ * add-on it replaces: its percentage (PM 10 %, QA 20 %) of the build hours —
+ * every line's own-tier hours except Project Manager work. A LINE, not the
+ * add-on (decided 2026-11-19): a line has a role, so the planner gives it to
+ * a person like any other task; an add-on is only a price. Half-hours, min 1.
+ */
+export function missingRoleLine(
+  lines: ProposalLineItem[],
+  role: "Project Manager" | "QA Tester",
+): Partial<ProposalLineItem> {
+  const basis = lines
+    .filter((li) => li.responsible !== "Project Manager")
+    .reduce((sum, li) => sum + lineEffectiveHours(li, false), 0);
+  const pct = role === "Project Manager" ? DEFAULT_ADDONS.pm_pct : DEFAULT_ADDONS.qa_pct;
+  return {
+    title: role === "Project Manager" ? "Project management" : "QA & testing",
+    base_hours: Math.max(1, Math.round(((basis * pct) / 100) * 2) / 2),
+    responsible: role,
+    level: 1,
+    // Sized by the workbook's own percentage, not a guess — nothing to confirm.
+    hours_confirmed: true,
+  };
+}
 
 const has = (lines: ProposalLineItem[], test: (li: ProposalLineItem) => boolean) =>
   lines.some((li) => li.title.trim() && test(li));
@@ -74,23 +105,27 @@ export function sendChecks(
   if (quote.discovery) return out;
 
   if (!quote.addons?.pm_enabled && !has(lines, (li) => li.responsible === "Project Manager")) {
+    const line = missingRoleLine(lines, "Project Manager");
     out.push({
       id: "no-pm",
       tone: "warn",
       title: "No project management time is priced",
-      detail: "No PM add-on and no Project Manager lines. Meetings, planning and client updates would be free.",
-      fix: "adjust",
-      fixLabel: "Turn on the PM add-on",
+      detail: `No Project Manager lines, so meetings, planning and client updates would be free. Adds "${line.title}": ${line.base_hours} h (10% of the build), planned and assigned like any task.`,
+      fix: "add-line",
+      fixLabel: "Add PM line",
+      line,
     });
   }
   if (!quote.addons?.qa_enabled && !has(lines, (li) => li.responsible === "QA Tester")) {
+    const line = missingRoleLine(lines, "QA Tester");
     out.push({
       id: "no-qa",
       tone: "warn",
       title: "No QA / testing time is priced",
-      detail: "No QA add-on and no QA Tester lines.",
-      fix: "adjust",
-      fixLabel: "Turn on the QA add-on",
+      detail: `No QA Tester lines. Adds "${line.title}": ${line.base_hours} h (20% of the build), split into a test task after each build task.`,
+      fix: "add-line",
+      fixLabel: "Add QA line",
+      line,
     });
   }
   if (!quote.context?.assumptions?.length) {
