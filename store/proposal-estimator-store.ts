@@ -45,6 +45,7 @@ import {
 import { buildRoster, ptoDaysByProfile } from "@/lib/assignment/roster";
 import { assignedWork, closedProjectIds } from "@/lib/workload/assigned-work";
 import { DEFAULT_WEEKLY_CAPACITY_HOURS } from "@/lib/constants/workload";
+import { withDefaultDependencies } from "@/lib/discovery/default-dependencies";
 import { proposalDraftFromDiscovery } from "@/lib/discovery/to-proposal";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import { currentTeamCalendar } from "@/hooks/useTeamCalendar";
@@ -339,6 +340,7 @@ function planSeeds(
       ? bufferPlanHours(placed, quote.risk_buffer_pct ?? 0, quoteTotals(quote).grandHours)
       : null;
 
+  const seedIds = new Set(seeds.map((li) => li.id));
   const planTasks = seeds.map((li, i) => ({
     id: li.id,
     title: li.title,
@@ -346,6 +348,10 @@ function planSeeds(
     hours: planHours?.get(li.id) ?? li.hours,
     role: roleOf(li) ?? defaultRoleFor(li, quote.platform),
     after: li.id.startsWith(TEST_PREFIX) ? li.id.slice(TEST_PREFIX.length) : undefined,
+    // "Depends on #N" on the line: wait for those lines (only ones being planned).
+    deps: li.id.startsWith(TEST_PREFIX)
+      ? undefined
+      : (li.depends_on ?? []).filter((d) => seedIds.has(d)),
   }));
 
   if (sprints) {
@@ -1535,7 +1541,12 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
             p.id === id
               ? {
                   ...p,
-                  line_items: [...p.line_items, ...added],
+                  // New lines get the default dependencies, which may point
+                  // at lines the quote already has (e.g. a phase's setup).
+                  line_items: withDefaultDependencies(
+                    [...p.line_items, ...added],
+                    new Set(added.map((li) => li.id)),
+                  ),
                   updated_at: new Date().toISOString(),
                 }
               : p,
@@ -1553,7 +1564,11 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         const answers = withQuoteAnswers(quote.discovery, quote);
         const result = analyzeDiscovery(answers, currentTeamCalendar());
         const draft = proposalDraftFromDiscovery(answers, result);
-        const line_items = scopeLineItems(draft.line_items, quote.platform);
+        // Which line waits for which (setup before pages, wireframes before
+        // template designs…) — the planner runs the rest of a phase in parallel.
+        const line_items = withDefaultDependencies(
+          scopeLineItems(draft.line_items, quote.platform),
+        );
         set((s) => ({
           proposals: s.proposals.map((p) =>
             p.id === id

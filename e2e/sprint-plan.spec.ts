@@ -204,3 +204,33 @@ test("risk buffer: pct of the plan's working days, held back before acceptance t
   expect(task(r, "a")).toEqual(task(base, "a"));
   expect(plan(tasks, { bufferPct: 0 }).finishDate).toBe(base.finishDate);
 });
+
+test("dependencies: a task waits for the tasks it depends on, others still run in parallel", () => {
+  const bob = dev("bob");
+  const tasks: PlanTask[] = [
+    { ...t("setup", "development", 16) },
+    { ...t("pages", "development", 8), deps: ["setup"] },
+    { ...t("blog", "development", 8) },
+  ];
+  const r = planSprints(tasks, [ann, bob], "wordpress", {
+    strategy: "quick",
+    projectStart: START,
+    reviewDays: 2,
+    phaseDays: {},
+  });
+  const setup = task(r, "setup");
+  const pages = task(r, "pages");
+  // Setup Mon–Tue; pages start the next working day, not alongside it.
+  expect(setup).toMatchObject({ startDate: "2027-03-01", endDate: "2027-03-02" });
+  expect(pages.startDate).toBe("2027-03-03");
+  // The unlinked task still starts on day one.
+  expect(task(r, "blog").startDate).toBe("2027-03-01");
+  // A cycle does not hang or drop a task.
+  const cyc = planSprints(
+    [{ ...t("x", "development", 8), deps: ["y"] }, { ...t("y", "development", 8), deps: ["x"] }],
+    [ann],
+    "wordpress",
+    { strategy: "quick", projectStart: START, reviewDays: 2, phaseDays: {} },
+  );
+  expect(cyc.tasks.every((x) => x.startDate)).toBe(true);
+});

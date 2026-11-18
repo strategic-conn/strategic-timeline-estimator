@@ -66,6 +66,12 @@ export interface PlanTask {
    * after that task is built, in whichever sprint that lands in.
    */
   after?: string;
+  /**
+   * Sprint planning only: tasks this one waits for (its line's `depends_on`).
+   * It starts the working day after the last of them ends. A dependency that
+   * is not placed yet (a later phase, or a cycle) is ignored.
+   */
+  deps?: string[];
 }
 
 export interface PlanDev {
@@ -794,11 +800,41 @@ function planSprintsWith(
     byId.set(t.id, p);
     return p;
   };
-  /** Longest first (packs better), all from the same floor. */
+  /** The day `t` may start: `floor`, or the working day after its last placed dependency. */
+  const depFloor = (t: PlanTask, floor: string): string => {
+    let f = floor;
+    for (const d of t.deps ?? []) {
+      const end = byId.get(d)?.endDate;
+      if (end) f = maxIso(f, nextWorkday(end))!;
+    }
+    return f;
+  };
+  /**
+   * Longest first (packs better), from the same floor — except that a task
+   * waits for the tasks it depends on, so those are placed first.
+   */
   const run = (list: PlanTask[], floor: string): string | null => {
     let end: string | null = null;
-    for (const t of [...list].sort((a, b) => b.hours - a.hours)) {
-      end = maxIso(end, place1(t, floor).endDate);
+    const ids = new Set(list.map((t) => t.id));
+    const left = [...list].sort((a, b) => b.hours - a.hours);
+    while (left.length) {
+      // Of the tasks whose dependencies here are all placed, the one that can
+      // start first (longest on a tie) — a person's calendar only moves
+      // forward, so placing a waiting task first would leave them idle before
+      // it. On a cycle, the longest left (its unplaced dependency is ignored).
+      let i = -1;
+      let best = "";
+      left.forEach((t, j) => {
+        if (!(t.deps ?? []).every((d) => !ids.has(d) || byId.has(d))) return;
+        const f = depFloor(t, floor);
+        if (i < 0 || f < best) {
+          i = j;
+          best = f;
+        }
+      });
+      if (i < 0) i = 0;
+      const [t] = left.splice(i, 1);
+      end = maxIso(end, place1(t, depFloor(t, floor)).endDate);
     }
     return end;
   };

@@ -129,6 +129,13 @@ const HELP = {
           platform;{" "}<strong>Add row</strong>{" "}adds your own. Rows are grouped by
           module, as on the PDF.
         </p>
+        <p>
+          <strong>Depends on</strong>{" "}(in a row&apos;s details) makes that
+          work wait: it starts the working day after the rows it depends on
+          finish. Rows with no dependency run side by side. Generated rows come
+          with the usual order already set — setup before pages, wireframes
+          before template designs — and you can change it.
+        </p>
       </>
     ),
   },

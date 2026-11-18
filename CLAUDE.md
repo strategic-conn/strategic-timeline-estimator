@@ -1711,6 +1711,21 @@ Fastest) — and the project Start project builds from it — is laid out by
    estimates. Teal bars on Review → Timeline; **Start project creates them as
    tasks** tagged `Client`, unassigned, 0 h, NULL `source_line_item_id` (so a
    sync never touches them).
+ - **Dependencies order the work inside a phase** (2026-11-18). A line's
+   `depends_on` (the "Depends on #N" picker in its details, also printed on
+   the PDF) becomes `PlanTask.deps`: the task starts the working day after
+   the last of them ends. Tasks are placed earliest-startable first (a
+   person's calendar only moves forward, so placing a waiting task first left
+   them idle). Unlinked tasks still run in parallel; a dependency in a later
+   phase or a cycle is ignored. **Generate line items** fills in defaults
+   (`withDefaultDependencies`, `lib/discovery/default-dependencies.ts`, by
+   title within the phase): setup → platform → templates → pages, other dev
+   work after setup, Development QA pass after all dev, brand → design system
+   → template designs (after wireframes too), launch checklist → DNS → smoke
+   test → handoff. Catalog/freehand rows get none. Existing quotes keep what
+   they have until regenerated. Willow School: Mar 5 → Mar 22 launch.
+   Sprint plans only — `planSchedule` (phase projects) ignores them.
+   Project tasks don't store dependencies. `e2e/default-dependencies.spec.ts`.
  - **Who** is decided by the same `assign` step as `planSchedule`
    (`createPlanner` — keys, stars, booked work, leave, least-load tie-break).
    `planSchedule` (phases) still runs Sync schedule on older phase projects and
