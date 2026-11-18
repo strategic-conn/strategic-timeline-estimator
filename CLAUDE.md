@@ -2643,6 +2643,12 @@ if (!tasks.length) {
       They used to take the TRIGGER's width, so every ⋯ icon menu was 8rem and
       wrapped "Password setup link" onto two lines. Rows are taller on touch
       (`pointer-coarse:py-2.5`). A caller's own `w-*` still wins.
+    - **Adjust → Hourly rates fills its card** (`QuoteRatesCard`: the text
+      column is `min-w-0 flex-1`). It shrink-wrapped to the table's minimum,
+      leaving the right half of the card empty on desktop.
+      On a phone the scale icon hides and only the title line pads for the
+      "?", so the table (`min-w-[17rem]`, numbers `whitespace-nowrap`) fits
+      without scrolling.
     - **Estimator list card actions wrap** (`flex-wrap`, the PO badge
       `whitespace-nowrap`): beside Start project the PO badge split over two
       lines on a phone.

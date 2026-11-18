@@ -78,13 +78,13 @@ export function QuoteRatesCard({ quote }: { quote: ClientQuote }) {
     <Card className="relative" {...tourAnchor("estimate.rates")}>
       <EstimatorHelp section="rates" corner />
       <CardContent className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:pr-12">
-        <div className="flex items-start gap-3 max-sm:pr-8">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
           <Scale
-            className="mt-0.5 size-4 shrink-0 text-muted-foreground"
+            className="mt-0.5 size-4 shrink-0 text-muted-foreground max-sm:hidden"
             aria-hidden
           />
-          <div className="text-sm">
-            <p className="font-medium">Hourly rates</p>
+          <div className="min-w-0 flex-1 text-sm">
+            <p className="font-medium max-sm:pr-8">Hourly rates</p>
             <p className="text-muted-foreground">
               Hours by role and skill level, at the rate each line was added at.
             </p>
@@ -157,14 +157,14 @@ export function QuoteRatesCard({ quote }: { quote: ClientQuote }) {
  * The quote's price, broken down by who does the work: role + level, its
  * rate, hours and amount, then the risk buffer and the total. Replaces the old
  * "avg $X/h", which mixed every rate into one number nobody had chosen.
- * Wide enough for four columns from ~320px; scrolls inside the card below that.
+ * 17rem fits a 375px phone card (icon hidden there); scrolls inside the card below that.
  */
 function RateBreakdownTable({ breakdown }: { breakdown: RateBreakdown }) {
   const { rows, buffer } = breakdown;
   if (!rows.length) return null;
   return (
     <div className="mt-3 overflow-x-auto rounded-lg border border-border/60">
-      <table className="w-full min-w-[19rem] text-xs tabular-nums">
+      <table className="w-full min-w-[17rem] text-xs tabular-nums [&_td:not(:first-child)]:whitespace-nowrap">
         <thead className="bg-muted/40 text-muted-foreground">
           <tr>
             <th className="px-2.5 py-1.5 text-left font-medium">Role · level</th>
