@@ -571,8 +571,12 @@ function planOnStatus(
   prev: ClientQuote,
   next: ProposalStatus,
 ): ProposalSchedulePlan | undefined {
+  // Spread the existing plan: it also holds the schedule INPUTS (start date,
+  // review time, deadline, blackout). Replacing it dropped them, so an
+  // approved estimate quoted from Feb 1 re-planned Start project from today.
   if (next === "approved" && prev.status !== "approved") {
     return {
+      ...prev.schedule_plan,
       strategy: strategyOf(prev),
       quoted_finish: previewFinish(forecastOf(prev)),
       quoted_at: new Date().toISOString(),
@@ -582,7 +586,7 @@ function planOnStatus(
     };
   }
   if (next !== "approved" && prev.status === "approved" && prev.schedule_plan?.quoted_finish) {
-    return { strategy: strategyOf(prev), quoted_finish: null, quoted_at: null };
+    return { ...prev.schedule_plan, strategy: strategyOf(prev), quoted_finish: null, quoted_at: null };
   }
   return undefined;
 }
