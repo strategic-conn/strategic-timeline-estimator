@@ -386,6 +386,7 @@ export function ScopeAssumptionsCard({
   onChange,
   description,
   canReset = true,
+  startEditing = false,
 }: {
   assumptions: string[];
   edited: boolean;
@@ -394,8 +395,13 @@ export function ScopeAssumptionsCard({
   description?: string;
   /** False when there is no generated list to go back to. */
   canReset?: boolean;
+  /** Mount already editing (the textarea's autoFocus scrolls it into view).
+   *  Re-key the card to open it again, e.g. from Before you send. */
+  startEditing?: boolean;
 }) {
-  const [draft, setDraft] = React.useState<string | null>(null);
+  const [draft, setDraft] = React.useState<string | null>(
+    startEditing ? assumptions.join("\n") : null,
+  );
 
   const save = () => {
     if (draft === null) return;

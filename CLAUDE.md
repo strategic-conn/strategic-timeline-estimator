@@ -522,6 +522,10 @@ send**, like the tour copy.
    `DiscoveryHoursBreakdown`), stored as `proposals.context.assumptions`
    (0054). PDF / Excel / preview read **`quoteAssumptions`** (guided →
    generated / edited; otherwise `context.assumptions`).
+   Before you send's **Add assumptions** opens that card in edit mode
+   (re-keyed with `startEditing`; the textarea's autoFocus scrolls it into
+   view). It used to only switch to Client preview, which was already open,
+   so the button looked dead.
 
 **Pricing (per line, pricing plan Phase 3):** a line's price is **its effective hours × its own `rate`** — the rate of its **role + level** (`responsible` + `level`, e.g. IT Level 2), **snapshotted onto the line when it is added**. Editing a rate in Settings therefore never reprices an existing quote (plan decision 1); the Adjust tab's **`QuoteRatesCard`** says when today's rates would change the price and offers **"Update to current rates"** behind an old → new preview, writing the same object it rendered (`repriceToCurrentRates` → `applyCurrentRates`, one store write for `line_items` + `addons.rates`). Add-on hours are priced at their role's Level 1 rate (`ADDON_ROLE`: Responsive → IT, Design → Creative, QA → QA Tester, PM → Project Manager), snapshotted as `addons.rates`. The money helpers are **`lineAmount` / `quotePricing` / `formatAmount` / `splitAmount`** (`lib/constants/proposal-estimator.ts`); who-does-what is **`lib/pricing/line-pricing.ts`** — every line is created through **`withPricing`** (catalog row's role → guided phase's role via `PHASE_ROLE` → freehand IT Level 1). Each line is **rounded to whole dollars** and the total is the sum of those, so the PDF/Excel lines always add up to the header. The header shows hours and price only (no "avg $X/h" — removed 2026-11-05 as confusing); the Adjust tab's Hourly rates card breaks the price down by role + level, rate, hours and amount (`rateBreakdown`, `lib/pricing/line-pricing.ts`). The coordinator can change a line's role in its details panel, which snapshots that role's rate **as of now**. **Client documents (PDF, the in-app preview, Excel) show prices only — never a role, level or rate.**
 

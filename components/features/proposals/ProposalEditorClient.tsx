@@ -330,6 +330,9 @@ export function ProposalEditorClient({
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const [tab, setTab] = React.useState("scope");
   const [reviewTab, setReviewTab] = React.useState("preview");
+  // Before you send → "Add assumptions": bumping this re-keys the card so it
+  // opens in edit mode (it was already on screen, so switching tabs did nothing).
+  const [editAssumptions, setEditAssumptions] = React.useState(0);
   /** Where a refused Send to Zoho sends people: Setup, product picker open. */
   const goChooseProducts = () => {
     setTab("setup");
@@ -1956,7 +1959,10 @@ export function ProposalEditorClient({
             <BeforeYouSendCard
               quote={quote}
               onFix={(where) => {
-                if (where === "review") setReviewTab("preview");
+                if (where === "review") {
+                  setReviewTab("preview");
+                  setEditAssumptions((n) => n + 1);
+                }
                 else setTab(where === "lines" ? "scope" : "adjust");
               }}
             />
@@ -1973,6 +1979,8 @@ export function ProposalEditorClient({
                     line-items-only quote has none unless they're typed here. */}
                 {!quote.discovery ? (
                   <ScopeAssumptionsCard
+                    key={editAssumptions}
+                    startEditing={editAssumptions > 0}
                     assumptions={quote.context?.assumptions ?? []}
                     edited={(quote.context?.assumptions?.length ?? 0) > 0}
                     canReset={false}
