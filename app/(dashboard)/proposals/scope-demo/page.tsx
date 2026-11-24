@@ -1,8 +1,7 @@
 import { redirect } from "next/navigation";
 
-// The "Draft from client scope" demo is hidden for now (2026-10-28): no entry on
-// the Estimator, and old links land there. The demo itself is parked in
-// components/features/proposals/ScopeDraftDemo.tsx, ready to bring back.
+// The "Draft from client scope" demo was replaced by the real thing — New
+// estimate → "Let Esther estimate" (2026-11-21). Old links land on the Estimator.
 export default function ScopeDemoPage() {
   redirect("/proposals");
 }

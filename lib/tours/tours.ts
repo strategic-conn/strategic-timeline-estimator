@@ -559,7 +559,7 @@ export const TOURS: TourDef[] = [
 
   {
     id: "estimator",
-    version: 3,
+    version: 4,
     title: "Estimator",
     access: "/proposals",
     match: exact("/proposals"),
@@ -573,7 +573,7 @@ export const TOURS: TourDef[] = [
       {
         target: "estimator.new",
         title: "New estimate",
-        body: "Start from scratch. You choose how to scope it: the guided questionnaire (recommended for new or unclear work), or straight to line items from the catalog.",
+        body: "Choose how to start. Let Esther estimate: drop the client's document and Esther reads it, asks what's missing and drafts the estimate for a developer to check. Or build it yourself with the guided questionnaire or the catalog.",
       },
       {
         target: "estimator.import",

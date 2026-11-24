@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, Pencil, RotateCcw } from "lucide-react";
+import { Ban, Check, ChevronRight, CircleHelp, Package, Pencil, Plus, RotateCcw, X } from "lucide-react";
 
 import { DiscoveryRiskBadge } from "@/components/features/discovery/DiscoveryRiskBadge";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,17 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { PHASE_META, RISK_LEVEL_META } from "@/lib/discovery/constants";
 import { formatHours } from "@/lib/discovery";
 import { cn } from "@/lib/utils";
+import {
+  ASSUMPTION_GROUPS,
+  groupAssumptions,
+  groupOf,
+  toStored,
+  withoutMarker,
+  type AssumptionGroup,
+} from "@/lib/estimator/assumption-groups";
 import type { DiscoveryResult, PhaseId } from "@/types/discovery.types";
 
 export function DiscoveryHoursBreakdown({
@@ -357,19 +363,248 @@ export function DiscoveryHoursBreakdown({
   );
 }
 
+const GROUP_STYLE: Record<AssumptionGroup, { icon: React.ReactNode; dot: string }> = {
+  included: {
+    icon: <Check className="size-3.5" aria-hidden />,
+    dot: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300",
+  },
+  client: {
+    icon: <Package className="size-3.5" aria-hidden />,
+    dot: "bg-sky-500/15 text-sky-700 dark:text-sky-300",
+  },
+  confirm: {
+    icon: <CircleHelp className="size-3.5" aria-hidden />,
+    dot: "bg-amber-500/15 text-amber-800 dark:text-amber-300",
+  },
+  excluded: {
+    icon: <Ban className="size-3.5" aria-hidden />,
+    dot: "bg-rose-500/15 text-rose-700 dark:text-rose-300",
+  },
+};
+
+/**
+ * Assumptions grouped the way a reader scans them — Included, The client
+ * provides, Still to confirm, Not included — each a short single-column list
+ * (it was one two-column list that read in a zig-zag). Display only: the
+ * stored list and the PDF keep the coordinator's order (`groupAssumptions`).
+ */
 function AssumptionList({ items }: { items: string[] }) {
+  const groups = groupAssumptions(items);
   return (
-    <ul className="grid gap-2 sm:grid-cols-2">
-      {items.map((a, i) => (
-        <li
-          key={`${i}-${a}`}
-          className="flex items-start gap-2 text-sm text-muted-foreground"
-        >
-          <span className="mt-1.5 size-1.5 shrink-0 rounded-full bg-muted-foreground/50" />
-          {a}
-        </li>
+    <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2" data-testid="assumption-groups">
+      {groups.map((g) => (
+        <section key={g.id} aria-labelledby={`assumptions-${g.id}`} data-group={g.id}>
+          <h4 id={`assumptions-${g.id}`} className="mb-2 flex items-center gap-2 text-sm font-medium">
+            <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", GROUP_STYLE[g.id].dot)}>
+              {GROUP_STYLE[g.id].icon}
+            </span>
+            {g.label}
+            <span className="text-xs font-normal tabular-nums text-muted-foreground">{g.items.length}</span>
+          </h4>
+          <ul className="flex flex-col gap-1.5 border-l border-border/70 pl-4 ml-3">
+            {g.items.map((a, i) => (
+              <li key={`${i}-${a}`} className="text-sm leading-relaxed text-muted-foreground">
+                {a}
+              </li>
+            ))}
+          </ul>
+        </section>
       ))}
-    </ul>
+    </div>
+  );
+}
+
+type EditRow = {
+  key: string;
+  group: AssumptionGroup;
+  text: string;
+  /** The stored line it came from, kept as-is if the row isn't touched. */
+  original?: string;
+};
+
+let rowSeq = 0;
+const newRow = (group: AssumptionGroup, text = "", original?: string): EditRow => ({
+  key: `a${++rowSeq}`,
+  group,
+  text,
+  original,
+});
+
+/** Rows → the stored list, in group order; a moved or new line keeps its group. */
+function rowsToList(rows: EditRow[]): string[] {
+  return ASSUMPTION_GROUPS.flatMap((g) =>
+    rows
+      .filter((r) => r.group === g.id && r.text.trim())
+      .map((r) =>
+        r.original && withoutMarker(r.original) === r.text.trim() && groupOf(r.original) === r.group
+          ? r.original
+          : toStored(r.group, r.text),
+      ),
+  );
+}
+
+const autosize = (el: HTMLTextAreaElement) => {
+  el.style.height = "auto";
+  el.style.height = `${el.scrollHeight}px`;
+};
+
+/**
+ * Editing, in the same four groups the card shows: one row per assumption
+ * (grows with its text), × to remove, "Add" per group. Enter starts a new
+ * line below, Backspace on an empty line removes it, and pasting a list
+ * splits it into rows. Saved in group order; a line keeps the group it was
+ * put in (`toStored`), and an untouched line is saved exactly as it was.
+ */
+function AssumptionEditor({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: string[];
+  onSave: (list: string[]) => void;
+  onCancel: () => void;
+}) {
+  const [rows, setRows] = React.useState<EditRow[]>(() => {
+    const r = initial
+      .map((t) => t.trim())
+      .filter(Boolean)
+      .map((t) => newRow(groupOf(t), withoutMarker(t), t));
+    return r.length ? r : [newRow("included")];
+  });
+  const refs = React.useRef(new Map<string, HTMLTextAreaElement>());
+  // Open on the first row (focusing it also scrolls the editor into view),
+  // then follow whichever row was added, or the neighbour of a removed one.
+  const [focusKey, setFocusKey] = React.useState<string | null>(
+    () => ASSUMPTION_GROUPS.map((g) => rows.find((r) => r.group === g.id)).find(Boolean)?.key ?? null,
+  );
+  React.useEffect(() => {
+    const el = focusKey ? refs.current.get(focusKey) : null;
+    if (!el) return;
+    el.focus();
+    el.setSelectionRange(el.value.length, el.value.length);
+  }, [focusKey]);
+
+  const update = (key: string, text: string) =>
+    setRows((rs) => rs.map((r) => (r.key === key ? { ...r, text } : r)));
+
+  /** New rows after `key`, or at the end of the group when `key` is null. */
+  const insert = (key: string | null, group: AssumptionGroup, texts: string[] = [""]) => {
+    const added = texts.map((t) => newRow(group, t));
+    setRows((rs) => {
+      let at = key ? rs.findIndex((r) => r.key === key) + 1 : 0;
+      if (!key) {
+        const last = rs.map((r) => r.group).lastIndexOf(group);
+        at = last < 0 ? rs.length : last + 1;
+      }
+      return [...rs.slice(0, at), ...added, ...rs.slice(at)];
+    });
+    setFocusKey(added[added.length - 1].key);
+  };
+
+  const remove = (key: string) => {
+    const i = rows.findIndex((r) => r.key === key);
+    const group = rows[i]?.group;
+    const before = rows.slice(0, i).reverse().find((r) => r.group === group);
+    const after = rows.slice(i + 1).find((r) => r.group === group);
+    setFocusKey((before ?? after)?.key ?? null);
+    setRows((rs) => rs.filter((r) => r.key !== key));
+  };
+
+  const count = rows.filter((r) => r.text.trim()).length;
+
+  return (
+    <div className="flex flex-col gap-4" data-testid="assumption-editor">
+      <div className="grid gap-x-8 gap-y-5 lg:grid-cols-2">
+        {ASSUMPTION_GROUPS.map((g) => (
+          <section key={g.id} aria-labelledby={`edit-assumptions-${g.id}`} data-group={g.id}>
+            <h4 id={`edit-assumptions-${g.id}`} className="mb-2 flex items-center gap-2 text-sm font-medium">
+              <span className={cn("flex size-6 shrink-0 items-center justify-center rounded-full", GROUP_STYLE[g.id].dot)}>
+                {GROUP_STYLE[g.id].icon}
+              </span>
+              {g.label}
+            </h4>
+            <div className="ml-3 flex flex-col gap-1 border-l border-border/70 pl-3">
+              {rows
+                .filter((r) => r.group === g.id)
+                .map((r) => (
+                  <div key={r.key} className="group/row flex items-start gap-1">
+                    <textarea
+                      ref={(el) => {
+                        if (el) {
+                          refs.current.set(r.key, el);
+                          autosize(el);
+                        } else refs.current.delete(r.key);
+                      }}
+                      rows={1}
+                      value={r.text}
+                      aria-label={`${g.label}: assumption`}
+                      placeholder="Type an assumption…"
+                      onChange={(e) => {
+                        update(r.key, e.target.value.replace(/\r?\n/g, " "));
+                        autosize(e.target);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                          e.preventDefault();
+                          insert(r.key, g.id);
+                        } else if (e.key === "Backspace" && !r.text && rows.length > 1) {
+                          e.preventDefault();
+                          remove(r.key);
+                        }
+                      }}
+                      onPaste={(e) => {
+                        const lines = e.clipboardData
+                          .getData("text")
+                          .split(/\r?\n/)
+                          .map((l) => l.trim())
+                          .filter(Boolean);
+                        if (lines.length < 2) return;
+                        e.preventDefault();
+                        update(r.key, `${r.text} ${lines[0]}`.trim());
+                        insert(r.key, g.id, lines.slice(1));
+                      }}
+                      className="min-h-9 w-full resize-none overflow-hidden rounded-md border border-border/50 bg-muted/20 px-2 py-1.5 text-sm leading-relaxed outline-none placeholder:text-muted-foreground hover:border-border focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/40 dark:hover:bg-input/20"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="size-9 shrink-0 text-muted-foreground pointer-fine:opacity-0 pointer-fine:group-hover/row:opacity-100 pointer-fine:group-focus-within/row:opacity-100"
+                      aria-label="Remove this assumption"
+                      onClick={() => remove(r.key)}
+                    >
+                      <X className="size-4" aria-hidden />
+                    </Button>
+                  </div>
+                ))}
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-fit gap-1.5 px-2 text-muted-foreground"
+                onClick={() => insert(null, g.id)}
+              >
+                <Plus className="size-3.5" aria-hidden />
+                Add
+              </Button>
+            </div>
+          </section>
+        ))}
+      </div>
+      <div className="flex flex-col-reverse gap-2 border-t border-border/60 pt-3 sm:flex-row sm:items-center">
+        <p className="text-xs text-muted-foreground sm:mr-auto">
+          {`${count} assumption${count === 1 ? "" : "s"} · Enter adds a line · paste a list to add several`}
+        </p>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" onClick={onCancel}>
+            Cancel
+          </Button>
+          <Button type="button" size="sm" onClick={() => onSave(rowsToList(rows))}>
+            Save assumptions
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -377,8 +612,8 @@ function AssumptionList({ items }: { items: string[] }) {
  * The scope assumptions, editable. Starts from the list generated from the
  * answers; once edited, the coordinator's list is what the quote prints, and
  * later answer changes no longer rewrite it (Reset brings the generated one
- * back). Edited as one line per assumption — the simplest thing that can't
- * lose a line to a fiddly per-row control on a phone.
+ * back). Shown and edited in the four groups (`AssumptionList`,
+ * `AssumptionEditor`).
  */
 export function ScopeAssumptionsCard({
   assumptions,
@@ -395,23 +630,11 @@ export function ScopeAssumptionsCard({
   description?: string;
   /** False when there is no generated list to go back to. */
   canReset?: boolean;
-  /** Mount already editing (the textarea's autoFocus scrolls it into view).
+  /** Mount already editing (focusing the first row scrolls it into view).
    *  Re-key the card to open it again, e.g. from Before you send. */
   startEditing?: boolean;
 }) {
-  const [draft, setDraft] = React.useState<string | null>(
-    startEditing ? assumptions.join("\n") : null,
-  );
-
-  const save = () => {
-    if (draft === null) return;
-    const lines = draft
-      .split("\n")
-      .map((l) => l.trim())
-      .filter(Boolean);
-    onChange(lines);
-    setDraft(null);
-  };
+  const [editing, setEditing] = React.useState(startEditing);
 
   return (
     <Card>
@@ -423,7 +646,7 @@ export function ScopeAssumptionsCard({
               ? "Edited. Printed on the quote as shown; changing answers no longer updates this list."
               : "Generated from the answers. Printed on the quote.")}
         </CardDescription>
-        {draft === null ? (
+        {!editing ? (
           <CardAction className="flex gap-1.5">
             {edited && canReset ? (
               <Button
@@ -440,7 +663,7 @@ export function ScopeAssumptionsCard({
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setDraft(assumptions.join("\n"))}
+              onClick={() => setEditing(true)}
             >
               <Pencil className="size-3.5" aria-hidden />
               Edit
@@ -449,32 +672,15 @@ export function ScopeAssumptionsCard({
         ) : null}
       </CardHeader>
       <CardContent className="pb-4">
-        {draft !== null ? (
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="scope-assumptions" className="text-xs text-muted-foreground">
-              One assumption per line
-            </Label>
-            <Textarea
-              id="scope-assumptions"
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              rows={Math.max(4, draft.split("\n").length + 1)}
-              autoFocus
-            />
-            <div className="flex justify-end gap-2">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => setDraft(null)}
-              >
-                Cancel
-              </Button>
-              <Button type="button" size="sm" onClick={save}>
-                Save assumptions
-              </Button>
-            </div>
-          </div>
+        {editing ? (
+          <AssumptionEditor
+            initial={assumptions}
+            onCancel={() => setEditing(false)}
+            onSave={(list) => {
+              onChange(list);
+              setEditing(false);
+            }}
+          />
         ) : assumptions.length ? (
           <AssumptionList items={assumptions} />
         ) : (

@@ -147,6 +147,30 @@
   }
 }
 
+/* "Let Esther estimate" — the working animation (EstherMagic). The global
+   reduce-motion rule below stills all three. */
+@keyframes esther-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes esther-twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes esther-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
 /* Pulses when user lands from dashboard / workload / calendar with ?task= */
 @keyframes task-link-spotlight {
   0%,

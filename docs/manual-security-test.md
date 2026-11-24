@@ -151,6 +151,7 @@ const call = (path, method = "GET") => fetch(path, { method }).then(async (r) =>
 | 4.19 | `call("/api/users/COLLEAGUE_ID/mfa", "DELETE")` | `403` |
 | 4.20 | `call("/api/invites", "POST")` | `403` |
 | 4.21 | Repeat 4.17 as **M** | Works (managers may read CRM) — but 4.18–4.20 still `403` |
+| 4.22 | `call("/api/esther")` and `fetch("/api/esther/scan", { method: "POST", body: new FormData() }).then(r => console.log(r.status))` | `403` — Esther (and the API key behind her) is admins and managers only |
 
 ## 5. Content people type (desktop + phone)
 

@@ -5,6 +5,7 @@ import { Building2, CalendarOff, Lock, Star, User } from "lucide-react";
 import { HourlyRatesCard } from "@/components/features/settings/HourlyRatesCard";
 import { HolidaysCard } from "@/components/features/settings/HolidaysCard";
 import { SprintLengthCard } from "@/components/features/settings/SprintLengthCard";
+import { EstherReferencesCard } from "@/components/features/esther-estimate/EstherReferencesCard";
 import { usePermissions } from "@/hooks/usePermissions";
 import { WorkspacePageHeader } from "@/components/layouts/workspace-page-header";
 import { AdminTeamTimeOffSection } from "@/components/features/settings/AdminTeamTimeOffSection";
@@ -144,6 +145,7 @@ export function SettingsClient({ requestedTab }: { requestedTab?: string }) {
               <HourlyRatesCard />
               <HolidaysCard />
               <SprintLengthCard />
+              <EstherReferencesCard />
               {isAdmin ? <ZohoConnectionCard /> : null}
             </div>
           </TabsContent>

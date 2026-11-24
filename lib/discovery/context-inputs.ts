@@ -28,7 +28,7 @@ export const CONTEXT_FIELDS = [
 type Q = Pick<ClientQuote, "context" | "discovery" | "platform">;
 
 /** The seven answers (not `assumptions`, which a guided quote keeps elsewhere). */
-export type ContextAnswers = Required<Omit<ProposalContext, "assumptions">>;
+export type ContextAnswers = Required<Omit<ProposalContext, "assumptions" | "esther">>;
 
 export function contextOf(quote: Q): ContextAnswers {
   const c = quote.context ?? {};

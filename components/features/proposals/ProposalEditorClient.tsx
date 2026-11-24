@@ -139,6 +139,7 @@ import {
 import { withQuoteAnswers } from "@/lib/discovery/context-inputs";
 import { isCustomLine, needsDevConfirm } from "@/lib/estimator/send-checks";
 import { BeforeYouSendCard } from "@/components/features/proposals/BeforeYouSendCard";
+import { EstherDraftCard } from "@/components/features/esther-estimate/EstherDraftCard";
 import { syncDiscoveryToQuote } from "@/lib/discovery/platform-sync";
 import {
   discoveryCoverage,
@@ -1614,6 +1615,8 @@ export function ProposalEditorClient({
               </div>
             ) : null}
 
+            <EstherDraftCard quote={quote} />
+
             <ContextSuggestions quote={quote} />
 
             {platformHasCatalog ? (
@@ -2660,7 +2663,8 @@ function LineItemRow({
   const [open, setOpen] = React.useState(() => !line.title.trim());
 
   return (
-    <div className="bg-card p-3 transition-colors hover:bg-muted/30">
+    // id: the Esther draft card's "Confirm hours" list scrolls to it.
+    <div id={`line-${line.id}`} className="scroll-mt-24 bg-card p-3 transition-colors hover:bg-muted/30">
       {/* Summary — always visible, scannable */}
       <div className="flex items-center gap-2.5">
         <Badge
@@ -2696,6 +2700,19 @@ function LineItemRow({
             >
               <TriangleAlert className="size-3" aria-hidden />
               Hours to confirm with a developer
+            </button>
+          ) : null}
+          {line.esther_note ? (
+            // Esther drafted it: say so on the row, so a reviewer can tell her
+            // lines from ones a person added. The reason is in the details.
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="ml-1 mt-1 inline-flex min-h-6 items-center gap-1 rounded-md border border-primary/30 bg-primary/10 px-1.5 text-[0.7rem] font-medium text-primary hover:bg-primary/15 dark:text-indigo-300"
+              data-testid="esther-line-tag"
+            >
+              <Sparkles className="size-3" aria-hidden />
+              Esther
             </button>
           ) : null}
         </div>
@@ -2918,6 +2935,15 @@ function LineItemRow({
               Remove
             </Button>
           </div>
+          {line.esther_note ? (
+            <p className="flex w-full items-start gap-1.5 rounded-md bg-primary/5 px-2 py-1.5 text-xs" data-testid="esther-line-note">
+              <Sparkles className="mt-0.5 size-3 shrink-0 text-primary" aria-hidden />
+              <span>
+                <span className="font-medium">{"Why Esther added this: "}</span>
+                {line.esther_note}
+              </span>
+            </p>
+          ) : null}
           {custom ? (
             <label className="flex w-full cursor-pointer items-center gap-2 text-sm">
               <Checkbox

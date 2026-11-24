@@ -77,6 +77,12 @@ export interface ProposalLineItem {
    * means the line predates Phase 3 and was priced at `LEGACY_HOURLY_RATE`.
    */
   rate?: number | null;
+  /**
+   * Why Esther added this line ("Let Esther estimate"), in plain words, shown
+   * in the line's details for the reviewer. Missing on every other line.
+   * Inside the `line_items` jsonb, so no migration.
+   */
+  esther_note?: string | null;
 }
 
 /** Rate snapshots for the roll-up add-ons (plan decision 3: each uses its role's Level 1 rate). */
@@ -296,6 +302,12 @@ export interface ProposalContext {
    * questionnaire. Missing / empty = the quote prints none.
    */
   assumptions?: string[] | null;
+  /**
+   * Set when Esther drafted this estimate from a client document: the file,
+   * her summary, the requirements she found, what no line covers and what a
+   * developer should check. Read by the Line items tab's "Esther's draft" card.
+   */
+  esther?: import("@/lib/esther/estimate/types").EstherDraftMeta | null;
 }
 
 export interface ClientQuote {

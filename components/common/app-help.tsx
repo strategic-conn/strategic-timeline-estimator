@@ -264,7 +264,15 @@ const HELP = {
         <p>
           <strong>Import from Zoho</strong>{" "}starts an estimate from an
           existing deal (and moves that deal to Discovery).{" "}
-          <strong>New estimate</strong>{" "}starts from scratch.
+          <strong>New estimate</strong>{" "}asks how to start:{" "}
+          <strong>Let Esther estimate</strong>{" "}(drop the client&apos;s
+          document; Esther reads it, asks what&apos;s missing and drafts the
+          estimate) or{" "}<strong>Build it myself</strong>.
+        </p>
+        <p>
+          An Esther draft is a starting point, not a quote. Her new tasks are
+          marked{" "}<strong>to confirm</strong>{" "}until a developer checks the
+          hours, and the Line items tab lists anything she couldn&apos;t price.
         </p>
         <p>
           When the deal is won in Zoho, the estimate is approved automatically
@@ -639,6 +647,32 @@ const HELP = {
         <p>
           Holidays that fall on a weekend are observed on the Friday before or
           the Monday after. Only admins can change these.
+        </p>
+      </>
+    ),
+  },
+  "settings.estherReferences": {
+    label: "Esther's past estimates",
+    title: "Esther's past estimates",
+    body: (
+      <>
+        <p>
+          Estimates your team wrote before this app — Word, Excel, CSV or PDF.
+          Upload the ones that went well: they show Esther how your developers
+          break work down and how many hours they give it.
+        </p>
+        <p>
+          Esther reads each file{" "}<strong>once</strong>, when you upload it,
+          and keeps only the tasks, hours and roles. Client, company and people
+          names, emails, web addresses and phone numbers are removed, and the
+          file itself isn&apos;t kept. Open a row to see exactly what she kept.
+        </p>
+        <p>
+          Every time she drafts, she looks at the three uploads most like the new
+          brief (same platform, or no platform stated), alongside the approved
+          estimates already in the app. Reading a file costs a few cents; using
+          them in a draft adds very little. Deleting one only affects new drafts.
+          Only admins can upload or delete; managers see the list.
         </p>
       </>
     ),

@@ -93,7 +93,10 @@ test("rendered: no bold word is glued to its neighbour, in any section", async (
   await waitForApp(page);
 
   let opened = 0;
+  await expect(page.getByRole("tab", { name: /^Setup$/ }).first()).toBeVisible({ timeout: 30_000 });
   for (const tab of [/^Setup$/, /^Scope & risk$/, /^Line items/, /^Adjust$/, /^Review$/]) {
+    // A line-items-only estimate has no Scope & risk tab.
+    if (!(await page.getByRole("tab", { name: tab }).count())) continue;
     await page.getByRole("tab", { name: tab }).first().click();
     await page.waitForTimeout(400);
     const buttons = page.getByRole("button", { name: /^About / });

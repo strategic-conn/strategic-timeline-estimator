@@ -339,7 +339,7 @@
       "layer": "surfaces",
       "label": "/proposals",
       "sub": "\"Estimator\" · ProposalsListClient",
-      "purpose": "Quote list + create (guided or manual). Gated by canExportProposals.",
+      "purpose": "Quote list + create. New estimate asks first: Let Esther estimate (AI, from a document) or Build it myself (guided questionnaire / line items). Gated by canExportProposals.",
       "files": [
         "components/features/proposals/ProposalsListClient.tsx:139"
       ],
@@ -374,8 +374,8 @@
       "id": "s-esther",
       "layer": "surfaces",
       "label": "/esther",
-      "sub": "coming soon",
-      "purpose": "Coming-soon card. EstherClient + esther-store exist but are NOT wired to this route.",
+      "sub": "hidden (redirects)",
+      "purpose": "The old Esther CHAT: built but hidden; /esther redirects to /proposals. Not to be confused with \"Let Esther estimate\" (s-esther-estimate), which is live.",
       "files": [
         "app/(dashboard)/esther/page.tsx"
       ],
@@ -1586,6 +1586,63 @@
       "purpose": "RESTRICTIVE policy on every public RLS table: public.mfa_satisfied() = JWT aal2, or no verified factor. A password-only session of someone with 2FA reads/writes nothing.",
       "files": [
         "supabase/migrations/0052_mfa_aal2.sql"
+      ]
+    },
+    {
+      "id": "s-esther-estimate",
+      "layer": "surfaces",
+      "label": "Let Esther estimate",
+      "sub": "New estimate → Esther",
+      "purpose": "Drop a PDF/.docx/.xlsx/.csv/.txt (≤4 MB) or paste a scope → Esther reads it (scan) → coordinator answers what was guessed or missing, one question per screen as a conversation with Esther, ending on a review of every answer (EstherDetails) → Esther drafts lines against the platform catalog → one estimate saved (lines + context + schedule_plan) and opened on Line items with a \"Drafted by Esther\" card. Nothing written before the end.",
+      "files": [
+        "components/features/esther-estimate/EstherEstimateFlow.tsx",
+        "components/features/esther-estimate/EstherDetails.tsx",
+        "components/features/esther-estimate/EstherMagic.tsx",
+        "components/features/esther-estimate/EstimateChooser.tsx",
+        "components/features/esther-estimate/EstherDraftCard.tsx",
+        "components/features/esther-estimate/EstherFace.tsx",
+        "components/features/esther-estimate/EstherReferencesCard.tsx",
+        "app/api/esther/references/route.ts",
+        "lib/esther/estimate/references.ts"
+      ],
+      "flags": {
+        "gated": "admin/manager"
+      }
+    },
+    {
+      "id": "api-esther",
+      "layer": "bridge",
+      "label": "/api/esther (+ /scan, /draft)",
+      "sub": "server routes, maxDuration 300",
+      "purpose": "GET = is Esther set up (ANTHROPIC_API_KEY). POST scan/draft: requireZohoReader tier (admin+manager), read the document (PDF native block, .docx via mammoth), call Claude with structured outputs (Zod → apiSchema), adaptive thinking, fallbacks: default, cached system+document. Writes nothing.",
+      "files": [
+        "app/api/esther/route.ts",
+        "app/api/esther/scan/route.ts",
+        "app/api/esther/draft/route.ts",
+        "lib/esther/estimate/server.ts",
+        "lib/esther/estimate/api-schema.ts"
+      ]
+    },
+    {
+      "id": "l-esther-build",
+      "layer": "bridge",
+      "label": "esther/estimate/build + history",
+      "sub": "pure",
+      "purpose": "Draft → lines: catalog lines sized by the catalog, unknown ids become custom, custom hours clamped and unconfirmed, PM/QA via missingRoleLine; uncovered requirements; answers → context + schedule_plan. History (history.ts): the draft route reads APPROVED estimates on the same platform + done tasks with logged time (user session, RLS), sends the 5 most similar (numbered, client names/titles/emails/URLs/phones scrubbed) and estimated-vs-actual per catalog task; only that history may resize a catalog line (allowedAdjustment: toward the actuals, 0.5x-3x).",
+      "files": [
+        "lib/esther/estimate/build.ts",
+        "lib/esther/estimate/types.ts",
+        "lib/esther/estimate/history.ts"
+      ]
+    },
+    {
+      "id": "x-anthropic",
+      "layer": "external",
+      "label": "Anthropic Claude API",
+      "sub": "scan: claude-sonnet-5-5 · draft: claude-opus-5-5",
+      "purpose": "Reads the client document and drafts the estimate for \"Let Esther estimate\". Server-only key (ANTHROPIC_API_KEY); the document is sent to Anthropic.",
+      "files": [
+        "lib/esther/estimate/server.ts"
       ]
     }
   ],
@@ -2864,6 +2921,31 @@
       "from": "au-mfa",
       "to": "au-rls",
       "label": "ANDed with every policy"
+    },
+    {
+      "from": "s-proposals",
+      "to": "s-esther-estimate",
+      "label": "New estimate → Esther"
+    },
+    {
+      "from": "s-esther-estimate",
+      "to": "api-esther",
+      "label": "scan, then draft"
+    },
+    {
+      "from": "api-esther",
+      "to": "x-anthropic",
+      "label": "structured outputs"
+    },
+    {
+      "from": "s-esther-estimate",
+      "to": "l-esther-build",
+      "label": "draft → lines"
+    },
+    {
+      "from": "s-esther-estimate",
+      "to": "st-proposals",
+      "label": "createEstimateFromEsther"
     }
   ],
   "flows": [
@@ -4400,6 +4482,77 @@
           ]
         }
       ]
+    },
+    {
+      "id": "f-est-esther",
+      "name": "Let Esther estimate",
+      "actor": "Admin / Manager",
+      "summary": "Document → Esther scan → coordinator confirms → Esther draft → saved estimate, reviewed like any other (custom lines to confirm, Before you send).",
+      "steps": [
+        {
+          "n": 1,
+          "from": "a-manager",
+          "to": "s-proposals",
+          "action": "New estimate → Let Esther estimate (EstimateChooser asks GET /api/esther first)",
+          "files": [
+            "components/features/esther-estimate/EstimateChooser.tsx"
+          ]
+        },
+        {
+          "n": 2,
+          "from": "s-esther-estimate",
+          "to": "api-esther",
+          "action": "POST /api/esther/scan with the file (or pasted text)",
+          "files": [
+            "app/api/esther/scan/route.ts"
+          ]
+        },
+        {
+          "n": 3,
+          "from": "api-esther",
+          "to": "x-anthropic",
+          "action": "Claude returns fields with sources, requirements, questions",
+          "files": [
+            "lib/esther/estimate/server.ts"
+          ]
+        },
+        {
+          "n": 4,
+          "from": "a-manager",
+          "to": "s-esther-estimate",
+          "action": "Answers what was guessed or missing; picks the client in Zoho",
+          "files": [
+            "components/features/esther-estimate/EstherDetails.tsx"
+          ]
+        },
+        {
+          "n": 5,
+          "from": "s-esther-estimate",
+          "to": "api-esther",
+          "action": "POST /api/esther/draft (document + scan + answers + catalog)",
+          "files": [
+            "app/api/esther/draft/route.ts"
+          ]
+        },
+        {
+          "n": 6,
+          "from": "s-esther-estimate",
+          "to": "l-esther-build",
+          "action": "linesFromDraft / contextFromAnswers / schedulePlanFromAnswers",
+          "files": [
+            "lib/esther/estimate/build.ts"
+          ]
+        },
+        {
+          "n": 7,
+          "from": "s-esther-estimate",
+          "to": "st-proposals",
+          "action": "createEstimateFromEsther inserts one row (awaited), then opens the editor",
+          "files": [
+            "store/proposal-estimator-store.ts"
+          ]
+        }
+      ]
     }
   ],
   "invariants": [
@@ -4531,7 +4684,10 @@
     "Project context (primary goal, redesign + URL, regulated industry + type) moved from questionnaire section 1 to Setup -> Project context on 2026-11-12, stored in proposals.context (migration 0054); read with schedule answers via withQuoteAnswers (lib/discovery/context-inputs.ts). Line-items-only estimates get one-click suggested lines (ContextSuggestions). Questionnaire is now 7 steps (section 7 merged into 1, Client & Context).",
     "Schedule answers (start date, hard deadline, client review time, blackout periods) moved from questionnaire section 7 to the Adjust tab Timeline card on 2026-11-12, for every estimate; stored on proposals.schedule_plan, read only via scheduleInputsOf / withScheduleInputs (lib/discovery/schedule-inputs.ts) with fallback to the old questionnaire answers.",
     "Device/browser audit 2026-11-12 (375/768/1280; Chrome, Edge, WebKit): touch targets >=24px (44px phone header), hover-reveal only under pointer-fine, sheet width overrides need the data-[side=...] prefix (sheet.tsx sets data-[side=right]:w-3/4), WorkspacePageHeader has no margin (parents use gap-6), sprint board/backlog link back to the project.",
-    "Review -> Timeline on an estimate draws the people plan task by task with GanttClient's plan prop (same chart as the project page); each task's planned risk-buffer hours are its amber striped bar end. Manual keeps DiscoveryGantt."
+    "Review -> Timeline on an estimate draws the people plan task by task with GanttClient's plan prop (same chart as the project page); each task's planned risk-buffer hours are its amber striped bar end. Manual keeps DiscoveryGantt.",
+    "Esther output is trusted for shape only: catalog lines take name/hours/role from the catalog, unknown ids become custom lines, custom hours are clamped and start unconfirmed, and PM/QA lines come from missingRoleLine — never from the model (lib/esther/estimate/build.ts).",
+    "\"Let Esther estimate\" writes nothing until the end: scan and draft routes are read-only, and the estimate is inserted once (awaited) before the editor opens.",
+    "Esther never sends a past estimate title or client name to Anthropic: past estimates are numbered and every line is scrubbed (lib/esther/estimate/history.ts anonymize). Only approved estimates and done tasks with logged time are used as reference."
   ],
   "permissionsMatrix": {
     "columns": [
@@ -4690,6 +4846,16 @@
           "No"
         ],
         "rls": "app/api/users/[id]/mfa (requireAdmin)"
+      },
+      {
+        "cap": "Let Esther estimate (AI draft from a document)",
+        "v": [
+          "Yes",
+          "Yes",
+          "No",
+          "No"
+        ],
+        "rls": "server: requireZohoReader tier in /api/esther/*; proposals RLS for the insert"
       }
     ]
   }

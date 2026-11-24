@@ -71,7 +71,7 @@ When unsure, check `node_modules/next/dist/docs/` in this project before impleme
 | Dates        | date-fns, react-day-picker                              |
 | Sanitization | DOMPurify (user-generated content)                      |
 | PDF export   | jsPDF + jspdf-autotable                                 |
-| Excel export | xlsx (SheetJS)                                          |
+| Excel export | xlsx (SheetJS) **0.20.3 from cdn.sheetjs.com** — npm stops at 0.18.5, which has prototype-pollution + ReDoS advisories on READING files (Esther reads client spreadsheets). Never "upgrade" it back to the npm build |
 | Patching     | patch-package (`postinstall`)                           |
 | Tours        | driver.js 1.x (MIT) — onboarding tours, wrapped by `lib/tours/run.ts` only |
 | Backend SDK  | `@supabase/supabase-js` + `@supabase/ssr` (wired — Auth, data, Realtime, Storage) |
@@ -141,7 +141,8 @@ components/
 │   ├── skills/         # MemberSkillsEditor, StarRating
 │   ├── tour/           # HelpMenu (header ?), TourHost (welcome · nudges · Show me), GettingStartedCard, TourSettingsCard, use-tours
 │   ├── team/           # MemberAccessDialog, PageAccessChecklist, WorkKeysEditor
-│   └── esther/         # parked chat client (see "Esther is built but parked")
+│   ├── esther-estimate/ # "Let Esther estimate": EstimateChooser, EstherEstimateFlow, EstherDetails, EstherMagic, EstherDraftCard, EstherFace
+│   └── esther/         # parked chat client (see "The old Esther CHAT is built but HIDDEN")
 └── layouts/            # dashboard-header / -sidebar-nav / -mobile-menu / -mobile-tab-bar / -nav-config, workspace-page-header,
                         #   workspace-sync (hydrate + realtime), auth-provider, page-access-guard, sidebar-user-card, app-providers, app-atmosphere
 hooks/                  # usePermissions, useAuth, useProjects, useSprints, useTasks, useTimeTrackingAccess, useNavAccess,
@@ -166,7 +167,7 @@ lib/
 ├── pricing/            # hourly-rates.ts (rate rules) + line-pricing.ts (who does a line, what it costs)
 ├── zoho/               # OAuth tokens, write-allowlist, deal stages/products/packages, won-transition
 ├── pbs/                # tokens (mintOnce), endpoint allowlist, clients/directory, PO status
-├── esther/             # parked brief engine
+├── esther/             # parked brief engine + estimate/ ("Let Esther estimate": types, build, api-schema, server)
 └── supabase/           # client.ts (browser), server.ts (API route guards), admin.ts (service role, server-only),
                         #   require-admin.ts, middleware.ts + config.ts + parse-error.ts — wired
 store/                  # Zustand (live via WorkspaceSync + optimistic write-through; demo persists to localStorage):
@@ -203,6 +204,7 @@ supabase/               # migrations/ 0001 schema · 0002 rls · 0003–0009 men
                         #   0052 two-factor: restrictive `mfa_aal2` policy on every public table
                         #   0053 workspace_settings (one row: sprint length in weeks; admin-set)
                         #   0054 proposals.context (Setup's goal / redesign / regulated industry)
+                        #   0055 esther_references (uploaded past estimates; admin writes, manager reads)
                         #   + README - `npm run db:push`
 project-csv/            # Project_Pricing_Workbook_v3.xlsx — source for the catalog + hourly rates
                         #   (the older "tasks and integration.xlsx" is superseded)
@@ -313,6 +315,7 @@ gives you both the type and the validator. Works seamlessly with React Hook Form
 | `member_skills` (skill + 1–5 stars)   | select / upsert / delete   | `member-skills-store` (Team → star button) | Wired |
 | `holiday_settings` (federal holiday → worked?) | select (everyone) / upsert (admin) | `holiday-settings-store` → `setWorkingHolidays` (Settings → Workspace → Holidays) | Wired — no realtime, on purpose |
 | `workspace_settings` (one row: `sprint_weeks`) | select (everyone) / upsert (admin) | `workspace-settings-store` (Settings → Workspace → Sprint length) | Wired — no realtime, read on load |
+| `esther_references` (uploaded past estimates → lines, names removed) | select (admin+manager) / insert + delete (admin) via `/api/esther/references` | `useEstherReferences` (Settings → Workspace → Esther's past estimates) | Wired — needs `0055` applied |
 | `tour_progress` (tour seen: version + completed/dismissed) | select / upsert / delete (self only) | `tour-store` (? menu, welcome, checklist dismissal) | Wired — no realtime, on purpose |
 
 **Server-side proposal export** (`GET /proposals/:id/export` in the old plan) → still optional; a
@@ -438,6 +441,18 @@ interface ClientQuote {
   is the one read, used by the Hours tab, the PDF, Excel and the client
   preview. Guided quotes only — a catalog quote has no questionnaire.
   `e2e/scope-assumptions.spec.ts`.
+  **On screen they're grouped** (2026-11-24, `groupAssumptions`,
+  `lib/estimator/assumption-groups.ts`): Included · The client provides ·
+  Still to confirm with the client (its "(assumed, not confirmed)" note
+  moves to the heading) · Not included, each a single-column list. Keyword
+  rules; no match = Included. **Edit** uses the same four groups: one row per
+  assumption, "Add" per group, × to remove, Enter adds a line, Backspace on
+  an empty one removes it, a pasted list becomes rows. Save stores the list
+  in group order; a line whose wording wouldn't land in the group it was put
+  in gets a marker (`toStored`: "Not included: …", "Client provides: …",
+  "Included: …", "… (to confirm)") that the view hides and the PDF prints
+  naturally; untouched lines are saved exactly as they were.
+  `e2e/assumption-groups.spec.ts` (rules + the editor, live).
   **The questionnaire asks only what changes its estimate** (2026-11-12).
   What every estimate needs moved out of it, because an estimate that goes
   straight to Line items never opens it: **goal, redesign (+ URL), regulated
@@ -912,24 +927,174 @@ kept in step, keyed on **`tasks.source_line_item_id`** ↔ `proposals.line_items
    discoverable by going back to the estimate, which is the one place nobody
    looks while rescheduling.
 
-> **"Draft from client scope" is a DEMO page, and it is HIDDEN** (built
-> 2026-10-26, hidden 2026-10-28). The Estimator's "Preview" strip is gone and
-> `/proposals/scope-demo` redirects to `/proposals`, like Esther; the demo
-> itself stays in `ScopeDraftDemo.tsx`. Bringing it back = the page route
-> rendering `<ScopeDraftDemo />` again, the strip on `ProposalsListClient`, and
-> the walk-through `e2e/scope-demo.spec.ts` from git history (today that spec
-> only asserts it stays hidden). What it was:
-> `/proposals/scope-demo` (`ScopeDraftDemo.tsx`, linked from a dashed
-> "Preview" strip on the Estimator list) shows the planned hybrid flow, branded as
-> Esther — paste a scope → catalog/library matches + Esther-drafted lines →
-> review (scope pinned beside the lines from `xl`, folded above them below) → add —
-> on fixed sample data (the Bespoke Tile Sample Box scope). It is labelled
-> "Demo UI only", calls no AI, and **writes nothing**: `e2e/scope-demo.spec.ts`
-> fails on any non-GET during the walk. Only its prices are real (the
-> workspace's hourly rates). When the real feature is built, replace the file
-> and the strip; don't extend the fixtures.
+### Let Esther estimate (AI draft from the client's document, 2026-11-21)
 
-> **Esther is built but HIDDEN** (2026-10-21). `components/features/esther/`
+**New estimate → "How do you want to start?"** (`EstimateChooser`):
+**Let Esther estimate** or **Build it myself** (the existing questionnaire /
+line-items dialog). Esther's card asks `GET /api/esther` each time and says
+"Not set up yet" when there is no `ANTHROPIC_API_KEY` (server env, also
+Vercel). Admin + manager only, like the rest of the Estimator.
+
+The flow (`components/features/esther-estimate/EstherEstimateFlow.tsx`), all
+in one dialog, **nothing written until the end**:
+ 1. **Drop** a PDF / .docx / .xlsx / .xls / .csv / .txt / .md (≤ 4 MB — Vercel's 4.5 MB request
+    cap) or paste the text, plus an optional note.
+ 2. **Reading** — `POST /api/esther/scan`: Claude reads it and returns, per
+    field, the value + its source (`document` with the client's exact words /
+    `guess` / `none`): title, client, platform, Setup's context (goal,
+    redesign + URL, regulated + type) and the Adjust tab's schedule (start,
+    hard deadline, review days, blackout + notes); every requirement
+    (`R1…`, with a quote); and ≤ 6 questions that would change the hours.
+    `EstherMagic` is the working animation (her face, thinking, in an orbit
+    ring of the primary → chart-2 gradient, a progress bar and ONE status line that changes — no
+    checklist, changed 2026-11-24 — and an elapsed clock). Claude reports no
+    progress mid-answer, so both are time-based on the measured durations
+    (~40 s read, ~110 s draft): the bar eases toward 95% (`progressAt`, ~80%
+    at the usual time) and only completes when the answer arrives.
+    **Esther has a face** (`EstherFace`, 2026-11-24) wherever the sparkle
+    stood for HER: chooser card, dialog title (`sorry` on an error), chat
+    bubbles (`ask` on a question, `success` on the review), the loading orb
+    (`think`) and the draft card (`success` once reviewed). Stacked 256px
+    WebP frames in `public/esther/` (sources: `design/esther/*.png`),
+    swapped on a timer (`MOODS`: base → in-between → main, idle blinks);
+    reduced motion shows the resting frame. Buttons and the ✨ line tag stay
+    sparkles. A new frame = a file + a `MOODS` step; the spec checks every
+    frame exists and that the blink really plays.
+    **Esther text in dark mode is `text-primary dark:text-indigo-300`** —
+    the dark theme's `--primary` is too dark to read as text on the dialog. **Stop** aborts the request.
+ 3. **A conversation with Esther** (`EstherDetails`, changed 2026-11-24 from
+    one long scrolling form): her bubble says what she read, then ONE question
+    per screen with a progress bar — name, client, then only what she guessed
+    or didn't find (each says so: "I couldn't find this" / "This is my guess",
+    with the client's words), then her own questions. A tap that fully answers
+    a question moves on by itself; Enter submits a text box. It ends on a
+    **review** of everything she'll use, answers from the document included
+    (marked); tapping a row opens that question and "Done" returns to the
+    review. A failed or stopped draft comes back to the review. **Build my
+    estimate** (on the review) waits for: title, client (Find in Zoho, pre-searched with the
+    name Esther found; typed in demo mode), platform, start, deadline, review
+    time, blackout, redesign, regulated (+ type). Esther's own questions are
+    optional: "Not sure" = she assumes and writes the assumption.
+ 4. **Drafting** — `POST /api/esther/draft`: same document + the scan + the
+    confirmed answers + this platform's catalog → lines (catalog rows by id,
+    or custom lines), assumptions, open questions.
+ 5. **Saved and opened** — `createEstimateFromEsther` (store) inserts ONE row
+    with lines, `context` (answers + assumptions + `context.esther`) and
+    `schedule_plan` (Best-fit), awaited, then opens the editor on Line items.
+
+**Nothing Claude returns is trusted beyond its shape** (`lib/esther/estimate/build.ts`,
+pure): a catalog line takes name, module, hours and role FROM THE CATALOG; an
+id the platform doesn't have becomes a custom line; custom hours are clamped
+(0.5–400, half hours) and the line starts `hours_confirmed: false`, so it gets
+the usual "Hours to confirm with a developer" tag; PM and QA lines come from
+`missingRoleLine` (Before you send's sizing), not the model. Requirements no
+line covers are kept as `context.esther.uncovered`.
+
+**In the editor:** the Line items tab's **"Drafted by Esther"** card
+(`EstherDraftCard`, rearranged 2026-11-24 around what the reviewer must DO):
+her summary (two lines, "Show more"), then **Your review** — three rows, each
+a count that opens its list and turns green when empty: **Confirm hours on N
+new tasks** (live; each title scrolls to its line, `id="line-<id>"` on
+`LineItemRow`, and flashes it), **N requests aren't priced yet** (uncovered
+requirements) and **N questions for your developer**. The header says "N to
+review". The client's requests and the past estimates she followed fold into
+one line at the bottom ("Built from N client requests · based on N past
+approved estimates").
+Each Esther line has a ✨ **Esther** tag and, in its details, **Why Esther added
+this** (`line_items[].esther_note`, inside the jsonb). Client documents (PDF,
+Excel, preview) never show either. The estimate is then reviewed like any
+other: Before you send, Send to Zoho, Start project.
+
+**Server** (`lib/esther/estimate/server.ts`, `server-only`): model
+**the scan on `claude-sonnet-5-5`, the draft on `claude-opus-5-5`, both at
+effort `medium`** (`ESTHER_STEPS` — one table; routes pass `step: "scan" |
+"draft"`), streamed, adaptive thinking, **structured outputs**
+(`output_config.format`) from the Zod schemas in `types.ts` via `apiSchema`
+(strips `min*`/`max*`, which the API rejects; Zod re-checks them on the reply),
+`fallbacks: "default"` (beta `server-side-fallback-2026-07-01`) so a policy
+decline is retried on Anthropic's fallback model. Only the system prompt is
+cached; the document is not (the two steps run on different models and
+formats, so a cached copy could never be re-read — it only cost the 25%
+write charge). The document is data: the system prompt says
+never to follow instructions in it. PDFs go as a native document block;
+.docx is read with `mammoth`; Excel with SheetJS (`lib/esther/estimate/spreadsheet.ts`: every sheet as CSV under its name, values not formulas; the file must carry a real workbook signature, since SheetJS reads any bytes as a sheet); CSV as text. Errors map to friendly codes (`not_configured`,
+`unreadable`, `too_large`, `busy`, `refused`, `failed`); both routes have
+`maxDuration = 300`. Demo mode (no Supabase) works only in dev.
+
+> **Cost test (2026-11-24, `ESTHER_STEPS`' comment has the reasoning):** 3 real
+> briefs × 4 setups. Opus scan + Opus draft at high averaged $0.29 per
+> estimate; Sonnet scan + Opus draft at medium (now live) ~$0.19–0.25, the
+> same drafts (91–100% of the same catalog tasks, hours within ±13%), ~30 s
+> faster. All-Sonnet was $0.13 but dropped standard setup rows (domain,
+> backups, SSL) on one brief, so the draft stays on Opus until a bigger test.
+> Every call logs `[esther] usage step=… model=… cost=$…` (server log /
+> Vercel Logs) — that is how Esther's spend is measured. The scan and draft
+> use different answer formats, so the draft does NOT re-read the scan's
+> cached document (a format change invalidates the cache); only the system
+> prompt is shared.
+>
+> **First live run (2026-11-24), a one-page bakery brief:** scan 37 s, draft
+> 106 s → 40 lines (33 from the catalog), 5 past estimates used, sensible
+> assumptions and a budget warning. So it **needs Vercel Pro / Fluid Compute**
+> (Hobby cuts a function at 60 s). Structured outputs limit a schema to **16
+> union-typed fields** and reject a "too large" grammar well before that:
+> quotes and suggestions are `""` when empty (never `null`), and `apiSchema`
+> turns "enum or null" / "boolean or null" into one `enum` (no union). The
+> spec caps unions at 8 — a new nullable field must fit under it.
+
+**Esther learns from this workspace's own work** (decided 2026-11-21,
+`lib/esther/estimate/history.ts`, pure, `e2e/esther-history.spec.ts`). Claude is
+not trained on it: the draft route (`loadHistory`, the signed-in person's own
+session, so RLS applies) reads **approved** estimates on the same platform —
+never draft / sent / rejected — and the **done** tasks with logged time on
+their projects, and puts the relevant part in the prompt every time:
+ - the **5 most similar** approved estimates (`pickSimilar`: shared words between
+   the new requirements and their lines, rarer words count more; no overlap →
+   the most recent) with their lines, hours, quantities, tiers and roles;
+ - **estimated vs actual** per catalog task (median of logged ÷ estimated over
+   finished tasks) and examples of finished custom work.
+ - **Client names never leave:** past estimates are numbered, never titled (a
+   title usually IS the client — "Willow School"), and every line is scrubbed
+   of the client name, Zoho company / contact / deal name and title (whole
+   words), emails, web addresses and phone numbers (`anonymize`).
+ - **Only finished work may resize a catalog task.** Esther returns
+   `adjusted_hours` per line; `allowedAdjustment` applies it only when that
+   catalog id has finished-task history, only between the catalog hours and
+   what history showed, and never past 0.5×–3×. With no history, catalog hours.
+ - The draft card says **"Based on N past approved estimates"** with links
+   (`context.esther.based_on`), or that there are none yet. On 2026-11-21 there
+   were 12 approved WordPress estimates and **no finished tasks with logged
+   time** — so the estimated-vs-actual half switches on once the team marks
+   tasks Done and logs hours.
+
+**Esther's past estimates** (2026-11-24, `esther_references`, migration
+**0055**). The team's estimates from BEFORE this app (Word, Excel, CSV, PDF)
+are uploaded in **Settings → Workspace → Esther's past estimates**
+(`EstherReferencesCard`) — **admins upload and delete; managers see the list**
+(RLS + `requireAdmin` on POST/DELETE; managers must READ because the draft runs
+on the signed-in person's session). Each file is read ONCE (`POST
+/api/esther/references`, step `reference` = Sonnet, a few cents) into plain
+lines — title, phase, total hours, quantity, role — plus every client/person
+name in it; `referenceFromExtract` (`lib/esther/estimate/references.ts`, pure)
+removes those names, emails, sites and phones with the same `anonymize`,
+clamps hours to quarter hours (≤ 2000) and drops subtotal/empty rows. The file
+itself is never stored. Every draft adds the **3 most similar** uploads
+(`pickReferences`: same platform or none stated, `rankByWords` — the same
+matcher as the approved estimates) as a numbered, untitled prompt section
+(`referencesPrompt`); the draft card says "+ N uploaded past estimates"
+(`context.esther.references_used`). A missing table (0055 not applied) reads as
+none in drafts and as "not set up yet" on the card.
+`e2e/esther-references.spec.ts`: the rules, the manager's read-only view and
+403s, and an admin's upload/delete with the route mocked (throwaway `[E2E]` admin).
+
+`e2e/esther-estimate.spec.ts`: the pure rules, the schemas sent to Claude, the
+live routes with no key (auth, file checks — nothing is billed), and the whole
+UI flow with Esther mocked, landing on a saved `[E2E]` estimate (deleted).
+The old "Draft from client scope" demo (`ScopeDraftDemo.tsx`) was deleted —
+this replaced it; `/proposals/scope-demo` still redirects to `/proposals`.
+
+> **The old Esther CHAT is built but HIDDEN** (2026-10-21) — not to be
+> confused with "Let Esther estimate" above, which is live. `components/features/esther/`
 > holds a working chat client over `lib/esther/engine` (`analyzeBrief` →
 > `discoveryFromEstherAnalysis` → a seeded estimate), but it has **no nav entry**
 > and **`/esther` redirects to `/proposals`**, so nobody can reach it. It used
@@ -2433,6 +2598,8 @@ a one-time token) and walks the way out end to end, including both refusals.
 | Own two-factor sign-in (set up / turn off) | Yes | Yes | Yes | Yes |
 | Reset someone's two-factor (lost phone) | Yes | No | No | No |
 | Own onboarding tour progress | Yes | Yes | Yes | Yes |
+| Let Esther estimate (AI draft from a document) | Yes | Yes | No | No |
+| Upload / delete Esther's past estimates | Yes | No (reads) | No | No |
 
 > **Estimator** uses the same gates as **Export proposals** — use `canExportProposals` in the UI.
 > **Offboarding** (deactivate/reactivate + permanent delete) and **invites** are admin-only, via
@@ -2453,6 +2620,8 @@ a one-time token) and walks the way out end to end, including both refusals.
 NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-public-key   # public by design; RLS protects data
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key      # server-only — never NEXT_PUBLIC_
+ANTHROPIC_API_KEY=sk-ant-...                          # server-only — "Let Esther estimate"; unset = Esther shows "not set up"
+ANTHROPIC_WORKSPACE_ID=wrkspc_...                     # server-only, optional — only for an org-level key not scoped to a workspace
 NEXT_PUBLIC_APP_NAME=Timeline Estimator
 NEXT_PUBLIC_APP_ENV=development
 ```

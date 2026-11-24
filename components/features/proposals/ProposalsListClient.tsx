@@ -101,6 +101,8 @@ import type {
 } from "@/types/proposal.types";
 import { tourAnchor } from "@/lib/tours/ids";
 import { AppHelp } from "@/components/common/app-help";
+import { EstimateChooser } from "@/components/features/esther-estimate/EstimateChooser";
+import { EstherEstimateFlow } from "@/components/features/esther-estimate/EstherEstimateFlow";
 
 
 /** The New-estimate dialog's "How do you want to scope it?" choice. */
@@ -160,6 +162,9 @@ export function ProposalsListClient() {
     isSupabaseConfigured ? "stages" : "list",
   );
   const [createOpen, setCreateOpen] = React.useState(false);
+  // New estimate asks first: Esther (from a document) or by hand.
+  const [chooserOpen, setChooserOpen] = React.useState(false);
+  const [estherOpen, setEstherOpen] = React.useState(false);
   // Which estimate the PO dialog is for. The list can hold several won deals, so
   // this is an id — and an id rather than the row itself, because the store
   // rewrites the quote once the PO lands and a captured object would go stale.
@@ -451,7 +456,7 @@ export function ProposalsListClient() {
             <Button
               type="button"
               className="w-full gap-2 sm:w-auto"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => setChooserOpen(true)}
               {...tourAnchor("estimator.new")}
             >
               <Plus className="size-4" aria-hidden />
@@ -479,7 +484,7 @@ export function ProposalsListClient() {
             <Button
               type="button"
               className="mx-auto mt-4 w-fit gap-2"
-              onClick={() => setCreateOpen(true)}
+              onClick={() => setChooserOpen(true)}
             >
               <Plus className="size-4" aria-hidden />
               New estimate
@@ -645,6 +650,20 @@ export function ProposalsListClient() {
           })}
         </ul>
       )}
+
+      <EstimateChooser
+        open={chooserOpen}
+        onOpenChange={setChooserOpen}
+        onEsther={() => {
+          setChooserOpen(false);
+          setEstherOpen(true);
+        }}
+        onManual={() => {
+          setChooserOpen(false);
+          setCreateOpen(true);
+        }}
+      />
+      <EstherEstimateFlow open={estherOpen} onOpenChange={setEstherOpen} />
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-xl">

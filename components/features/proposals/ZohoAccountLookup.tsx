@@ -71,12 +71,15 @@ export function ZohoAccountLookup({
   open,
   onClose,
   onSelect,
+  initialQuery = "",
 }: {
   open: boolean;
   onClose: () => void;
   onSelect: (selection: ZohoClientSelection) => void;
+  /** Search to start with when it opens (Esther passes the client name she found). */
+  initialQuery?: string;
 }) {
-  const [q, setQ] = React.useState("");
+  const [q, setQ] = React.useState(initialQuery);
   const [accounts, setAccounts] = React.useState<ZohoAccountResult[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -143,14 +146,14 @@ export function ZohoAccountLookup({
 
   React.useEffect(() => {
     if (open) {
-      setQ("");
+      setQ(initialQuery);
       setAccounts([]);
       setLoaded(false);
       setError(null);
       setPicked(null);
       setContacts([]);
     }
-  }, [open]);
+  }, [open, initialQuery]);
 
   const finish = (contact: ZohoContactResult | null) => {
     if (!picked) return;

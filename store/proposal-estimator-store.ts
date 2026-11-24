@@ -1066,6 +1066,23 @@ export type ProposalDraftInput = {
   >;
 };
 
+/**
+ * "Let Esther estimate": the finished draft, built by `lib/esther/estimate/build.ts`
+ * from Esther's reply and the coordinator's confirmed answers. Lands as a
+ * line-items estimate (no questionnaire) with Setup's context, the Adjust tab's
+ * schedule and Esther's notes already filled in.
+ */
+export type EstherEstimateInput = {
+  title: string;
+  client_name?: string;
+  platform: ProposalPlatform;
+  zoho?: ProposalZohoLink | null;
+  requirements_unclear: boolean;
+  line_items: Omit<ProposalLineItem, "id" | "rate">[];
+  context: ProposalContext;
+  schedule_plan: ProposalSchedulePlan;
+};
+
 export type LineItemPatch = Partial<
   Pick<
     ProposalLineItem,
@@ -1090,6 +1107,8 @@ interface ProposalEstimatorState {
   hydrateFromSupabase: () => Promise<void>;
   createProposal: (input: CreateQuoteInput) => string;
   createProposalFromDraft: (input: ProposalDraftInput) => string;
+  /** Saves Esther's draft as a new estimate; resolves to its id, or null if the insert failed. */
+  createEstimateFromEsther: (input: EstherEstimateInput) => Promise<string | null>;
   updateProposal: (
     id: string,
     partial: Partial<
@@ -1453,6 +1472,70 @@ export const useProposalEstimatorStore = create<ProposalEstimatorState>()(
         }
 
         return id;
+      },
+
+      createEstimateFromEsther: async (input) => {
+        const now = new Date().toISOString();
+        const id = isSupabaseConfigured
+          ? crypto.randomUUID()
+          : nextQuoteId(get().proposals);
+        const rates = liveRates();
+        const quote: ClientQuote = {
+          id,
+          title: input.title.trim() || "Untitled quote",
+          project_id: null,
+          client_name: input.client_name?.trim() || undefined,
+          platform: input.platform,
+          status: "draft",
+          // Each line snapshots today's rate for its role, like any added line.
+          line_items: input.line_items.map((li) =>
+            withPricing({ ...li, id: uid() }, input.platform, rates),
+          ),
+          addons: { ...NEW_ESTIMATE_ADDONS, rates: currentAddonRates(rates) },
+          requirements_unclear: input.requirements_unclear,
+          risk_buffer_pct: DEFAULT_RISK_BUFFER_PCT,
+          discovery: null,
+          schedule_plan: input.schedule_plan,
+          context: input.context,
+          zoho: input.zoho ?? null,
+          owner_id: currentOwnerId(),
+          created_at: now,
+          updated_at: now,
+        };
+        set((s) => ({ proposals: [quote, ...s.proposals] }));
+        if (!isSupabaseConfigured) return id;
+
+        const ownerId = useAuthStore.getState().user.authId;
+        const rollback = (description: string) => {
+          set((s) => ({ proposals: s.proposals.filter((p) => p.id !== id) }));
+          toast.error("Couldn't save Esther's estimate", { description });
+          return null;
+        };
+        if (!ownerId) return rollback("You need to be signed in.");
+        // Awaited (unlike the other creates): the flow navigates to the
+        // estimate only once it exists, so a refused insert can't strand the
+        // coordinator on a page for a quote that was never saved.
+        const { error } = await createClient()
+          .from("proposals")
+          .insert({
+            id,
+            owner_id: ownerId,
+            title: quote.title,
+            project_id: null,
+            client_name: quote.client_name ?? null,
+            notes: null,
+            platform: quote.platform,
+            status: quote.status,
+            line_items: quote.line_items as unknown as Json,
+            addons: quote.addons as unknown as Json,
+            requirements_unclear: quote.requirements_unclear,
+            risk_buffer_pct: quote.risk_buffer_pct,
+            discovery: null,
+            schedule_plan: quote.schedule_plan as unknown as Json,
+            context: quote.context as unknown as Json,
+            zoho: (quote.zoho ?? null) as unknown as Json,
+          });
+        return error ? rollback(parseSupabaseError(error)) : id;
       },
 
       updateProposal: (id, partial) => {
