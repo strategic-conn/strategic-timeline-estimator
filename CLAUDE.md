@@ -989,6 +989,16 @@ id the platform doesn't have becomes a custom line; custom hours are clamped
 the usual "Hours to confirm with a developer" tag; PM and QA lines come from
 `missingRoleLine` (Before you send's sizing), not the model. Requirements no
 line covers are kept as `context.esther.uncovered`.
+ - **Calibrated to the team's own estimates (2026-11-25)**, after comparing
+   her Tile calculator draft with the developer's spreadsheet. Her prompt now
+   puts the team's past estimates FIRST (breakdown, which setup / testing /
+   fixing rounds they include, hours), then the catalog. Setup rows depend on
+   the job: a new site gets the catalog's standard ones, while a plugin or
+   feature on an existing site gets only what similar past estimates include.
+   A custom line is always **Basic** (her hours already hold the complexity;
+   "advanced" turned 8 h into 12 h). PM / QA are **topped up** to 10 % / 20 %
+   of the build, not skipped, so one 3 h test line no longer cancels the QA
+   share.
 
 **In the editor:** the Line items tab's **"Drafted by Esther"** card
 (`EstherDraftCard`, rearranged 2026-11-24 around what the reviewer must DO):

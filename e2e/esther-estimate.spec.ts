@@ -196,8 +196,9 @@ test.describe("rules (pure)", () => {
       esther_note: "The three pages they listed.",
     });
     const custom = lines.find((l) => l.title.startsWith("Cake order form"))!;
-    expect(custom).toMatchObject({ catalog_id: null, base_hours: 7.5, tier: "advanced", hours_confirmed: false });
-    expect(custom.hours).toBe(11.25); // 7.5 × 1.5
+    // Asked "advanced", kept basic: Esther's own hours already hold the complexity.
+    expect(custom).toMatchObject({ catalog_id: null, base_hours: 7.5, tier: "basic", hours_confirmed: false });
+    expect(custom.hours).toBe(7.5);
   });
 
   test("an id the platform doesn't have becomes a custom line; blank titles and wild numbers are tamed", () => {
@@ -216,21 +217,28 @@ test.describe("rules (pure)", () => {
     expect(lines.some((l) => l.esther_note === "dropped")).toBe(false);
   });
 
-  test("PM and QA are added like Before you send's fixes — unless a line of that role exists", () => {
+  test("PM and QA are added like Before you send's fixes — topped up when Esther has some already", () => {
     const lines = linesFromDraft(DRAFT, "wordpress");
     const pm = lines.find((l) => l.responsible === "Project Manager")!;
     const qa = lines.find((l) => l.responsible === "QA Tester")!;
     expect(pm).toMatchObject({ title: "Project management", hours_confirmed: true });
     expect(qa).toMatchObject({ title: "QA & testing", hours_confirmed: true });
-    const build = ROW.base_hours * 3 + 7.5 * 1.5;
+    const build = ROW.base_hours * 3 + 7.5;
     expect(pm.base_hours).toBe(Math.max(1, Math.round(build * 0.1 * 2) / 2));
     expect(qa.base_hours).toBe(Math.max(1, Math.round(build * 0.2 * 2) / 2));
 
-    const withQa = linesFromDraft(
-      { ...DRAFT, lines: [...DRAFT.lines, { ...DRAFT.lines[1], title: "Payment testing", responsible: "QA Tester" }] },
-      "wordpress",
-    );
-    expect(withQa.filter((l) => l.responsible === "QA Tester")).toHaveLength(1);
+    const qaLine = (base_hours: number) =>
+      linesFromDraft(
+        { ...DRAFT, lines: [...DRAFT.lines, { ...DRAFT.lines[1], title: "Payment testing", responsible: "QA Tester", base_hours }] },
+        "wordpress",
+      ).filter((l) => l.responsible === "QA Tester");
+    // Enough testing already: nothing added.
+    expect(qaLine(400)).toHaveLength(1);
+    // A small specific test no longer cancels the share: topped up to 20 %.
+    const small = qaLine(1);
+    expect(small).toHaveLength(2);
+    const target = Math.round((build + 1) * 0.2 * 2) / 2;
+    expect(small.reduce((s, l) => s + l.hours, 0)).toBeCloseTo(target, 0);
   });
 
   test("requirements no line covers are reported; answers map onto the schedule and context", () => {

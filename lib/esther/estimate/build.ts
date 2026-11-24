@@ -73,15 +73,17 @@ export function linesFromDraft(
     const title = tidy(d.title, 200);
     if (!title) continue;
     const base_hours = clampHours(d.base_hours);
+    // Esther sizes a custom line herself, so its hours already include the
+    // complexity — a tier on top would count it twice (8 h "advanced" → 12 h).
     lines.push({
       title,
       module: null,
       category_id: null,
       catalog_id: null,
       base_hours,
-      tier: d.tier,
+      tier: "basic",
       quantity,
-      hours: computeLineHours(base_hours, d.tier, quantity),
+      hours: computeLineHours(base_hours, "basic", quantity),
       depends_on: [],
       responsible: d.responsible,
       level: d.level,
@@ -91,16 +93,18 @@ export function linesFromDraft(
   }
 
   // PM and QA time, sized like the add-ons they replace (10 % / 20 % of the
-  // build) — only when Esther's lines have none of that role already.
+  // build). Esther's own lines of that role count towards it: one 3 h
+  // "accuracy testing" line used to cancel the whole QA share.
   const asItems = lines as ProposalLineItem[];
   const topUps: [ProposalLineItem["responsible"], string][] = [
     ["Project Manager", "Meetings, planning and client updates: 10% of the build hours."],
     ["QA Tester", "Testing before launch: 20% of the build hours, split into a test task after each build task."],
   ];
   for (const [role, note] of topUps) {
-    if (asItems.some((li) => li.responsible === role)) continue;
     const add = missingRoleLine(asItems, role as "Project Manager" | "QA Tester");
-    const base_hours = add.base_hours ?? 1;
+    const have = asItems.filter((li) => li.responsible === role).reduce((s, li) => s + li.hours, 0);
+    const base_hours = Math.round(((add.base_hours ?? 1) - have) * 2) / 2;
+    if (base_hours < 1) continue;
     lines.push({
       title: add.title ?? "",
       module: null,

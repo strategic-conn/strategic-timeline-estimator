@@ -119,5 +119,5 @@ export function referencesPrompt(refs: EstherReference[]): string {
     const more = r.lines.length > MAX_PROMPT_LINES ? `\n  … ${r.lines.length - MAX_PROMPT_LINES} more lines` : "";
     return `Uploaded estimate ${i + 1} — ${r.platform ?? "platform not stated"}, ${r.lines.length} lines, ${r.total_hours} h${r.summary ? `\n  What it was: ${r.summary}` : ""}\n${lines.join("\n")}${more}`;
   });
-  return `Estimates the team wrote before this app (uploaded by the team; client names removed). They show how the agency's own developers break work down and size it. Use them the same way as the approved estimates — task breakdown and realistic hours for the same kinds of requests — but only for work the new client actually asks for, and still prefer catalog rows where one fits:\n\n${blocks.join("\n\n")}`;
+  return `Estimates the team wrote before this app (uploaded by the team; client names removed). They are the agency's developers' own estimates, so they are the best guide to how this team breaks work down and sizes it. For work the new client also asks for, follow them over the catalog: the same kind of tasks, the same setup, testing and fixing rounds, and hours in proportion to the size of this job. Never copy work the new client didn't ask for:\n\n${blocks.join("\n\n")}`;
 }
